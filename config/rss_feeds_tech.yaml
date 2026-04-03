@@ -1,0 +1,254 @@
+# 科技趋势 RSS 源配置
+# 来源: https://github.com/tuan3w/awesome-tech-rss
+# 分类: tech
+
+feeds:
+  # ── Startup ──
+  - id: "hacker-news"
+    name: "Hacker News"
+    url: "http://news.ycombinator.com/rss"
+    category: "tech"
+
+  - id: "product-hunt"
+    name: "Product Hunt"
+    url: "http://www.producthunt.com/feed"
+    category: "tech"
+
+  - id: "first-round-review"
+    name: "First Round Review"
+    url: "http://firstround.com/review/feed.xml"
+    category: "tech"
+
+  - id: "andrew-chen"
+    name: "Andrew Chen"
+    url: "http://andrewchen.co/feed/"
+    category: "tech"
+
+  - id: "paul-graham"
+    name: "Paul Graham Essays"
+    url: "http://www.aaronsw.com/2002/feeds/pgessays.rss"
+    category: "tech"
+
+  - id: "sam-altman"
+    name: "Sam Altman"
+    url: "http://blog.samaltman.com/posts.atom"
+    category: "tech"
+
+  - id: "irrational-exuberance"
+    name: "Irrational Exuberance"
+    url: "https://lethain.com/feeds/"
+    category: "tech"
+
+  # ── Tech News ──
+  - id: "techcrunch"
+    name: "TechCrunch"
+    url: "https://techcrunch.com/feed/"
+    category: "tech"
+
+  - id: "the-verge"
+    name: "The Verge"
+    url: "http://www.theverge.com/rss/full.xml"
+    category: "tech"
+
+  - id: "venturebeat"
+    name: "VentureBeat"
+    url: "http://venturebeat.com/feed/"
+    category: "tech"
+
+  - id: "ars-technica"
+    name: "Ars Technica"
+    url: "http://feeds.arstechnica.com/arstechnica/index"
+    category: "tech"
+
+  - id: "wired-science"
+    name: "Wired Science"
+    url: "https://www.wired.com/feed/category/science/latest/rss"
+    category: "tech"
+
+  # ── Engineering Blogs ──
+  - id: "github-engineering"
+    name: "GitHub Engineering"
+    url: "http://githubengineering.com/atom.xml"
+    category: "tech"
+
+  - id: "netflix-tech"
+    name: "Netflix Tech Blog"
+    url: "https://netflixtechblog.com/feed"
+    category: "tech"
+
+  - id: "airbnb-engineering"
+    name: "Airbnb Tech Blog"
+    url: "https://medium.com/feed/airbnb-engineering"
+    category: "tech"
+
+  - id: "stripe-blog"
+    name: "Stripe Blog"
+    url: "https://stripe.com/blog/feed.rss"
+    category: "tech"
+
+  - id: "cloudflare-blog"
+    name: "Cloudflare Blog"
+    url: "https://blog.cloudflare.com/rss/"
+    category: "tech"
+
+  - id: "spotify-engineering"
+    name: "Spotify Engineering"
+    url: "https://engineering.atspotify.com/feed/"
+    category: "tech"
+
+  - id: "uber-engineering"
+    name: "Uber Engineering"
+    url: "https://www.uber.com/blog/engineering/rss/"
+    category: "tech"
+
+  - id: "meta-engineering"
+    name: "Engineering at Meta"
+    url: "https://engineering.fb.com/feed/"
+    category: "tech"
+
+  - id: "slack-engineering"
+    name: "Slack Engineering"
+    url: "https://slack.engineering/feed"
+    category: "tech"
+
+  - id: "dropbox-tech"
+    name: "Dropbox Tech"
+    url: "https://dropbox.tech/feed"
+    category: "tech"
+
+  - id: "shopify-engineering"
+    name: "Shopify Engineering"
+    url: "https://shopifyengineering.myshopify.com/blogs/engineering.atom"
+    category: "tech"
+
+  - id: "linkedin-engineering"
+    name: "LinkedIn Engineering"
+    url: "https://engineering.linkedin.com/blog.rss.html"
+    category: "tech"
+
+  - id: "stackoverflow-blog"
+    name: "Stack Overflow Blog"
+    url: "https://stackoverflow.blog/feed/"
+    category: "tech"
+
+  - id: "pragmatic-engineer"
+    name: "The Pragmatic Engineer"
+    url: "https://blog.pragmaticengineer.com/rss/"
+    category: "tech"
+
+  - id: "julia-evans"
+    name: "Julia Evans"
+    url: "https://jvns.ca/atom.xml"
+    category: "tech"
+
+  - id: "dan-luu"
+    name: "Dan Luu"
+    url: "https://danluu.com/atom.xml"
+    category: "tech"
+
+  - id: "overreacted"
+    name: "Dan Abramov (Overreacted)"
+    url: "https://overreacted.io/rss.xml"
+    category: "tech"
+
+  - id: "martin-fowler"
+    name: "Martin Fowler"
+    url: "https://martinfowler.com/feed.atom"
+    category: "tech"
+
+  - id: "joel-on-software"
+    name: "Joel on Software"
+    url: "https://www.joelonsoftware.com/feed/"
+    category: "tech"
+
+  - id: "coding-horror"
+    name: "Coding Horror"
+    url: "https://feeds.feedburner.com/codinghorror"
+    category: "tech"
+
+  # ── Machine Learning & AI ──
+  - id: "openai-engineering"
+    name: "OpenAI Engineering"
+    url: "https://openai.com/news/engineering/rss.xml"
+    category: "tech"
+
+  - id: "deepmind-blog"
+    name: "DeepMind"
+    url: "https://deepmind.com/blog/feed/basic/"
+    category: "tech"
+
+  - id: "google-ai-blog"
+    name: "Google AI Blog"
+    url: "http://googleresearch.blogspot.com/atom.xml"
+    category: "tech"
+
+  - id: "bair-blog"
+    name: "Berkeley AI Research"
+    url: "http://bair.berkeley.edu/blog/feed.xml"
+    category: "tech"
+
+  - id: "ml-cmu"
+    name: "ML@CMU"
+    url: "https://blog.ml.cmu.edu/feed/"
+    category: "tech"
+
+  - id: "lil-log"
+    name: "Lil'Log (Lilian Weng)"
+    url: "https://lilianweng.github.io/lil-log/feed.xml"
+    category: "tech"
+
+  - id: "jay-alammar"
+    name: "Jay Alammar"
+    url: "https://jalammar.github.io/feed.xml"
+    category: "tech"
+
+  - id: "amazon-science"
+    name: "Amazon Science"
+    url: "https://www.amazon.science/index.rss"
+    category: "tech"
+
+  - id: "nvidia-dev-blog"
+    name: "NVIDIA Developer Blog"
+    url: "https://developer.nvidia.com/blog/feed"
+    category: "tech"
+
+  - id: "pytorch-blog"
+    name: "PyTorch"
+    url: "https://pytorch.org/feed"
+    category: "tech"
+
+  - id: "the-gradient"
+    name: "The Gradient"
+    url: "https://thegradient.pub/rss/"
+    category: "tech"
+
+  # ── Learning / Thinking ──
+  - id: "farnam-street"
+    name: "Farnam Street"
+    url: "https://fs.blog/feed/"
+    category: "tech"
+
+  - id: "ness-labs"
+    name: "Ness Labs"
+    url: "https://nesslabs.com/feed"
+    category: "tech"
+
+  - id: "quanta-magazine"
+    name: "Quanta Magazine"
+    url: "http://www.quantamagazine.org/feed/"
+    category: "tech"
+
+  - id: "mit-news-ai"
+    name: "MIT News - AI"
+    url: "http://news.mit.edu/rss/topic/artificial-intelligence2"
+    category: "tech"
+
+  - id: "stratechery"
+    name: "Stratechery"
+    url: "http://stratechery.com/feed/"
+    category: "tech"
+
+  - id: "signal-v-noise"
+    name: "Signal v. Noise"
+    url: "https://m.signalvnoise.com/feed/"
+    category: "tech"

@@ -14,6 +14,7 @@
       <div class="gallery">
         <div class="gallery-main">
           <img id="main-img" src="{{ images[0] }}" alt="主图"
+               referrerpolicy="no-referrer" crossorigin="anonymous"
                onerror="this.src='';this.alt='图片加载失败';">
         </div>
         {% if images | length > 1 %}
@@ -21,6 +22,7 @@
             {% for img in images %}
               <img class="thumb {% if loop.first %}thumb-active{% endif %}"
                    src="{{ img }}" alt="图{{ loop.index }}"
+                   referrerpolicy="no-referrer" crossorigin="anonymous"
                    onclick="document.getElementById('main-img').src=this.src; document.querySelectorAll('.thumb').forEach(t=>t.classList.remove('thumb-active')); this.classList.add('thumb-active');"
                    onerror="this.style.display='none';"
                    loading="lazy">

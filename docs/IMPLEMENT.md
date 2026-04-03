@@ -1,8 +1,22 @@
-# 本体大脑情报中枢 V0.3+ — 四层编译链 + 评论关联 + 视觉分析
+# 本体大脑情报中枢 V0.3+ — 四层编译链 + 评论关联 + 视觉分析 + RSS 趋势情报
 
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 > V0.3+ 增量：评论-笔记自动关联 / 千问 VL 视觉分析 / 端到端验证通过。
+> V0.4  RSS 趋势情报：接入 awesome-tech-rss + awesome-rss-feeds，新增「科技趋势」「新闻媒体」原生浏览页。
 > 详见 [PLAN_V2_COMPILATION_CHAIN.md](./PLAN_V2_COMPILATION_CHAIN.md)
+
+## V0.4 进展 — RSS 趋势情报 (2026-04-03)
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| RSS 源配置 | **已完成** | `config/rss_feeds_tech.yaml` (46 feeds) + `config/rss_feeds_news.yaml` (30 feeds) |
+| TrendRadar 启用 RSS | **已完成** | `config.yaml` rss.enabled → true，feeds 列表合并 40 个高优先级源 |
+| RSS 数据加载器 | **已完成** | `ingest/rss_loader.py`: 直读 TrendRadar `output/rss/*.db`，按 category 过滤 |
+| API 路由 | **已完成** | `/rss/tech` + `/rss/news`：支持分页、搜索、feed 来源筛选 |
+| UI 模板 | **已完成** | `rss_feed.html`: 卡片网格、feed 标签筛选、摘要截断、原文链接 |
+| 导航栏 + Dashboard | **已完成** | 新增「科技趋势」「新闻媒体」导航；Dashboard 统计卡片 |
+| 一键执行脚本 | **已完成** | `scripts/run_rss_fetch_and_pipeline.py`: feedparser 独立抓取 + Pipeline 编译 |
+| 端到端验证 | **已完成** | 39 源成功 / 1 失败, 1936 条目; Dashboard 科技 1514 / 新闻 424 |
 
 ## V0.3+ 进展 (2026-04-03)
 
@@ -51,8 +65,9 @@
 apps/
   intel_hub/
     api/
-      app.py
+      app.py                         # +RSS 路由 /rss/tech, /rss/news
       templates/
+        rss_feed.html                # V0.4 RSS 卡片网格模板
     compiler/
       dedupe.py
       demand_spec_compiler.py    # V0.3 DemandSpecAsset 编译器
@@ -69,6 +84,7 @@ apps/
     ingest/
       trendradar_loader.py
       mediacrawler_loader.py     # V2: 自动关联评论 + image_list 传递
+      rss_loader.py              # V0.4: 直读 TrendRadar RSS SQLite，按 category 过滤
       source_router.py           # 统一 raw signal 收集路由
       xhs_loader.py              # 小红书评论级数据加载（兼容旧路径）
       xhs_aggregator.py          # 评论聚合为笔记级信号（兼容旧路径）
@@ -193,6 +209,11 @@ python3.11 -m venv .venv311
 ```bash
 .venv311/bin/python apps/intel_hub/scripts/run_pipeline_stage_demo.py
 # 或指定目录: --mediacrawler-jsonl path/to/jsonl
+
+# RSS 趋势抓取 + Pipeline 一键执行
+.venv311/bin/python -m apps.intel_hub.scripts.run_rss_fetch_and_pipeline
+# 仅抓取 RSS 不运行 Pipeline:
+.venv311/bin/python -m apps.intel_hub.scripts.run_rss_fetch_and_pipeline --skip-pipeline
 ```
 
 ### 3. 启动本地服务

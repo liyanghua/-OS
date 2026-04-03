@@ -1,0 +1,167 @@
+# 新闻媒体 RSS 源配置
+# 来源: https://github.com/plenaryapp/awesome-rss-feeds
+# 分类: news
+
+feeds:
+  # ── 全球 / 综合 ──
+  - id: "bbc-world"
+    name: "BBC News - World"
+    url: "http://feeds.bbci.co.uk/news/world/rss.xml"
+    category: "news"
+
+  - id: "reuters-world"
+    name: "Reuters Top News"
+    url: "https://www.reutersagency.com/feed/"
+    category: "news"
+
+  - id: "nyt-world"
+    name: "NYT World News"
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+    category: "news"
+
+  - id: "guardian-world"
+    name: "The Guardian - World"
+    url: "https://www.theguardian.com/world/rss"
+    category: "news"
+
+  - id: "cnn-world"
+    name: "CNN World"
+    url: "http://rss.cnn.com/rss/edition_world.rss"
+    category: "news"
+
+  - id: "wsj-world"
+    name: "WSJ World News"
+    url: "https://feeds.a.dj.com/rss/RSSWorldNews.xml"
+    category: "news"
+
+  - id: "wapo-world"
+    name: "Washington Post - World"
+    url: "http://feeds.washingtonpost.com/rss/world"
+    category: "news"
+
+  # ── 美国 ──
+  - id: "nyt-top"
+    name: "NYT Top Stories"
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
+    category: "news"
+
+  - id: "fox-news"
+    name: "FOX News"
+    url: "http://feeds.foxnews.com/foxnews/latest"
+    category: "news"
+
+  - id: "cnbc-top"
+    name: "CNBC Top News"
+    url: "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+    category: "news"
+
+  - id: "politico-playbook"
+    name: "Politico Playbook"
+    url: "https://rss.politico.com/playbook.xml"
+    category: "news"
+
+  # ── 英国 ──
+  - id: "bbc-home"
+    name: "BBC News - Home"
+    url: "http://feeds.bbci.co.uk/news/rss.xml"
+    category: "news"
+
+  - id: "daily-mail"
+    name: "Daily Mail"
+    url: "https://www.dailymail.co.uk/home/index.rss"
+    category: "news"
+
+  - id: "the-independent"
+    name: "The Independent UK"
+    url: "http://www.independent.co.uk/news/uk/rss"
+    category: "news"
+
+  # ── 科学 ──
+  - id: "nature-rss"
+    name: "Nature"
+    url: "https://www.nature.com/nature.rss"
+    category: "news"
+
+  - id: "science-daily"
+    name: "ScienceDaily"
+    url: "https://www.sciencedaily.com/rss/all.xml"
+    category: "news"
+
+  - id: "nyt-science"
+    name: "NYT Science"
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml"
+    category: "news"
+
+  - id: "scientific-american"
+    name: "Scientific American"
+    url: "http://rss.sciam.com/ScientificAmerican-Global"
+    category: "news"
+
+  - id: "phys-org"
+    name: "Phys.org"
+    url: "https://phys.org/rss-feed/"
+    category: "news"
+
+  # ── 商业 / 财经 ──
+  - id: "forbes-business"
+    name: "Forbes Business"
+    url: "https://www.forbes.com/business/feed/"
+    category: "news"
+
+  - id: "fortune"
+    name: "Fortune"
+    url: "https://fortune.com/feed"
+    category: "news"
+
+  - id: "yahoo-finance"
+    name: "Yahoo Finance"
+    url: "https://finance.yahoo.com/news/rssindex"
+    category: "news"
+
+  - id: "hbr"
+    name: "Harvard Business Review"
+    url: "http://feeds.harvardbusiness.org/harvardbusiness/"
+    category: "news"
+
+  # ── 太空 ──
+  - id: "nasa-breaking"
+    name: "NASA Breaking News"
+    url: "https://www.nasa.gov/rss/dyn/breaking_news.rss"
+    category: "news"
+
+  - id: "space-com"
+    name: "Space.com"
+    url: "https://www.space.com/feeds/all"
+    category: "news"
+
+  # ── 设计 / UX ──
+  - id: "smashing-magazine"
+    name: "Smashing Magazine"
+    url: "https://www.smashingmagazine.com/feed"
+    category: "news"
+
+  - id: "ux-collective"
+    name: "UX Collective"
+    url: "https://uxdesign.cc/feed"
+    category: "news"
+
+  - id: "nngroup"
+    name: "Nielsen Norman Group"
+    url: "https://www.nngroup.com/feed/rss/"
+    category: "news"
+
+  # ── 亚洲 ──
+  - id: "japan-times"
+    name: "Japan Times"
+    url: "https://www.japantimes.co.jp/feed/topstories/"
+    category: "news"
+
+  - id: "scmp"
+    name: "South China Morning Post"
+    url: "https://www.scmp.com/rss/91/feed"
+    category: "news"
+
+  - id: "times-of-india"
+    name: "Times of India"
+    url: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms"
+    category: "news"

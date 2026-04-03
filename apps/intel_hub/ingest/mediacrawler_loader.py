@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_SUFFIXES = {".jsonl", ".json", ".db"}
 _COMMENT_FILE_RE = re.compile(r"search_comments", re.IGNORECASE)
+_XHS_SIGNED_CDN_RE = re.compile(
+    r"https?://sns-webpic-qc\.xhscdn\.com/\d+/[0-9a-f]+/(.+)"
+)
 
 
 def load_mediacrawler_records(
@@ -240,7 +243,11 @@ def _map_note_to_raw_signal(
     keyword = str(note.get("source_keyword") or "").strip() or None
 
     image_list_str = str(note.get("image_list") or "")
-    image_list = [url.strip() for url in image_list_str.split(",") if url.strip()] if image_list_str else []
+    image_list = [
+        _to_persistent_image_url(url.strip())
+        for url in image_list_str.split(",")
+        if url.strip()
+    ] if image_list_str else []
 
     raw_comments: list[dict[str, Any]] = []
     if comment_index:
@@ -296,6 +303,18 @@ def _ts_to_iso(value: Any) -> str | None:
     if ts > 1e12:
         ts = ts / 1000.0
     return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+
+
+def _to_persistent_image_url(url: str) -> str:
+    """将小红书带签名的 CDN URL 转为不过期的持久化 URL。
+
+    签名格式: http://sns-webpic-qc.xhscdn.com/{timestamp}/{sig}/{id}!{params}
+    持久格式: https://sns-img-bd.xhscdn.com/{id}!{params}
+    """
+    m = _XHS_SIGNED_CDN_RE.match(url)
+    if m:
+        return f"https://sns-img-bd.xhscdn.com/{m.group(1)}"
+    return url
 
 
 def _safe_int(value: Any) -> int:

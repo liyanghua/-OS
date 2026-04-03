@@ -24,6 +24,7 @@
       <div class="note-cover-wrap">
         {% if images %}
           <img class="note-cover" src="{{ images[0] }}" alt="封面" loading="lazy"
+               referrerpolicy="no-referrer" crossorigin="anonymous"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
           <div class="note-cover-fallback" style="display:none;">📷 图片无法加载</div>
         {% else %}

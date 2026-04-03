@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from apps.intel_hub.config_loader import load_runtime_settings, resolve_repo_path
 from apps.intel_hub.ingest.mediacrawler_loader import load_mediacrawler_records
+from apps.intel_hub.ingest.rss_loader import count_rss_records, load_rss_records
 from apps.intel_hub.schemas import ReviewUpdateRequest
 from apps.intel_hub.storage.repository import Repository
 from apps.intel_hub.workflow.job_models import CrawlJob
@@ -72,6 +73,7 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
         risks = list_payload("risk_cards", 1, 10, None, None, None, None, None, None)
         watchlists = list_payload("watchlists", 1, 10, None, None, None, None, None, None)
         notes_total = len(_get_notes())
+        rss_counts = count_rss_records()
         cs_path = resolve_repo_path("data/crawl_status.json")
         try:
             crawl = json.loads(cs_path.read_text(encoding="utf-8")) if cs_path.exists() else {"status": "idle"}
@@ -86,6 +88,7 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 "risks": risks,
                 "watchlists": watchlists,
                 "notes_total": notes_total,
+                "rss_counts": rss_counts,
                 "crawl": crawl,
             },
         )
@@ -337,6 +340,62 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
         if _wants_html(request):
             return _render("note_detail.html", {"request": request, "note": note})
         return note
+
+    # ── RSS 趋势浏览 ──────────────────────────────────
+
+    @app.get("/rss/tech")
+    async def rss_tech_list(
+        request: Request,
+        page: int = 1,
+        page_size: int = 20,
+        keyword: str | None = None,
+        feed: str | None = None,
+    ) -> Any:
+        return _rss_list(request, "tech", "科技趋势", page, page_size, keyword, feed)
+
+    @app.get("/rss/news")
+    async def rss_news_list(
+        request: Request,
+        page: int = 1,
+        page_size: int = 20,
+        keyword: str | None = None,
+        feed: str | None = None,
+    ) -> Any:
+        return _rss_list(request, "news", "新闻媒体", page, page_size, keyword, feed)
+
+    def _rss_list(
+        request: Request,
+        category: str,
+        page_title: str,
+        page: int,
+        page_size: int,
+        keyword: str | None,
+        feed: str | None,
+    ) -> Any:
+        items = load_rss_records(category=category)
+        feed_names = sorted({r["feed_name"] for r in items if r.get("feed_name")})
+        if feed:
+            items = [r for r in items if r.get("feed_id") == feed or r.get("feed_name") == feed]
+        if keyword:
+            kw = keyword.lower()
+            items = [r for r in items if kw in (r.get("title", "") + r.get("summary", "")).lower()]
+        total = len(items)
+        start = (max(page, 1) - 1) * page_size
+        page_items = items[start : start + page_size]
+        if _wants_html(request):
+            return _render("rss_feed.html", {
+                "request": request,
+                "items": page_items,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "keyword": keyword or "",
+                "feed_filter": feed or "",
+                "feed_names": feed_names,
+                "category": category,
+                "page_title": page_title,
+            })
+        return {"total": total, "page": page, "page_size": page_size, "category": category, "items": page_items}
 
     @app.get("/watchlists")
     async def watchlists(
