@@ -1,0 +1,149 @@
+topics:
+  opportunity:
+    keywords:
+      - 新品牌孵化
+      - opportunity
+      - intelligence hub
+      - 需求升温
+  risk:
+    keywords:
+      - 风险
+      - policy
+      - 合规
+      - 降低推荐
+  competitor:
+    keywords:
+      - competitor
+      - 竞品
+      - rival
+  category:
+    keywords:
+      - category
+      - 赛道
+      - intelligence hub
+  platform_policy:
+    keywords:
+      - 平台
+      - policy
+      - 流量分发
+      - 来源说明
+entities:
+  competitor:alpha:
+    entity_type: competitor
+    aliases:
+      - competitor alpha
+      - alpha ai
+      - alpha
+    watchlist_ids:
+      - competitor_alpha
+  category:ai_native_intel_hub:
+    entity_type: category
+    aliases:
+      - ai-native intelligence hub
+      - intelligence hub
+      - ontology brain
+      - 情报中枢
+    watchlist_ids:
+      - ai_native_intel_hub
+  policy:ai_marketing:
+    entity_type: platform_policy
+    aliases:
+      - platform policy
+      - policy update
+      - 平台规则
+      - 来源说明
+      - 流量分发
+    watchlist_ids:
+      - platform_policy_ai_marketing
+  # Tablecloth demo v1 category mapping for TrendRadar keyword-filtered signals.
+  category_tablecloth:
+    entity_type: category
+    aliases:
+      - 桌布
+      - 餐桌布
+      - 桌垫
+      - 茶几桌布
+      - 防水桌布
+      - pvc桌布
+      - 棉麻桌布
+      - 奶油风桌布
+      - ins风桌布
+      - 北欧桌布
+    watchlist_ids:
+      - category_tablecloth
+platform_refs:
+  news:
+    synonyms:
+      - news
+      - tech daily
+  rss:
+    synonyms:
+      - rss
+      - category watch
+  zhihu:
+    synonyms:
+      - zhihu
+      - 知乎
+  douyin:
+    synonyms:
+      - douyin
+      - 抖音
+  bilibili:
+    synonyms:
+      - bilibili
+      - b站
+      - 哔哩哔哩
+  tieba:
+    synonyms:
+      - tieba
+      - 贴吧
+  toutiao:
+    synonyms:
+      - toutiao
+      - 今日头条
+      - 头条
+  weibo:
+    synonyms:
+      - weibo
+      - 微博
+  baidu:
+    synonyms:
+      - baidu
+      - 百度
+      - 百度热搜
+  thepaper:
+    synonyms:
+      - thepaper
+      - 澎湃
+      - 澎湃新闻
+  ifeng:
+    synonyms:
+      - ifeng
+      - 凤凰网
+      - 凤凰
+  wallstreetcn:
+    synonyms:
+      - wallstreetcn
+      - 华尔街见闻
+  cls:
+    synonyms:
+      - cls
+      - 财联社
+  xiaohongshu:
+    synonyms:
+      - xhs
+      - 小红书
+      - 红书
+      - xiaohongshu
+  platform_policy:
+    synonyms:
+      - policy
+      - platform policy center
+card_compiler:
+  opportunity_topics:
+    - opportunity
+    - competitor
+    - category
+  risk_topics:
+    - risk
+    - platform_policy

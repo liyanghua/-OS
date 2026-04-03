@@ -1,0 +1,105 @@
+{
+  "updated_at": "2026-04-03T00:36:31.224872+00:00",
+  "jobs": [
+    {
+      "job_id": "fe25244dda03",
+      "platform": "xhs",
+      "job_type": "keyword_search",
+      "payload": {
+        "keywords": "桌布 ins风",
+        "max_notes": 10,
+        "max_comments": 10,
+        "login_type": "qrcode"
+      },
+      "priority": 1,
+      "max_retries": 3,
+      "retry_count": 1,
+      "status": "completed",
+      "created_at": "2026-04-03T00:21:22.780554+00:00",
+      "started_at": "2026-04-03T00:25:16.810123+00:00",
+      "completed_at": "2026-04-03T00:36:31.223046+00:00",
+      "result_path": "data/xhs/jsonl",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\nwaiting for locator(\"//*[@id='app']/div[1]/div[2]/div[1]/ul/div[1]/button\")\n"
+    },
+    {
+      "job_id": "ef1e8f3bc554",
+      "platform": "xhs",
+      "job_type": "keyword_search",
+      "payload": {
+        "keywords": "餐桌布 防水防油",
+        "max_notes": 10,
+        "max_comments": 10,
+        "login_type": "qrcode"
+      },
+      "priority": 1,
+      "max_retries": 3,
+      "retry_count": 0,
+      "status": "completed",
+      "created_at": "2026-04-03T00:21:22.781469+00:00",
+      "started_at": "2026-04-03T00:25:16.810700+00:00",
+      "completed_at": "2026-04-03T00:36:31.223757+00:00",
+      "result_path": "data/xhs/jsonl",
+      "error": null
+    },
+    {
+      "job_id": "3f80a37f1fc8",
+      "platform": "xhs",
+      "job_type": "keyword_search",
+      "payload": {
+        "keywords": "茶几桌布 北欧风",
+        "max_notes": 10,
+        "max_comments": 10,
+        "login_type": "qrcode"
+      },
+      "priority": 1,
+      "max_retries": 3,
+      "retry_count": 0,
+      "status": "completed",
+      "created_at": "2026-04-03T00:21:22.781928+00:00",
+      "started_at": "2026-04-03T00:25:16.811083+00:00",
+      "completed_at": "2026-04-03T00:36:31.224251+00:00",
+      "result_path": "data/xhs/jsonl",
+      "error": null
+    },
+    {
+      "job_id": "48b5f3d6d644",
+      "platform": "xhs",
+      "job_type": "keyword_search",
+      "payload": {
+        "keywords": "圆桌桌布 家用",
+        "max_notes": 10,
+        "max_comments": 10,
+        "login_type": "qrcode"
+      },
+      "priority": 1,
+      "max_retries": 3,
+      "retry_count": 0,
+      "status": "completed",
+      "created_at": "2026-04-03T00:21:22.782359+00:00",
+      "started_at": "2026-04-03T00:25:16.811372+00:00",
+      "completed_at": "2026-04-03T00:36:31.224569+00:00",
+      "result_path": "data/xhs/jsonl",
+      "error": null
+    },
+    {
+      "job_id": "63fb9969bc40",
+      "platform": "xhs",
+      "job_type": "keyword_search",
+      "payload": {
+        "keywords": "桌布 高级感 轻奢",
+        "max_notes": 10,
+        "max_comments": 10,
+        "login_type": "qrcode"
+      },
+      "priority": 1,
+      "max_retries": 3,
+      "retry_count": 0,
+      "status": "completed",
+      "created_at": "2026-04-03T00:21:22.782874+00:00",
+      "started_at": "2026-04-03T00:25:16.811626+00:00",
+      "completed_at": "2026-04-03T00:36:31.224869+00:00",
+      "result_path": "data/xhs/jsonl",
+      "error": null
+    }
+  ]
+}

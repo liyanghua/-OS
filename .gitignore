@@ -1,0 +1,30 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+
+# build
+/.next/
+/out/
+
+# debug
+npm-debug.log*
+
+# env
+.env*.local
+
+# ide
+.idea
+.vscode
+
+# Python
+.venv/
+.venv311/
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# third-party clones
+third_party/TrendRadar/
+third_party/MediaCrawler/

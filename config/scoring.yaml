@@ -1,0 +1,12 @@
+weights:
+  entity_relevance_score: 0.2
+  business_impact_score: 0.25
+  urgency_score: 0.2
+  evidence_strength_score: 0.15
+  raw_trending_score: 0.2
+topic_impacts:
+  competitor: 0.78
+  category: 0.7
+  opportunity: 0.72
+  risk: 0.85
+  platform_policy: 0.92

@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "title": "Alpha AI launches new capability",
+      "summary": "Alpha AI expands into the intelligence hub category.",
+      "url": "https://example.com/alpha-launch",
+      "media": "XiaoHongShu",
+      "platform": "xhs",
+      "author": "Alice",
+      "account": "AlphaOfficial",
+      "published_at": "2026-04-03T09:00:00+08:00",
+      "captured_at": "2026-04-03T10:10:00+08:00",
+      "keyword": "competitor alpha",
+      "watchlist_hits": [
+        "competitor_alpha"
+      ],
+      "hot_score": 88.5,
+      "rank": 3,
+      "content": "Alpha AI launches new capability for brands."
+    }
+  ]
+}

@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="headline">
+    <div class="meta">TrendRadar + MediaCrawler -> normalized Signal -> projected Signal -> evidence-linked cards</div>
+    <p style="margin: 12px 0 0;">
+      当前页面只承担极简查看职责，不模拟业务工作台。所有列表都保留 evidence refs，便于人工复核与后续 workflow 扩展。
+    </p>
+  </section>
+
+  <!-- 采集状态卡片 -->
+  <div id="crawl-card" class="card" style="margin-bottom: 20px; border-left: 4px solid var(--border); transition: border-color 0.3s;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div class="meta" style="margin-bottom: 4px;">采集器状态</div>
+        <div id="crawl-headline" style="font-size: 16px; font-weight: 600;">加载中…</div>
+      </div>
+      <div id="crawl-badge" style="padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--border); color: var(--muted);">--</div>
+    </div>
+    <div id="crawl-details" style="margin-top: 10px; display: none;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 8px;">
+        <div><span class="meta">关键词进度</span><div id="cstat-kw" style="font-weight: 600;">-</div></div>
+        <div><span class="meta">已抓笔记</span><div id="cstat-saved" style="font-weight: 600;">-</div></div>
+        <div><span class="meta">失败</span><div id="cstat-failed" style="font-weight: 600; color: #b44;">-</div></div>
+        <div><span class="meta">评论批次</span><div id="cstat-comments" style="font-weight: 600;">-</div></div>
+        <div><span class="meta">Trace归档</span><div id="cstat-traces" style="font-weight: 600;">-</div></div>
+        <div><span class="meta">耗时</span><div id="cstat-duration" style="font-weight: 600;">-</div></div>
+        <div><span class="meta">平均延迟</span><div id="cstat-avg-delay" style="font-weight: 600;">-</div></div>
+        <div><span class="meta">会话</span><div id="cstat-session" style="font-weight: 600;">-</div></div>
+      </div>
+      <div id="crawl-progress-wrap" style="background: var(--border); border-radius: 6px; height: 6px; overflow: hidden; display: none;">
+        <div id="crawl-progress-bar" style="height: 100%; background: var(--accent); border-radius: 6px; transition: width 0.4s;"></div>
+      </div>
+      <div id="crawl-errors" class="meta" style="margin-top: 6px; display: none;"></div>
+    </div>
+  </div>
+
+  <!-- 告警卡片 (Phase 4) -->
+  <div id="alert-card" class="card" style="margin-bottom: 20px; border-left: 4px solid var(--border); display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div class="meta" style="margin-bottom: 4px;">系统告警</div>
+        <div id="alert-headline" style="font-size: 16px; font-weight: 600;">无告警</div>
+      </div>
+      <div id="alert-badge" style="padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--border); color: var(--muted);">0</div>
+    </div>
+    <div id="alert-list" style="margin-top: 10px;"></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="meta">今日新增 Signals</div>
+      <div style="font-size: 32px; font-weight: 700;">{{ signals.total }}</div>
+    </div>
+    <div class="card">
+      <div class="meta">Opportunities</div>
+      <div style="font-size: 32px; font-weight: 700;">{{ opportunities.total }}</div>
+    </div>
+    <div class="card">
+      <div class="meta">Risks</div>
+      <div style="font-size: 32px; font-weight: 700;">{{ risks.total }}</div>
+    </div>
+    <div class="card">
+      <div class="meta">Watchlists</div>
+      <div style="font-size: 32px; font-weight: 700;">{{ watchlists.total }}</div>
+    </div>
+  </div>
+
+  {% for section in [
+    {"label": "Signals", "href": "/signals", "items": signals["items"]},
+    {"label": "Opportunity", "href": "/opportunities", "items": opportunities["items"]},
+    {"label": "Risks", "href": "/risks", "items": risks["items"]},
+    {"label": "Watchlists", "href": "/watchlists", "items": watchlists["items"]}
+  ] %}
+    <div class="section-title">
+      <h2 style="margin: 0;">{{ section["label"] }}</h2>
+      <a href="{{ section["href"] }}" style="color: var(--accent); text-decoration: none;">查看全部</a>
+    </div>
+    <div class="list">
+      {% if section["items"] %}
+        {% for item in section["items"][:3] %}
+          <div class="card">
+            <div class="meta">{{ item.review_status }} · confidence {{ item.confidence }}</div>
+            <h3 style="margin-bottom: 8px;">{{ item.title }}</h3>
+            <p style="margin: 0;">{{ item.summary }}</p>
+            <div class="chips">
+              {% for tag in item.topic_tags %}
+                <span class="chip">{{ tag }}</span>
+              {% endfor %}
+            </div>
+            <details>
+              <summary>Evidence refs</summary>
+              <p class="meta">evidence {{ item.evidence_refs | join(", ") }}</p>
+              {% if item.reviewer %}
+                <p class="meta">reviewer {{ item.reviewer }}</p>
+              {% endif %}
+              {% if item.reviewed_at %}
+                <p class="meta">reviewed_at {{ item.reviewed_at }}</p>
+              {% endif %}
+            </details>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty">暂无数据。</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <script>
+  (function(){
+    const COLORS = {
+      idle:      {border:'var(--border)',  bg:'var(--border)',      text:'var(--muted)'},
+      running:   {border:'#d4a017',        bg:'#fdf3d7',           text:'#92610a'},
+      completed: {border:'#2d8a4e',        bg:'#d4edda',           text:'#155724'},
+      failed:    {border:'#b44',           bg:'#f8d7da',           text:'#721c24'},
+      interrupted:{border:'#d4a017',       bg:'#fdf3d7',           text:'#92610a'},
+    };
+    const LABELS = {idle:'空闲',running:'采集中',completed:'已完成',failed:'失败',interrupted:'已中断'};
+
+    function render(d){
+      const s = d.status || 'idle';
+      const c = COLORS[s] || COLORS.idle;
+      const card = document.getElementById('crawl-card');
+      const badge = document.getElementById('crawl-badge');
+      const headline = document.getElementById('crawl-headline');
+      const details = document.getElementById('crawl-details');
+
+      card.style.borderLeftColor = c.border;
+      badge.style.background = c.bg;
+      badge.style.color = c.text;
+      badge.textContent = LABELS[s] || s;
+
+      if(s === 'idle'){
+        headline.textContent = '暂无抓取任务';
+        details.style.display = 'none';
+        return;
+      }
+
+      const kw = d.current_keyword || '-';
+      const kwIdx = (d.current_keyword_index||0)+1;
+      const kwTotal = d.total_keywords||0;
+      headline.textContent = s === 'running'
+        ? '正在采集「'+kw+'」'
+        : (s === 'completed' ? '采集完成' : '采集异常');
+      details.style.display = 'block';
+
+      document.getElementById('cstat-kw').textContent = kwIdx+' / '+kwTotal;
+      document.getElementById('cstat-saved').textContent = d.notes_saved||0;
+      document.getElementById('cstat-failed').textContent = d.notes_failed||0;
+      document.getElementById('cstat-comments').textContent = d.comments_saved||0;
+      document.getElementById('cstat-traces').textContent = d.traces_saved||0;
+      document.getElementById('cstat-duration').textContent = d.duration_seconds ? d.duration_seconds+'s' : '-';
+      document.getElementById('cstat-avg-delay').textContent = d.avg_note_delay_seconds ? d.avg_note_delay_seconds+'s' : '-';
+      document.getElementById('cstat-session').textContent = d.session_id || '-';
+
+      const pw = document.getElementById('crawl-progress-wrap');
+      const pb = document.getElementById('crawl-progress-bar');
+      if(kwTotal > 0){
+        pw.style.display = 'block';
+        pb.style.width = Math.round(kwIdx/kwTotal*100)+'%';
+      } else { pw.style.display = 'none'; }
+
+      const errDiv = document.getElementById('crawl-errors');
+      if(d.errors && d.errors.length > 0){
+        errDiv.style.display = 'block';
+        errDiv.textContent = '最近错误: '+d.errors[d.errors.length-1].error;
+      } else { errDiv.style.display = 'none'; }
+
+      if(s === 'running') card.style.animation = 'crawl-pulse 2s infinite';
+      else card.style.animation = 'none';
+    }
+
+    const init = {{ crawl | tojson }};
+    render(init);
+
+    let interval = 5000;
+    function poll(){
+      fetch('/crawl-status',{headers:{'Accept':'application/json'}})
+        .then(r=>r.json()).then(d=>{
+          render(d);
+          interval = d.status==='running' ? 3000 : 10000;
+        }).catch(()=>{});
+      setTimeout(poll, interval);
+    }
+    setTimeout(poll, interval);
+
+    function renderAlerts(data){
+      const alerts = data.alerts || [];
+      const card = document.getElementById('alert-card');
+      const badge = document.getElementById('alert-badge');
+      const headline = document.getElementById('alert-headline');
+      const list = document.getElementById('alert-list');
+      const unresolved = alerts.filter(a => !a.resolved);
+      if(unresolved.length === 0){ card.style.display = 'none'; return; }
+      card.style.display = 'block';
+      card.style.borderLeftColor = '#b44';
+      badge.style.background = '#f8d7da';
+      badge.style.color = '#721c24';
+      badge.textContent = unresolved.length;
+      headline.textContent = unresolved.length + ' 条待处理告警';
+      list.innerHTML = unresolved.slice(0, 5).map(a =>
+        '<div style="padding:6px 0;border-bottom:1px solid var(--border);">' +
+        '<span style="font-weight:600;">' + (a.title||a.alert_type) + '</span>' +
+        '<span class="meta" style="margin-left:8px;">' + (a.detail||'').substring(0,80) + '</span>' +
+        '</div>'
+      ).join('');
+    }
+    function pollAlerts(){
+      fetch('/alerts',{headers:{'Accept':'application/json'}})
+        .then(r=>r.json()).then(renderAlerts).catch(()=>{});
+      setTimeout(pollAlerts, 15000);
+    }
+    setTimeout(pollAlerts, 2000);
+  })();
+  </script>
+  <style>
+    @keyframes crawl-pulse {
+      0%,100% { box-shadow: 0 12px 30px rgba(92,66,39,0.08); }
+      50%     { box-shadow: 0 12px 30px rgba(212,160,23,0.22); }
+    }
+  </style>
+{% endblock %}

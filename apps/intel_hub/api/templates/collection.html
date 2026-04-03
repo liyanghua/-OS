@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="headline">
+    <div class="meta">{{ collection_name }}</div>
+    <h2 style="margin: 8px 0 0;">{{ title }}</h2>
+    <p style="margin: 12px 0 0;">总数 {{ payload["total"] }}，当前第 {{ payload["page"] }} 页，每页 {{ payload["page_size"] }} 条。</p>
+    {% if collection_name in ["Signals", "Opportunity", "Risk"] %}
+      <div class="chips">
+        <a class="chip" href="{{ request.url.path }}?entity=category_tablecloth">category_tablecloth</a>
+        <a class="chip" href="{{ request.url.path }}?entity=category_tablecloth&platform=weibo">tablecloth + weibo</a>
+      </div>
+    {% endif %}
+    {% if collection_name in ["Opportunity", "Risk"] %}
+      <div class="chips">
+        <a class="chip" href="{{ request.url.path }}">全部</a>
+        <a class="chip" href="{{ request.url.path }}?review_status=pending">pending</a>
+        <a class="chip" href="{{ request.url.path }}?review_status=accepted">accepted</a>
+        <a class="chip" href="{{ request.url.path }}?review_status=rejected">rejected</a>
+        <a class="chip" href="{{ request.url.path }}?review_status=needs_followup">needs_followup</a>
+      </div>
+    {% endif %}
+  </section>
+
+  <div class="list">
+    {% if payload["items"] %}
+      {% for item in payload["items"] %}
+        <article class="card">
+          <div class="meta">{{ item.review_status }} · confidence {{ item.confidence }}</div>
+          <h3 style="margin-bottom: 8px;">{{ item.title }}</h3>
+          {% if item.source_name %}
+            <p class="meta" style="margin: 0 0 8px;">source {{ item.source_name }}</p>
+          {% endif %}
+          {% if item.platform_refs %}
+            <p class="meta" style="margin: 0 0 8px;">platform {{ item.platform_refs | join(", ") }}</p>
+          {% endif %}
+          <p style="margin: 0;">{{ item.summary }}</p>
+          <div class="chips">
+            {% for entity in item.entity_refs %}
+              <span class="chip">{{ entity }}</span>
+            {% endfor %}
+            {% for tag in item.topic_tags %}
+              <span class="chip">{{ tag }}</span>
+            {% endfor %}
+          </div>
+          <details>
+            <summary>Evidence refs</summary>
+            <p class="meta">evidence {{ item.evidence_refs | join(", ") }}</p>
+            {% if item.trigger_signals %}
+              <p class="meta">trigger_signals {{ item.trigger_signals | join(", ") }}</p>
+            {% endif %}
+            {% if item.merged_signal_ids %}
+              <p class="meta">merged_signal_ids {{ item.merged_signal_ids | join(", ") }}</p>
+            {% endif %}
+            {% if item.merged_evidence_refs %}
+              <p class="meta">merged_evidence_refs {{ item.merged_evidence_refs | join(", ") }}</p>
+            {% endif %}
+            {% if item.dedupe_key %}
+              <p class="meta">dedupe_key {{ item.dedupe_key }}</p>
+            {% endif %}
+            {% if item.suggested_actions %}
+              <p class="meta">suggested_actions {{ item.suggested_actions | join(" / ") }}</p>
+            {% endif %}
+            {% if item.review_notes %}
+              <p class="meta">review_notes {{ item.review_notes }}</p>
+            {% endif %}
+            {% if item.reviewer %}
+              <p class="meta">reviewer {{ item.reviewer }}</p>
+            {% endif %}
+            {% if item.reviewed_at %}
+              <p class="meta">reviewed_at {{ item.reviewed_at }}</p>
+            {% endif %}
+          </details>
+        </article>
+      {% endfor %}
+    {% else %}
+      <div class="empty">暂无数据。</div>
+    {% endif %}
+  </div>
+{% endblock %}

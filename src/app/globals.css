@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/* 设计令牌 —— Palantir 式层次 + Linear 式克制 + AI-native 微光（与 Guidelines.md 对齐） */
+:root {
+  --background: #0a0c10;
+  --foreground: #e8ecf1;
+  --muted: #8b9cb3;
+  --muted-2: #5c6d82;
+  --accent: #3b9eff;
+  --accent-hover: #5cadff;
+  --accent-muted: rgba(59, 158, 255, 0.12);
+  --accent-foreground: #f0f7ff;
+  --ai-tint: rgba(129, 140, 248, 0.07);
+  --ai-edge: rgba(129, 140, 248, 0.22);
+  --surface: #11151d;
+  --surface-elevated: #161b26;
+  --strip-bg: #0c0f14;
+  --border: #283041;
+  --border-subtle: rgba(255, 255, 255, 0.055);
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  /* Linear：更轻的 elevation；Palantir：略深的环境压暗 */
+  --shadow-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 12px 40px -12px rgba(0, 0, 0, 0.55);
+  --shadow-header: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  --ring-focus: 0 0 0 2px var(--background), 0 0 0 4px rgba(59, 158, 255, 0.65);
+}
+
+body {
+  color: var(--foreground);
+  background-color: var(--background);
+  /* 极轻环境光：暗示「智能层」在底图上运算，不抢正文 */
+  background-image:
+    radial-gradient(ellipse 100% 60% at 50% -15%, rgba(59, 158, 255, 0.09), transparent 52%),
+    radial-gradient(ellipse 50% 45% at 100% 0%, var(--ai-tint), transparent 48%);
+  font-family: var(--font-noto), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+::selection {
+  background: rgba(59, 158, 255, 0.22);
+  color: var(--foreground);
+}
+
+/* 主工作区：细点阵（数据台可读性）+ 不干扰阅读 */
+.app-workspace {
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.028) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
+}
+
+/* ID、时间戳、指标等：等宽更「运维台」 */
+.font-mono-data {
+  font-family: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.92em;
+  letter-spacing: -0.01em;
+}
+
+/* 页面级主标题（可选工具类） */
+.app-page-title {
+  font-size: 1.5rem;
+  line-height: 1.28;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+@media (min-width: 768px) {
+  .app-page-title {
+    font-size: 1.625rem;
+  }
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+  border-radius: 0.375rem;
+}
+
+/* 管理卡片顶栏：细渐变边（AI-native 微提示，全局克制） */
+.panel-top-sheen {
+  position: relative;
+}
+.panel-top-sheen::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 35%, transparent),
+    color-mix(in srgb, var(--ai-edge) 80%, transparent),
+    color-mix(in srgb, var(--accent) 35%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}

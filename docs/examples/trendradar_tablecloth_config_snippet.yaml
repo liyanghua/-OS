@@ -1,0 +1,28 @@
+report:
+  mode: current
+  display_mode: keyword
+
+filter:
+  method: keyword
+  keyword_file: docs/examples/frequency_words_tablecloth_v1.txt
+
+platforms:
+  enabled:
+    - zhihu
+    - douyin
+    - bilibili
+    - tieba
+    - toutiao
+    - weibo
+  optional:
+    - baidu
+    - thepaper
+    - ifeng
+  not_priority_in_v1:
+    - wallstreetcn
+    - cls
+
+notes:
+  - 首轮只用 TrendRadar 默认平台，不新增自定义平台。
+  - 首轮只用 keyword filter，不切 ai filter。
+  - 建议先用 current 模式调试，再考虑 incremental。

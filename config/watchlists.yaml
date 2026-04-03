@@ -1,0 +1,103 @@
+watchlists:
+  - id: competitor_alpha
+    watchlist_type: competitor
+    title: Competitor Alpha
+    summary: 关注面向新品牌孵化和经营情报场景的直接竞争者。
+    source_refs:
+      - manual_watchlist
+    entity_refs:
+      - competitor:alpha
+    topic_tags:
+      - competitor
+      - opportunity
+    timestamps:
+      created_at: "2026-04-02T00:00:00+08:00"
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords:
+      - competitor alpha
+    aliases:
+      - alpha
+      - alpha ai
+    priority: 0.95
+  - id: ai_native_intel_hub
+    watchlist_type: category
+    title: AI-native intelligence hub
+    summary: 跟踪 AI-native 情报中枢赛道与相关需求信号。
+    source_refs:
+      - manual_watchlist
+    entity_refs:
+      - category:ai_native_intel_hub
+    topic_tags:
+      - category
+      - opportunity
+    timestamps:
+      created_at: "2026-04-02T00:00:00+08:00"
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords:
+      - ai-native intelligence hub
+      - 情报中枢
+    aliases:
+      - intelligence hub
+      - ontology brain
+    priority: 0.88
+  - id: platform_policy_ai_marketing
+    watchlist_type: platform_policy
+    title: AI marketing platform policy
+    summary: 跟踪平台对 AI 营销内容的规则、流量和合规变化。
+    source_refs:
+      - manual_watchlist
+    entity_refs:
+      - policy:ai_marketing
+    topic_tags:
+      - platform_policy
+      - risk
+    timestamps:
+      created_at: "2026-04-02T00:00:00+08:00"
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords:
+      - platform policy
+      - 来源说明
+    aliases:
+      - policy update
+      - 流量分发
+    priority: 0.92
+  - id: category_tablecloth
+    watchlist_type: category
+    title: Tablecloth category intelligence
+    summary: 桌布相关内容、风格偏好、材质选择与清洁卖点的首版情报 watchlist。
+    source_refs:
+      - manual_watchlist
+      - trendradar_keyword_filter
+      - mediacrawler_xhs
+    entity_refs:
+      - category_tablecloth
+    topic_tags:
+      - category
+      - opportunity
+    timestamps:
+      created_at: "2026-04-03T00:00:00+08:00"
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords:
+      - 桌布
+      - 餐桌布
+      - 桌垫
+      - 茶几桌布
+      - 防水桌布
+      - PVC桌布
+      - 棉麻桌布
+    aliases:
+      - 桌搭桌布
+      - 餐桌垫
+      - 桌布改造
+      - 奶油风桌布
+      - ins风桌布
+      - 北欧桌布
+    priority: 0.91

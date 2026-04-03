@@ -1,0 +1,23 @@
+# 采集调度配置
+# 每个条目定义一个定时采集计划
+
+schedules:
+  - name: daily_keyword_scan
+    enabled: true
+    cron: "0 8 * * *"
+    platform: xhs
+    job_type: keyword_search
+    keywords_from: config/keywords.yaml
+    max_notes_per_keyword: 10
+    max_comments: 10
+    priority: 1
+
+  - name: weekly_deep_scan
+    enabled: false
+    cron: "0 2 * * 1"
+    platform: xhs
+    job_type: keyword_search
+    keywords_from: config/keywords.yaml
+    max_notes_per_keyword: 30
+    max_comments: 20
+    priority: 3

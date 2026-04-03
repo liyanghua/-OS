@@ -1,0 +1,5 @@
+merge_window_hours: 72
+minimum_evidence_count: 1
+title_token_overlap_threshold: 0.55
+max_entities_per_signal: 3
+max_cards_per_entity_topic_window: 3

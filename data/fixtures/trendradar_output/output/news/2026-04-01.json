@@ -1,0 +1,59 @@
+[
+  {
+    "title": "Competitor Alpha 推出面向新品牌孵化的 AI 操盘助手",
+    "summary": "Alpha 把热点监测、竞品拆解和立项建议打包成一体化产品，正在抢占新品牌孵化场景。",
+    "source_url": "https://example.com/news/alpha-launch",
+    "source_name": "Tech Daily",
+    "published_at": "2026-04-01T08:30:00+08:00",
+    "raw_text": "Competitor Alpha 发布 AI-native 经营助手，重点面向新品牌孵化和机会识别。",
+    "metrics": {
+      "trending_score": 88,
+      "engagement": 2300
+    },
+    "platform": "news",
+    "keyword": "competitor alpha",
+    "rank": 2,
+    "tags": [
+      "competitor",
+      "new_product"
+    ]
+  },
+  {
+    "title": "Platform Policy 更新：营销类 AI 内容需补充来源说明",
+    "summary": "平台宣布对营销内容新增来源标识要求，未披露来源的内容将降低推荐权重。",
+    "source_url": "https://example.com/policy/platform-update",
+    "source_name": "Platform Policy Center",
+    "published_at": "2026-04-01T10:00:00+08:00",
+    "raw_text": "平台新规要求营销类 AI 生成内容补充来源说明，否则会影响流量分发。",
+    "metrics": {
+      "trending_score": 76,
+      "engagement": 980
+    },
+    "platform": "platform_policy",
+    "keyword": "policy update",
+    "rank": 1,
+    "tags": [
+      "platform_policy",
+      "risk"
+    ]
+  },
+  {
+    "title": "Category Insight：AI-native 商业情报中枢需求升温",
+    "summary": "多家品牌团队开始关注 AI-native 情报中枢，用于机会发现、风险扫描与策略归因。",
+    "source_url": "https://example.com/research/category-insight",
+    "source_name": "Category Watch",
+    "published_at": "2026-04-01T12:00:00+08:00",
+    "raw_text": "Category 层面显示，AI-native intelligence hub 成为经营团队的新采纳方向。",
+    "metrics": {
+      "trending_score": 64,
+      "engagement": 640
+    },
+    "platform": "rss",
+    "keyword": "ai-native intelligence hub",
+    "rank": 5,
+    "tags": [
+      "category",
+      "opportunity"
+    ]
+  }
+]

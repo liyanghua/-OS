@@ -1,0 +1,23 @@
+trendradar_output_dir: third_party/TrendRadar/output
+storage_path: data/intel_hub.sqlite
+default_page_size: 20
+fixture_fallback_dir: data/fixtures/trendradar_output/output
+raw_snapshot_dir: data/raw
+include_rss: true
+
+mediacrawler_sources:
+  - enabled: true
+    platform: xiaohongshu
+    output_path: third_party/MediaCrawler/data/xhs/jsonl
+    fixture_fallback: data/fixtures/mediacrawler_output/xhs/jsonl
+
+xhs_sources:
+  - type: capture_dir
+    path: /Users/yichen/Desktop/OntologyBrain/MediaCrawler-main/review_intel_capture
+  - type: store_jsonl
+    path: /Users/yichen/Desktop/OntologyBrain/MediaCrawler-main/data/xhs/jsonl
+
+xhs_aggregation:
+  max_comments_per_signal: 20
+  min_comments_for_signal: 2
+  top_comments_in_body: 5
