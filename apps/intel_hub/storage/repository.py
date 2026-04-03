@@ -9,13 +9,16 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from apps.intel_hub.schemas import (
+    DemandSpecAsset,
     EvidenceRef,
+    InsightCard,
     OpportunityCard,
     ReviewDecisionSource,
     ReviewStatus,
     ReviewUpdateRequest,
     RiskCard,
     Signal,
+    VisualPatternAsset,
     Watchlist,
 )
 
@@ -25,9 +28,12 @@ MODEL_BY_TABLE = {
     "evidence_refs": EvidenceRef,
     "opportunity_cards": OpportunityCard,
     "risk_cards": RiskCard,
+    "insight_cards": InsightCard,
+    "visual_pattern_assets": VisualPatternAsset,
+    "demand_spec_assets": DemandSpecAsset,
     "watchlists": Watchlist,
 }
-CARD_TABLES = {"opportunity_cards", "risk_cards"}
+CARD_TABLES = {"opportunity_cards", "risk_cards", "insight_cards", "visual_pattern_assets", "demand_spec_assets"}
 REVIEW_FIELDS = ("review_status", "review_notes", "reviewer", "reviewed_at", "review_decision_source", "feedback_tags")
 
 TModel = TypeVar("TModel", bound=BaseModel)
@@ -80,6 +86,15 @@ class Repository:
 
     def save_risk_cards(self, cards: list[RiskCard]) -> None:
         self._save_models("risk_cards", cards, timestamp_key="compiled_at")
+
+    def save_insight_cards(self, cards: list[InsightCard]) -> None:
+        self._save_models("insight_cards", cards, timestamp_key="compiled_at")
+
+    def save_visual_pattern_assets(self, assets: list[VisualPatternAsset]) -> None:
+        self._save_models("visual_pattern_assets", assets, timestamp_key="compiled_at")
+
+    def save_demand_spec_assets(self, assets: list[DemandSpecAsset]) -> None:
+        self._save_models("demand_spec_assets", assets, timestamp_key="compiled_at")
 
     def save_watchlists(self, watchlists: list[Watchlist]) -> None:
         self._save_models("watchlists", watchlists, timestamp_key="created_at")

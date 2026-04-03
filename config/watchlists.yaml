@@ -101,3 +101,213 @@ watchlists:
       - ins风桌布
       - 北欧桌布
     priority: 0.91
+
+  # ── V2: 场景 watchlist ──
+  - id: scene_rental_room
+    watchlist_type: scene
+    title: 出租屋/租房场景
+    summary: 租房改造场景下的桌布需求与内容信号。
+    source_refs: [manual_watchlist]
+    entity_refs: [scene_rental_room]
+    topic_tags: [scene, opportunity]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["出租屋", "租房", "出租房", "合租"]
+    aliases: ["租房改造", "出租屋改造"]
+    priority: 0.82
+  - id: scene_dining_table
+    watchlist_type: scene
+    title: 餐桌场景
+    summary: 餐桌布置、餐桌装饰场景。
+    source_refs: [manual_watchlist]
+    entity_refs: [scene_dining_table]
+    topic_tags: [scene, opportunity]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["餐桌", "饭桌", "餐桌布置"]
+    aliases: ["餐桌装饰"]
+    priority: 0.78
+
+  # ── V2: 风格 watchlist ──
+  - id: style_creamy
+    watchlist_type: style
+    title: 奶油风
+    summary: 奶油色系/奶油风桌布风格趋势。
+    source_refs: [manual_watchlist]
+    entity_refs: [style_creamy]
+    topic_tags: [style, opportunity]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["奶油风", "奶油色", "奶白"]
+    aliases: ["cream风", "奶咖色"]
+    priority: 0.80
+  - id: style_ins
+    watchlist_type: style
+    title: Ins风
+    summary: Instagram 博主风格桌布趋势。
+    source_refs: [manual_watchlist]
+    entity_refs: [style_ins]
+    topic_tags: [style, opportunity]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["ins风", "ins", "博主风"]
+    aliases: []
+    priority: 0.75
+
+  # ── V2: 需求 watchlist ──
+  - id: need_waterproof
+    watchlist_type: need
+    title: 防水需求
+    summary: 防水作为桌布核心功能卖点的用户需求信号。
+    source_refs: [manual_watchlist]
+    entity_refs: [need_waterproof]
+    topic_tags: [need, opportunity]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["防水", "不怕水"]
+    aliases: ["防水桌布"]
+    priority: 0.85
+  - id: need_easy_clean
+    watchlist_type: need
+    title: 易清洁需求
+    summary: 好打理/易清洁作为购买决策因素。
+    source_refs: [manual_watchlist]
+    entity_refs: [need_easy_clean]
+    topic_tags: [need, opportunity]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["好打理", "易清洁", "免洗", "一擦就干净"]
+    aliases: []
+    priority: 0.83
+
+  # ── V2: 风险 watchlist ──
+  - id: risk_edge_curl
+    watchlist_type: risk_factor
+    title: 卷边风险
+    summary: 桌布边缘卷翘是高频用户吐槽点。
+    source_refs: [manual_watchlist]
+    entity_refs: [risk_edge_curl]
+    topic_tags: [risk_factor, risk]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["卷边", "翘边", "边缘翘"]
+    aliases: ["翘起来"]
+    priority: 0.88
+  - id: risk_cheap_texture
+    watchlist_type: risk_factor
+    title: 廉价感风险
+    summary: 材质质感低于预期引发的负面感知。
+    source_refs: [manual_watchlist]
+    entity_refs: [risk_cheap_texture]
+    topic_tags: [risk_factor, risk]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["廉价感", "塑料感", "质感差", "像塑料"]
+    aliases: ["廉价"]
+    priority: 0.86
+
+  # ── V2: 材质 watchlist ──
+  - id: material_pvc
+    watchlist_type: material
+    title: PVC材质
+    summary: PVC 桌布材质相关信号。
+    source_refs: [manual_watchlist]
+    entity_refs: [material_pvc]
+    topic_tags: [material, category]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["pvc", "PVC"]
+    aliases: ["塑料桌布"]
+    priority: 0.70
+  - id: material_cotton_linen
+    watchlist_type: material
+    title: 棉麻材质
+    summary: 棉麻桌布材质相关信号。
+    source_refs: [manual_watchlist]
+    entity_refs: [material_cotton_linen]
+    topic_tags: [material, category]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["棉麻", "亚麻", "纯棉"]
+    aliases: ["棉麻桌布"]
+    priority: 0.72
+
+  # ── V2: 内容模式 watchlist ──
+  - id: content_recommendation
+    watchlist_type: content_pattern
+    title: 推荐/种草型内容
+    summary: 推荐、安利、种草类内容表达模式。
+    source_refs: [manual_watchlist]
+    entity_refs: [content_recommendation]
+    topic_tags: [content_pattern, opportunity]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["推荐", "安利", "种草", "必买", "好物"]
+    aliases: []
+    priority: 0.65
+  - id: content_pitfall
+    watchlist_type: content_pattern
+    title: 踩坑/避雷型内容
+    summary: 踩坑、避坑类内容表达模式，通常含风险信号。
+    source_refs: [manual_watchlist]
+    entity_refs: [content_pitfall]
+    topic_tags: [content_pattern, risk]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["踩坑", "踩雷", "避坑", "翻车", "不要买"]
+    aliases: []
+    priority: 0.75
+
+  # ── V2: 人群 watchlist ──
+  - id: audience_renters
+    watchlist_type: audience
+    title: 租房党人群
+    summary: 租房场景下的桌布消费人群。
+    source_refs: [manual_watchlist]
+    entity_refs: [audience_renters]
+    topic_tags: [audience, opportunity]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["租房党", "租房"]
+    aliases: ["出租屋住户"]
+    priority: 0.76
+  - id: audience_moms
+    watchlist_type: audience
+    title: 宝妈人群
+    summary: 有孩家庭桌布消费人群。
+    source_refs: [manual_watchlist]
+    entity_refs: [audience_moms]
+    topic_tags: [audience, opportunity]
+    timestamps: {created_at: "2026-04-03T00:00:00+08:00"}
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords: ["宝妈", "妈妈", "带娃"]
+    aliases: []
+    priority: 0.74

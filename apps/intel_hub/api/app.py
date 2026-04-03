@@ -10,6 +10,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel
 
 from apps.intel_hub.config_loader import load_runtime_settings, resolve_repo_path
+from apps.intel_hub.ingest.mediacrawler_loader import load_mediacrawler_records
 from apps.intel_hub.schemas import ReviewUpdateRequest
 from apps.intel_hub.storage.repository import Repository
 from apps.intel_hub.workflow.job_models import CrawlJob
@@ -70,6 +71,7 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
         opportunities = list_payload("opportunity_cards", 1, 10, None, None, None, None, None, None)
         risks = list_payload("risk_cards", 1, 10, None, None, None, None, None, None)
         watchlists = list_payload("watchlists", 1, 10, None, None, None, None, None, None)
+        notes_total = len(_get_notes())
         cs_path = resolve_repo_path("data/crawl_status.json")
         try:
             crawl = json.loads(cs_path.read_text(encoding="utf-8")) if cs_path.exists() else {"status": "idle"}
@@ -83,6 +85,7 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 "opportunities": opportunities,
                 "risks": risks,
                 "watchlists": watchlists,
+                "notes_total": notes_total,
                 "crawl": crawl,
             },
         )
@@ -280,6 +283,60 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 pass
         session_alerts = session_svc.get_alerts()
         return {"alerts": file_alerts + session_alerts}
+
+    # ── 原始小红书笔记浏览 ──────────────────────────────────
+
+    _notes_cache: dict[str, Any] = {}
+
+    def _get_notes() -> list[dict[str, Any]]:
+        if "records" not in _notes_cache:
+            all_records: list[dict[str, Any]] = []
+            for src in settings.mediacrawler_sources:
+                if not src.get("enabled", True):
+                    continue
+                out = resolve_repo_path(src.get("output_path", ""))
+                if out.exists():
+                    all_records.extend(load_mediacrawler_records(str(out), platform=src.get("platform", "xiaohongshu")))
+            seen: set[str] = set()
+            deduped: list[dict[str, Any]] = []
+            for r in all_records:
+                nid = (r.get("raw_payload") or {}).get("note_id", "")
+                if nid and nid not in seen:
+                    seen.add(nid)
+                    deduped.append(r)
+            deduped.sort(key=lambda r: r.get("metrics", {}).get("engagement", 0), reverse=True)
+            _notes_cache["records"] = deduped
+        return _notes_cache["records"]
+
+    @app.get("/notes")
+    async def notes_list(request: Request, page: int = 1, page_size: int = 12, keyword: str | None = None) -> Any:
+        all_notes = _get_notes()
+        if keyword:
+            keyword_lower = keyword.lower()
+            all_notes = [n for n in all_notes if keyword_lower in (n.get("title", "") + n.get("raw_text", "")).lower()]
+        total = len(all_notes)
+        start = (max(page, 1) - 1) * page_size
+        page_notes = all_notes[start : start + page_size]
+        if _wants_html(request):
+            return _render("notes.html", {
+                "request": request,
+                "notes": page_notes,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "keyword": keyword or "",
+            })
+        return {"total": total, "page": page, "page_size": page_size, "items": page_notes}
+
+    @app.get("/notes/{note_id}")
+    async def note_detail(request: Request, note_id: str) -> Any:
+        all_notes = _get_notes()
+        note = next((n for n in all_notes if (n.get("raw_payload") or {}).get("note_id") == note_id), None)
+        if note is None:
+            raise HTTPException(status_code=404, detail=f"笔记 {note_id} 未找到")
+        if _wants_html(request):
+            return _render("note_detail.html", {"request": request, "note": note})
+        return note
 
     @app.get("/watchlists")
     async def watchlists(

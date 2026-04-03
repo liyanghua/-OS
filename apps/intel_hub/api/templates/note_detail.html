@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set payload = note.get("raw_payload", {}) %}
+{% set metrics = note.get("metrics", {}) %}
+{% set images = note.get("image_list", []) %}
+{% set comments = note.get("comments", []) %}
+{% set note_id = payload.get("note_id", "") %}
+
+<div class="detail-layout">
+  <!-- 左栏：图片区 -->
+  <div class="detail-left">
+    {% if images %}
+      <div class="gallery">
+        <div class="gallery-main">
+          <img id="main-img" src="{{ images[0] }}" alt="主图"
+               onerror="this.src='';this.alt='图片加载失败';">
+        </div>
+        {% if images | length > 1 %}
+          <div class="gallery-thumbs">
+            {% for img in images %}
+              <img class="thumb {% if loop.first %}thumb-active{% endif %}"
+                   src="{{ img }}" alt="图{{ loop.index }}"
+                   onclick="document.getElementById('main-img').src=this.src; document.querySelectorAll('.thumb').forEach(t=>t.classList.remove('thumb-active')); this.classList.add('thumb-active');"
+                   onerror="this.style.display='none';"
+                   loading="lazy">
+            {% endfor %}
+          </div>
+        {% endif %}
+        <div class="gallery-count meta">共 {{ images | length }} 张图片</div>
+      </div>
+    {% else %}
+      <div class="no-image">暂无图片</div>
+    {% endif %}
+  </div>
+
+  <!-- 右栏：内容区 -->
+  <div class="detail-right">
+    <div class="detail-header">
+      <a href="/notes" class="back-link">← 返回列表</a>
+      {% if note.get("source_url") %}
+        <a href="{{ note.get('source_url') }}" target="_blank" rel="noopener" class="source-link">查看原文 ↗</a>
+      {% endif %}
+    </div>
+
+    <h1 class="detail-title">{{ note.get("title", "无标题") }}</h1>
+
+    <div class="detail-author-bar">
+      <div class="author-info">
+        <span class="author-name">{{ note.get("author", "匿名") }}</span>
+        {% if payload.get("ip_location") %}
+          <span class="author-loc">📍{{ payload.get("ip_location") }}</span>
+        {% endif %}
+      </div>
+      {% if note.get("published_at") %}
+        <span class="meta">发布于 {{ note.get("published_at")[:10] }}</span>
+      {% endif %}
+    </div>
+
+    <!-- 互动指标 -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-num">{{ metrics.get("liked_count", 0) }}</div>
+        <div class="stat-label">点赞</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">{{ metrics.get("collected_count", 0) }}</div>
+        <div class="stat-label">收藏</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">{{ metrics.get("comment_count", 0) }}</div>
+        <div class="stat-label">评论</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">{{ metrics.get("share_count", 0) }}</div>
+        <div class="stat-label">分享</div>
+      </div>
+      <div class="stat-item highlight">
+        <div class="stat-num">{{ metrics.get("engagement", 0) }}</div>
+        <div class="stat-label">总互动</div>
+      </div>
+    </div>
+
+    <!-- 正文 -->
+    <div class="detail-body">
+      <h3 style="margin: 0 0 8px; font-size: 14px; color: var(--muted);">正文内容</h3>
+      <div class="body-text">{{ note.get("raw_text", "（无正文）") | replace("\n", "<br>") }}</div>
+    </div>
+
+    <!-- 标签 -->
+    {% if note.get("tags") %}
+      <div class="detail-tags">
+        {% for tag in note.get("tags", []) %}
+          <span class="chip"># {{ tag }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- 元数据 -->
+    <details class="detail-meta-block">
+      <summary>数据字段详情</summary>
+      <div class="meta-grid">
+        <div><span class="meta-k">note_id</span><span class="meta-v">{{ note_id }}</span></div>
+        <div><span class="meta-k">笔记类型</span><span class="meta-v">{{ payload.get("note_type", "-") }}</span></div>
+        <div><span class="meta-k">搜索词</span><span class="meta-v">{{ note.get("keyword", "-") or "-" }}</span></div>
+        <div><span class="meta-k">来源</span><span class="meta-v">{{ note.get("source_name", "-") }}</span></div>
+        <div><span class="meta-k">平台</span><span class="meta-v">{{ note.get("platform", "-") }}</span></div>
+        <div><span class="meta-k">作者ID</span><span class="meta-v">{{ note.get("account", "-") }}</span></div>
+        <div><span class="meta-k">IP属地</span><span class="meta-v">{{ payload.get("ip_location", "-") or "-" }}</span></div>
+        <div><span class="meta-k">发布时间</span><span class="meta-v">{{ note.get("published_at", "-") }}</span></div>
+        <div><span class="meta-k">采集时间</span><span class="meta-v">{{ note.get("captured_at", "-") }}</span></div>
+        <div><span class="meta-k">来源文件</span><span class="meta-v" style="word-break:break-all;">{{ note.get("raw_payload_path", "-") }}</span></div>
+      </div>
+    </details>
+
+    <!-- 评论区 -->
+    <div class="detail-comments">
+      <h3 style="margin: 0 0 12px;">
+        💬 评论区
+        <span class="meta" style="font-weight: normal; margin-left: 8px;">共 {{ comments | length }} 条已采集评论</span>
+      </h3>
+
+      {% if comments %}
+        {% for c in comments %}
+          <div class="comment-item {% if not c.get('parent_comment_id') %}top-comment{% else %}reply-comment{% endif %}">
+            <div class="comment-header">
+              <span class="comment-author">{{ c.get("nickname", "匿名") }}</span>
+              {% if c.get("ip_location") %}
+                <span class="comment-loc">{{ c.get("ip_location") }}</span>
+              {% endif %}
+              <span class="comment-time meta">
+                {% if c.get("create_time") %}
+                  {{ c.get("create_time") }}
+                {% endif %}
+              </span>
+            </div>
+            <div class="comment-content">{{ c.get("content", "") }}</div>
+            <div class="comment-footer">
+              <span title="点赞">❤️ {{ c.get("like_count", 0) }}</span>
+              {% if c.get("sub_comment_count", "0") | int > 0 %}
+                <span title="回复">💬 {{ c.get("sub_comment_count") }} 回复</span>
+              {% endif %}
+              {% if c.get("parent_comment_id") %}
+                <span class="meta">回复</span>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty">暂无已采集评论。</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+  .detail-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .detail-layout { grid-template-columns: 1fr; }
+  }
+
+  .detail-left { position: sticky; top: 24px; }
+
+  .gallery {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .gallery-main {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    background: #f0ebe2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .gallery-main img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #1a1a1a;
+  }
+  .gallery-thumbs {
+    display: flex;
+    gap: 6px;
+    padding: 10px;
+    overflow-x: auto;
+  }
+  .thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+    flex-shrink: 0;
+  }
+  .thumb-active { border-color: var(--accent); }
+  .thumb:hover { border-color: var(--accent); opacity: 0.85; }
+  .gallery-count { padding: 0 10px 10px; }
+  .no-image {
+    aspect-ratio: 3/4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0ebe2;
+    border-radius: 16px;
+    color: var(--muted);
+  }
+
+  .detail-right { min-width: 0; }
+
+  .detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .back-link, .source-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .back-link:hover, .source-link:hover { text-decoration: underline; }
+
+  .detail-title {
+    font-size: 22px;
+    margin: 0 0 12px;
+    line-height: 1.4;
+  }
+
+  .detail-author-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .author-info { display: flex; align-items: center; gap: 8px; }
+  .author-name {
+    font-weight: 600;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+  }
+  .author-loc { font-size: 12px; color: var(--muted); }
+
+  .stats-bar {
+    display: flex;
+    gap: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .stat-item {
+    flex: 1;
+    text-align: center;
+    padding: 12px 8px;
+    border-right: 1px solid var(--border);
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-item.highlight { background: rgba(138, 75, 47, 0.06); }
+  .stat-num { font-size: 20px; font-weight: 700; }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .detail-body {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .body-text {
+    font-size: 14px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .detail-meta-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  .meta-k {
+    color: var(--muted);
+    margin-right: 6px;
+  }
+  .meta-k::after { content: ":"; }
+  .meta-v { font-weight: 500; }
+
+  .detail-comments {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .comment-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .comment-item:last-child { border-bottom: none; }
+  .reply-comment { padding-left: 20px; border-left: 2px solid var(--accent-soft); }
+  .comment-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .comment-author { font-weight: 600; font-size: 13px; }
+  .comment-loc { font-size: 11px; color: var(--muted); }
+  .comment-time { font-size: 11px; }
+  .comment-content {
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 4px;
+  }
+  .comment-footer {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
+{% endblock %}

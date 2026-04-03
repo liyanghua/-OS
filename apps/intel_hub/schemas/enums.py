@@ -7,6 +7,14 @@ class WatchlistType(StrEnum):
     COMPETITOR = "competitor"
     CATEGORY = "category"
     PLATFORM_POLICY = "platform_policy"
+    SCENE = "scene"
+    STYLE = "style"
+    NEED = "need"
+    RISK_FACTOR = "risk_factor"
+    MATERIAL = "material"
+    CONTENT_PATTERN = "content_pattern"
+    VISUAL_PATTERN = "visual_pattern"
+    AUDIENCE = "audience"
 
 
 class ReviewStatus(StrEnum):
@@ -30,6 +38,50 @@ class ReviewStatus(StrEnum):
 class CardKind(StrEnum):
     OPPORTUNITY = "opportunity"
     RISK = "risk"
+    INSIGHT = "insight"
+    VISUAL_PATTERN = "visual_pattern"
+    DEMAND_SPEC = "demand_spec"
+
+
+class OpportunityType(StrEnum):
+    TREND = "trend"
+    DEMAND = "demand"
+    CONTENT = "content"
+    PRODUCT = "product"
+    VISUAL = "visual"
+
+
+class RiskType(StrEnum):
+    PRODUCT = "product"
+    VISUAL = "visual"
+    CONTENT = "content"
+    PERCEPTION = "perception"
+    CONVERSION = "conversion"
+
+
+class InsightType(StrEnum):
+    AUDIENCE = "audience"
+    SCENE = "scene"
+    STYLE = "style"
+    EXPRESSION = "expression"
+    CONVERSION = "conversion"
+
+
+class TargetRole(StrEnum):
+    CEO = "ceo"
+    MARKETING_DIRECTOR = "marketing_director"
+    PRODUCT_DIRECTOR = "product_director"
+    VISUAL_DIRECTOR = "visual_director"
+
+
+class CommentSignalType(StrEnum):
+    PURCHASE_INTENT = "purchase_intent"
+    POSITIVE_FEEDBACK = "positive_feedback"
+    NEGATIVE_FEEDBACK = "negative_feedback"
+    QUESTION = "question"
+    COMPARISON = "comparison"
+    UNMET_NEED = "unmet_need"
+    TRUST_GAP = "trust_gap"
 
 
 class ReviewDecisionSource(StrEnum):

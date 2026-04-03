@@ -45,6 +45,10 @@ def compile_risk_cards(
                 merged_evidence_refs=cluster.merged_evidence_refs,
                 suggested_actions=_suggested_actions(bucket, is_risk=True),
                 impact_hint="优先评估平台规则、合规与流量分发变化对当前 watchlist 的影响。",
+                target_roles=_infer_risk_roles(bucket),
+                risk_type=_infer_risk_type(bucket),
+                severity=_infer_severity(bucket),
+                suggested_mitigations=_build_mitigations(bucket),
                 business_priority_score=round(
                     sum(signal.business_priority_score for signal in bucket) / len(bucket),
                     4,
@@ -52,3 +56,59 @@ def compile_risk_cards(
             )
         )
     return cards
+
+
+def _infer_risk_type(bucket: list[Signal]) -> str | None:
+    from apps.intel_hub.schemas.enums import RiskType
+    has_visual_risk = any(
+        any("visual" in r or "misleading" in r for r in s.risk_factor_refs)
+        for s in bucket
+    )
+    has_product_risk = any(
+        any("edge" in r or "size" in r or "clean" in r or "cheap" in r for r in s.risk_factor_refs)
+        for s in bucket
+    )
+    if has_visual_risk:
+        return RiskType.VISUAL
+    if has_product_risk:
+        return RiskType.PRODUCT
+    return RiskType.PERCEPTION
+
+
+def _infer_risk_roles(bucket: list[Signal]) -> list[str]:
+    from apps.intel_hub.schemas.enums import TargetRole
+    roles: set[str] = {TargetRole.CEO.value}
+    if any(s.risk_factor_refs for s in bucket):
+        roles.add(TargetRole.PRODUCT_DIRECTOR.value)
+    if any(s.visual_pattern_refs or s.style_refs for s in bucket):
+        roles.add(TargetRole.VISUAL_DIRECTOR.value)
+    if any(s.content_pattern_refs or s.audience_refs for s in bucket):
+        roles.add(TargetRole.MARKETING_DIRECTOR.value)
+    return sorted(roles)
+
+
+def _infer_severity(bucket: list[Signal]) -> str:
+    avg_score = sum(s.business_priority_score for s in bucket) / max(len(bucket), 1)
+    if avg_score >= 0.7:
+        return "high"
+    if avg_score >= 0.4:
+        return "medium"
+    return "low"
+
+
+def _build_mitigations(bucket: list[Signal]) -> list[str]:
+    risk_refs = {r for s in bucket for r in s.risk_factor_refs}
+    mitigations: list[str] = []
+    if any("edge" in r or "curl" in r for r in risk_refs):
+        mitigations.append("产品端优化边缘工艺或增加防卷边设计")
+    if any("cheap" in r or "texture" in r for r in risk_refs):
+        mitigations.append("升级材质或优化包装提升质感认知")
+    if any("size" in r for r in risk_refs):
+        mitigations.append("完善尺寸选购指南并强化详情页尺寸说明")
+    if any("visual" in r or "misleading" in r for r in risk_refs):
+        mitigations.append("拍摄规范中增加实物还原度要求")
+    if any("clean" in r for r in risk_refs):
+        mitigations.append("增加清洁保养说明与使用场景引导")
+    if not mitigations:
+        mitigations.append("持续监控相关用户反馈并评估影响范围")
+    return mitigations

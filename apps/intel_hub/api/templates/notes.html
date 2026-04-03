@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="headline">
+  <div class="meta">小红书原始笔记</div>
+  <h2 style="margin: 8px 0 0;">笔记浏览（共 {{ total }} 条）</h2>
+  <p style="margin: 8px 0 0;">来自 MediaCrawler 采集的原始数据，含评论、图片、互动指标。</p>
+  <form method="get" action="/notes" style="margin-top: 12px; display: flex; gap: 8px;">
+    <input type="text" name="keyword" value="{{ keyword }}" placeholder="搜索标题或正文…"
+      style="flex: 1; padding: 8px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 14px; outline: none;">
+    <button type="submit" style="padding: 8px 18px; border: none; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;">搜索</button>
+  </form>
+</section>
+
+<div class="notes-grid">
+  {% for note in notes %}
+    {% set payload = note.get("raw_payload", {}) %}
+    {% set metrics = note.get("metrics", {}) %}
+    {% set note_id = payload.get("note_id", "") %}
+    {% set images = note.get("image_list", []) %}
+    {% set comments = note.get("comments", []) %}
+
+    <a href="/notes/{{ note_id }}" class="note-card">
+      <div class="note-cover-wrap">
+        {% if images %}
+          <img class="note-cover" src="{{ images[0] }}" alt="封面" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+          <div class="note-cover-fallback" style="display:none;">📷 图片无法加载</div>
+        {% else %}
+          <div class="note-cover-fallback">无封面图</div>
+        {% endif %}
+        {% if images | length > 1 %}
+          <span class="note-img-count">{{ images | length }} 图</span>
+        {% endif %}
+      </div>
+
+      <div class="note-body">
+        <h3 class="note-title">{{ note.get("title", "无标题") }}</h3>
+
+        <div class="note-author-row">
+          <span class="note-author">{{ note.get("author", "匿名") }}</span>
+          {% if payload.get("ip_location") %}
+            <span class="note-location">📍{{ payload.get("ip_location") }}</span>
+          {% endif %}
+        </div>
+
+        <div class="note-stats">
+          <span title="点赞">❤️ {{ metrics.get("liked_count", 0) }}</span>
+          <span title="收藏">⭐ {{ metrics.get("collected_count", 0) }}</span>
+          <span title="评论">💬 {{ metrics.get("comment_count", 0) }}</span>
+          <span title="分享">🔗 {{ metrics.get("share_count", 0) }}</span>
+        </div>
+
+        {% if comments %}
+          <div class="note-comment-preview">
+            <span class="meta">热门评论：</span>
+            {{ comments[0].get("content", "")[:40] }}{% if comments[0].get("content", "") | length > 40 %}…{% endif %}
+          </div>
+        {% endif %}
+
+        {% if note.get("tags") %}
+          <div class="note-tags">
+            {% for tag in note.get("tags", [])[:4] %}
+              <span class="chip">{{ tag }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </a>
+  {% endfor %}
+</div>
+
+{% if total > page_size %}
+  <div style="display: flex; justify-content: center; gap: 12px; margin: 24px 0;">
+    {% if page > 1 %}
+      <a href="/notes?page={{ page - 1 }}{% if keyword %}&keyword={{ keyword }}{% endif %}" class="pager-btn">‹ 上一页</a>
+    {% endif %}
+    <span class="meta" style="padding: 8px;">第 {{ page }} / {{ ((total - 1) // page_size) + 1 }} 页</span>
+    {% if page * page_size < total %}
+      <a href="/notes?page={{ page + 1 }}{% if keyword %}&keyword={{ keyword }}{% endif %}" class="pager-btn">下一页 ›</a>
+    {% endif %}
+  </div>
+{% endif %}
+
+<style>
+  .notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 4px;
+  }
+  .note-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .note-card:hover {
+    box-shadow: 0 8px 24px rgba(92, 66, 39, 0.14);
+    transform: translateY(-2px);
+  }
+  .note-cover-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: #f0ebe2;
+    overflow: hidden;
+  }
+  .note-cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .note-cover-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .note-img-count {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 8px;
+  }
+  .note-body {
+    padding: 12px 14px 14px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .note-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .note-author-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .note-author { font-weight: 600; }
+  .note-location { font-size: 11px; }
+  .note-stats {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .note-stats span { white-space: nowrap; }
+  .note-comment-preview {
+    font-size: 12px;
+    color: var(--muted);
+    background: rgba(138, 75, 47, 0.06);
+    border-radius: 8px;
+    padding: 6px 10px;
+    line-height: 1.4;
+  }
+  .note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+  }
+  .note-tags .chip { font-size: 11px; padding: 2px 8px; }
+  .pager-btn {
+    padding: 8px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+  .pager-btn:hover { background: var(--accent-soft); }
+</style>
+{% endblock %}

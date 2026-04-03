@@ -45,6 +45,8 @@ def compile_opportunity_cards(
                 merged_evidence_refs=cluster.merged_evidence_refs,
                 suggested_actions=_suggested_actions(bucket, is_risk=False),
                 impact_hint="关注竞品动作与赛道上行信号，优先转化为 watchlist 驱动的机会研判。",
+                target_roles=_infer_opportunity_roles(bucket),
+                opportunity_type=_infer_opportunity_type(bucket),
                 business_priority_score=round(
                     sum(signal.business_priority_score for signal in bucket) / len(bucket),
                     4,
@@ -68,3 +70,32 @@ def _suggested_actions(bucket: list[Signal], is_risk: bool) -> list[str]:
         "把该信号加入重点 watchlist 并补充竞争假设",
         "输出一页机会评估，确认是否进入产品/架构优先级讨论",
     ]
+
+
+def _infer_opportunity_type(bucket: list[Signal]) -> str | None:
+    from apps.intel_hub.schemas.enums import OpportunityType
+    has_style = any(s.style_refs for s in bucket)
+    has_need = any(s.need_refs for s in bucket)
+    has_visual = any(s.visual_pattern_refs for s in bucket)
+    has_content = any(s.content_pattern_refs for s in bucket)
+    if has_need:
+        return OpportunityType.DEMAND
+    if has_style:
+        return OpportunityType.TREND
+    if has_visual:
+        return OpportunityType.VISUAL
+    if has_content:
+        return OpportunityType.CONTENT
+    return OpportunityType.PRODUCT
+
+
+def _infer_opportunity_roles(bucket: list[Signal]) -> list[str]:
+    from apps.intel_hub.schemas.enums import TargetRole
+    roles: set[str] = {TargetRole.CEO.value}
+    if any(s.need_refs or s.material_refs for s in bucket):
+        roles.add(TargetRole.PRODUCT_DIRECTOR.value)
+    if any(s.content_pattern_refs or s.audience_refs for s in bucket):
+        roles.add(TargetRole.MARKETING_DIRECTOR.value)
+    if any(s.visual_pattern_refs or s.style_refs for s in bucket):
+        roles.add(TargetRole.VISUAL_DIRECTOR.value)
+    return sorted(roles)

@@ -10,3 +10,11 @@ topic_impacts:
   opportunity: 0.72
   risk: 0.85
   platform_policy: 0.92
+  scene: 0.65
+  style: 0.60
+  need: 0.75
+  risk_factor: 0.82
+  material: 0.55
+  content_pattern: 0.58
+  visual_pattern: 0.56
+  audience: 0.68

@@ -1,4 +1,49 @@
-# 本体大脑情报中枢 V0.2 当前实现说明
+# 本体大脑情报中枢 V0.3+ — 四层编译链 + 评论关联 + 视觉分析
+
+> V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
+> V0.3+ 增量：评论-笔记自动关联 / 千问 VL 视觉分析 / 端到端验证通过。
+> 详见 [PLAN_V2_COMPILATION_CHAIN.md](./PLAN_V2_COMPILATION_CHAIN.md)
+
+## V0.3+ 进展 (2026-04-03)
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 评论-笔记关联 | **已完成** | `mediacrawler_loader.py` V2: 自动扫描 `search_comments_*.jsonl` 构建 `{note_id: [comments]}` 索引，注入 raw dict |
+| 千问 VL 视觉分析 | **已完成** | `extractor/visual_analyzer.py`: 用 `dashscope` + `qwen-vl-max` 提取 6 维视觉信号（风格/场景/构图/色彩/材质/表达） |
+| Pipeline 集成 | **已完成** | `refresh_pipeline.py` 支持 `enable_vision` 参数；视觉信号合并到 `BusinessSignalFrame` |
+| 演示脚本升级 | **已完成** | `run_pipeline_stage_demo.py` V2: `--enable-vision`，评论统计，决策资产统计 |
+| 端到端验证 | **已完成** | 79 条笔记 → 65 Signal → 54 Opportunity + 44 Insight + 12 VisualPattern + 29 DemandSpec；78/79 笔记关联 1174 条评论；评论信号 180 次命中 |
+
+## V0.3 新增能力
+
+### 四层编译链
+
+| 层 | 模块 | 输入 → 输出 |
+|---|---|---|
+| Layer 1 内容解析 | `extractor/content_parser.py` | raw dict → `NoteContentFrame` |
+| Layer 2 经营信号抽取 | `extractor/signal_extractor.py` | `NoteContentFrame` → `BusinessSignalFrame` |
+| Layer 3 本体映射 | `projector/ontology_projector.py` (V2) | Signal → 多维 refs (scene/style/need/risk/material/content/visual/audience) |
+| Layer 4 决策资产编译 | `compiler/*_compiler.py` (5 种) | Signal → 5 类决策卡片 |
+
+### 5 类决策资产
+
+| 卡片类型 | 编译器 | 服务角色 |
+|---|---|---|
+| OpportunityCard | `opportunity_compiler.py` | CEO, 营销, 产品, 视觉 |
+| RiskCard | `risk_compiler.py` | CEO, 产品, 视觉, 营销 |
+| InsightCard | `insight_compiler.py` | CEO, 营销, 产品 |
+| VisualPatternAsset | `visual_pattern_compiler.py` | 视觉总监, 营销总监 |
+| DemandSpecAsset | `demand_spec_compiler.py` | 产品总监, CEO |
+
+### 10+ 类本体对象
+
+`ontology_mapping.yaml` 扩展覆盖：scenes / styles / needs / risk_factors / materials / content_patterns / visual_patterns / audiences
+
+### 多维 watchlist
+
+`watchlists.yaml` 从 4 条扩展到 18 条，覆盖 10 种 watchlist_type。
+
+---
 
 ## 当前目录结构
 
@@ -10,12 +55,20 @@ apps/
       templates/
     compiler/
       dedupe.py
+      demand_spec_compiler.py    # V0.3 DemandSpecAsset 编译器
+      insight_compiler.py        # V0.3 InsightCard 编译器
       opportunity_compiler.py
       priority_ranker.py
       risk_compiler.py
+      visual_pattern_compiler.py # V0.3 VisualPatternAsset 编译器
+    extractor/                   # V0.3 四层编译链 Layer 1+2
+      content_parser.py          # Layer 1 内容解析
+      signal_extractor.py        # Layer 2 经营信号抽取
+      comment_classifier.py      # 评论级信号分类
+      visual_analyzer.py         # V0.3+ 千问VL视觉分析（dashscope qwen-vl-max）
     ingest/
       trendradar_loader.py
-      mediacrawler_loader.py     # MediaCrawler 原生笔记输出加载器
+      mediacrawler_loader.py     # V2: 自动关联评论 + image_list 传递
       source_router.py           # 统一 raw signal 收集路由
       xhs_loader.py              # 小红书评论级数据加载（兼容旧路径）
       xhs_aggregator.py          # 评论聚合为笔记级信号（兼容旧路径）
@@ -27,11 +80,12 @@ apps/
       ontology_projector.py
       topic_tagger.py
     schemas/
-      cards.py
-      enums.py
+      cards.py                   # + InsightCard, VisualPatternAsset, DemandSpecAsset
+      content_frame.py           # V0.3 NoteContentFrame + BusinessSignalFrame
+      enums.py                   # + OpportunityType, RiskType, InsightType, TargetRole, CommentSignalType
       evidence_ref.py
       review.py
-      signal.py
+      signal.py                  # + V2 多维 refs (scene/style/need/risk/material/...)
       watchlist.py
     storage/
       repository.py
@@ -74,6 +128,8 @@ docs/
 ```
 
 ## 已实现模块
+
+- **小红书 / MediaCrawler → Signal / 卡片 全流程说明**（阶段、配置、Watchlist 角色）：见 [`docs/DATA_PIPELINE_XHS_INTEL_HUB.md`](./DATA_PIPELINE_XHS_INTEL_HUB.md)。
 
 - `ingest/trendradar_loader.py`
   - 最新批次选择
@@ -128,6 +184,15 @@ python3.11 -m venv .venv311
 
 ```bash
 .venv311/bin/python -m apps.intel_hub.workflow.refresh_pipeline
+```
+
+`refresh_pipeline` 在 **INFO** 日志下会输出 `[intel_hub.pipeline]` 各阶段统计（原始采集、归一化、本体投影、打分、聚类/卡片、持久化）。模块入口已 `basicConfig(INFO)`。
+
+用 **MediaCrawler 产出**（默认 `third_party/MediaCrawler/data/xhs/jsonl`，不读 fixture）跑通并观察日志：
+
+```bash
+.venv311/bin/python apps/intel_hub/scripts/run_pipeline_stage_demo.py
+# 或指定目录: --mediacrawler-jsonl path/to/jsonl
 ```
 
 ### 3. 启动本地服务

@@ -4,7 +4,13 @@
 依次调用各 loader 并合并返回统一的 raw signal dict 列表。
 后续 pipeline 只需调用 ``collect_raw_signals(settings)``。
 
-Phase 4: 新增 raw_lake 增量扫描——按 metadata.json 的 ingested 标记跳过已处理 run。
+数据源顺序（合并为单一列表，供 normalize 去重）：
+1. TrendRadar（含 RSS 可选）
+2. MediaCrawler（``runtime.yaml`` → ``mediacrawler_sources``，如小红书 jsonl 目录）
+3. 旧版 xhs_capture（``xhs_sources`` + 聚合）
+4. Raw Lake 增量（``data/raw_lake/...``，未 ingested 的 run）
+
+流水线全貌见 ``docs/DATA_PIPELINE_XHS_INTEL_HUB.md``。
 """
 
 from __future__ import annotations

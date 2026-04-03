@@ -16,6 +16,14 @@ def project_signals(
 ) -> list[Signal]:
     projected: list[Signal] = []
     platform_mapping = ontology_mapping.get("platform_refs", {})
+    scenes_mapping = ontology_mapping.get("scenes", {})
+    styles_mapping = ontology_mapping.get("styles", {})
+    needs_mapping = ontology_mapping.get("needs", {})
+    risk_factors_mapping = ontology_mapping.get("risk_factors", {})
+    materials_mapping = ontology_mapping.get("materials", {})
+    content_patterns_mapping = ontology_mapping.get("content_patterns", {})
+    visual_patterns_mapping = ontology_mapping.get("visual_patterns", {})
+    audiences_mapping = ontology_mapping.get("audiences", {})
     max_entities_per_signal = int((dedupe_config or {}).get("max_entities_per_signal", 3))
 
     for signal in signals:
@@ -36,6 +44,42 @@ def project_signals(
             source_refs.update(watchlist.source_refs)
 
         entity_refs.update(resolution.canonical_entity_refs)
+
+        haystack = " ".join([signal.title, signal.summary, signal.raw_text, signal.keyword or ""]).lower()
+
+        scene_refs = set(signal.scene_refs)
+        style_refs = set(signal.style_refs)
+        need_refs = set(signal.need_refs)
+        risk_factor_refs = set(signal.risk_factor_refs)
+        material_refs = set(signal.material_refs)
+        content_pattern_refs = set(signal.content_pattern_refs)
+        visual_pattern_refs = set(signal.visual_pattern_refs)
+        audience_refs = set(signal.audience_refs)
+
+        for ref_id, cfg in scenes_mapping.items():
+            if isinstance(cfg, dict) and any(kw.lower() in haystack for kw in cfg.get("keywords", [])):
+                scene_refs.add(ref_id)
+        for ref_id, cfg in styles_mapping.items():
+            if isinstance(cfg, dict) and any(kw.lower() in haystack for kw in cfg.get("keywords", [])):
+                style_refs.add(ref_id)
+        for ref_id, cfg in needs_mapping.items():
+            if isinstance(cfg, dict) and any(kw.lower() in haystack for kw in cfg.get("keywords", [])):
+                need_refs.add(ref_id)
+        for ref_id, cfg in risk_factors_mapping.items():
+            if isinstance(cfg, dict) and any(kw.lower() in haystack for kw in cfg.get("keywords", [])):
+                risk_factor_refs.add(ref_id)
+        for ref_id, cfg in materials_mapping.items():
+            if isinstance(cfg, dict) and any(kw.lower() in haystack for kw in cfg.get("keywords", [])):
+                material_refs.add(ref_id)
+        for ref_id, cfg in content_patterns_mapping.items():
+            if isinstance(cfg, dict) and any(kw.lower() in haystack for kw in cfg.get("keywords", [])):
+                content_pattern_refs.add(ref_id)
+        for ref_id, cfg in visual_patterns_mapping.items():
+            if isinstance(cfg, dict) and any(kw.lower() in haystack for kw in cfg.get("keywords", [])):
+                visual_pattern_refs.add(ref_id)
+        for ref_id, cfg in audiences_mapping.items():
+            if isinstance(cfg, dict) and any(kw.lower() in haystack for kw in cfg.get("keywords", [])):
+                audience_refs.add(ref_id)
 
         for platform_ref, config in platform_mapping.items():
             synonyms = config.get("synonyms", []) if isinstance(config, dict) else []
@@ -58,6 +102,14 @@ def project_signals(
                     "topic_tags": topic_tags,
                     "source_refs": sorted(source_refs),
                     "platform_refs": sorted(platform_refs),
+                    "scene_refs": sorted(scene_refs),
+                    "style_refs": sorted(style_refs),
+                    "need_refs": sorted(need_refs),
+                    "risk_factor_refs": sorted(risk_factor_refs),
+                    "material_refs": sorted(material_refs),
+                    "content_pattern_refs": sorted(content_pattern_refs),
+                    "visual_pattern_refs": sorted(visual_pattern_refs),
+                    "audience_refs": sorted(audience_refs),
                 }
             )
         )

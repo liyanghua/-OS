@@ -139,6 +139,168 @@ platform_refs:
     synonyms:
       - policy
       - platform policy center
+# ── V2: 场景对象 ──
+scenes:
+  scene_rental_room:
+    keywords: ["出租屋", "租房", "出租房"]
+    watchlist_ids: [scene_rental_room]
+  scene_dining_table:
+    keywords: ["餐桌", "饭桌", "餐厅桌"]
+    watchlist_ids: [scene_dining_table]
+  scene_tea_table:
+    keywords: ["茶几", "茶台"]
+    watchlist_ids: [scene_tea_table]
+  scene_study_desk:
+    keywords: ["书桌", "学习桌", "办公桌", "工作台"]
+    watchlist_ids: [scene_study_desk]
+  scene_photo_backdrop:
+    keywords: ["拍照", "拍摄", "布景", "背景布"]
+    watchlist_ids: [scene_photo_backdrop]
+  scene_baby_family:
+    keywords: ["宝宝", "宝妈", "母婴", "儿童"]
+    watchlist_ids: [scene_baby_family]
+  scene_pet_family:
+    keywords: ["宠物", "猫", "狗", "猫咪"]
+    watchlist_ids: [scene_pet_family]
+
+# ── V2: 风格对象 ──
+styles:
+  style_creamy:
+    keywords: ["奶油风", "奶油色", "奶白"]
+    watchlist_ids: [style_creamy]
+  style_ins:
+    keywords: ["ins风", "ins", "博主风"]
+    watchlist_ids: [style_ins]
+  style_nordic:
+    keywords: ["北欧", "北欧风", "简约北欧"]
+    watchlist_ids: [style_nordic]
+  style_french:
+    keywords: ["法式", "法式风", "浪漫法式"]
+    watchlist_ids: [style_french]
+  style_vintage:
+    keywords: ["复古", "复古风", "怀旧"]
+    watchlist_ids: [style_vintage]
+  style_japanese:
+    keywords: ["日式", "日系", "原木风", "原木"]
+    watchlist_ids: [style_japanese]
+
+# ── V2: 需求/卖点对象 ──
+needs:
+  need_waterproof:
+    keywords: ["防水", "不怕水"]
+    watchlist_ids: [need_waterproof]
+  need_oilproof:
+    keywords: ["防油", "不沾油", "油污"]
+    watchlist_ids: [need_oilproof]
+  need_easy_clean:
+    keywords: ["好打理", "易清洁", "一擦就干净", "免洗", "好清洁"]
+    watchlist_ids: [need_easy_clean]
+  need_photogenic:
+    keywords: ["出片", "上镜", "好拍", "拍照好看"]
+    watchlist_ids: [need_photogenic]
+  need_premium_feel:
+    keywords: ["高级感", "质感", "显高级", "有质感"]
+    watchlist_ids: [need_premium_feel]
+  need_affordable:
+    keywords: ["平价", "便宜", "性价比", "白菜价", "不贵"]
+    watchlist_ids: [need_affordable]
+  need_flat_lay:
+    keywords: ["易铺平", "贴合", "不起皱", "服帖"]
+    watchlist_ids: [need_flat_lay]
+
+# ── V2: 风险对象 ──
+risk_factors:
+  risk_edge_curl:
+    keywords: ["卷边", "翘边", "边缘翘", "翘起来"]
+    watchlist_ids: [risk_edge_curl]
+  risk_cheap_texture:
+    keywords: ["廉价感", "塑料感", "质感差", "像塑料", "廉价"]
+    watchlist_ids: [risk_cheap_texture]
+  risk_size_mismatch:
+    keywords: ["尺寸不合", "大小不对", "尺寸不对", "太大", "太小"]
+    watchlist_ids: [risk_size_mismatch]
+  risk_hard_to_clean:
+    keywords: ["难清洁", "不好洗", "洗不干净", "难打理"]
+    watchlist_ids: [risk_hard_to_clean]
+  risk_visual_misleading:
+    keywords: ["色差", "实物不符", "滤镜", "照骗", "翻车"]
+    watchlist_ids: [risk_visual_misleading]
+
+# ── V2: 材质对象 ──
+materials:
+  material_pvc:
+    keywords: ["pvc", "PVC", "塑料"]
+    watchlist_ids: [material_pvc]
+  material_cotton_linen:
+    keywords: ["棉麻", "棉", "麻", "亚麻", "纯棉"]
+    watchlist_ids: [material_cotton_linen]
+  material_leather:
+    keywords: ["皮革", "皮质", "PU皮"]
+    watchlist_ids: [material_leather]
+  material_silicone:
+    keywords: ["硅胶"]
+    watchlist_ids: [material_silicone]
+
+# ── V2: 内容模式对象 ──
+content_patterns:
+  content_recommendation:
+    keywords: ["推荐", "安利", "种草", "必买", "好物"]
+    watchlist_ids: [content_recommendation]
+  content_review:
+    keywords: ["测评", "评测", "实测", "亲测"]
+    watchlist_ids: [content_review]
+  content_makeover:
+    keywords: ["改造", "翻新", "大变样", "焕新"]
+    watchlist_ids: [content_makeover]
+  content_comparison:
+    keywords: ["对比", "比较", "PK", "vs"]
+    watchlist_ids: [content_comparison]
+  content_pitfall:
+    keywords: ["踩坑", "踩雷", "避坑", "翻车", "不要买"]
+    watchlist_ids: [content_pitfall]
+  content_unboxing:
+    keywords: ["开箱", "到手", "到货"]
+    watchlist_ids: [content_unboxing]
+
+# ── V2: 视觉模式对象 ──
+visual_patterns:
+  visual_top_view_table:
+    keywords: ["俯拍", "俯视", "平铺"]
+    watchlist_ids: [visual_top_view_table]
+  visual_texture_closeup:
+    keywords: ["特写", "纹理", "细节", "材质特写"]
+    watchlist_ids: [visual_texture_closeup]
+  visual_before_after:
+    keywords: ["前后对比", "改造前后", "before after"]
+    watchlist_ids: [visual_before_after]
+  visual_soft_light:
+    keywords: ["柔光", "氛围感", "暖光", "自然光"]
+    watchlist_ids: [visual_soft_light]
+  visual_dense_instruction:
+    keywords: ["说明图", "教程", "步骤"]
+    watchlist_ids: [visual_dense_instruction]
+
+# ── V2: 人群对象 ──
+audiences:
+  audience_renters:
+    keywords: ["租房党", "租房", "出租屋", "合租"]
+    watchlist_ids: [audience_renters]
+  audience_young_female:
+    keywords: ["小姐姐", "女生", "闺蜜"]
+    watchlist_ids: [audience_young_female]
+  audience_moms:
+    keywords: ["宝妈", "妈妈", "带娃"]
+    watchlist_ids: [audience_moms]
+  audience_students:
+    keywords: ["学生", "宿舍", "学生党"]
+    watchlist_ids: [audience_students]
+  audience_pet_owners:
+    keywords: ["养猫", "养狗", "铲屎官", "宠物"]
+    watchlist_ids: [audience_pet_owners]
+  audience_home_aesthetes:
+    keywords: ["精致", "生活美学", "家居博主", "氛围感"]
+    watchlist_ids: [audience_home_aesthetes]
+
 card_compiler:
   opportunity_topics:
     - opportunity
@@ -147,3 +309,16 @@ card_compiler:
   risk_topics:
     - risk
     - platform_policy
+  insight_topics:
+    - category
+    - audience
+    - scene
+    - style
+  visual_pattern_topics:
+    - visual
+    - style
+    - content
+  demand_spec_topics:
+    - category
+    - demand
+    - product

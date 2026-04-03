@@ -34,3 +34,15 @@ class Signal(BaseModel):
     business_priority_score: float = 0.0
     classification_hint: str | None = None
     raw_payload: dict[str, Any] = Field(default_factory=dict)
+    # V2: 多维本体引用（由 Layer 3 本体映射填充）
+    scene_refs: list[str] = Field(default_factory=list)
+    style_refs: list[str] = Field(default_factory=list)
+    need_refs: list[str] = Field(default_factory=list)
+    risk_factor_refs: list[str] = Field(default_factory=list)
+    material_refs: list[str] = Field(default_factory=list)
+    content_pattern_refs: list[str] = Field(default_factory=list)
+    visual_pattern_refs: list[str] = Field(default_factory=list)
+    audience_refs: list[str] = Field(default_factory=list)
+    buying_barrier_refs: list[str] = Field(default_factory=list)
+    value_proposition_refs: list[str] = Field(default_factory=list)
+    target_roles: list[str] = Field(default_factory=list)
