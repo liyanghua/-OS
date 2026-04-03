@@ -20,4 +20,5 @@ class XHSOntologyMapping(BaseModel):
     visual_pattern_refs: list[str] = Field(default_factory=list)
     content_pattern_refs: list[str] = Field(default_factory=list)
     value_proposition_refs: list[str] = Field(default_factory=list)
+    source_signal_summary: str | None = None
     evidence_refs: list[XHSEvidenceRef] = Field(default_factory=list)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from apps.intel_hub.schemas.evidence import XHSEvidenceRef
 
@@ -23,8 +23,27 @@ class XHSOpportunityCard(BaseModel):
     need_refs: list[str] = Field(default_factory=list)
     risk_refs: list[str] = Field(default_factory=list)
     visual_pattern_refs: list[str] = Field(default_factory=list)
+    content_pattern_refs: list[str] = Field(default_factory=list)
+    value_proposition_refs: list[str] = Field(default_factory=list)
+    audience_refs: list[str] = Field(default_factory=list)
     evidence_refs: list[XHSEvidenceRef] = Field(default_factory=list)
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
-    suggested_next_step: str = ""
+    suggested_next_step: list[str] = Field(default_factory=list)
     review_status: str = "pending"
+
+    @field_validator("suggested_next_step", mode="before")
+    @classmethod
+    def _coerce_next_step(cls, v):  # noqa: N805
+        if isinstance(v, str):
+            return [v] if v else []
+        return v
     source_note_ids: list[str] = Field(default_factory=list)
+
+    # V0.7 检视聚合字段
+    review_count: int = 0
+    manual_quality_score_avg: float | None = None
+    actionable_ratio: float | None = None
+    evidence_sufficient_ratio: float | None = None
+    composite_review_score: float | None = None
+    qualified_opportunity: bool = False
+    opportunity_status: str = "pending_review"

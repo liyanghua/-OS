@@ -2,9 +2,9 @@
 
 {% block content %}
 <section class="headline">
-  <div class="meta">XHS 三维结构化机会卡流水线 V0.5</div>
+  <div class="meta">XHS 三维结构化机会卡 V0.7 — 检视反馈闭环</div>
   <p style="margin: 12px 0 0;">
-    从小红书笔记中提取<strong>视觉</strong>、<strong>卖点主题</strong>、<strong>场景</strong>三维信号，经本体映射与规则判定生成机会卡。每张卡均有 evidence_refs 可追溯。
+    从小红书笔记中提取<strong>视觉</strong>、<strong>卖点主题</strong>、<strong>场景</strong>三维信号，经本体映射与规则判定生成机会卡。支持人工检视、聚合评分与升级判定。
   </p>
 </section>
 
@@ -28,10 +28,16 @@
 
 <!-- 筛选 -->
 <div style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-  <span class="meta" style="margin-right: 4px;">类型筛选:</span>
-  <a href="/xhs-opportunities" class="chip" style="text-decoration: none; {% if not type_filter %}background: var(--accent); color: #fff;{% endif %}">全部</a>
+  <span class="meta" style="margin-right: 4px;">类型:</span>
+  <a href="/xhs-opportunities{% if status_filter %}?status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if not type_filter %}background: var(--accent); color: #fff;{% endif %}">全部</a>
   {% for t in all_types %}
-  <a href="/xhs-opportunities?type={{ t }}" class="chip" style="text-decoration: none; {% if type_filter == t %}background: var(--accent); color: #fff;{% endif %}">{{ type_labels.get(t, t) }}</a>
+  <a href="/xhs-opportunities?type={{ t }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if type_filter == t %}background: var(--accent); color: #fff;{% endif %}">{{ type_labels.get(t, t) }}</a>
+  {% endfor %}
+
+  <span class="meta" style="margin-left: 16px; margin-right: 4px;">状态:</span>
+  <a href="/xhs-opportunities{% if type_filter %}?type={{ type_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if not status_filter %}background: var(--accent); color: #fff;{% endif %}">全部</a>
+  {% for s, label in status_labels.items() %}
+  <a href="/xhs-opportunities?status={{ s }}{% if type_filter %}&type={{ type_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if status_filter == s %}background: {{ status_colors.get(s, 'var(--accent)') }}; color: #fff;{% endif %}">{{ label }}</a>
   {% endfor %}
 </div>
 
@@ -39,71 +45,49 @@
 <div class="list">
   {% if cards %}
     {% for card in cards %}
-    <div class="card" style="border-left: 4px solid {{ type_colors.get(card.opportunity_type, 'var(--border)') }};">
+    <a href="/xhs-opportunities/{{ card.opportunity_id }}" style="text-decoration: none; color: inherit;">
+    <div class="card" style="border-left: 4px solid {{ type_colors.get(card.opportunity_type, 'var(--border)') }}; cursor: pointer; transition: box-shadow 0.15s;">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
         <div>
           <span style="display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background: {{ type_bg.get(card.opportunity_type, 'var(--accent-soft)') }}; color: {{ type_colors.get(card.opportunity_type, 'var(--accent)') }};">{{ type_labels.get(card.opportunity_type, card.opportunity_type) }}</span>
           <span class="meta" style="margin-left: 8px;">置信度 {{ "%.0f"|format(card.confidence * 100) }}%</span>
         </div>
-        <span class="meta">{{ card.review_status }}</span>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          {% if card.qualified_opportunity %}
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #c8e6c9; color: #2e7d32;">已升级</span>
+          {% endif %}
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; background: #f5f5f5; color: {{ status_colors.get(card.opportunity_status, '#757575') }};">{{ status_labels.get(card.opportunity_status, card.opportunity_status) }}</span>
+        </div>
       </div>
 
       <h3 style="margin: 0 0 8px;">{{ card.title }}</h3>
-      <p style="margin: 0 0 10px; color: var(--muted); font-size: 14px;">{{ card.summary }}</p>
+      <p style="margin: 0 0 10px; color: var(--muted); font-size: 14px;">{{ card.summary[:120] }}{% if card.summary|length > 120 %}…{% endif %}</p>
+
+      <!-- 检视摘要 -->
+      <div style="display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-bottom: 8px;">
+        <span>检视 {{ card.review_count }} 次</span>
+        {% if card.manual_quality_score_avg is not none %}
+        <span>质量 {{ "%.1f"|format(card.manual_quality_score_avg) }}/10</span>
+        {% endif %}
+        {% if card.composite_review_score is not none %}
+        <span>综合 {{ "%.0f"|format(card.composite_review_score * 100) }}%</span>
+        {% endif %}
+      </div>
 
       <!-- 标签 -->
-      <div class="chips" style="margin-bottom: 10px;">
-        {% for ref in card.scene_refs %}
-          <span class="chip" style="background: #e8f5e9; color: #2e7d32;">🏠 {{ ref }}</span>
+      <div class="chips" style="margin-bottom: 6px;">
+        {% for ref in card.scene_refs[:3] %}
+          <span class="chip" style="background: #e8f5e9; color: #2e7d32;">{{ ref }}</span>
         {% endfor %}
-        {% for ref in card.style_refs %}
-          <span class="chip" style="background: #fce4ec; color: #c62828;">🎨 {{ ref }}</span>
+        {% for ref in card.style_refs[:3] %}
+          <span class="chip" style="background: #fce4ec; color: #c62828;">{{ ref }}</span>
         {% endfor %}
-        {% for ref in card.need_refs %}
-          <span class="chip" style="background: #e3f2fd; color: #1565c0;">✅ {{ ref }}</span>
-        {% endfor %}
-        {% for ref in card.risk_refs %}
-          <span class="chip" style="background: #fff3e0; color: #e65100;">⚠️ {{ ref }}</span>
-        {% endfor %}
-        {% for ref in card.visual_pattern_refs %}
-          <span class="chip" style="background: #f3e5f5; color: #7b1fa2;">📷 {{ ref }}</span>
+        {% for ref in card.need_refs[:3] %}
+          <span class="chip" style="background: #e3f2fd; color: #1565c0;">{{ ref }}</span>
         {% endfor %}
       </div>
-
-      <!-- 下一步建议 -->
-      {% if card.suggested_next_step %}
-      <div style="background: #f8f6f0; border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 10px;">
-        <strong>建议下一步：</strong>{{ card.suggested_next_step }}
-      </div>
-      {% endif %}
-
-      <!-- 证据追溯 -->
-      <details>
-        <summary>证据追溯 ({{ card.evidence_refs | length }} 条)</summary>
-        <div style="margin-top: 8px;">
-          {% for ev in card.evidence_refs[:8] %}
-          <div style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px;">
-            <span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; background: var(--accent-soft); color: var(--accent);">{{ ev.source_kind }}</span>
-            <span class="meta" style="margin-left: 4px;">conf {{ "%.0f"|format(ev.confidence * 100) }}%</span>
-            <div style="margin-top: 2px; color: var(--muted);">「{{ ev.snippet[:80] }}{% if ev.snippet|length > 80 %}…{% endif %}」</div>
-          </div>
-          {% endfor %}
-          {% if card.evidence_refs | length > 8 %}
-          <div class="meta" style="padding-top: 6px;">…还有 {{ card.evidence_refs | length - 8 }} 条证据</div>
-          {% endif %}
-        </div>
-      </details>
-
-      <!-- 来源笔记 -->
-      {% if card.source_note_ids %}
-      <div class="meta" style="margin-top: 8px;">
-        来源笔记:
-        {% for nid in card.source_note_ids %}
-          <a href="/notes/{{ nid }}" style="color: var(--accent);">{{ nid[:12] }}…</a>
-        {% endfor %}
-      </div>
-      {% endif %}
     </div>
+    </a>
     {% endfor %}
   {% else %}
     <div class="empty">暂无机会卡数据。请先运行 <code>python -m apps.intel_hub.workflow.xhs_opportunity_pipeline</code></div>
@@ -114,11 +98,11 @@
 {% if total_pages > 1 %}
 <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
   {% if page > 1 %}
-    <a href="/xhs-opportunities?page={{ page - 1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}" class="chip" style="text-decoration: none;">上一页</a>
+    <a href="/xhs-opportunities?page={{ page - 1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none;">上一页</a>
   {% endif %}
   <span class="meta" style="line-height: 28px;">第 {{ page }} / {{ total_pages }} 页</span>
   {% if page < total_pages %}
-    <a href="/xhs-opportunities?page={{ page + 1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}" class="chip" style="text-decoration: none;">下一页</a>
+    <a href="/xhs-opportunities?page={{ page + 1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none;">下一页</a>
   {% endif %}
 </div>
 {% endif %}

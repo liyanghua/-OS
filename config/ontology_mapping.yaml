@@ -222,6 +222,9 @@ needs:
   need_affordable_upgrade:
     keywords: ["平价升级", "低成本改造", "省钱装扮"]
     watchlist_ids: [need_affordable_upgrade]
+  need_size_fit:
+    keywords: ["尺寸合适", "尺寸可选", "多尺寸", "定制尺寸", "尺寸适配"]
+    watchlist_ids: [need_size_fit]
 
 # ── V2: 风险对象 ──
 risk_factors:
@@ -240,6 +243,9 @@ risk_factors:
   risk_visual_misleading:
     keywords: ["色差", "实物不符", "滤镜", "照骗", "翻车"]
     watchlist_ids: [risk_visual_misleading]
+  risk_claim_unverified:
+    keywords: ["无支撑", "未验证", "不确定", "存疑"]
+    watchlist_ids: [risk_claim_unverified]
 
 # ── V2: 材质对象 ──
 materials:

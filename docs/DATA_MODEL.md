@@ -238,15 +238,24 @@ MediaCrawler XHS 笔记数据通过 `mediacrawler_loader.py` 映射为 raw signa
 
 三类信号均含 `note_id` + `evidence_refs: list[XHSEvidenceRef]`，各有独立子字段。
 
-### XHSOntologyMapping
+### XHSOntologyMapping (V0.6)
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `note_id` | `str` | 笔记 ID |
-| `category_refs` / `scene_refs` / `style_refs` / `need_refs` / `risk_refs` / `audience_refs` / `visual_pattern_refs` / `content_pattern_refs` / `value_proposition_refs` | `list[str]` | canonical ontology refs |
+| `category_refs` | `list[str]` | 品类 canonical refs |
+| `scene_refs` | `list[str]` | 场景 canonical refs |
+| `style_refs` | `list[str]` | 风格 canonical refs |
+| `need_refs` | `list[str]` | 需求 canonical refs |
+| `risk_refs` | `list[str]` | 风险 canonical refs（含 cross_modal 增补） |
+| `audience_refs` | `list[str]` | 受众 canonical refs |
+| `visual_pattern_refs` | `list[str]` | 视觉模式 canonical refs |
+| `content_pattern_refs` | `list[str]` | 内容模式 canonical refs |
+| `value_proposition_refs` | `list[str]` | 价值主张 refs（need+style 组合） |
+| `source_signal_summary` | `str \| None` | **V0.6 新增** 一句话信号摘要 |
 | `evidence_refs` | `list[XHSEvidenceRef]` | 汇总证据 |
 
-### XHSOpportunityCard
+### XHSOpportunityCard (V0.6)
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -254,11 +263,47 @@ MediaCrawler XHS 笔记数据通过 `mediacrawler_loader.py` 映射为 raw signa
 | `title` | `str` | 机会卡标题 |
 | `summary` | `str` | 摘要 |
 | `opportunity_type` | `Literal["visual","demand","product","content","scene"]` | 类型 |
+| `entity_refs` | `list[str]` | 品类 refs |
+| `scene_refs` | `list[str]` | 场景 refs |
+| `style_refs` | `list[str]` | 风格 refs |
+| `need_refs` | `list[str]` | 需求 refs |
+| `risk_refs` | `list[str]` | 风险 refs |
+| `visual_pattern_refs` | `list[str]` | 视觉模式 refs |
+| `content_pattern_refs` | `list[str]` | **V0.6 新增** 内容模式 refs |
+| `value_proposition_refs` | `list[str]` | **V0.6 新增** 价值主张 refs |
+| `audience_refs` | `list[str]` | **V0.6 新增** 受众 refs |
 | `evidence_refs` | `list[XHSEvidenceRef]` | 证据链 |
 | `confidence` | `float` | 置信度 |
-| `suggested_next_step` | `str` | 建议下一步 |
+| `suggested_next_step` | `list[str]` | **V0.6 改为 list** 多条建议下一步 |
 | `review_status` | `str` | 默认 `pending` |
 | `source_note_ids` | `list[str]` | 来源笔记 |
+
+### OpportunityReview (V0.7)
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `review_id` | `str` | 自动生成 16 位 hex |
+| `opportunity_id` | `str` | 关联机会卡 ID |
+| `reviewer` | `str` | 检视人 |
+| `reviewed_at` | `datetime` | 检视时间 (UTC) |
+| `manual_quality_score` | `int` | 质量评分 1-10 |
+| `is_actionable` | `bool` | 是否可执行 |
+| `evidence_sufficient` | `bool` | 证据是否充分 |
+| `review_notes` | `str?` | 备注 |
+
+### XHSOpportunityCard 聚合字段 (V0.7 新增)
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `review_count` | `int` | `0` | 检视次数 |
+| `manual_quality_score_avg` | `float?` | `None` | 平均质量评分 |
+| `actionable_ratio` | `float?` | `None` | 可执行率 |
+| `evidence_sufficient_ratio` | `float?` | `None` | 证据充分率 |
+| `composite_review_score` | `float?` | `None` | 综合评分 |
+| `qualified_opportunity` | `bool` | `False` | 是否已升级 |
+| `opportunity_status` | `str` | `"pending_review"` | 状态 (pending_review / reviewed / promoted / rejected) |
+
+详见 [OPPORTUNITY_REVIEW.md](./OPPORTUNITY_REVIEW.md)。
 
 ## 当前局限
 

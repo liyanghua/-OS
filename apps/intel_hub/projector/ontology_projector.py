@@ -122,29 +122,176 @@ def project_signals(
 
 # ── XHS 三维信号专用本体映射 ──────────────────────────────
 
+# VP 映射：need -> canonical value proposition ref
+_VP_MAP: dict[str, str] = {
+    "need_photogenic": "vp_photogenic",
+    "need_premium_feel": "vp_premium_feel",
+    "need_easy_clean": "vp_easy_clean",
+    "need_affordable": "vp_affordable_upgrade",
+    "need_affordable_upgrade": "vp_affordable_upgrade",
+    "need_waterproof": "vp_easy_clean",
+}
+
+
+def map_styles(
+    visual: VisualSignals,
+    scene: SceneSignals,
+    config: dict[str, Any],
+) -> list[str]:
+    styles_cfg = config.get("styles", {})
+    signal_values = visual.visual_style_signals + [
+        s for s in scene.scene_signals if any(
+            kw in s.lower() for kw in ("风", "ins", "北欧", "法式", "复古", "日系", "原木", "极简")
+        )
+    ]
+    return _match_signals_to_refs(signal_values, styles_cfg)
+
+
+def map_scenes(
+    scene: SceneSignals,
+    visual: VisualSignals,
+    config: dict[str, Any],
+) -> list[str]:
+    scenes_cfg = config.get("scenes", {})
+    signal_values = scene.scene_signals + scene.inferred_scene_signals
+    if visual.visual_scene_signals:
+        signal_values = signal_values + [
+            s.replace("场景", "") for s in visual.visual_scene_signals
+        ]
+    return _match_signals_to_refs(signal_values, scenes_cfg)
+
+
+def map_needs(
+    selling: SellingThemeSignals,
+    scene: SceneSignals,
+    config: dict[str, Any],
+) -> list[str]:
+    needs_cfg = config.get("needs", {})
+    signal_values = selling.selling_point_signals + scene.scene_goal_signals
+    return _match_signals_to_refs(signal_values, needs_cfg)
+
+
+def map_risks(
+    selling: SellingThemeSignals,
+    visual: VisualSignals,
+    cross_modal: Any | None,
+    config: dict[str, Any],
+) -> list[str]:
+    risk_cfg = config.get("risk_factors", {})
+    signal_values = selling.selling_point_challenges + visual.visual_misleading_risk
+    refs = _match_signals_to_refs(signal_values, risk_cfg)
+
+    if cross_modal is not None:
+        unsupported = getattr(cross_modal, "unsupported_claims", [])
+        if unsupported and "risk_claim_unverified" not in refs:
+            refs.append("risk_claim_unverified")
+
+    return refs
+
+
+def map_visual_patterns(
+    visual: VisualSignals,
+    config: dict[str, Any],
+) -> list[str]:
+    visual_cfg = config.get("visual_patterns", {})
+    signal_values = (
+        visual.visual_composition_type
+        + visual.visual_expression_pattern
+        + visual.visual_feature_highlights
+    )
+    return _match_signals_to_refs(signal_values, visual_cfg)
+
+
+def map_content_patterns(
+    selling: SellingThemeSignals,
+    scene: SceneSignals,
+    config: dict[str, Any],
+) -> list[str]:
+    content_cfg = config.get("content_patterns", {})
+    signal_values = selling.selling_theme_refs
+    return _match_signals_to_refs(signal_values, content_cfg)
+
+
+def map_value_propositions(
+    selling: SellingThemeSignals,
+    visual: VisualSignals,
+    scene: SceneSignals,
+    config: dict[str, Any],
+) -> list[str]:
+    needs_cfg = config.get("needs", {})
+    styles_cfg = config.get("styles", {})
+
+    need_refs = _match_signals_to_refs(selling.selling_point_signals, needs_cfg)
+    style_refs = _match_signals_to_refs(visual.visual_style_signals, styles_cfg)
+
+    vps: list[str] = []
+    for n in need_refs:
+        vp = _VP_MAP.get(n)
+        if vp and vp not in vps:
+            vps.append(vp)
+
+    if need_refs and style_refs:
+        for n in need_refs[:2]:
+            for s in style_refs[:2]:
+                combo = f"{n}+{s}"
+                if combo not in vps:
+                    vps.append(combo)
+
+    return vps
+
+
+def map_audiences(
+    scene: SceneSignals,
+    config: dict[str, Any],
+) -> list[str]:
+    audiences_cfg = config.get("audiences", {})
+    return _match_signals_to_refs(scene.audience_signals, audiences_cfg)
+
+
+def build_source_signal_summary(
+    visual: VisualSignals,
+    selling: SellingThemeSignals,
+    scene: SceneSignals,
+) -> str:
+    parts: list[str] = []
+    if visual.visual_style_signals:
+        parts.append(f"风格: {', '.join(visual.visual_style_signals[:3])}")
+    if selling.selling_point_signals:
+        parts.append(f"卖点: {', '.join(selling.selling_point_signals[:3])}")
+    if scene.scene_signals:
+        parts.append(f"场景: {', '.join(scene.scene_signals[:3])}")
+    if selling.validated_selling_points:
+        parts.append(f"已验证: {', '.join(selling.validated_selling_points[:2])}")
+    return " | ".join(parts) if parts else ""
+
+
+def build_evidence_refs(
+    visual: VisualSignals,
+    selling: SellingThemeSignals,
+    scene: SceneSignals,
+) -> list[XHSEvidenceRef]:
+    evidence: list[XHSEvidenceRef] = []
+    evidence.extend(visual.evidence_refs)
+    evidence.extend(selling.evidence_refs)
+    evidence.extend(scene.evidence_refs)
+    return evidence
+
 
 def project_xhs_signals(
     visual: VisualSignals,
     selling: SellingThemeSignals,
     scene: SceneSignals,
     ontology_config: dict[str, Any],
+    cross_modal: Any | None = None,
 ) -> XHSOntologyMapping:
     """将三维提取结果映射到 canonical ontology refs。
 
     从 ontology_mapping.yaml 配置中查找 alias -> canonical ref，
-    汇总所有 evidence_refs。
+    汇总所有 evidence_refs。cross_modal 用于增补 risk 映射。
     """
     note_id = visual.note_id or selling.note_id or scene.note_id
 
-    scenes_cfg = ontology_config.get("scenes", {})
-    styles_cfg = ontology_config.get("styles", {})
-    needs_cfg = ontology_config.get("needs", {})
-    risk_cfg = ontology_config.get("risk_factors", {})
-    visual_cfg = ontology_config.get("visual_patterns", {})
-    content_cfg = ontology_config.get("content_patterns", {})
-    audiences_cfg = ontology_config.get("audiences", {})
     entities_cfg = ontology_config.get("entities", {})
-
     category_refs: list[str] = []
     for eid, ecfg in entities_cfg.items():
         if not isinstance(ecfg, dict):
@@ -159,43 +306,19 @@ def project_xhs_signals(
         if any(a in haystack for a in aliases):
             category_refs.append(eid)
 
-    scene_refs = _match_signals_to_refs(scene.scene_signals, scenes_cfg)
-    style_refs = _match_signals_to_refs(visual.visual_style_signals, styles_cfg)
-    need_refs = _match_signals_to_refs(selling.selling_point_signals, needs_cfg)
-    risk_refs = _match_signals_to_refs(
-        selling.selling_point_challenges + visual.visual_misleading_risk,
-        risk_cfg,
-    )
-    visual_pattern_refs = _match_signals_to_refs(
-        visual.visual_composition_type + visual.visual_expression_pattern,
-        visual_cfg,
-    )
-    content_pattern_refs = _match_signals_to_refs(selling.selling_theme_refs, content_cfg)
-    audience_refs = _match_signals_to_refs(scene.audience_signals, audiences_cfg)
-
-    value_proposition_refs: list[str] = []
-    if need_refs and style_refs:
-        for n in need_refs[:2]:
-            for s in style_refs[:2]:
-                value_proposition_refs.append(f"{n}+{s}")
-
-    all_evidence: list[XHSEvidenceRef] = []
-    all_evidence.extend(visual.evidence_refs)
-    all_evidence.extend(selling.evidence_refs)
-    all_evidence.extend(scene.evidence_refs)
-
     return XHSOntologyMapping(
         note_id=note_id,
         category_refs=category_refs,
-        scene_refs=scene_refs,
-        style_refs=style_refs,
-        need_refs=need_refs,
-        risk_refs=risk_refs,
-        audience_refs=audience_refs,
-        visual_pattern_refs=visual_pattern_refs,
-        content_pattern_refs=content_pattern_refs,
-        value_proposition_refs=value_proposition_refs,
-        evidence_refs=all_evidence,
+        scene_refs=map_scenes(scene, visual, ontology_config),
+        style_refs=map_styles(visual, scene, ontology_config),
+        need_refs=map_needs(selling, scene, ontology_config),
+        risk_refs=map_risks(selling, visual, cross_modal, ontology_config),
+        audience_refs=map_audiences(scene, ontology_config),
+        visual_pattern_refs=map_visual_patterns(visual, ontology_config),
+        content_pattern_refs=map_content_patterns(selling, scene, ontology_config),
+        value_proposition_refs=map_value_propositions(selling, visual, scene, ontology_config),
+        source_signal_summary=build_source_signal_summary(visual, selling, scene),
+        evidence_refs=build_evidence_refs(visual, selling, scene),
     )
 
 

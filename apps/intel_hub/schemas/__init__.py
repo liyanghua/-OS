@@ -35,8 +35,10 @@ from apps.intel_hub.schemas.xhs_signals import (
     SellingThemeSignals,
     VisualSignals,
 )
+from apps.intel_hub.schemas.xhs_validation import CrossModalValidation
 
 __all__ = [
+    "CrossModalValidation",
     "BusinessSignalFrame",
     "CardKind",
     "CommentFrame",

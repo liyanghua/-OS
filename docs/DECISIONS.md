@@ -240,6 +240,53 @@
   - 当两条 pipeline 产出需要统一展示时重审合并策略
   - 当需要 LLM 语义提取时重审提取器架构
 
+## D-018 cross_modal 贯穿全链路 + Projector 拆子函数 (V0.6)
+
+- 决策内容：将 `CrossModalValidation` 作为参数传入 `project_xhs_signals()` 和 `compile_xhs_opportunities()`，而非仅在提取后丢弃。`project_xhs_signals()` 拆分为 8 个独立子函数。
+- 原因：
+  - cross_modal 校验结果（unsupported_claims、scene_alignment）对本体映射和机会卡置信度有直接影响
+  - projector 拆子函数：便于独立测试、独立复用、后续替换为 LLM 映射
+  - merge_opportunities 去重：同一篇笔记可能因信号组合相近生成重复卡片
+  - suggested_next_step 改为 list：更符合实际操作场景（多条可执行建议）
+  - value_proposition_refs 引入 canonical VP 映射（vp_photogenic 等）+ need×style 组合
+- 替代方案：
+  - cross_modal 只用于 UI 展示，不参与编译逻辑（丢失信息）
+  - projector 保持单一函数（难以测试和扩展）
+  - 不做 merge_opportunities（可能产生重复卡片）
+- 当前影响：
+  - `project_xhs_signals()` 新增 `cross_modal` 可选参数，向后兼容
+  - `compile_xhs_opportunities()` 新增 `cross_modal` 可选参数，向后兼容
+  - `XHSOntologyMapping` 新增 `source_signal_summary` 字段
+  - `XHSOpportunityCard` 新增 `content_pattern_refs`/`value_proposition_refs`/`audience_refs`
+  - `suggested_next_step` 类型从 `str` 改为 `list[str]`
+  - `ontology_mapping.yaml` 新增 `risk_claim_unverified`/`need_size_fit`
+  - `opportunity_rules.yaml` 新增 cross_modal 相关阈值和 merge_rules
+- 后续重审：
+  - 当需要 LLM 语义映射时，可替换单个子函数而非重写整体
+  - 当多篇聚合需求出现时，merge_opportunities 可扩展为跨笔记合并
+
+## D-019 先做人工反馈闭环，再做自动质量判定 (V0.7)
+
+- 决策内容：V0.7 先实现最小"检视 + 人工反馈 + 聚合 + 升级"闭环，不做自动质量模型或多人审批流。
+- 原因：
+  - 机会卡是三维结构化流水线的最终产出，需要人工验证其质量和可执行性
+  - 聚合公式简单透明（composite = 0.5×quality + 0.3×actionable + 0.2×evidence），便于后续校准
+  - promoted 阈值先取保守值（quality≥7.5, actionable≥60%, evidence≥70%, composite≥0.72），防止低质量卡片流入下游
+  - XHSReviewStore 独立于旧 Repository，避免 schema 冲突
+  - SQLite 轻量存储足够 MVP 阶段使用
+- 替代方案：
+  - 自动质量模型（LLM 评分 / 规则打分）—— 缺少训练数据和人工标注基线
+  - 多人审批流（角色分配 / 多级审核）—— 当前阶段无需复杂协作
+  - 直接在旧 Repository 上扩展 —— schema 不兼容，改动量大
+- 当前影响：
+  - 新增 `schemas/opportunity_review.py` + `storage/xhs_review_store.py` + 2 个服务
+  - `/xhs-opportunities` 路由从 JSON 文件切换到 SQLite store
+  - 详情页支持在线提交反馈，提交后自动触发聚合 + 升级判定
+- 后续重审：
+  - 当收集足够人工反馈后，可训练自动质量模型辅助预筛
+  - 当需要多角色协作时，扩展审批流和角色权限
+  - 当 promoted 卡片需要进入下游系统时，定义导出接口
+
 ## D-016 MediaCrawler 克隆到 third_party/ 并通过 source_router 接入
 
 - 决策内容：将 MediaCrawler 开源仓库 clone 到 `third_party/MediaCrawler`，通过新增 `mediacrawler_loader.py` 读取其原生笔记级输出（JSON/JSONL/SQLite），通过 `source_router.py` 在 ingest 层与 TrendRadar 汇合。

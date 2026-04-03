@@ -117,24 +117,72 @@ def compile_xhs_opportunities(
     selling: SellingThemeSignals,
     scene: SceneSignals,
     rules: dict[str, Any],
+    cross_modal: Any | None = None,
 ) -> list[XHSOpportunityCard]:
-    """根据三维信号 + 本体映射 + 规则配置生成 XHS 机会卡。"""
+    """根据三维信号 + 本体映射 + 规则配置 + 跨模态校验生成 XHS 机会卡。"""
     cards: list[XHSOpportunityCard] = []
     note_id = mapping.note_id
 
-    visual_card = _try_visual_opportunity(mapping, visual, rules.get("visual_opportunity", {}), note_id)
+    visual_card = _try_visual_opportunity(mapping, visual, rules.get("visual_opportunity", {}), note_id, cross_modal)
     if visual_card:
         cards.append(visual_card)
 
-    selling_card = _try_selling_theme_opportunity(mapping, selling, rules.get("selling_theme_opportunity", {}), note_id)
+    selling_card = _try_selling_theme_opportunity(mapping, selling, rules.get("selling_theme_opportunity", {}), note_id, cross_modal)
     if selling_card:
         cards.append(selling_card)
 
-    scene_card = _try_scene_opportunity(mapping, scene, rules.get("scene_opportunity", {}), note_id)
+    scene_card = _try_scene_opportunity(mapping, scene, rules.get("scene_opportunity", {}), note_id, cross_modal)
     if scene_card:
         cards.append(scene_card)
 
+    cards = merge_opportunities(cards, rules.get("merge_rules", {}))
     return cards
+
+
+def merge_opportunities(
+    cards: list[XHSOpportunityCard],
+    merge_rules: dict[str, Any] | None = None,
+) -> list[XHSOpportunityCard]:
+    """按 opportunity_type + scene_refs + need_refs 去重，合并 evidence_refs。"""
+    if not cards or len(cards) <= 1:
+        return cards
+
+    max_cards = (merge_rules or {}).get("max_cards_per_note", 5)
+    seen_keys: set[str] = set()
+    deduped: list[XHSOpportunityCard] = []
+
+    for card in cards:
+        key = f"{card.opportunity_type}|{'_'.join(sorted(card.scene_refs[:3]))}|{'_'.join(sorted(card.need_refs[:3]))}"
+        if key in seen_keys:
+            for existing in deduped:
+                existing_key = f"{existing.opportunity_type}|{'_'.join(sorted(existing.scene_refs[:3]))}|{'_'.join(sorted(existing.need_refs[:3]))}"
+                if existing_key == key:
+                    existing_ev_ids = {e.evidence_id for e in existing.evidence_refs}
+                    for ev in card.evidence_refs:
+                        if ev.evidence_id not in existing_ev_ids:
+                            existing.evidence_refs.append(ev)
+                    existing.source_note_ids = list(set(existing.source_note_ids + card.source_note_ids))
+                    break
+        else:
+            seen_keys.add(key)
+            deduped.append(card)
+
+    return deduped[:max_cards]
+
+
+def _common_card_fields(mapping: XHSOntologyMapping, note_id: str) -> dict[str, Any]:
+    return {
+        "entity_refs": mapping.category_refs,
+        "scene_refs": mapping.scene_refs,
+        "style_refs": mapping.style_refs,
+        "need_refs": mapping.need_refs,
+        "risk_refs": mapping.risk_refs,
+        "visual_pattern_refs": mapping.visual_pattern_refs,
+        "content_pattern_refs": mapping.content_pattern_refs,
+        "value_proposition_refs": mapping.value_proposition_refs,
+        "audience_refs": mapping.audience_refs,
+        "source_note_ids": [note_id],
+    }
 
 
 def _try_visual_opportunity(
@@ -142,17 +190,21 @@ def _try_visual_opportunity(
     visual: VisualSignals,
     rule: dict[str, Any],
     note_id: str,
+    cross_modal: Any | None = None,
 ) -> XHSOpportunityCard | None:
     trigger = rule.get("trigger", {})
     min_style = trigger.get("min_style_signals", 1)
     min_expr = trigger.get("min_expression_or_feature", 1)
     max_misleading = trigger.get("max_misleading_risk", 2)
+    max_risk_score = trigger.get("max_visual_risk_score", 0.5)
 
     if len(visual.visual_style_signals) < min_style:
         return None
     if len(visual.visual_expression_pattern) + len(visual.visual_feature_highlights) < min_expr:
         return None
     if len(visual.visual_misleading_risk) > max_misleading:
+        return None
+    if visual.visual_risk_score is not None and visual.visual_risk_score > max_risk_score:
         return None
 
     conf = rule.get("base_confidence", 0.55)
@@ -163,31 +215,34 @@ def _try_visual_opportunity(
         conf += boost.get("has_color_palette", 0.05)
     if visual.visual_texture_signals:
         conf += boost.get("has_texture", 0.05)
+    if visual.click_differentiation_score is not None and visual.click_differentiation_score > 0.2:
+        conf += boost.get("click_diff_bonus", 0.1)
     conf = min(conf, 0.95)
 
     styles = ", ".join(visual.visual_style_signals[:3])
-    expressions = ", ".join(visual.visual_expression_pattern[:2])
-    title = f"视觉差异化机会: {styles}"
+    scenes = ", ".join(mapping.scene_refs[:2]) if mapping.scene_refs else ""
+    title = f"视觉差异化: {styles}"
+    if scenes:
+        title += f" × {scenes}"
+
     summary = f"笔记展现 {styles} 视觉风格"
-    if expressions:
-        summary += f"，表达模式: {expressions}"
     if visual.visual_composition_type:
         summary += f"，构图: {', '.join(visual.visual_composition_type[:2])}"
+    if visual.visual_differentiation_points:
+        summary += f"，差异化: {', '.join(visual.visual_differentiation_points[:2])}"
+
+    next_steps = rule.get("suggested_next_step", ["评估视觉资产复用价值"])
+    if isinstance(next_steps, str):
+        next_steps = [next_steps]
 
     return XHSOpportunityCard(
         title=title,
         summary=summary,
         opportunity_type="visual",
-        entity_refs=mapping.category_refs,
-        scene_refs=mapping.scene_refs,
-        style_refs=mapping.style_refs,
-        need_refs=mapping.need_refs,
-        risk_refs=mapping.risk_refs,
-        visual_pattern_refs=mapping.visual_pattern_refs,
         evidence_refs=visual.evidence_refs,
         confidence=round(conf, 3),
-        suggested_next_step=rule.get("suggested_next_step", "评估视觉资产复用价值"),
-        source_note_ids=[note_id],
+        suggested_next_step=next_steps,
+        **_common_card_fields(mapping, note_id),
     )
 
 
@@ -196,18 +251,26 @@ def _try_selling_theme_opportunity(
     selling: SellingThemeSignals,
     rule: dict[str, Any],
     note_id: str,
+    cross_modal: Any | None = None,
 ) -> XHSOpportunityCard | None:
     trigger = rule.get("trigger", {})
     min_sp = trigger.get("min_selling_points", 1)
     require_validated = trigger.get("require_validated_or_purchase_intent", True)
     max_challenges = trigger.get("max_challenges", 3)
+    max_unsupported_ratio = trigger.get("max_unsupported_ratio", 0.7)
 
-    if len(selling.selling_point_signals) < min_sp:
+    all_sp = selling.selling_point_signals or (selling.primary_selling_points + selling.secondary_selling_points)
+    if len(all_sp) < min_sp:
         return None
     if require_validated and not selling.validated_selling_points and not selling.purchase_intent_signals:
         return None
     if len(selling.selling_point_challenges) > max_challenges:
         return None
+
+    if cross_modal is not None and all_sp:
+        unsupported = getattr(cross_modal, "unsupported_claims", [])
+        if len(unsupported) / max(len(all_sp), 1) > max_unsupported_ratio:
+            return None
 
     conf = rule.get("base_confidence", 0.5)
     boost = rule.get("confidence_boost", {})
@@ -217,6 +280,13 @@ def _try_selling_theme_opportunity(
         conf += boost.get("has_purchase_intent", 0.1)
     if selling.selling_theme_refs:
         conf += boost.get("has_theme_ref", 0.05)
+
+    if cross_modal is not None:
+        unsupported = getattr(cross_modal, "unsupported_claims", [])
+        challenged = getattr(cross_modal, "challenged_claims", [])
+        if not unsupported and not challenged:
+            conf += boost.get("low_unsupported_bonus", 0.05)
+
     conf = min(conf, 0.95)
 
     op_types = rule.get("opportunity_types", {})
@@ -227,28 +297,35 @@ def _try_selling_theme_opportunity(
     else:
         op_type = op_types.get("selling_points_only", "product")
 
-    sp_str = ", ".join(selling.selling_point_signals[:3])
-    title = f"卖点机会: {sp_str}"
-    summary = f"卖点: {sp_str}"
+    validated_str = ", ".join(selling.validated_selling_points[:3]) if selling.validated_selling_points else ""
+    sp_str = ", ".join(all_sp[:3])
+
+    title = f"卖点主题: {sp_str}"
+    if validated_str:
+        total = len(all_sp)
+        validated_n = len(selling.validated_selling_points)
+        title += f" (评论验证 {validated_n}/{total})"
+
+    summary = f"核心卖点: {sp_str}"
     if selling.validated_selling_points:
-        summary += f"（评论验证: {', '.join(selling.validated_selling_points[:2])}）"
+        summary += f"；已验证: {validated_str}"
     if selling.purchase_intent_signals:
         summary += f"；购买意向: {', '.join(selling.purchase_intent_signals[:2])}"
+    if selling.selling_point_challenges:
+        summary += f"；质疑: {', '.join(selling.selling_point_challenges[:2])}"
+
+    next_steps = rule.get("suggested_next_step", ["验证卖点市场渗透率"])
+    if isinstance(next_steps, str):
+        next_steps = [next_steps]
 
     return XHSOpportunityCard(
         title=title,
         summary=summary,
         opportunity_type=op_type,
-        entity_refs=mapping.category_refs,
-        scene_refs=mapping.scene_refs,
-        style_refs=mapping.style_refs,
-        need_refs=mapping.need_refs,
-        risk_refs=mapping.risk_refs,
-        visual_pattern_refs=mapping.visual_pattern_refs,
         evidence_refs=selling.evidence_refs,
         confidence=round(conf, 3),
-        suggested_next_step=rule.get("suggested_next_step", "验证卖点市场渗透率"),
-        source_note_ids=[note_id],
+        suggested_next_step=next_steps,
+        **_common_card_fields(mapping, note_id),
     )
 
 
@@ -257,6 +334,7 @@ def _try_scene_opportunity(
     scene: SceneSignals,
     rule: dict[str, Any],
     note_id: str,
+    cross_modal: Any | None = None,
 ) -> XHSOpportunityCard | None:
     trigger = rule.get("trigger", {})
     min_scenes = trigger.get("min_scenes", 1)
@@ -278,27 +356,36 @@ def _try_scene_opportunity(
         conf += boost.get("has_constraints", 0.05)
     combo_bonus = boost.get("combo_count_bonus_per", 0.02)
     conf += min(len(scene.scene_style_value_combos), 5) * combo_bonus
+
+    if cross_modal is not None:
+        alignment = getattr(cross_modal, "scene_alignment", {})
+        aligned_count = sum(1 for v in alignment.values() if v is True)
+        if aligned_count > 0:
+            conf += boost.get("scene_alignment_bonus", 0.1)
+
     conf = min(conf, 0.95)
 
     sc_str = ", ".join(scene.scene_signals[:3])
     goal_str = ", ".join(scene.scene_goal_signals[:2])
-    title = f"场景机会: {sc_str}"
+    combo_sample = scene.scene_style_value_combos[0] if scene.scene_style_value_combos else ""
+
+    title = f"场景机会: {combo_sample}" if combo_sample else f"场景机会: {sc_str}"
     summary = f"场景: {sc_str}，目标: {goal_str}"
-    if scene.scene_style_value_combos:
-        summary += f"；组合: {', '.join(scene.scene_style_value_combos[:3])}"
+    if scene.audience_signals:
+        summary += f"，受众: {', '.join(scene.audience_signals[:2])}"
+    if scene.scene_constraints:
+        summary += f"，约束: {', '.join(scene.scene_constraints[:2])}"
+
+    next_steps = rule.get("suggested_next_step", ["评估细分赛道竞品覆盖度"])
+    if isinstance(next_steps, str):
+        next_steps = [next_steps]
 
     return XHSOpportunityCard(
         title=title,
         summary=summary,
         opportunity_type="scene",
-        entity_refs=mapping.category_refs,
-        scene_refs=mapping.scene_refs,
-        style_refs=mapping.style_refs,
-        need_refs=mapping.need_refs,
-        risk_refs=mapping.risk_refs,
-        visual_pattern_refs=mapping.visual_pattern_refs,
         evidence_refs=scene.evidence_refs,
         confidence=round(conf, 3),
-        suggested_next_step=rule.get("suggested_next_step", "评估细分赛道竞品覆盖度"),
-        source_note_ids=[note_id],
+        suggested_next_step=next_steps,
+        **_common_card_fields(mapping, note_id),
     )

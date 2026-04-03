@@ -35,6 +35,7 @@ class PipelineResult:
     visual_signals: Any = None
     selling_theme_signals: Any = None
     scene_signals: Any = None
+    cross_modal_validation: Any = None
     ontology_mapping: Any = None
     opportunity_cards: list = field(default_factory=list)
 
@@ -47,6 +48,7 @@ def run_xhs_opportunity_pipeline(
 ) -> list[PipelineResult]:
     """运行完整流水线，返回每篇笔记的处理结果。"""
     from apps.intel_hub.compiler.opportunity_compiler import compile_xhs_opportunities
+    from apps.intel_hub.extraction.cross_modal_validator import validate_cross_modal_consistency
     from apps.intel_hub.extraction.scene_extractor import extract_scene_signals
     from apps.intel_hub.extraction.selling_theme_extractor import extract_selling_theme_signals
     from apps.intel_hub.extraction.visual_extractor import extract_visual_signals
@@ -75,7 +77,7 @@ def run_xhs_opportunity_pipeline(
         # Step 2: Extract
         visual = extract_visual_signals(parsed)
         selling = extract_selling_theme_signals(parsed)
-        scene = extract_scene_signals(parsed)
+        scene = extract_scene_signals(parsed, visual_signals=visual)
         logger.info(
             "[%s] 信号提取 — 视觉:%d 卖点:%d 场景:%d",
             note_id,
@@ -84,19 +86,31 @@ def run_xhs_opportunity_pipeline(
             len(scene.scene_signals),
         )
 
-        # Step 3: Ontology Mapping
-        mapping = project_xhs_signals(visual, selling, scene, ontology_config)
+        # Step 2.5: Cross-modal validation
+        validation = validate_cross_modal_consistency(visual, selling, scene, parsed)
         logger.info(
-            "[%s] 本体映射 — 场景:%s 风格:%s 需求:%s 风险:%s",
+            "[%s] 跨模态校验 — 一致性:%.2f 高置信:%d 无支撑:%d 被质疑:%d",
+            note_id,
+            validation.overall_consistency_score or 0,
+            len(validation.high_confidence_claims),
+            len(validation.unsupported_claims),
+            len(validation.challenged_claims),
+        )
+
+        # Step 3: Ontology Mapping (cross_modal 用于增补风险映射)
+        mapping = project_xhs_signals(visual, selling, scene, ontology_config, cross_modal=validation)
+        logger.info(
+            "[%s] 本体映射 — 场景:%s 风格:%s 需求:%s 风险:%s VP:%s",
             note_id,
             mapping.scene_refs,
             mapping.style_refs,
             mapping.need_refs,
             mapping.risk_refs,
+            mapping.value_proposition_refs[:3],
         )
 
-        # Step 4: Compile Opportunities
-        cards = compile_xhs_opportunities(mapping, visual, selling, scene, rules_config)
+        # Step 4: Compile Opportunities (cross_modal 用于评分调节)
+        cards = compile_xhs_opportunities(mapping, visual, selling, scene, rules_config, cross_modal=validation)
         logger.info("[%s] 机会卡生成: %d 张", note_id, len(cards))
 
         results.append(PipelineResult(
@@ -105,6 +119,7 @@ def run_xhs_opportunity_pipeline(
             visual_signals=visual,
             selling_theme_signals=selling,
             scene_signals=scene,
+            cross_modal_validation=validation,
             ontology_mapping=mapping,
             opportunity_cards=cards,
         ))
@@ -138,12 +153,35 @@ def save_results(
 
     details: list[dict[str, Any]] = []
     for r in results:
+        note_ctx: dict[str, Any] = {}
+        if r.parsed_note:
+            rn = r.parsed_note.raw_note
+            note_ctx = {
+                "note_id": rn.note_id,
+                "note_url": rn.note_url,
+                "title": rn.title_text,
+                "body": rn.body_text,
+                "author_name": rn.author_name,
+                "cover_image": rn.cover_image,
+                "image_urls": [img.url for img in rn.image_list],
+                "tag_list": rn.tag_list,
+                "like_count": rn.like_count,
+                "collect_count": rn.collect_count,
+                "comment_count": rn.comment_count,
+                "share_count": rn.share_count,
+                "top_comments": [
+                    {"nickname": c.nickname, "content": c.content, "like_count": c.like_count}
+                    for c in rn.top_comments[:5]
+                ],
+            }
         details.append({
             "note_id": r.note_id,
             "title": r.parsed_note.normalized_title if r.parsed_note else "",
+            "note_context": note_ctx,
             "visual_signals": r.visual_signals.model_dump(mode="json") if r.visual_signals else {},
             "selling_theme_signals": r.selling_theme_signals.model_dump(mode="json") if r.selling_theme_signals else {},
             "scene_signals": r.scene_signals.model_dump(mode="json") if r.scene_signals else {},
+            "cross_modal_validation": r.cross_modal_validation.model_dump(mode="json") if r.cross_modal_validation else {},
             "ontology_mapping": r.ontology_mapping.model_dump(mode="json") if r.ontology_mapping else {},
             "opportunity_cards": [c.model_dump(mode="json") for c in r.opportunity_cards],
         })

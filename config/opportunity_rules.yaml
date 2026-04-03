@@ -7,13 +7,19 @@ visual_opportunity:
     min_style_signals: 1
     min_expression_or_feature: 1
     max_misleading_risk: 2
+    min_click_differentiation_score: 0.0
+    max_visual_risk_score: 0.5
   confidence_boost:
     has_composition: 0.1
     has_color_palette: 0.05
     has_texture: 0.05
+    click_diff_bonus: 0.1
   base_confidence: 0.55
   opportunity_type: "visual"
-  suggested_next_step: "提取视觉资产，评估是否可复用到产品主图/详情页/投放素材"
+  suggested_next_step:
+    - "主图优化：提取视觉资产，评估是否可复用到产品主图/详情页"
+    - "内容封面改造：基于该视觉风格生成封面模板"
+    - "视觉模板沉淀：将差异化视觉模式归档为可复用资产"
 
 selling_theme_opportunity:
   description: "卖点主题机会 — 笔记包含被验证的卖点或明确的购买意向"
@@ -21,16 +27,21 @@ selling_theme_opportunity:
     min_selling_points: 1
     require_validated_or_purchase_intent: true
     max_challenges: 3
+    max_unsupported_ratio: 0.7
   confidence_boost:
     has_validated: 0.15
     has_purchase_intent: 0.1
     has_theme_ref: 0.05
+    low_unsupported_bonus: 0.05
   base_confidence: 0.5
   opportunity_types:
     selling_points_only: "product"
     with_purchase_intent: "demand"
     with_theme_ref: "content"
-  suggested_next_step: "验证卖点市场渗透率，评估产品页/内容策略是否需要强化该卖点"
+  suggested_next_step:
+    - "新品定义：基于已验证卖点制定产品规格"
+    - "卖点排序：按评论验证强度排序核心卖点"
+    - "内容表达强化：强化已验证卖点的内容表达"
 
 scene_opportunity:
   description: "场景专属机会 — 笔记展现明确的使用场景+目标+风格组合"
@@ -38,10 +49,19 @@ scene_opportunity:
     min_scenes: 1
     min_goals: 1
     min_combos: 1
+    min_scene_alignment_score: 0.3
   confidence_boost:
     has_audience: 0.1
     has_constraints: 0.05
     combo_count_bonus_per: 0.02
+    scene_alignment_bonus: 0.1
   base_confidence: 0.5
   opportunity_type: "scene"
-  suggested_next_step: "评估该场景是否为高潜力细分赛道，验证竞品覆盖度"
+  suggested_next_step:
+    - "场景化新品方向：基于场景需求定义产品线"
+    - "场景化内容选题：围绕该场景生产种草内容"
+    - "场景化视觉模板：为该场景打造专属视觉风格"
+
+merge_rules:
+  dedupe_by: ["opportunity_type", "scene_refs", "need_refs"]
+  max_cards_per_note: 5

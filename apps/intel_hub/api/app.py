@@ -13,7 +13,14 @@ from apps.intel_hub.config_loader import load_runtime_settings, resolve_repo_pat
 from apps.intel_hub.ingest.mediacrawler_loader import load_mediacrawler_records
 from apps.intel_hub.ingest.rss_loader import count_rss_records, load_rss_records
 from apps.intel_hub.schemas import ReviewUpdateRequest
+from apps.intel_hub.schemas.opportunity_review import OpportunityReview
+from apps.intel_hub.services.opportunity_promoter import evaluate_opportunity_promotion
+from apps.intel_hub.services.review_aggregator import (
+    aggregate_all_opportunities_review_stats,
+    aggregate_reviews_for_opportunity,
+)
 from apps.intel_hub.storage.repository import Repository
+from apps.intel_hub.storage.xhs_review_store import XHSReviewStore
 from apps.intel_hub.workflow.job_models import CrawlJob
 from apps.intel_hub.workflow.job_queue import FileJobQueue
 from apps.intel_hub.workflow.session_service import SessionService
@@ -41,6 +48,35 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
     repository = Repository(settings.resolved_storage_path())
     job_queue = FileJobQueue(resolve_repo_path("data/job_queue.json"))
     session_svc = SessionService(resolve_repo_path("data/sessions"))
+    review_store = XHSReviewStore(resolve_repo_path("data/xhs_review.sqlite"))
+    _xhs_cards_json = resolve_repo_path("data/output/xhs_opportunities/opportunity_cards.json")
+    _xhs_details_json = resolve_repo_path("data/output/xhs_opportunities/pipeline_details.json")
+    if _xhs_cards_json.exists():
+        review_store.sync_cards_from_json(_xhs_cards_json)
+
+    def _load_note_context_index() -> dict[str, dict[str, Any]]:
+        if not _xhs_details_json.exists():
+            return {}
+        try:
+            details = json.loads(_xhs_details_json.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        idx: dict[str, dict[str, Any]] = {}
+        for d in details:
+            nid = d.get("note_id", "")
+            if not nid:
+                continue
+            idx[nid] = {
+                "note_context": d.get("note_context", {}),
+                "visual_signals": d.get("visual_signals", {}),
+                "selling_theme_signals": d.get("selling_theme_signals", {}),
+                "scene_signals": d.get("scene_signals", {}),
+                "cross_modal_validation": d.get("cross_modal_validation", {}),
+            }
+        return idx
+
+    _note_ctx_index: dict[str, dict[str, Any]] = _load_note_context_index()
+
     app = FastAPI(title="Ontology Intel Hub")
 
     def list_payload(
@@ -74,13 +110,7 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
         watchlists = list_payload("watchlists", 1, 10, None, None, None, None, None, None)
         notes_total = len(_get_notes())
         rss_counts = count_rss_records()
-        xhs_cards_path = resolve_repo_path("data/output/xhs_opportunities/opportunity_cards.json")
-        xhs_cards_total = 0
-        if xhs_cards_path.exists():
-            try:
-                xhs_cards_total = len(json.loads(xhs_cards_path.read_text(encoding="utf-8")))
-            except Exception:
-                pass
+        xhs_cards_total = review_store.card_count()
         cs_path = resolve_repo_path("data/crawl_status.json")
         try:
             crawl = json.loads(cs_path.read_text(encoding="utf-8")) if cs_path.exists() else {"status": "idle"}
@@ -405,21 +435,105 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
             })
         return {"total": total, "page": page, "page_size": page_size, "category": category, "items": page_items}
 
-    # ── XHS 三维结构化机会卡 ──────────────────────────────────
+    # ── XHS 三维结构化机会卡 + 检视反馈 ──────────────────────────────────
 
-    _xhs_cards_cache: dict[str, Any] = {}
+    _xhs_type_labels = {
+        "visual": "视觉差异化",
+        "demand": "需求卖点",
+        "product": "产品机会",
+        "content": "内容主题",
+        "scene": "场景专属",
+    }
+    _xhs_type_colors = {
+        "visual": "#7b1fa2",
+        "demand": "#1565c0",
+        "product": "#2e7d32",
+        "content": "#e65100",
+        "scene": "#00695c",
+    }
+    _xhs_type_bg = {
+        "visual": "#f3e5f5",
+        "demand": "#e3f2fd",
+        "product": "#e8f5e9",
+        "content": "#fff3e0",
+        "scene": "#e0f2f1",
+    }
+    _xhs_status_labels = {
+        "pending_review": "待检视",
+        "reviewed": "已检视",
+        "promoted": "已升级",
+        "rejected": "已驳回",
+    }
+    _xhs_status_colors = {
+        "pending_review": "#757575",
+        "reviewed": "#1565c0",
+        "promoted": "#2e7d32",
+        "rejected": "#c62828",
+    }
 
-    def _get_xhs_opportunity_cards() -> list[dict[str, Any]]:
-        if "cards" not in _xhs_cards_cache:
-            cards_path = resolve_repo_path("data/output/xhs_opportunities/opportunity_cards.json")
-            if cards_path.exists():
-                try:
-                    _xhs_cards_cache["cards"] = json.loads(cards_path.read_text(encoding="utf-8"))
-                except Exception:
-                    _xhs_cards_cache["cards"] = []
-            else:
-                _xhs_cards_cache["cards"] = []
-        return _xhs_cards_cache["cards"]
+    @app.get("/xhs-opportunities/review-summary")
+    async def xhs_review_summary() -> dict[str, Any]:
+        review_store.sync_cards_from_json(_xhs_cards_json)
+        return aggregate_all_opportunities_review_stats(review_store)
+
+    @app.get("/xhs-opportunities/{opportunity_id}/reviews")
+    async def xhs_card_reviews(opportunity_id: str) -> dict[str, Any]:
+        reviews = review_store.get_reviews(opportunity_id)
+        return {"opportunity_id": opportunity_id, "reviews": [r.model_dump(mode="json") for r in reviews]}
+
+    @app.post("/xhs-opportunities/{opportunity_id}/reviews")
+    async def submit_xhs_review(opportunity_id: str, request: Request) -> dict[str, Any]:
+        card = review_store.get_card(opportunity_id)
+        if card is None:
+            raise HTTPException(status_code=404, detail=f"机会卡 {opportunity_id} 未找到")
+
+        body = await request.json()
+        review = OpportunityReview(
+            opportunity_id=opportunity_id,
+            reviewer=body.get("reviewer", "anonymous"),
+            manual_quality_score=int(body.get("manual_quality_score", 5)),
+            is_actionable=bool(body.get("is_actionable", False)),
+            evidence_sufficient=bool(body.get("evidence_sufficient", False)),
+            review_notes=body.get("review_notes"),
+        )
+        review_store.save_review(review)
+        stats = aggregate_reviews_for_opportunity(review_store, opportunity_id)
+        new_status = evaluate_opportunity_promotion(review_store, opportunity_id)
+        updated_card = review_store.get_card(opportunity_id)
+        return {
+            "review": review.model_dump(mode="json"),
+            "aggregated_stats": stats,
+            "opportunity_status": new_status,
+            "card": updated_card.model_dump(mode="json") if updated_card else None,
+        }
+
+    @app.get("/xhs-opportunities/{opportunity_id}")
+    async def xhs_opportunity_detail(request: Request, opportunity_id: str) -> Any:
+        card = review_store.get_card(opportunity_id)
+        if card is None:
+            raise HTTPException(status_code=404, detail=f"机会卡 {opportunity_id} 未找到")
+
+        reviews = review_store.get_reviews(opportunity_id)
+
+        source_notes: list[dict[str, Any]] = []
+        card_dict = card.model_dump(mode="json")
+        for nid in card_dict.get("source_note_ids", []):
+            if nid in _note_ctx_index:
+                source_notes.append(_note_ctx_index[nid])
+
+        if _wants_html(request):
+            return _render("xhs_opportunity_detail.html", {
+                "request": request,
+                "card": card_dict,
+                "reviews": [r.model_dump(mode="json") for r in reviews],
+                "source_notes": source_notes,
+                "type_labels": _xhs_type_labels,
+                "type_colors": _xhs_type_colors,
+                "type_bg": _xhs_type_bg,
+                "status_labels": _xhs_status_labels,
+                "status_colors": _xhs_status_colors,
+            })
+        return card_dict
 
     @app.get("/xhs-opportunities")
     async def xhs_opportunities(
@@ -427,62 +541,43 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
         page: int = 1,
         page_size: int = 15,
         type: str | None = None,
+        status: str | None = None,
+        qualified: str | None = None,
     ) -> Any:
-        all_cards = _get_xhs_opportunity_cards()
-        type_filter = type
+        review_store.sync_cards_from_json(_xhs_cards_json)
 
-        if type_filter:
-            filtered = [c for c in all_cards if c.get("opportunity_type") == type_filter]
-        else:
-            filtered = all_cards
+        qualified_bool = None
+        if qualified == "true":
+            qualified_bool = True
+        elif qualified == "false":
+            qualified_bool = False
 
-        total = len(filtered)
+        result = review_store.list_cards(
+            opportunity_type=type,
+            opportunity_status=status,
+            qualified=qualified_bool,
+            page=page,
+            page_size=page_size,
+        )
+        page_cards = [c.model_dump(mode="json") for c in result["items"]]
+        total = result["total"]
         total_pages = max(1, (total + page_size - 1) // page_size)
-        start = (max(page, 1) - 1) * page_size
-        page_cards = filtered[start : start + page_size]
 
-        type_counts: dict[str, int] = {}
-        for c in all_cards:
-            t = c.get("opportunity_type", "unknown")
-            type_counts[t] = type_counts.get(t, 0) + 1
-
-        all_types = sorted(type_counts.keys())
-
-        type_labels = {
-            "visual": "视觉差异化",
-            "demand": "需求卖点",
-            "product": "产品机会",
-            "content": "内容主题",
-            "scene": "场景专属",
-        }
-        type_colors = {
-            "visual": "#7b1fa2",
-            "demand": "#1565c0",
-            "product": "#2e7d32",
-            "content": "#e65100",
-            "scene": "#00695c",
-        }
-        type_bg = {
-            "visual": "#f3e5f5",
-            "demand": "#e3f2fd",
-            "product": "#e8f5e9",
-            "content": "#fff3e0",
-            "scene": "#e0f2f1",
-        }
+        tc = review_store.type_counts()
+        all_types = sorted(tc.keys())
 
         details_path = resolve_repo_path("data/output/xhs_opportunities/pipeline_details.json")
         total_notes = 0
         if details_path.exists():
             try:
-                details = json.loads(details_path.read_text(encoding="utf-8"))
-                total_notes = len(details)
+                total_notes = len(json.loads(details_path.read_text(encoding="utf-8")))
             except Exception:
                 pass
 
         stats = {
             "total_notes": total_notes,
-            "total_cards": len(all_cards),
-            "type_counts": type_counts,
+            "total_cards": review_store.card_count(),
+            "type_counts": tc,
         }
 
         if _wants_html(request):
@@ -490,11 +585,14 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 "request": request,
                 "cards": page_cards,
                 "stats": stats,
-                "type_labels": type_labels,
-                "type_colors": type_colors,
-                "type_bg": type_bg,
+                "type_labels": _xhs_type_labels,
+                "type_colors": _xhs_type_colors,
+                "type_bg": _xhs_type_bg,
+                "status_labels": _xhs_status_labels,
+                "status_colors": _xhs_status_colors,
                 "all_types": all_types,
-                "type_filter": type_filter,
+                "type_filter": type,
+                "status_filter": status,
                 "page": page,
                 "page_size": page_size,
                 "total_pages": total_pages,

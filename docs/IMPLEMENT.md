@@ -4,7 +4,49 @@
 > V0.3+ 增量：评论-笔记自动关联 / 千问 VL 视觉分析 / 端到端验证通过。
 > V0.4  RSS 趋势情报：接入 awesome-tech-rss + awesome-rss-feeds，新增「科技趋势」「新闻媒体」原生浏览页。
 > V0.5  XHS 三维结构化机会卡流水线：视觉/卖点/场景三维提取 → 本体映射 → 机会卡生成。
+> V0.5.1 四 Extractor 分层升级 + 跨模态校验器。
+> V0.6  Ontology Pipeline 升级：cross_modal 贯穿全链路 + Projector 拆子函数 + Compiler 增强。
+> V0.7  Opportunity Review MVP：机会卡检视 + 人工反馈 + 聚合统计 + 升级判定闭环。
 > 详见 [PLAN_V2_COMPILATION_CHAIN.md](./PLAN_V2_COMPILATION_CHAIN.md) / [XHS_OPPORTUNITY_PIPELINE.md](./XHS_OPPORTUNITY_PIPELINE.md)
+
+## V0.7 进展 — Opportunity Review MVP (2026-04-03)
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| Schema 设计 | **已完成** | 新增 `OpportunityReview` (`schemas/opportunity_review.py`); `XHSOpportunityCard` +7 聚合字段 (review_count/manual_quality_score_avg/actionable_ratio/evidence_sufficient_ratio/composite_review_score/qualified_opportunity/opportunity_status) |
+| 存储层 | **已完成** | 新增 `XHSReviewStore` (`storage/xhs_review_store.py`): SQLite 两表 (xhs_opportunity_cards + xhs_reviews); sync_cards_from_json / list_cards / save_review / update_card_review_stats / get_review_summary |
+| 聚合服务 | **已完成** | 新增 `review_aggregator.py`: 单卡聚合 (composite = 0.5×quality + 0.3×actionable + 0.2×evidence) + 全局统计 + needs_optimization 判定 |
+| 升级服务 | **已完成** | 新增 `opportunity_promoter.py`: 5 项阈值全满足 → promoted; 有 review 未达标 → reviewed; 无 review → pending_review |
+| API 端点 | **已完成** | 改造 GET /xhs-opportunities 从 store 读取; 新增 GET /{id} 详情 + POST /{id}/reviews 反馈 + GET /{id}/reviews 查询 + GET /review-summary 全局统计 |
+| HTML 页面 | **已完成** | 改造 xhs_opportunities.html (状态筛选 + 聚合摘要 + 卡片链接); 新增 xhs_opportunity_detail.html (三区: 详情/聚合/反馈表单 + JS 异步提交) |
+| 测试 | **已完成** | 3 个新测试文件共 26 测试: test_opportunity_review.py (13) + test_review_aggregator.py (6) + test_opportunity_promoter.py (7) — 全部通过 |
+| 文档 | **已完成** | 新增 OPPORTUNITY_REVIEW.md; 更新 DATA_MODEL.md / IMPLEMENT.md / DECISIONS.md (D-019) |
+
+## V0.6 进展 — Ontology Pipeline 升级 (2026-04-03)
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| Schema 升级 | **已完成** | `XHSOntologyMapping` +`source_signal_summary`; `XHSOpportunityCard` +`content_pattern_refs`/`value_proposition_refs`/`audience_refs`; `suggested_next_step` 改为 `list[str]` |
+| Config 补全 | **已完成** | `ontology_mapping.yaml` +`risk_claim_unverified`/`need_size_fit`; `opportunity_rules.yaml` +cross_modal 阈值/merge_rules |
+| Projector 重构 | **已完成** | `project_xhs_signals()` 拆 8 子函数 (`map_styles`/`map_scenes`/`map_needs`/`map_risks`/`map_visual_patterns`/`map_content_patterns`/`map_value_propositions`/`map_audiences`) + `build_source_signal_summary` + `build_evidence_refs`; 新增 `cross_modal` 参数用于 risk 增补 |
+| Compiler 升级 | **已完成** | `compile_xhs_opportunities()` 新增 `cross_modal` 参数; 三个 `_try_*_opportunity` 利用 cross_modal 评分调节 confidence; 新增 `merge_opportunities()` 去重; title/summary 升级为结构化中文; 所有卡片填充新增 refs 字段 |
+| Pipeline 串联 | **已完成** | `project_xhs_signals()` 和 `compile_xhs_opportunities()` 均传入 `cross_modal=validation` |
+| 测试 | **已完成** | 新增 `test_ontology_projector.py` (12 tests) + `test_xhs_opportunity_pipeline.py` (10 tests); 升级 `test_xhs_opportunity_compiler.py` (17 tests, 含 merge_opportunities + 新字段) — 全部 39 测试通过 |
+| 文档 | **已完成** | 更新 XHS_OPPORTUNITY_PIPELINE.md / DATA_MODEL.md / DECISIONS.md (D-018) / IMPLEMENT.md |
+
+## V0.5.1 进展 — 四 Extractor 分层升级 + 跨模态校验器 (2026-04-03)
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| LLM 客户端封装 | **已完成** | `extraction/llm_client.py`: DashScope 文本 LLM + VLM 封装，无 key 静默降级 |
+| Schema V2 扩展 | **已完成** | `xhs_signals.py` 三个 Schema 向后兼容扩展 + `xhs_validation.py` CrossModalValidation |
+| visual_extractor V2 | **已完成** | 三层架构 (metadata + VLM + merge)，修复 visual_scene_signals bug，新增评分字段 |
+| selling_theme_extractor V2 | **已完成** | 三层架构 (claimed + comment + classify)，新增卖点分类 (click/conversion/productizable/content_only) |
+| scene_extractor V2 | **已完成** | 四层架构 (explicit + infer + goals + combos)，新增隐式推断和场景机会提示 |
+| cross_modal_validator | **已完成** | 新增三种校验 (visual_support + comment + scene_alignment) + 总一致性评分 |
+| Pipeline 集成 | **已完成** | 插入 Step 2.5 cross_modal_validation，PipelineResult 新增字段，导出更新 |
+| 测试更新 | **已完成** | 三个 extractor 测试扩展新字段断言 + cross_modal_validator 测试 + 端到端编译器通过 |
+| 文档 | **已完成** | XHS_OPPORTUNITY_PIPELINE.md 更新四维架构说明 + IMPLEMENT.md V0.5.1 进展 |
 
 ## V0.5 进展 — XHS 三维结构化机会卡流水线 (2026-04-03)
 
@@ -91,9 +133,11 @@ apps/
       risk_compiler.py
       visual_pattern_compiler.py # V0.3 VisualPatternAsset 编译器
     extraction/                  # V0.5 三维提取器（与 extractor/ 独立）
-      visual_extractor.py        # 视觉维度提取
-      selling_theme_extractor.py # 卖点主题提取
-      scene_extractor.py         # 场景维度提取
+      llm_client.py              # V0.5.1 统一 LLM/VLM 客户端封装
+      visual_extractor.py        # V2 视觉维度提取（三层: metadata+VLM+merge）
+      selling_theme_extractor.py # V2 卖点主题提取（三层: claimed+comment+classify）
+      scene_extractor.py         # V2 场景维度提取（四层: explicit+infer+goals+combos）
+      cross_modal_validator.py   # V0.5.1 跨模态一致性校验器
     extractor/                   # V0.3 四层编译链 Layer 1+2
       content_parser.py          # Layer 1 内容解析
       signal_extractor.py        # Layer 2 经营信号抽取
@@ -128,7 +172,8 @@ apps/
       watchlist.py
       xhs_raw.py                 # V0.5 XHSNoteRaw / XHSComment / XHSImageFrame
       xhs_parsed.py              # V0.5 XHSParsedNote
-      xhs_signals.py             # V0.5 VisualSignals / SellingThemeSignals / SceneSignals
+      xhs_signals.py             # V0.5.1 VisualSignals / SellingThemeSignals / SceneSignals V2
+      xhs_validation.py          # V0.5.1 CrossModalValidation
     storage/
       repository.py
     workflow/

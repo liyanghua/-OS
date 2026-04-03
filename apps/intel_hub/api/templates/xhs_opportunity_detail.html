@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+  <a href="/xhs-opportunities" style="color: var(--accent); text-decoration: none; font-size: 14px;">&larr; 返回机会卡列表</a>
+</div>
+
+<!-- ═══ 主体：左右并排 ═══ -->
+<div style="display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start;">
+
+  <!-- ══════ 左栏：原始小红书笔记 ══════ -->
+  <div style="position: sticky; top: 20px;">
+    {% if source_notes %}
+    {% set note = source_notes[0].note_context %}
+    {% set vsig = source_notes[0].visual_signals %}
+    <div style="background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); border: 1px solid var(--border);">
+
+      <!-- 封面图 -->
+      {% if note.cover_image %}
+      <div style="position: relative;">
+        <img src="{{ note.cover_image }}" alt="封面" style="width: 100%; display: block; max-height: 420px; object-fit: cover;" loading="lazy"
+          onerror="this.parentElement.style.display='none'">
+        <div style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.55); color: #fff; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; backdrop-filter: blur(4px);">
+          小红书原始笔记
+        </div>
+      </div>
+      {% endif %}
+
+      <div style="padding: 16px;">
+        <!-- 标题 -->
+        <h3 style="margin: 0 0 6px; font-size: 16px; line-height: 1.4;">{{ note.title }}</h3>
+
+        <!-- 作者 -->
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">
+          <span style="font-size: 13px; color: var(--muted);">@{{ note.author_name }}</span>
+          {% if note.note_url %}
+          <a href="{{ note.note_url }}" target="_blank" style="font-size: 11px; color: var(--accent); text-decoration: none;">查看原文 &nearr;</a>
+          {% endif %}
+        </div>
+
+        <!-- 正文 -->
+        <div style="font-size: 13px; line-height: 1.7; color: #333; margin-bottom: 14px; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">{{ note.body }}</div>
+
+        <!-- 标签 -->
+        {% if note.tag_list %}
+        <div class="chips" style="margin-bottom: 12px;">
+          {% for tag in note.tag_list[:8] %}
+          <span class="chip" style="font-size: 11px; background: #fff0f0; color: #e55;">#{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- 互动数据 -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 12px;">
+          <div style="text-align: center;">
+            <div style="font-size: 16px; font-weight: 700; color: #e55;">{{ note.like_count }}</div>
+            <div class="meta" style="font-size: 10px;">赞</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 16px; font-weight: 700; color: #f5a623;">{{ note.collect_count }}</div>
+            <div class="meta" style="font-size: 10px;">收藏</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 16px; font-weight: 700; color: #1565c0;">{{ note.comment_count }}</div>
+            <div class="meta" style="font-size: 10px;">评论</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 16px; font-weight: 700; color: #00695c;">{{ note.share_count }}</div>
+            <div class="meta" style="font-size: 10px;">分享</div>
+          </div>
+        </div>
+
+        <!-- 更多图片（横向滑动） -->
+        {% if note.image_urls|length > 1 %}
+        <div style="margin-bottom: 12px;">
+          <div class="meta" style="margin-bottom: 6px;">笔记图片 ({{ note.image_urls|length }})</div>
+          <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px;">
+            {% for url in note.image_urls %}
+            <img src="{{ url }}" style="height: 100px; border-radius: 8px; flex-shrink: 0; cursor: pointer; border: 2px solid transparent; transition: border-color 0.15s;" loading="lazy"
+              onclick="document.getElementById('preview-img').src=this.src; document.getElementById('preview-img').parentElement.style.display='none'; this.parentElement.querySelectorAll('img').forEach(i=>i.style.borderColor='transparent'); this.style.borderColor='var(--accent)';"
+              onerror="this.style.display='none'">
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- 热门评论 -->
+        {% if note.top_comments %}
+        <div>
+          <div class="meta" style="margin-bottom: 6px;">热门评论</div>
+          {% for c in note.top_comments %}
+          <div style="padding: 6px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px;">
+            <span style="font-weight: 600; color: #555;">{{ c.nickname }}</span>
+            <span style="color: var(--muted); margin-left: 4px;">{{ c.like_count }} 赞</span>
+            <div style="margin-top: 2px; color: #333; line-height: 1.5;">{{ c.content[:120] }}{% if c.content|length > 120 %}…{% endif %}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- VLM 视觉分析（视觉卡片专属区） -->
+    {% if card.opportunity_type == 'visual' and vsig %}
+    <div style="margin-top: 14px; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 14px; padding: 14px; border: 1px solid #e9d5ff;">
+      <div style="font-size: 13px; font-weight: 700; color: #7c3aed; margin-bottom: 10px;">VLM 视觉识别</div>
+      {% if vsig.visual_style_signals %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">风格信号</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in vsig.visual_style_signals %}
+          <span class="chip" style="background: #ede9fe; color: #7c3aed; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if vsig.visual_scene_signals %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">场景信号</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in vsig.visual_scene_signals %}
+          <span class="chip" style="background: #dcfce7; color: #16a34a; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if vsig.visual_composition_type %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">构图类型</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in vsig.visual_composition_type %}
+          <span class="chip" style="background: #fef9c3; color: #a16207; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if vsig.visual_color_palette %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">色彩</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in vsig.visual_color_palette %}
+          <span class="chip" style="background: #fce7f3; color: #be185d; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if vsig.visual_texture_signals %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">材质</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in vsig.visual_texture_signals %}
+          <span class="chip" style="background: #e0f2fe; color: #0369a1; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if vsig.visual_feature_highlights %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">视觉亮点</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in vsig.visual_feature_highlights %}
+          <span class="chip" style="background: #fff7ed; color: #c2410c; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if vsig.visual_differentiation_points %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">差异化点</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in vsig.visual_differentiation_points %}
+          <span class="chip" style="background: #f0fdf4; color: #15803d; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if vsig.visual_expression_pattern %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">表达模式</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in vsig.visual_expression_pattern %}
+          <span class="chip" style="background: #f5f5f5; color: #555; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if vsig.visual_misleading_risk %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">视觉风险</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in vsig.visual_misleading_risk %}
+          <span class="chip" style="background: #fef2f2; color: #dc2626; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      <div style="display: flex; gap: 12px; font-size: 11px; color: var(--muted); margin-top: 6px;">
+        {% if vsig.click_differentiation_score is not none %}
+        <span>点击差异化 {{ "%.0f"|format(vsig.click_differentiation_score * 100) }}%</span>
+        {% endif %}
+        {% if vsig.visual_risk_score is not none %}
+        <span>视觉风险 {{ "%.0f"|format(vsig.visual_risk_score * 100) }}%</span>
+        {% endif %}
+        {% if vsig.primary_style %}
+        <span>主风格: {{ vsig.primary_style }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 卖点/场景信号分析（非视觉卡也展示） -->
+    {% if source_notes %}
+    {% set ssig = source_notes[0].selling_theme_signals %}
+    {% set scsig = source_notes[0].scene_signals %}
+    {% if (ssig and (ssig.primary_selling_points or ssig.validated_selling_points)) or (scsig and (scsig.scene_signals or scsig.scene_goal_signals)) %}
+    <div style="margin-top: 14px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 14px; padding: 14px; border: 1px solid #bae6fd;">
+      <div style="font-size: 13px; font-weight: 700; color: #0369a1; margin-bottom: 10px;">信号提取摘要</div>
+      {% if ssig.primary_selling_points %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">核心卖点</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in ssig.primary_selling_points %}
+          <span class="chip" style="background: #dbeafe; color: #1d4ed8; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if ssig.validated_selling_points %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">评论验证卖点</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in ssig.validated_selling_points %}
+          <span class="chip" style="background: #dcfce7; color: #15803d; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if ssig.selling_point_challenges %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">卖点质疑</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in ssig.selling_point_challenges %}
+          <span class="chip" style="background: #fef2f2; color: #dc2626; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if scsig.scene_signals %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">场景信号</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in scsig.scene_signals %}
+          <span class="chip" style="background: #ecfdf5; color: #047857; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if scsig.scene_goal_signals %}
+      <div style="margin-bottom: 8px;">
+        <span class="meta" style="font-size: 11px;">场景目标</span>
+        <div class="chips" style="margin-top: 2px;">
+          {% for s in scsig.scene_goal_signals %}
+          <span class="chip" style="background: #f5f3ff; color: #6d28d9; font-size: 11px;">{{ s }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% else %}
+    <div class="card" style="text-align: center; color: var(--muted); padding: 40px;">
+      <div style="font-size: 32px; margin-bottom: 8px;">📄</div>
+      <div>原始笔记数据暂不可用</div>
+      <div class="meta" style="margin-top: 4px;">请重新运行 pipeline 以生成笔记上下文</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ══════ 右栏：机会卡分析 + 检视 ══════ -->
+  <div>
+
+    <!-- 区域一：卡片详情 -->
+    <div class="card" style="border-left: 4px solid {{ type_colors.get(card.opportunity_type, 'var(--border)') }}; margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+        <div>
+          <span style="display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background: {{ type_bg.get(card.opportunity_type, 'var(--accent-soft)') }}; color: {{ type_colors.get(card.opportunity_type, 'var(--accent)') }};">{{ type_labels.get(card.opportunity_type, card.opportunity_type) }}</span>
+          <span class="meta" style="margin-left: 8px;">置信度 {{ "%.0f"|format(card.confidence * 100) }}%</span>
+          <span class="meta" style="margin-left: 8px;">ID: {{ card.opportunity_id[:12] }}…</span>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          {% if card.qualified_opportunity %}
+          <span style="display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #c8e6c9; color: #2e7d32;">已升级</span>
+          {% endif %}
+          <span style="display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; color: {{ status_colors.get(card.opportunity_status, '#757575') }}; background: #f5f5f5;">{{ status_labels.get(card.opportunity_status, card.opportunity_status) }}</span>
+        </div>
+      </div>
+
+      <h2 style="margin: 0 0 10px;">{{ card.title }}</h2>
+      <p style="margin: 0 0 16px; color: var(--muted); font-size: 15px; line-height: 1.6;">{{ card.summary }}</p>
+
+      <!-- 标签 -->
+      <div style="margin-bottom: 12px;">
+        <div class="chips" style="margin-bottom: 6px;">
+          {% for ref in card.scene_refs %}
+            <span class="chip" style="background: #e8f5e9; color: #2e7d32;">场景: {{ ref }}</span>
+          {% endfor %}
+          {% for ref in card.style_refs %}
+            <span class="chip" style="background: #fce4ec; color: #c62828;">风格: {{ ref }}</span>
+          {% endfor %}
+          {% for ref in card.need_refs %}
+            <span class="chip" style="background: #e3f2fd; color: #1565c0;">需求: {{ ref }}</span>
+          {% endfor %}
+          {% for ref in card.risk_refs %}
+            <span class="chip" style="background: #fff3e0; color: #e65100;">风险: {{ ref }}</span>
+          {% endfor %}
+          {% for ref in card.visual_pattern_refs %}
+            <span class="chip" style="background: #f3e5f5; color: #7b1fa2;">视觉: {{ ref }}</span>
+          {% endfor %}
+          {% for ref in card.content_pattern_refs %}
+            <span class="chip" style="background: #e0f7fa; color: #00695c;">内容: {{ ref }}</span>
+          {% endfor %}
+          {% for ref in card.value_proposition_refs %}
+            <span class="chip" style="background: #fff9c4; color: #f57f17;">价值: {{ ref }}</span>
+          {% endfor %}
+          {% for ref in card.audience_refs %}
+            <span class="chip" style="background: #f1f8e9; color: #558b2f;">受众: {{ ref }}</span>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- 下一步建议 -->
+      {% if card.suggested_next_step %}
+      <div style="background: #f8f6f0; border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-bottom: 12px;">
+        <strong>建议下一步：</strong>
+        {% if card.suggested_next_step is string %}
+          {{ card.suggested_next_step }}
+        {% else %}
+          <ul style="margin: 4px 0 0; padding-left: 20px;">
+            {% for step in card.suggested_next_step %}
+            <li>{{ step }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- 证据追溯 -->
+      <details open>
+        <summary style="cursor: pointer; font-weight: 600; font-size: 13px;">证据追溯 ({{ card.evidence_refs | length }} 条)</summary>
+        <div style="margin-top: 8px;">
+          {% for ev in card.evidence_refs %}
+          <div style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px;">
+            <span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; background: var(--accent-soft); color: var(--accent);">{{ ev.source_kind }}</span>
+            <span class="meta" style="margin-left: 4px;">conf {{ "%.0f"|format(ev.confidence * 100) }}%</span>
+            <div style="margin-top: 2px; color: var(--muted);">「{{ ev.snippet[:150] }}{% if ev.snippet|length > 150 %}…{% endif %}」</div>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+    </div>
+
+    <!-- 区域二：聚合检视结果 -->
+    <div class="card" style="margin-bottom: 20px;">
+      <h3 style="margin: 0 0 14px;">检视聚合</h3>
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px;">
+        <div style="text-align: center;">
+          <div class="meta">检视次数</div>
+          <div style="font-size: 28px; font-weight: 700;">{{ card.review_count }}</div>
+        </div>
+        <div style="text-align: center;">
+          <div class="meta">平均质量</div>
+          <div style="font-size: 28px; font-weight: 700;">{% if card.manual_quality_score_avg is not none %}{{ "%.1f"|format(card.manual_quality_score_avg) }}{% else %}-{% endif %}</div>
+          <div class="meta">/10</div>
+        </div>
+        <div style="text-align: center;">
+          <div class="meta">可执行率</div>
+          <div style="font-size: 28px; font-weight: 700;">{% if card.actionable_ratio is not none %}{{ "%.0f"|format(card.actionable_ratio * 100) }}%{% else %}-{% endif %}</div>
+        </div>
+        <div style="text-align: center;">
+          <div class="meta">证据充分率</div>
+          <div style="font-size: 28px; font-weight: 700;">{% if card.evidence_sufficient_ratio is not none %}{{ "%.0f"|format(card.evidence_sufficient_ratio * 100) }}%{% else %}-{% endif %}</div>
+        </div>
+        <div style="text-align: center;">
+          <div class="meta">综合评分</div>
+          <div style="font-size: 28px; font-weight: 700;">{% if card.composite_review_score is not none %}{{ "%.0f"|format(card.composite_review_score * 100) }}%{% else %}-{% endif %}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 区域三：人工反馈表单 -->
+    <div class="card" style="margin-bottom: 20px;">
+      <h3 style="margin: 0 0 14px;">提交检视反馈</h3>
+      <form id="review-form" style="display: grid; gap: 14px;">
+        <div>
+          <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px;">检视人</label>
+          <input type="text" name="reviewer" placeholder="你的名字" required
+            style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; background: var(--surface); box-sizing: border-box;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px;">
+            质量评分: <span id="score-display" style="color: var(--accent); font-size: 18px;">5</span>/10
+          </label>
+          <input type="range" name="manual_quality_score" min="1" max="10" value="5"
+            style="width: 100%; accent-color: var(--accent);"
+            oninput="document.getElementById('score-display').textContent = this.value">
+        </div>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" name="is_actionable" style="width: 18px; height: 18px; accent-color: var(--accent);">
+            <span style="font-size: 13px; font-weight: 600;">可执行</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" name="evidence_sufficient" style="width: 18px; height: 18px; accent-color: var(--accent);">
+            <span style="font-size: 13px; font-weight: 600;">证据充分</span>
+          </label>
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px;">备注（可选）</label>
+          <textarea name="review_notes" rows="2" placeholder="对该机会卡的评价或改进建议…"
+            style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; background: var(--surface); resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+        <button type="submit"
+          style="padding: 10px 24px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; justify-self: start;">
+          提交反馈
+        </button>
+        <div id="submit-status" style="font-size: 13px; color: var(--muted); display: none;"></div>
+      </form>
+    </div>
+
+    <!-- 历史反馈 -->
+    {% if reviews %}
+    <div class="card">
+      <h3 style="margin: 0 0 14px;">检视历史 ({{ reviews | length }} 条)</h3>
+      <div class="list">
+        {% for r in reviews %}
+        <div style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-weight: 600;">{{ r.reviewer }}</span>
+            <span class="meta">{{ r.reviewed_at[:19] }}</span>
+          </div>
+          <div style="display: flex; gap: 12px; font-size: 13px; margin-bottom: 4px;">
+            <span>质量: <strong>{{ r.manual_quality_score }}/10</strong></span>
+            <span>可执行: {% if r.is_actionable %}<span style="color: #2e7d32;">是</span>{% else %}<span style="color: #c62828;">否</span>{% endif %}</span>
+            <span>证据充分: {% if r.evidence_sufficient %}<span style="color: #2e7d32;">是</span>{% else %}<span style="color: #c62828;">否</span>{% endif %}</span>
+          </div>
+          {% if r.review_notes %}
+          <div class="meta" style="margin-top: 4px;">{{ r.review_notes }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div><!-- 右栏结束 -->
+</div><!-- 主体 grid 结束 -->
+
+<script>
+document.getElementById('review-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const statusEl = document.getElementById('submit-status');
+  statusEl.style.display = 'block';
+  statusEl.textContent = '提交中…';
+  statusEl.style.color = 'var(--muted)';
+  const body = {
+    reviewer: form.reviewer.value,
+    manual_quality_score: parseInt(form.manual_quality_score.value),
+    is_actionable: form.is_actionable.checked,
+    evidence_sufficient: form.evidence_sufficient.checked,
+    review_notes: form.review_notes.value || null,
+  };
+  try {
+    const resp = await fetch('/xhs-opportunities/{{ card.opportunity_id }}/reviews', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error('提交失败: ' + resp.status);
+    statusEl.textContent = '提交成功，正在刷新…';
+    statusEl.style.color = '#2e7d32';
+    setTimeout(() => location.reload(), 800);
+  } catch (err) {
+    statusEl.textContent = '提交失败: ' + err.message;
+    statusEl.style.color = '#c62828';
+  }
+});
+</script>
+
+{% endblock %}
