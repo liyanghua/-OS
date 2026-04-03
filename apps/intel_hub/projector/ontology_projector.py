@@ -4,8 +4,11 @@ from typing import Any
 
 from apps.intel_hub.projector.entity_resolver import resolve_entities
 from apps.intel_hub.projector.topic_tagger import tag_topics
+from apps.intel_hub.schemas.evidence import XHSEvidenceRef
+from apps.intel_hub.schemas.ontology_mapping_model import XHSOntologyMapping
 from apps.intel_hub.schemas.signal import Signal
 from apps.intel_hub.schemas.watchlist import Watchlist
+from apps.intel_hub.schemas.xhs_signals import SceneSignals, SellingThemeSignals, VisualSignals
 
 
 def project_signals(
@@ -115,3 +118,100 @@ def project_signals(
         )
 
     return projected
+
+
+# ── XHS 三维信号专用本体映射 ──────────────────────────────
+
+
+def project_xhs_signals(
+    visual: VisualSignals,
+    selling: SellingThemeSignals,
+    scene: SceneSignals,
+    ontology_config: dict[str, Any],
+) -> XHSOntologyMapping:
+    """将三维提取结果映射到 canonical ontology refs。
+
+    从 ontology_mapping.yaml 配置中查找 alias -> canonical ref，
+    汇总所有 evidence_refs。
+    """
+    note_id = visual.note_id or selling.note_id or scene.note_id
+
+    scenes_cfg = ontology_config.get("scenes", {})
+    styles_cfg = ontology_config.get("styles", {})
+    needs_cfg = ontology_config.get("needs", {})
+    risk_cfg = ontology_config.get("risk_factors", {})
+    visual_cfg = ontology_config.get("visual_patterns", {})
+    content_cfg = ontology_config.get("content_patterns", {})
+    audiences_cfg = ontology_config.get("audiences", {})
+    entities_cfg = ontology_config.get("entities", {})
+
+    category_refs: list[str] = []
+    for eid, ecfg in entities_cfg.items():
+        if not isinstance(ecfg, dict):
+            continue
+        if ecfg.get("entity_type") != "category":
+            continue
+        aliases = [a.lower() for a in ecfg.get("aliases", [])]
+        haystack = " ".join(
+            scene.scene_signals + selling.selling_point_signals
+            + visual.visual_style_signals
+        ).lower()
+        if any(a in haystack for a in aliases):
+            category_refs.append(eid)
+
+    scene_refs = _match_signals_to_refs(scene.scene_signals, scenes_cfg)
+    style_refs = _match_signals_to_refs(visual.visual_style_signals, styles_cfg)
+    need_refs = _match_signals_to_refs(selling.selling_point_signals, needs_cfg)
+    risk_refs = _match_signals_to_refs(
+        selling.selling_point_challenges + visual.visual_misleading_risk,
+        risk_cfg,
+    )
+    visual_pattern_refs = _match_signals_to_refs(
+        visual.visual_composition_type + visual.visual_expression_pattern,
+        visual_cfg,
+    )
+    content_pattern_refs = _match_signals_to_refs(selling.selling_theme_refs, content_cfg)
+    audience_refs = _match_signals_to_refs(scene.audience_signals, audiences_cfg)
+
+    value_proposition_refs: list[str] = []
+    if need_refs and style_refs:
+        for n in need_refs[:2]:
+            for s in style_refs[:2]:
+                value_proposition_refs.append(f"{n}+{s}")
+
+    all_evidence: list[XHSEvidenceRef] = []
+    all_evidence.extend(visual.evidence_refs)
+    all_evidence.extend(selling.evidence_refs)
+    all_evidence.extend(scene.evidence_refs)
+
+    return XHSOntologyMapping(
+        note_id=note_id,
+        category_refs=category_refs,
+        scene_refs=scene_refs,
+        style_refs=style_refs,
+        need_refs=need_refs,
+        risk_refs=risk_refs,
+        audience_refs=audience_refs,
+        visual_pattern_refs=visual_pattern_refs,
+        content_pattern_refs=content_pattern_refs,
+        value_proposition_refs=value_proposition_refs,
+        evidence_refs=all_evidence,
+    )
+
+
+def _match_signals_to_refs(
+    signal_values: list[str],
+    ontology_section: dict[str, Any],
+) -> list[str]:
+    """将提取器产出的信号值（如"出租屋"）映射到 canonical ref（如"scene_rental_room"）。"""
+    refs: list[str] = []
+    for ref_id, cfg in ontology_section.items():
+        if not isinstance(cfg, dict):
+            continue
+        keywords = [k.lower() for k in cfg.get("keywords", [])]
+        for sv in signal_values:
+            if sv.lower() in keywords or any(kw in sv.lower() for kw in keywords):
+                if ref_id not in refs:
+                    refs.append(ref_id)
+                break
+    return refs

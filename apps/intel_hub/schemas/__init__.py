@@ -21,10 +21,20 @@ from apps.intel_hub.schemas.enums import (
     TargetRole,
     WatchlistType,
 )
+from apps.intel_hub.schemas.evidence import XHSEvidenceRef
 from apps.intel_hub.schemas.evidence_ref import EvidenceRef
+from apps.intel_hub.schemas.ontology_mapping_model import XHSOntologyMapping
+from apps.intel_hub.schemas.opportunity import XHSOpportunityCard
 from apps.intel_hub.schemas.review import ReviewUpdateRequest
 from apps.intel_hub.schemas.signal import Signal
 from apps.intel_hub.schemas.watchlist import Watchlist
+from apps.intel_hub.schemas.xhs_parsed import XHSParsedNote
+from apps.intel_hub.schemas.xhs_raw import XHSComment, XHSImageFrame, XHSNoteRaw
+from apps.intel_hub.schemas.xhs_signals import (
+    SceneSignals,
+    SellingThemeSignals,
+    VisualSignals,
+)
 
 __all__ = [
     "BusinessSignalFrame",
@@ -43,9 +53,19 @@ __all__ = [
     "ReviewUpdateRequest",
     "RiskCard",
     "RiskType",
+    "SceneSignals",
+    "SellingThemeSignals",
     "Signal",
     "TargetRole",
     "VisualPatternAsset",
+    "VisualSignals",
     "Watchlist",
     "WatchlistType",
+    "XHSComment",
+    "XHSEvidenceRef",
+    "XHSImageFrame",
+    "XHSNoteRaw",
+    "XHSOntologyMapping",
+    "XHSOpportunityCard",
+    "XHSParsedNote",
 ]

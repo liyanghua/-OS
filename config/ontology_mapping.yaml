@@ -162,6 +162,12 @@ scenes:
   scene_pet_family:
     keywords: ["宠物", "猫", "狗", "猫咪"]
     watchlist_ids: [scene_pet_family]
+  scene_dorm:
+    keywords: ["宿舍", "寝室"]
+    watchlist_ids: [scene_dorm]
+  scene_small_space:
+    keywords: ["小户型", "小空间", "蜗居", "小面积"]
+    watchlist_ids: [scene_small_space]
 
 # ── V2: 风格对象 ──
 styles:
@@ -183,6 +189,12 @@ styles:
   style_japanese:
     keywords: ["日式", "日系", "原木风", "原木"]
     watchlist_ids: [style_japanese]
+  style_wood:
+    keywords: ["原木", "原木风", "木调", "木质"]
+    watchlist_ids: [style_wood]
+  style_minimalist:
+    keywords: ["极简", "极简风", "极简主义"]
+    watchlist_ids: [style_minimalist]
 
 # ── V2: 需求/卖点对象 ──
 needs:
@@ -207,6 +219,9 @@ needs:
   need_flat_lay:
     keywords: ["易铺平", "贴合", "不起皱", "服帖"]
     watchlist_ids: [need_flat_lay]
+  need_affordable_upgrade:
+    keywords: ["平价升级", "低成本改造", "省钱装扮"]
+    watchlist_ids: [need_affordable_upgrade]
 
 # ── V2: 风险对象 ──
 risk_factors:

@@ -1,9 +1,23 @@
-# 本体大脑情报中枢 V0.3+ — 四层编译链 + 评论关联 + 视觉分析 + RSS 趋势情报
+# 本体大脑情报中枢 V0.3+ — 四层编译链 + 评论关联 + 视觉分析 + RSS 趋势情报 + XHS 机会卡
 
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 > V0.3+ 增量：评论-笔记自动关联 / 千问 VL 视觉分析 / 端到端验证通过。
 > V0.4  RSS 趋势情报：接入 awesome-tech-rss + awesome-rss-feeds，新增「科技趋势」「新闻媒体」原生浏览页。
-> 详见 [PLAN_V2_COMPILATION_CHAIN.md](./PLAN_V2_COMPILATION_CHAIN.md)
+> V0.5  XHS 三维结构化机会卡流水线：视觉/卖点/场景三维提取 → 本体映射 → 机会卡生成。
+> 详见 [PLAN_V2_COMPILATION_CHAIN.md](./PLAN_V2_COMPILATION_CHAIN.md) / [XHS_OPPORTUNITY_PIPELINE.md](./XHS_OPPORTUNITY_PIPELINE.md)
+
+## V0.5 进展 — XHS 三维结构化机会卡流水线 (2026-04-03)
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| Schema 层 | **已完成** | 6 个新文件: `xhs_raw.py`, `xhs_parsed.py`, `xhs_signals.py`, `evidence.py`, `ontology_mapping_model.py`, `opportunity.py` |
+| 解析器 | **已完成** | `parsing/xhs_note_parser.py`: raw dict → XHSNoteRaw → XHSParsedNote，含评论关联 |
+| 三维提取器 | **已完成** | `extraction/`: visual_extractor + selling_theme_extractor + scene_extractor，各含 evidence_refs |
+| 本体映射 | **已完成** | `ontology_projector.py` 新增 `project_xhs_signals`；`ontology_mapping.yaml` 补充 5 个 canonical refs |
+| 机会编译器 | **已完成** | `opportunity_compiler.py` 新增 `compile_xhs_opportunities`；`config/opportunity_rules.yaml` 三类规则 |
+| 流水线入口 | **已完成** | `workflow/xhs_opportunity_pipeline.py`: 批量 + 单篇模式，输出 JSON + Markdown |
+| 测试 | **已完成** | 5 个测试文件: parser / visual / selling / scene / compiler 端到端 |
+| 文档 | **已完成** | `XHS_OPPORTUNITY_PIPELINE.md` + DATA_MODEL / DECISIONS / IMPLEMENT 更新 |
 
 ## V0.4 进展 — RSS 趋势情报 (2026-04-03)
 
@@ -72,15 +86,21 @@ apps/
       dedupe.py
       demand_spec_compiler.py    # V0.3 DemandSpecAsset 编译器
       insight_compiler.py        # V0.3 InsightCard 编译器
-      opportunity_compiler.py
+      opportunity_compiler.py    # + V0.5 compile_xhs_opportunities()
       priority_ranker.py
       risk_compiler.py
       visual_pattern_compiler.py # V0.3 VisualPatternAsset 编译器
+    extraction/                  # V0.5 三维提取器（与 extractor/ 独立）
+      visual_extractor.py        # 视觉维度提取
+      selling_theme_extractor.py # 卖点主题提取
+      scene_extractor.py         # 场景维度提取
     extractor/                   # V0.3 四层编译链 Layer 1+2
       content_parser.py          # Layer 1 内容解析
       signal_extractor.py        # Layer 2 经营信号抽取
       comment_classifier.py      # 评论级信号分类
       visual_analyzer.py         # V0.3+ 千问VL视觉分析（dashscope qwen-vl-max）
+    parsing/                     # V0.5 XHS 笔记解析器
+      xhs_note_parser.py         # raw dict → XHSNoteRaw → XHSParsedNote
     ingest/
       trendradar_loader.py
       mediacrawler_loader.py     # V2: 自动关联评论 + image_list 传递
@@ -99,10 +119,16 @@ apps/
       cards.py                   # + InsightCard, VisualPatternAsset, DemandSpecAsset
       content_frame.py           # V0.3 NoteContentFrame + BusinessSignalFrame
       enums.py                   # + OpportunityType, RiskType, InsightType, TargetRole, CommentSignalType
+      evidence.py                # V0.5 XHSEvidenceRef（轻量证据追溯）
       evidence_ref.py
+      ontology_mapping_model.py  # V0.5 XHSOntologyMapping
+      opportunity.py             # V0.5 XHSOpportunityCard
       review.py
       signal.py                  # + V2 多维 refs (scene/style/need/risk/material/...)
       watchlist.py
+      xhs_raw.py                 # V0.5 XHSNoteRaw / XHSComment / XHSImageFrame
+      xhs_parsed.py              # V0.5 XHSParsedNote
+      xhs_signals.py             # V0.5 VisualSignals / SellingThemeSignals / SceneSignals
     storage/
       repository.py
     workflow/

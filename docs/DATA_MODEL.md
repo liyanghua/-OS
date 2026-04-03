@@ -197,6 +197,69 @@ MediaCrawler XHS 笔记数据通过 `mediacrawler_loader.py` 映射为 raw signa
 
 固定值：`platform: "xiaohongshu"`、`source_name: "小红书"`。
 
+## XHS 三维结构化流水线 Schema（V0.5）
+
+详见 [XHS_OPPORTUNITY_PIPELINE.md](./XHS_OPPORTUNITY_PIPELINE.md)。
+
+### XHSEvidenceRef（轻量证据引用）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `evidence_id` | `str` | 自动生成 12 位 hex |
+| `source_kind` | `Literal["title","body","tag","image","comment"]` | 来源字段 |
+| `source_ref` | `str` | 笔记 ID 或 comment 索引 |
+| `snippet` | `str` | 匹配上下文片段 |
+| `confidence` | `float` | 0~1 |
+
+### XHSNoteRaw
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `note_id` | `str` | 笔记 ID |
+| `title_text` | `str` | 标题 |
+| `body_text` | `str` | 正文 |
+| `tag_list` | `list[str]` | 标签列表 |
+| `like_count` / `collect_count` / `comment_count` / `share_count` | `int` | 互动数据 |
+| `image_list` | `list[XHSImageFrame]` | 图片列表 |
+| `comments` | `list[XHSComment]` | 评论列表 |
+| `top_comments` | `list[XHSComment]` | 高赞评论 |
+
+### XHSParsedNote
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `raw_note` | `XHSNoteRaw` | 原始笔记引用 |
+| `normalized_title` | `str` | 归一化标题 |
+| `normalized_body` | `str` | 归一化正文 |
+| `normalized_tags` | `list[str]` | 归一化标签 |
+| `engagement_summary` | `dict` | 互动摘要 |
+
+### VisualSignals / SellingThemeSignals / SceneSignals
+
+三类信号均含 `note_id` + `evidence_refs: list[XHSEvidenceRef]`，各有独立子字段。
+
+### XHSOntologyMapping
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `note_id` | `str` | 笔记 ID |
+| `category_refs` / `scene_refs` / `style_refs` / `need_refs` / `risk_refs` / `audience_refs` / `visual_pattern_refs` / `content_pattern_refs` / `value_proposition_refs` | `list[str]` | canonical ontology refs |
+| `evidence_refs` | `list[XHSEvidenceRef]` | 汇总证据 |
+
+### XHSOpportunityCard
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `opportunity_id` | `str` | 自动生成 |
+| `title` | `str` | 机会卡标题 |
+| `summary` | `str` | 摘要 |
+| `opportunity_type` | `Literal["visual","demand","product","content","scene"]` | 类型 |
+| `evidence_refs` | `list[XHSEvidenceRef]` | 证据链 |
+| `confidence` | `float` | 置信度 |
+| `suggested_next_step` | `str` | 建议下一步 |
+| `review_status` | `str` | 默认 `pending` |
+| `source_note_ids` | `list[str]` | 来源笔记 |
+
 ## 当前局限
 
 - canonicalization 仍是规则匹配，不处理跨语言同义词扩展。

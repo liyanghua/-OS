@@ -1,0 +1,47 @@
+# XHS 三维结构化机会卡生成规则
+# 三类机会卡各自独立触发，一篇笔记可能生成多张卡。
+
+visual_opportunity:
+  description: "视觉差异化机会 — 笔记展现独特视觉风格/构图/表达模式"
+  trigger:
+    min_style_signals: 1
+    min_expression_or_feature: 1
+    max_misleading_risk: 2
+  confidence_boost:
+    has_composition: 0.1
+    has_color_palette: 0.05
+    has_texture: 0.05
+  base_confidence: 0.55
+  opportunity_type: "visual"
+  suggested_next_step: "提取视觉资产，评估是否可复用到产品主图/详情页/投放素材"
+
+selling_theme_opportunity:
+  description: "卖点主题机会 — 笔记包含被验证的卖点或明确的购买意向"
+  trigger:
+    min_selling_points: 1
+    require_validated_or_purchase_intent: true
+    max_challenges: 3
+  confidence_boost:
+    has_validated: 0.15
+    has_purchase_intent: 0.1
+    has_theme_ref: 0.05
+  base_confidence: 0.5
+  opportunity_types:
+    selling_points_only: "product"
+    with_purchase_intent: "demand"
+    with_theme_ref: "content"
+  suggested_next_step: "验证卖点市场渗透率，评估产品页/内容策略是否需要强化该卖点"
+
+scene_opportunity:
+  description: "场景专属机会 — 笔记展现明确的使用场景+目标+风格组合"
+  trigger:
+    min_scenes: 1
+    min_goals: 1
+    min_combos: 1
+  confidence_boost:
+    has_audience: 0.1
+    has_constraints: 0.05
+    combo_count_bonus_per: 0.02
+  base_confidence: 0.5
+  opportunity_type: "scene"
+  suggested_next_step: "评估该场景是否为高潜力细分赛道，验证竞品覆盖度"

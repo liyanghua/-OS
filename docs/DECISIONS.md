@@ -221,6 +221,25 @@
   - 当需要实时流式接入时，考虑用消息队列或共享数据库
   - 当需要多机部署时，考虑用 S3/OSS 共享存储替代本地路径
 
+## D-017 XHS 三维结构化流水线与现有 pipeline 并行
+
+- 决策内容：XHS 三维结构化流水线（V0.5）作为独立 pipeline 与现有 `refresh_pipeline.py` 并行运行。
+- 原因：
+  - 现有 pipeline 基于扁平 `BusinessSignalFrame`，无法支持三维分离和细粒度证据追溯
+  - 独立 pipeline 避免对现有流程的侵入式改动
+  - 新 schema 层（`xhs_raw`/`xhs_parsed`/`xhs_signals` 等）与现有 schema 不冲突
+  - 新 `extraction/` 目录与现有 `extractor/` 独立
+- 替代方案：
+  - 直接修改现有 `refresh_pipeline.py` 添加三维分支（侵入大，影响现有功能）
+  - 用 LLM 做语义提取（当前阶段规则引擎更可控、可测试）
+- 当前影响：
+  - `ontology_mapping.yaml` 共享，新增 canonical refs
+  - `opportunity_compiler.py` 新增函数，不改动现有函数
+  - 需要独立的运行入口 `xhs_opportunity_pipeline.py`
+- 后续重审：
+  - 当两条 pipeline 产出需要统一展示时重审合并策略
+  - 当需要 LLM 语义提取时重审提取器架构
+
 ## D-016 MediaCrawler 克隆到 third_party/ 并通过 source_router 接入
 
 - 决策内容：将 MediaCrawler 开源仓库 clone 到 `third_party/MediaCrawler`，通过新增 `mediacrawler_loader.py` 读取其原生笔记级输出（JSON/JSONL/SQLite），通过 `source_router.py` 在 ingest 层与 TrendRadar 汇合。

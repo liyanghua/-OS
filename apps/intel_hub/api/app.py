@@ -74,6 +74,13 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
         watchlists = list_payload("watchlists", 1, 10, None, None, None, None, None, None)
         notes_total = len(_get_notes())
         rss_counts = count_rss_records()
+        xhs_cards_path = resolve_repo_path("data/output/xhs_opportunities/opportunity_cards.json")
+        xhs_cards_total = 0
+        if xhs_cards_path.exists():
+            try:
+                xhs_cards_total = len(json.loads(xhs_cards_path.read_text(encoding="utf-8")))
+            except Exception:
+                pass
         cs_path = resolve_repo_path("data/crawl_status.json")
         try:
             crawl = json.loads(cs_path.read_text(encoding="utf-8")) if cs_path.exists() else {"status": "idle"}
@@ -89,6 +96,7 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 "watchlists": watchlists,
                 "notes_total": notes_total,
                 "rss_counts": rss_counts,
+                "xhs_cards_total": xhs_cards_total,
                 "crawl": crawl,
             },
         )
@@ -396,6 +404,102 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 "page_title": page_title,
             })
         return {"total": total, "page": page, "page_size": page_size, "category": category, "items": page_items}
+
+    # ── XHS 三维结构化机会卡 ──────────────────────────────────
+
+    _xhs_cards_cache: dict[str, Any] = {}
+
+    def _get_xhs_opportunity_cards() -> list[dict[str, Any]]:
+        if "cards" not in _xhs_cards_cache:
+            cards_path = resolve_repo_path("data/output/xhs_opportunities/opportunity_cards.json")
+            if cards_path.exists():
+                try:
+                    _xhs_cards_cache["cards"] = json.loads(cards_path.read_text(encoding="utf-8"))
+                except Exception:
+                    _xhs_cards_cache["cards"] = []
+            else:
+                _xhs_cards_cache["cards"] = []
+        return _xhs_cards_cache["cards"]
+
+    @app.get("/xhs-opportunities")
+    async def xhs_opportunities(
+        request: Request,
+        page: int = 1,
+        page_size: int = 15,
+        type: str | None = None,
+    ) -> Any:
+        all_cards = _get_xhs_opportunity_cards()
+        type_filter = type
+
+        if type_filter:
+            filtered = [c for c in all_cards if c.get("opportunity_type") == type_filter]
+        else:
+            filtered = all_cards
+
+        total = len(filtered)
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        start = (max(page, 1) - 1) * page_size
+        page_cards = filtered[start : start + page_size]
+
+        type_counts: dict[str, int] = {}
+        for c in all_cards:
+            t = c.get("opportunity_type", "unknown")
+            type_counts[t] = type_counts.get(t, 0) + 1
+
+        all_types = sorted(type_counts.keys())
+
+        type_labels = {
+            "visual": "视觉差异化",
+            "demand": "需求卖点",
+            "product": "产品机会",
+            "content": "内容主题",
+            "scene": "场景专属",
+        }
+        type_colors = {
+            "visual": "#7b1fa2",
+            "demand": "#1565c0",
+            "product": "#2e7d32",
+            "content": "#e65100",
+            "scene": "#00695c",
+        }
+        type_bg = {
+            "visual": "#f3e5f5",
+            "demand": "#e3f2fd",
+            "product": "#e8f5e9",
+            "content": "#fff3e0",
+            "scene": "#e0f2f1",
+        }
+
+        details_path = resolve_repo_path("data/output/xhs_opportunities/pipeline_details.json")
+        total_notes = 0
+        if details_path.exists():
+            try:
+                details = json.loads(details_path.read_text(encoding="utf-8"))
+                total_notes = len(details)
+            except Exception:
+                pass
+
+        stats = {
+            "total_notes": total_notes,
+            "total_cards": len(all_cards),
+            "type_counts": type_counts,
+        }
+
+        if _wants_html(request):
+            return _render("xhs_opportunities.html", {
+                "request": request,
+                "cards": page_cards,
+                "stats": stats,
+                "type_labels": type_labels,
+                "type_colors": type_colors,
+                "type_bg": type_bg,
+                "all_types": all_types,
+                "type_filter": type_filter,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+            })
+        return {"total": total, "page": page, "page_size": page_size, "items": page_cards, "stats": stats}
 
     @app.get("/watchlists")
     async def watchlists(
