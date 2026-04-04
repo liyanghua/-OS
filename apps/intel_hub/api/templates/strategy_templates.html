@@ -1,0 +1,506 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .tpl-hero {
+    background: linear-gradient(135deg, rgba(138,75,47,0.12), rgba(123,31,162,0.08));
+    border: 1px solid rgba(138,75,47,0.15);
+    border-radius: 22px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+  }
+  .tpl-hero h2 { margin: 0 0 8px; font-size: 22px; }
+  .tpl-stats {
+    display: flex; gap: 32px; margin-top: 16px; flex-wrap: wrap;
+  }
+  .tpl-stats .stat-item {
+    text-align: center;
+  }
+  .tpl-stats .stat-num {
+    font-size: 28px; font-weight: 700; color: var(--accent);
+  }
+  .tpl-stats .stat-label {
+    font-size: 12px; color: var(--muted); margin-top: 2px;
+  }
+
+  .tpl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 600px) {
+    .tpl-grid { grid-template-columns: 1fr; }
+  }
+
+  .tpl-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 0;
+    box-shadow: 0 8px 24px rgba(92,66,39,0.06);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .tpl-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 36px rgba(92,66,39,0.12);
+  }
+
+  .tpl-card-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .tpl-card-header .tpl-num {
+    position: absolute; top: 16px; right: 20px;
+    font-size: 42px; font-weight: 800; color: rgba(138,75,47,0.08);
+    line-height: 1;
+  }
+  .tpl-card-header .tpl-name {
+    font-size: 18px; font-weight: 700; margin: 0 0 6px;
+  }
+  .tpl-card-header .tpl-goal {
+    font-size: 13px; color: var(--muted); margin: 0; line-height: 1.5;
+  }
+
+  .tpl-card-body {
+    padding: 16px 24px 20px;
+  }
+
+  .tpl-section-title {
+    font-size: 11px; font-weight: 700; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin: 14px 0 8px; padding: 0;
+  }
+  .tpl-section-title:first-child { margin-top: 0; }
+
+  .tpl-tag-row {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px;
+  }
+  .tpl-tag {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .tpl-tag.style { background: #ede7f6; color: #5e35b1; }
+  .tpl-tag.price { background: #e8f5e9; color: #2e7d32; }
+  .tpl-tag.motive { background: #fff3e0; color: #e65100; }
+  .tpl-tag.risk { background: #fce4ec; color: #c62828; }
+  .tpl-tag.visual { background: #e3f2fd; color: #1565c0; }
+
+  .tpl-seq {
+    display: flex; gap: 0; align-items: center; margin: 6px 0 4px;
+    flex-wrap: wrap;
+  }
+  .tpl-seq-step {
+    display: flex; align-items: center; gap: 0;
+  }
+  .tpl-seq-dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #fff;
+    flex-shrink: 0;
+  }
+  .tpl-seq-label {
+    font-size: 11px; color: var(--muted); margin-left: 4px; white-space: nowrap;
+  }
+  .tpl-seq-arrow {
+    color: var(--border); margin: 0 4px; font-size: 14px;
+  }
+
+  .tpl-rules-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px;
+  }
+  .tpl-rule-item {
+    font-size: 12px; line-height: 1.6;
+  }
+  .tpl-rule-label {
+    color: var(--muted); font-weight: 600;
+  }
+  .tpl-rule-val {
+    color: var(--ink);
+  }
+
+  .tpl-bestfor-row {
+    display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .tpl-bestfor {
+    font-size: 12px; padding: 4px 10px;
+    background: #e8f5e9; color: #2e7d32;
+    border-radius: 8px;
+  }
+  .tpl-avoidwhen {
+    font-size: 12px; padding: 4px 10px;
+    background: #fff8e1; color: #f57f17;
+    border-radius: 8px;
+  }
+
+  .tpl-metrics {
+    display: flex; gap: 16px; flex-wrap: wrap; margin: 6px 0;
+  }
+  .tpl-metric {
+    text-align: center; min-width: 80px;
+  }
+  .tpl-metric-val {
+    font-size: 18px; font-weight: 700; color: var(--accent);
+  }
+  .tpl-metric-label {
+    font-size: 10px; color: var(--muted);
+  }
+
+  .tpl-hook-list {
+    margin: 4px 0 0; padding-left: 16px;
+  }
+  .tpl-hook-list li {
+    font-size: 12px; color: var(--ink); line-height: 1.7;
+  }
+
+  .tpl-risk-list {
+    margin: 4px 0 0; padding: 0; list-style: none;
+  }
+  .tpl-risk-list li {
+    font-size: 12px; color: #c62828; line-height: 1.7;
+    padding-left: 16px; position: relative;
+  }
+  .tpl-risk-list li::before {
+    content: "⚠"; position: absolute; left: 0; font-size: 11px;
+  }
+
+  .tpl-phrases {
+    margin: 6px 0; padding: 0; list-style: none;
+  }
+  .tpl-phrases li {
+    font-size: 12px; line-height: 1.7; color: var(--ink);
+    padding: 3px 0; padding-left: 18px; position: relative;
+  }
+  .tpl-phrases li::before {
+    content: "💬"; position: absolute; left: 0; font-size: 11px;
+  }
+
+  .expand-btn {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .expand-btn:hover {
+    background: rgba(138,75,47,0.2);
+  }
+  .tpl-detail-section {
+    display: none;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
+  .tpl-detail-section.open {
+    display: block;
+  }
+
+  .tpl-cluster-tags {
+    display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0;
+  }
+  .tpl-cluster-tag {
+    font-size: 11px; padding: 2px 8px;
+    background: #f3e5f5; color: #7b1fa2;
+    border-radius: 6px;
+  }
+</style>
+
+<div class="tpl-hero">
+  <h2>桌布主图策略模板库</h2>
+  <p class="meta" style="margin: 0;">从小红书桌布笔记中提取的主图策略模板，覆盖 6 种核心内容方向，可直接供主图策划 Agent 消费使用。</p>
+  <div class="tpl-stats">
+    <div class="stat-item">
+      <div class="stat-num">{{ templates|length }}</div>
+      <div class="stat-label">策略模板</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">{{ notes_total }}</div>
+      <div class="stat-label">原始笔记</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">{{ labeled_count }}</div>
+      <div class="stat-label">已标注</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">{{ match_examples|length }}</div>
+      <div class="stat-label">笔记匹配示例</div>
+    </div>
+  </div>
+</div>
+
+{% set seq_colors = {
+  "cover_hook": "#c62828",
+  "style_expand": "#7b1fa2",
+  "texture_expand": "#1565c0",
+  "usage_expand": "#2e7d32",
+  "guide_expand": "#e65100"
+} %}
+{% set seq_labels = {
+  "cover_hook": "封面",
+  "style_expand": "风格",
+  "texture_expand": "质感",
+  "usage_expand": "使用",
+  "guide_expand": "导购"
+} %}
+
+<div class="tpl-grid">
+{% for tpl in templates %}
+  <div class="tpl-card" id="tpl-{{ tpl.template_id }}">
+    <div class="tpl-card-header" style="border-left: 4px solid {{ ['#c62828','#7b1fa2','#1565c0','#2e7d32','#e65100','#00695c'][loop.index0 % 6] }};">
+      <div class="tpl-num">{{ "%02d" | format(loop.index) }}</div>
+      <div class="tpl-name">{{ tpl.template_name }}</div>
+      <div class="tpl-goal">{{ tpl.template_goal }}</div>
+    </div>
+    <div class="tpl-card-body">
+
+      <div class="tpl-section-title">适用场景</div>
+      <div class="tpl-tag-row">
+        {% for s in tpl.fit_scenarios[:6] %}
+          <span class="tpl-tag">{{ s }}</span>
+        {% endfor %}
+        {% if tpl.fit_scenarios|length > 6 %}
+          <span class="tpl-tag" style="opacity:0.6">+{{ tpl.fit_scenarios|length - 6 }}</span>
+        {% endif %}
+      </div>
+
+      <div class="tpl-section-title">适用风格 / 价格带</div>
+      <div class="tpl-tag-row">
+        {% for s in tpl.fit_styles %}
+          <span class="tpl-tag style">{{ s }}</span>
+        {% endfor %}
+        {% for p in tpl.fit_price_band %}
+          <span class="tpl-tag price">{{ p }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="tpl-section-title">钩子机制</div>
+      <ul class="tpl-hook-list">
+        {% for h in tpl.hook_mechanism %}
+          <li>{{ h }}</li>
+        {% endfor %}
+      </ul>
+
+      <div class="tpl-section-title">图组顺序</div>
+      <div class="tpl-seq">
+        {% for step in tpl.image_sequence_pattern %}
+          <div class="tpl-seq-step">
+            <div class="tpl-seq-dot" style="background: {{ seq_colors.get(step, '#757575') }}">{{ loop.index }}</div>
+            <span class="tpl-seq-label">{{ seq_labels.get(step, step) }}</span>
+          </div>
+          {% if not loop.last %}
+            <span class="tpl-seq-arrow">→</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <div class="tpl-section-title">视觉规则</div>
+      <div class="tpl-rules-grid">
+        <div class="tpl-rule-item">
+          <span class="tpl-rule-label">推荐镜头</span>
+          <span class="tpl-rule-val">{{ tpl.visual_rules.preferred_shots | join(", ") }}</span>
+        </div>
+        <div class="tpl-rule-item">
+          <span class="tpl-rule-label">色彩方向</span>
+          <span class="tpl-rule-val">{{ tpl.visual_rules.color_direction | join(", ") }}</span>
+        </div>
+        <div class="tpl-rule-item">
+          <span class="tpl-rule-label">必备元素</span>
+          <span class="tpl-rule-val">{{ tpl.visual_rules.required_elements | join(", ") }}</span>
+        </div>
+        <div class="tpl-rule-item">
+          <span class="tpl-rule-label">文案覆盖</span>
+          <span class="tpl-rule-val">{{ tpl.visual_rules.text_overlay_level }}</span>
+        </div>
+      </div>
+
+      <div class="tpl-section-title">评估指标</div>
+      <div class="tpl-metrics">
+        <div class="tpl-metric">
+          <div class="tpl-metric-val">{{ "%.0f" | format(tpl.evaluation_metrics.target_save_like_ratio * 100) }}%</div>
+          <div class="tpl-metric-label">目标收藏率</div>
+        </div>
+        <div class="tpl-metric">
+          <div class="tpl-metric-val">{{ "%.0f" | format(tpl.evaluation_metrics.target_click_proxy_score * 100) }}%</div>
+          <div class="tpl-metric-label">点击代理分</div>
+        </div>
+        <div class="tpl-metric">
+          <div class="tpl-metric-val">{{ "%.0f" | format(tpl.evaluation_metrics.scene_visibility_score_min * 100) }}%</div>
+          <div class="tpl-metric-label">场景可见度</div>
+        </div>
+      </div>
+
+      <button class="expand-btn" onclick="toggleDetail('{{ tpl.template_id }}')">展开完整规则</button>
+
+      <div class="tpl-detail-section" id="detail-{{ tpl.template_id }}">
+
+        <div class="tpl-section-title">核心用户动机</div>
+        <div class="tpl-tag-row">
+          {% for m in tpl.core_user_motive %}
+            <span class="tpl-tag motive">{{ m }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="tpl-section-title">文案规则</div>
+        <div class="tpl-rules-grid">
+          <div class="tpl-rule-item">
+            <span class="tpl-rule-label">标题风格</span>
+            <span class="tpl-rule-val">{{ tpl.copy_rules.title_style | join(", ") }}</span>
+          </div>
+          <div class="tpl-rule-item">
+            <span class="tpl-rule-label">封面文案</span>
+            <span class="tpl-rule-val">{{ tpl.copy_rules.cover_copy_style }}</span>
+          </div>
+        </div>
+        <div class="tpl-section-title" style="margin-top:8px;">推荐话术</div>
+        <ul class="tpl-phrases">
+          {% for p in tpl.copy_rules.recommended_phrases %}
+            <li>{{ p }}</li>
+          {% endfor %}
+        </ul>
+
+        <div class="tpl-section-title">场景规则</div>
+        <div class="tpl-rules-grid">
+          <div class="tpl-rule-item">
+            <span class="tpl-rule-label">必须有场景</span>
+            <span class="tpl-rule-val">{{ "是" if tpl.scene_rules.must_have_scene else "否" }}</span>
+          </div>
+          <div class="tpl-rule-item">
+            <span class="tpl-rule-label">场景类型</span>
+            <span class="tpl-rule-val">{{ tpl.scene_rules.scene_types | join(", ") }}</span>
+          </div>
+        </div>
+        {% if tpl.scene_rules.avoid_scenes %}
+        <div class="tpl-tag-row" style="margin-top: 6px;">
+          {% for a in tpl.scene_rules.avoid_scenes %}
+            <span class="tpl-tag risk">避免: {{ a }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="tpl-section-title">商品可见性规则</div>
+        <div class="tpl-rules-grid">
+          <div class="tpl-rule-item">
+            <span class="tpl-rule-label">桌布最低可见度</span>
+            <span class="tpl-rule-val">{{ "%.0f" | format(tpl.product_visibility_rules.tablecloth_visibility_min * 100) }}%</span>
+          </div>
+          <div class="tpl-rule-item">
+            <span class="tpl-rule-label">需展示花纹/质感</span>
+            <span class="tpl-rule-val">{{ "是" if tpl.product_visibility_rules.must_show_pattern_or_texture else "否" }}</span>
+          </div>
+        </div>
+
+        <div class="tpl-section-title">最适合</div>
+        <div class="tpl-bestfor-row">
+          {% for b in tpl.best_for %}
+            <span class="tpl-bestfor">{{ b }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="tpl-section-title">不适合</div>
+        <div class="tpl-bestfor-row">
+          {% for a in tpl.avoid_when %}
+            <span class="tpl-avoidwhen">{{ a }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="tpl-section-title">风险提示</div>
+        <ul class="tpl-risk-list">
+          {% for r in tpl.risk_rules %}
+            <li>{{ r }}</li>
+          {% endfor %}
+        </ul>
+
+        <div class="tpl-section-title">聚类特征</div>
+        <div class="tpl-cluster-tags">
+          {% for t in tpl.cluster_features.dominant_task_labels %}
+            <span class="tpl-cluster-tag">{{ t }}</span>
+          {% endfor %}
+          {% for t in tpl.cluster_features.dominant_visual_labels %}
+            <span class="tpl-cluster-tag">{{ t }}</span>
+          {% endfor %}
+          {% for t in tpl.cluster_features.dominant_semantic_labels %}
+            <span class="tpl-cluster-tag">{{ t }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="tpl-section-title">衍生规则</div>
+        <div class="tpl-rules-grid">
+          <div class="tpl-rule-item">
+            <span class="tpl-rule-label">可扩展到</span>
+            <span class="tpl-rule-val">{{ tpl.derivation_rules.can_extend_to | join(", ") }}</span>
+          </div>
+          <div class="tpl-rule-item">
+            <span class="tpl-rule-label">Prompt 风格</span>
+            <span class="tpl-rule-val">{{ tpl.derivation_rules.prompt_style }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endfor %}
+</div>
+
+{% if match_examples %}
+<div style="margin-top: 32px;">
+  <div class="section-title">
+    <h2 style="margin: 0;">笔记 → 模板匹配示例</h2>
+    <span class="meta">基于现有小红书笔记自动匹配最佳模板</span>
+  </div>
+  <div style="display: grid; gap: 14px;">
+    {% for ex in match_examples %}
+    <div class="card" style="display: grid; grid-template-columns: 80px 1fr auto; gap: 16px; align-items: center;">
+      {% if ex.cover_image %}
+      <img src="{{ ex.cover_image }}" alt="" style="width: 80px; height: 80px; object-fit: cover; border-radius: 12px;">
+      {% else %}
+      <div style="width: 80px; height: 80px; background: var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px;">无图</div>
+      {% endif %}
+      <div>
+        <div style="font-weight: 600; margin-bottom: 4px;">{{ ex.title }}</div>
+        <div class="meta">{{ ex.body[:80] }}{% if ex.body|length > 80 %}…{% endif %}</div>
+        <div class="tpl-tag-row" style="margin-top: 6px;">
+          {% for label in ex.labels[:4] %}
+            <span class="tpl-tag" style="font-size: 11px;">{{ label }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div style="text-align: right; min-width: 140px;">
+        <div style="font-weight: 700; color: var(--accent); font-size: 14px;">{{ ex.matched_template_name }}</div>
+        <div class="meta">匹配分: {{ "%.2f" | format(ex.match_score) }}</div>
+        <div class="meta" style="margin-top: 2px;">{{ ex.match_reason }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<script>
+function toggleDetail(tplId) {
+  const section = document.getElementById('detail-' + tplId);
+  const btn = section.previousElementSibling;
+  if (section.classList.contains('open')) {
+    section.classList.remove('open');
+    btn.textContent = '展开完整规则';
+  } else {
+    section.classList.add('open');
+    btn.textContent = '收起';
+  }
+}
+</script>
+{% endblock %}

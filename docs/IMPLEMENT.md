@@ -740,3 +740,33 @@ trendradar_output_dir: third_party/TrendRadar/output
     - 红色边框 + 未解决告警计数 + 最近 5 条详情
 
 **验证**: 全量 38 个测试通过，所有模块 import 成功，FastAPI 18 条路由注册正常。
+
+---
+
+**桌布主图模板提取配置（2026-04-04）**
+
+- 新增 `config/template_extraction/`：`label_taxonomy.yaml`（四层全量标签）、`feature_rules.yaml`、`clustering_params.yaml`、`template_defaults.yaml`（六套模板默认字段，对齐 `docs/template_define.md` / `docs/compile_template.md`）。
+
+## 模板提取流水线 (Template Extraction Pipeline) 进展
+
+### V1.0 骨架完成 (2026-04-03)
+
+已完成：
+
+- schemas: 7 个 Pydantic 数据模型 (labels, labeled_note, cover_features, gallery_features, cluster_sample, template, agent_plan)
+- config: 4 个 YAML 配置文件 (label_taxonomy, feature_rules, clustering_params, template_defaults)
+- labeling: 四层标签体系 + 规则标注器 + VLM 标注器(mock) + 标注流水线
+- features: 图像/文本/标签特征提取 + 图组分析 + 特征流水线
+- clustering: 两阶段聚类 (封面原型 + 图组策略) + 报告生成 + 聚类流水线
+- templates: 模板编译器 + 验证器 + 6 套模板 mock JSON
+- agent: 模板检索 + 模板匹配 + 主图方案编译
+- evaluation: 标注/聚类/模板质量评估 + 验收报告生成
+- docs: TEMPLATE_EXTRACTION.md + ANNOTATION_GUIDE.md
+- tests: 6 个测试文件覆盖所有模块
+
+待办：
+
+- 接入真实 VLM 标注
+- 接入图像 embedding
+- 真实数据端到端验证
+- UMAP+HDBSCAN 聚类对比

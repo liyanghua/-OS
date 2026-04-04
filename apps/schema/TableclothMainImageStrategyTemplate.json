@@ -1,0 +1,95 @@
+{
+  "template_id": "xhs_tablecloth_tpl_001",
+  "template_name": "氛围感场景种草型",
+  "template_version": "v1",
+  "template_goal": "通过完整桌面场景和生活方式氛围提升点击与收藏",
+  "fit_platform": ["xiaohongshu"],
+  "fit_category": ["桌布", "餐桌布", "桌搭"],
+  "fit_scenarios": ["早餐", "下午茶", "居家晚餐", "朋友聚餐"],
+  "fit_styles": ["奶油风", "法式", "北欧", "中古"],
+  "fit_price_band": ["中低", "中"],
+  "core_user_motive": [
+    "想要提升家居氛围",
+    "想低成本改造餐桌",
+    "想做出片桌搭"
+  ],
+  "hook_mechanism": [
+    "一眼看到完整桌面效果",
+    "风格与氛围统一",
+    "让用户代入理想生活方式"
+  ],
+  "cover_role": "hook_click",
+  "image_sequence_pattern": [
+    "cover_hook_scene",
+    "style_expand",
+    "texture_expand",
+    "usage_expand",
+    "buying_guide"
+  ],
+  "visual_rules": {
+    "preferred_shots": ["topdown", "wide_scene"],
+    "required_elements": ["tablecloth", "tableware"],
+    "optional_elements": ["flowers", "food", "candles"],
+    "text_overlay_level": "light",
+    "color_direction": ["warm", "cream", "soft"],
+    "lighting_direction": ["natural", "soft"]
+  },
+  "copy_rules": {
+    "title_style": [
+      "氛围感导向",
+      "风格标签导向",
+      "低成本改造导向"
+    ],
+    "cover_copy_style": "short",
+    "recommended_phrases": [
+      "一块桌布把餐桌气质拉满",
+      "周末在家也能有小仪式感",
+      "低成本拥有法式餐桌氛围"
+    ],
+    "avoid_phrases": [
+      "全网最低",
+      "强促销词",
+      "纯参数堆砌"
+    ]
+  },
+  "scene_rules": {
+    "must_have_scene": true,
+    "scene_types": ["居家餐桌", "早餐角", "周末下午茶"],
+    "avoid_scenes": ["过度商业棚拍", "背景过杂"]
+  },
+  "product_visibility_rules": {
+    "tablecloth_visibility_min": 0.35,
+    "must_show_pattern_or_texture": true,
+    "avoid_over_occlusion": true
+  },
+  "risk_rules": [
+    "避免桌布被食物和道具遮挡过多",
+    "避免画面只有氛围没有商品识别",
+    "避免过重文案影响平台感"
+  ],
+  "best_for": [
+    "高收藏内容",
+    "风格型桌布",
+    "希望走种草路线的商品"
+  ],
+  "avoid_when": [
+    "核心卖点是防水防油等功能且需强解释",
+    "需要突出超低价心智",
+    "节庆场景过强但非节点期"
+  ],
+  "seed_examples": [],
+  "cluster_features": {
+    "dominant_task_labels": ["scene_seed", "style_anchor"],
+    "dominant_visual_labels": ["shot_topdown", "cloth_full_spread"],
+    "dominant_semantic_labels": ["mood_refined_life", "mood_photo_friendly"]
+  },
+  "evaluation_metrics": {
+    "target_save_like_ratio": 0.35,
+    "target_click_proxy_score": 0.7,
+    "scene_visibility_score_min": 0.6
+  },
+  "derivation_rules": {
+    "can_extend_to": ["title", "detail_page", "short_video_outline"],
+    "prompt_style": "scene-first"
+  }
+}

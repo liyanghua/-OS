@@ -1,0 +1,93 @@
+{
+  "template_id": "tpl_005_festival_gift",
+  "template_name": "节庆礼赠型",
+  "template_version": "1.0",
+  "template_goal": "绑定节日/纪念日情绪与仪式感，提升节点点击与转化",
+  "fit_platform": ["小红书"],
+  "fit_category": ["桌布"],
+  "fit_scenarios": ["圣诞", "生日", "纪念日", "情人节", "节日聚会", "家庭聚餐布置"],
+  "fit_styles": ["法式", "复古", "奶油风"],
+  "fit_price_band": ["中", "中高"],
+  "core_user_motive": [
+    "想布置特别时刻",
+    "让聚餐更有仪式感",
+    "为生日纪念日出片"
+  ],
+  "hook_mechanism": [
+    "节庆道具与色彩与桌布强呼应",
+    "完整节点场景一眼读懂",
+    "情绪价值与礼赠心智"
+  ],
+  "cover_role": "gift_event",
+  "image_sequence_pattern": [
+    "cover_hook",
+    "style_expand",
+    "texture_expand",
+    "usage_expand",
+    "guide_expand"
+  ],
+  "visual_rules": {
+    "preferred_shots": ["wide_scene", "angled"],
+    "required_elements": ["tablecloth", "festival_or_gift_props"],
+    "optional_elements": ["cake", "candles", "gift_box", "bouquet"],
+    "text_overlay_level": "light",
+    "color_direction": ["festival_red_green", "warm", "cream"],
+    "lighting_direction": ["soft", "dramatic"]
+  },
+  "copy_rules": {
+    "title_style": ["节点情绪导向", "礼赠与布置导向"],
+    "cover_copy_style": "short",
+    "recommended_phrases": [
+      "纪念日晚餐的氛围，全靠这张桌布",
+      "生日餐桌布置真的少不了它",
+      "圣诞桌搭一下就有了节日感",
+      "节日聚餐想出片，先换桌布"
+    ],
+    "avoid_phrases": ["全年通用大促话术", "与节点无关的硬广感"]
+  },
+  "scene_rules": {
+    "must_have_scene": true,
+    "scene_types": ["节日餐桌", "生日晚宴", "纪念日浪漫聚餐"],
+    "avoid_scenes": ["道具堆砌杂乱", "只有道具看不清桌布"]
+  },
+  "product_visibility_rules": {
+    "tablecloth_visibility_min": 0.3,
+    "must_show_pattern_or_texture": true,
+    "avoid_over_occlusion": true
+  },
+  "risk_rules": [
+    "避免节庆道具淹没桌布",
+    "避免节点过强导致泛化差、生命周期短",
+    "避免非节点期长期主推造成违和",
+    "避免忽略桌布与节庆色彩呼应"
+  ],
+  "best_for": ["节庆配色桌布", "仪式感强款式", "可搭蜡烛花束蛋糕的内容"],
+  "avoid_when": [
+    "非节点期作为长期主模板",
+    "商品缺少节庆适配度",
+    "款式过于基础难承接氛围"
+  ],
+  "seed_examples": ["xhs_tbl_20231224_b1c2", "xhs_tbl_20231225_d3e4", "xhs_tbl_20240101_f5g6"],
+  "cluster_features": {
+    "dominant_task_labels": ["gift_event", "scene_seed"],
+    "dominant_visual_labels": ["has_festival_props", "has_gift_box", "palette_festival_red_green"],
+    "dominant_semantic_labels": [
+      "mood_festival_setup",
+      "mood_anniversary",
+      "mood_giftable",
+      "mood_friends_gathering",
+      "圣诞",
+      "纪念日",
+      "仪式感"
+    ]
+  },
+  "evaluation_metrics": {
+    "target_save_like_ratio": 0.38,
+    "target_click_proxy_score": 0.69,
+    "scene_visibility_score_min": 0.62
+  },
+  "derivation_rules": {
+    "can_extend_to": ["title", "detail_page", "short_video_outline"],
+    "prompt_style": "festival-moment-first"
+  }
+}

@@ -1,0 +1,456 @@
+# 四层标签体系（依据 docs/compile_template.md）
+# L2 分组：shot(4) / composition(5) / subject(10) / cloth_exposure(6) / text_overlay(8) / palette(7) / lighting(3)
+
+layers:
+  L1_cover_task:
+    hook_click:
+      name_cn: "强停留强点击"
+      definition: "首图以视觉冲击或强钩子文案优先换取点击与停留"
+      trigger_keywords: ["必看", "太美了", "绝了", "救命", "一眼沦陷", "戳心"]
+      counter_examples: ["纯产品白底图无钩子", "无文案纯场景弱标题"]
+    scene_seed:
+      name_cn: "场景种草"
+      definition: "通过完整生活场景让用户想拥有这种生活方式"
+      trigger_keywords: ["氛围感", "仪式感", "生活方式", "周末", "居家", "餐桌"]
+      counter_examples: ["纯特写无场景", "产品参数罗列为主"]
+    style_anchor:
+      name_cn: "风格定锚"
+      definition: "首图明确传达法式/奶油/中古等风格归属与审美标签"
+      trigger_keywords: ["法式", "奶油风", "中古", "北欧", "原木", "极简"]
+      counter_examples: ["风格词与画面不一致", "无风格线索的泛化好看"]
+    texture_detail:
+      name_cn: "材质细节打动"
+      definition: "以纹理、工艺、垂坠、花边等细节建立质感与价值感"
+      trigger_keywords: ["质感", "纹理", "刺绣", "蕾丝", "垂坠", "做工"]
+      counter_examples: ["只有远景无细节", "细节糊成一团"]
+    feature_explain:
+      name_cn: "卖点解释"
+      definition: "首图或文案承担防水防油易打理等功能卖点的可读解释"
+      trigger_keywords: ["防水", "防油", "防烫", "易打理", "免洗", "耐用"]
+      counter_examples: ["纯氛围无功能信息", "功能仅小字不可读"]
+    price_value:
+      name_cn: "平价性价比"
+      definition: "突出平价、替代、性价比与低成本获得感"
+      trigger_keywords: ["百元", "平价", "性价比", "学生党", "便宜", "实惠"]
+      counter_examples: ["全程不提价格带却标平价", "只有贵价调性无性价比证据"]
+    gift_event:
+      name_cn: "节庆礼赠"
+      definition: "绑定节日、纪念日、生日、礼赠与聚餐节点情绪"
+      trigger_keywords: ["圣诞", "生日", "纪念日", "情人节", "送礼", "礼盒", "过年"]
+      counter_examples: ["无任何节点元素却写节日大促", "礼赠无对象与场景"]
+    set_combo:
+      name_cn: "桌搭套装方案"
+      definition: "呈现桌布与餐具花器蜡烛等组合成套的可抄作业方案"
+      trigger_keywords: ["桌搭", "一套", "搭配", "清单", "组合", "抄作业"]
+      counter_examples: ["仅单品无搭配线索", "道具与桌布无组合逻辑"]
+    before_after:
+      name_cn: "改造前后对比"
+      definition: "通过前后对比或气质反差强化变化与改造价值"
+      trigger_keywords: ["改造前", "改造后", "对比", "焕新", "换了一张布"]
+      counter_examples: ["无参照系的单张图", "对比造假或过度修图"]
+    shopping_guide:
+      name_cn: "选购指导"
+      definition: "首图或文案引导尺寸、选购、避坑、对比款等决策信息"
+      trigger_keywords: ["尺寸", "选购", "避坑", "攻略", "怎么选", "推荐"]
+      counter_examples: ["纯情绪标题无任何决策信息", "参数表截图替代内容"]
+
+  L1_gallery_task:
+    cover_hook:
+      name_cn: "封面负责点击"
+      definition: "图组第一张承担钩子与进店任务，与其他张分工明确"
+      trigger_keywords: ["封面", "首图", "点开", "第一张"]
+      trigger_conditions: ["role_seq 第一位为强钩子或高信息封面"]
+      counter_examples: ["封面是说明书式参数图", "封面与后图任务重复无分工"]
+    style_expand:
+      name_cn: "风格展开"
+      definition: "第二及后续图补足整体风格、空间气质与搭配一致性"
+      trigger_keywords: ["搭配", "同风格", "整体", "餐厅一角"]
+      trigger_conditions: ["出现与封面同风格的另一角度或空间展开"]
+      counter_examples: ["风格突变无过渡", "展开图与封面完全重复"]
+    texture_expand:
+      name_cn: "材质细节展开"
+      definition: "补充纹理、边缘、厚薄、工艺等近景证据"
+      trigger_keywords: ["特写", "细节", "近拍", "花边"]
+      trigger_conditions: ["近景可辨识布面纹理或工艺"]
+      counter_examples: ["所谓特写仍看不清纹理", "细节图与商品不一致"]
+    usage_expand:
+      name_cn: "使用场景展开"
+      definition: "展示真实上桌、不同场景或用法以强化代入"
+      trigger_keywords: ["上桌", "早餐", "下午茶", "聚餐", "一人食"]
+      trigger_conditions: ["出现与食用/聚会/日常相关的场景延展"]
+      counter_examples: ["全程棚拍无使用情境", "场景与目标人群完全无关"]
+    guide_expand:
+      name_cn: "选购引导展开"
+      definition: "图组后部给出尺寸、对比、清单或轻购买建议"
+      trigger_keywords: ["尺寸表", "怎么选", "总结", "建议", "清单"]
+      trigger_conditions: ["末尾图偏信息图、对比拼图或清单排版"]
+      counter_examples: ["最后一张仍是纯氛围无信息增量", "硬广二维码墙"]
+
+  L2_visual_structure:
+    shot_topdown:
+      group: shot
+      name_cn: "俯拍"
+      definition: "相机近似垂直向下拍摄桌面或主体"
+      trigger_conditions: ["相机角度接近90度垂直向下", "桌面几何透视收缩明显"]
+      counter_examples: ["明显平视窗景", "纯侧面轮廓无顶面"]
+    shot_angled:
+      group: shot
+      name_cn: "斜侧拍"
+      definition: "介于俯视与平视之间的斜侧视角展示空间层次"
+      trigger_conditions: ["可见桌面顶面与立面同时呈现", "透视为斜向"]
+      counter_examples: ["纯正面平视无桌面顶面", "与俯拍混淆的近垂直"]
+    shot_closeup:
+      group: shot
+      name_cn: "近景特写"
+      definition: "布面或工艺占据画幅主体，环境退居次要"
+      trigger_conditions: ["桌布局部占画面50%以上", "纹理细节可辨"]
+      counter_examples: ["远景小桌布", "特写主体是食物而非布面"]
+    shot_wide_scene:
+      group: shot
+      name_cn: "全景桌面/空间"
+      definition: "完整桌面或含环境的全景交代场景与搭配"
+      trigger_conditions: ["可见完整餐桌或大面积桌面与周边空间"]
+      counter_examples: ["仅一角裁切无法识别餐桌形态", "全景但桌布面积过小"]
+    composition_centered:
+      group: composition
+      name_cn: "中心构图"
+      definition: "视觉重心集中于画面中心轴线"
+      trigger_conditions: ["主体居中对称或近似对称", "辅助元素环绕中心"]
+      counter_examples: ["主体贴边被裁切", "明显对角线主导（归对角构图）"]
+    composition_diagonal:
+      group: composition
+      name_cn: "对角线构图"
+      definition: "引导线或桌沿沿对角线分布增强动感"
+      trigger_conditions: ["主要线条沿画面对角方向延伸"]
+      counter_examples: ["横平竖直网格无对角趋势", "中心放射无对角主导"]
+    composition_layered:
+      group: composition
+      name_cn: "层次构图"
+      definition: "前中后景分层，强化空间深度与搭配层次"
+      trigger_conditions: ["前景餐具/花器与后景空间分层清晰"]
+      counter_examples: ["所有物体同一焦平面贴平", "杂乱堆砌无层次"]
+    composition_dense:
+      group: composition
+      name_cn: "饱满构图"
+      definition: "画面元素丰富、信息密度高"
+      trigger_conditions: ["道具与食器较多且留白少"]
+      counter_examples: ["极简大量留白", "仅一布一桌无陪体"]
+    composition_minimal:
+      group: composition
+      name_cn: "极简构图"
+      definition: "少量元素、大量留白或干净背景"
+      trigger_conditions: ["元素种类≤3且留白显著", "背景干净"]
+      counter_examples: ["满桌道具仍标极简", "文字贴纸铺满"]
+    has_tablecloth_main:
+      group: subject
+      name_cn: "桌布为主体"
+      definition: "桌布在画面中为视觉主主体而非边角陪衬"
+      trigger_conditions: ["桌布面积或视觉权重显著最高"]
+      counter_examples: ["桌布仅作底色被食物完全盖住", "主体是人物脸部"]
+    has_tableware:
+      group: subject
+      name_cn: "有餐具"
+      definition: "出现盘碗杯筷等餐具作为陪体或搭配"
+      trigger_conditions: ["可见餐盘、杯具或刀叉等"]
+      counter_examples: ["空桌无餐具", "仅包装无上桌餐具"]
+    has_food:
+      group: subject
+      name_cn: "有食物"
+      definition: "出现可识别食物强化用餐场景"
+      trigger_conditions: ["可见餐食、面包、水果等"]
+      counter_examples: ["空桌或仅空盘", "食物为不可识别色块"]
+    has_flower_vase:
+      group: subject
+      name_cn: "有花器花艺"
+      definition: "花、花瓶或绿植作为氛围陪体"
+      trigger_conditions: ["可见花瓶、花束或明显花艺"]
+      counter_examples: ["无植物元素", "塑料假花过于廉价且喧宾夺主"]
+    has_candle:
+      group: subject
+      name_cn: "有蜡烛烛光"
+      definition: "蜡烛或烛台参与仪式感营造"
+      trigger_conditions: ["可见烛台、蜡烛或烛光光斑"]
+      counter_examples: ["无任何烛光元素", "仅电灯无烛台语义"]
+    has_hand_only:
+      group: subject
+      name_cn: "仅手部入镜"
+      definition: "以手与布面/餐具互动，不出现完整人物"
+      trigger_conditions: ["可见手与桌面互动", "无完整人像"]
+      counter_examples: ["无手入镜", "全身人像为主"]
+    has_people:
+      group: subject
+      name_cn: "有人物"
+      definition: "出现可辨识人物或人像为主角之一"
+      trigger_conditions: ["可见面部或完整人体"]
+      counter_examples: ["仅手部", "无人像"]
+    has_chair_or_room_bg:
+      group: subject
+      name_cn: "椅背或房间背景"
+      definition: "出现餐椅、墙角、柜体等空间背景信息"
+      trigger_conditions: ["可见椅背、踢脚线、门窗或家具背景"]
+      counter_examples: ["纯色棚拍无环境", "仅桌面裁切无空间线索"]
+    has_gift_box:
+      group: subject
+      name_cn: "有礼盒"
+      definition: "礼盒、礼袋等礼赠符号"
+      trigger_conditions: ["可见礼品包装或礼盒形态"]
+      counter_examples: ["无礼赠视觉符号却写送礼", "普通快递盒无礼感"]
+    has_festival_props:
+      group: subject
+      name_cn: "节庆道具"
+      definition: "节日装饰如雪花、彩灯、节庆摆件等"
+      trigger_conditions: ["圣诞/新年/生日帽等可识别节庆符号"]
+      counter_examples: ["无节点道具却写圣诞", "道具与节日不匹配"]
+    cloth_full_spread:
+      group: cloth_exposure
+      name_cn: "桌布大面积铺展"
+      definition: "桌布以整面或大面积平铺展示"
+      trigger_conditions: ["桌布覆盖桌面大部分区域且轮廓完整"]
+      counter_examples: ["仅露一角", "卷起来未铺开"]
+    cloth_partial_visible:
+      group: cloth_exposure
+      name_cn: "桌布部分可见"
+      definition: "桌布仅占画面一部分或被遮挡较多"
+      trigger_conditions: ["可见桌布边缘或局部下垂但非全景主体"]
+      counter_examples: ["整面铺满仍标局部", "完全不可见布面"]
+    cloth_texture_emphasis:
+      group: cloth_exposure
+      name_cn: "强调纹理"
+      definition: "布面织纹、提花、麻感等纹理被强调"
+      trigger_conditions: ["光线勾勒布面起伏与织纹清晰"]
+      counter_examples: ["过度虚化纹理不可辨", "后期涂抹平滑无纹理"]
+    cloth_pattern_emphasis:
+      group: cloth_exposure
+      name_cn: "强调花型图案"
+      definition: "印花、格纹、条纹等图案成为视觉重点"
+      trigger_conditions: ["重复图案或可识别花型占主导"]
+      counter_examples: ["纯色布标图案强调", "图案被食物完全遮盖"]
+    cloth_edge_emphasis:
+      group: cloth_exposure
+      name_cn: "强调边缘工艺"
+      definition: "流苏、蕾丝边、包边等边缘成为构图重点"
+      trigger_conditions: ["画幅边缘或下垂部分展示工艺细节"]
+      counter_examples: ["边缘被裁切", "无特殊工艺却标边缘"]
+    cloth_with_other_products:
+      group: cloth_exposure
+      name_cn: "与其他商品同框"
+      definition: "桌布与多件商品或SKU组合呈现"
+      trigger_conditions: ["多品类或多包装同框强调组合"]
+      counter_examples: ["仅桌布单品", "仅餐具无桌布主叙事"]
+    text_none:
+      group: text_overlay
+      name_cn: "无文案覆盖"
+      definition: "画面无显著叠加标题或贴纸字"
+      trigger_conditions: ["无大面积文字层或贴纸"]
+      counter_examples: ["角落仍有显著品牌水印算轻覆盖", "实际有整行标题却标无字"]
+    text_light:
+      group: text_overlay
+      name_cn: "轻文案"
+      definition: "少量小字或单一短标签"
+      trigger_conditions: ["文字面积占比低且不挡主体"]
+      counter_examples: ["多行大字铺满", "贴纸拼贴密集"]
+    text_medium:
+      group: text_overlay
+      name_cn: "中文案"
+      definition: "有明显标题条或多行说明但未到海报级"
+      trigger_conditions: ["文字区域可辨识且占中等比例"]
+      counter_examples: ["仅角落logo", "整屏大字促销"]
+    text_heavy:
+      group: text_overlay
+      name_cn: "重文案"
+      definition: "大字、多贴纸、信息堆叠接近海报或电商风"
+      trigger_conditions: ["文字遮挡主体或信息条≥3段显著"]
+      counter_examples: ["仅一行小标题", "无字纯图"]
+    text_style_label:
+      group: text_overlay
+      name_cn: "风格标签字"
+      definition: "文案以风格词或审美标签为主"
+      trigger_keywords: ["法式", "奶油", "中古", "ins"]
+      trigger_conditions: ["封面字以风格形容词为核心"]
+      counter_examples: ["仅价格无风格词", "风格词与画面冲突"]
+    text_price_label:
+      group: text_overlay
+      name_cn: "价格带标签"
+      definition: "文案突出价格、百元内、平价等"
+      trigger_keywords: ["元", "百元", "平价", "￥"]
+      trigger_conditions: ["数字价或价格带显著展示"]
+      counter_examples: ["正文有价格但封面无价格字", "无数字却写特价"]
+    text_transformation_claim:
+      group: text_overlay
+      name_cn: "改造主张字"
+      definition: "强调焕新、改造、前后变化等主张"
+      trigger_keywords: ["改造", "焕新", "换了", "前后"]
+      trigger_conditions: ["文案以变化结果或动作为核心"]
+      counter_examples: ["纯风格无改造语义", "无对比却写巨变"]
+    text_scene_claim:
+      group: text_overlay
+      name_cn: "场景主张字"
+      definition: "文案强调早餐、下午茶、聚会等场景命题"
+      trigger_keywords: ["早餐", "下午茶", "聚餐", "晚餐"]
+      trigger_conditions: ["场景名词出现在封面主标题"]
+      counter_examples: ["场景仅在正文小字", "无场景词却标场景字"]
+    palette_warm:
+      group: palette
+      name_cn: "暖色调"
+      definition: "整体偏红橙黄等暖色温"
+      trigger_conditions: ["主色温偏暖或金棕橙占主导"]
+      counter_examples: ["冷灰蓝主导", "中性白平衡"]
+    palette_cool:
+      group: palette
+      name_cn: "冷色调"
+      definition: "整体偏蓝绿灰等冷色温"
+      trigger_conditions: ["蓝绿青灰占主导"]
+      counter_examples: ["奶油黄主导仍标冷色", "暖木色为主"]
+    palette_neutral:
+      group: palette
+      name_cn: "中性色调"
+      definition: "黑白灰米棕等低饱和中性为主"
+      trigger_conditions: ["饱和度整体偏低且无明显冷暖极端"]
+      counter_examples: ["高饱和红绿仍标中性", "明显奶油黄偏暖"]
+    palette_cream:
+      group: palette
+      name_cn: "奶油色系"
+      definition: "米白、奶黄、浅杏等奶油感配色"
+      trigger_conditions: ["浅米奶白与柔和阴影构成主色"]
+      counter_examples: ["高对比黑白", "冷灰工业风"]
+    palette_french_vintage:
+      group: palette
+      name_cn: "法式复古色"
+      definition: "复古绿、做旧金、深木等法式复古组合"
+      trigger_conditions: ["低明度绿/金/棕复古组合"]
+      counter_examples: ["高亮马卡龙", "极简黑白"]
+    palette_mori:
+      group: palette
+      name_cn: "森系/自然色系"
+      definition: "木色、麻色、绿植、自然光感的森系配色"
+      trigger_conditions: ["木绿麻色自然材质色共存"]
+      counter_examples: ["霓虹高饱和", "纯红节庆盘"]
+    palette_festival_red_green:
+      group: palette
+      name_cn: "节庆红绿"
+      definition: "典型节日红绿金等节庆配色"
+      trigger_conditions: ["红绿金组合或可识别圣诞新年配色"]
+      counter_examples: ["日常奶油风无节点色", "仅一点红不算主调色板"]
+    lighting_soft:
+      group: lighting
+      name_cn: "柔和光"
+      definition: "漫反射、弱阴影、整体柔和"
+      trigger_conditions: ["阴影边缘柔和反差适中偏低"]
+      counter_examples: ["硬光锐利阴影", "闪光灯直打高光溢出"]
+    lighting_natural:
+      group: lighting
+      name_cn: "自然光"
+      definition: "窗光、日光感、自然阴影方向"
+      trigger_conditions: ["方向性柔光类似窗边日光"]
+      counter_examples: ["明显影棚多灯塑型无窗感", "夜间纯人造顶光"]
+    lighting_dramatic:
+      group: lighting
+      name_cn: "戏剧光"
+      definition: "强对比、明暗分明或烛光氛围"
+      trigger_conditions: ["高光比或点光源氛围明显"]
+      counter_examples: ["平均布光无明暗故事", "过曝无细节"]
+
+  L3_business_semantic:
+    mood_daily_healing:
+      name_cn: "日常治愈"
+      definition: "传达日常居家温馨治愈的情绪"
+      trigger_keywords: ["治愈", "温馨", "日常", "舒服", "温柔"]
+      counter_examples: ["纯促销叫卖无情绪", "冷硬工业风却标治愈"]
+    mood_refined_life:
+      name_cn: "精致生活"
+      definition: "强调精致感与生活品位的升级"
+      trigger_keywords: ["精致", "品位", "高级感", "仪式感"]
+      counter_examples: ["极致平价大字报", "脏乱场景却标精致"]
+    mood_brunch_afternoontea:
+      name_cn: "早餐下午茶仪式"
+      definition: "绑定早午餐、下午茶等轻仪式时段"
+      trigger_keywords: ["早餐", "brunch", "下午茶", "咖啡角"]
+      counter_examples: ["夜宵大排档场景", "无餐饮线索"]
+    mood_friends_gathering:
+      name_cn: "朋友聚餐"
+      definition: "强调聚会、多人餐桌与分享感"
+      trigger_keywords: ["聚餐", "聚会", "朋友", "家宴"]
+      counter_examples: ["一人食极简却标聚餐", "外卖单人桌"]
+    mood_festival_setup:
+      name_cn: "节庆布置"
+      definition: "节日氛围布置与节点装饰命题"
+      trigger_keywords: ["圣诞", "新年", "节日布置", "年味"]
+      counter_examples: ["无节庆视觉却写节日", "日常桌标节庆"]
+    mood_anniversary:
+      name_cn: "纪念日生日"
+      definition: "生日、纪念日、情侣晚餐等私人节点"
+      trigger_keywords: ["生日", "纪念日", "周年", "情侣"]
+      counter_examples: ["普通工作日午餐无节点", "泛节日无私人纪念语义"]
+    mood_low_cost_upgrade:
+      name_cn: "低成本改造"
+      definition: "花小钱办大事的改造与焕新"
+      trigger_keywords: ["低成本", "百元", "平价改造", "省钱"]
+      counter_examples: ["高客单奢牌却标低成本", "无价格带证据"]
+    mood_small_space_upgrade:
+      name_cn: "小户型提气质"
+      definition: "租房或小户型空间气质提升"
+      trigger_keywords: ["小户型", "租房", "出租屋", "小餐厅"]
+      counter_examples: ["别墅大宅长桌", "无空间约束叙述"]
+    mood_photo_friendly:
+      name_cn: "出片感"
+      definition: "强调拍照好看、出片、镜头感"
+      trigger_keywords: ["出片", "好拍", "上镜", "拍照"]
+      counter_examples: ["杂乱背景难拍却标出片", "无构图美感"]
+    mood_style_identity:
+      name_cn: "风格身份认同"
+      definition: "用户通过风格标签完成自我与家居身份表达"
+      trigger_keywords: ["我的家", "本命风格", "就爱这种"]
+      counter_examples: ["无风格偏好叙述", "纯功能文案"]
+    mood_giftable:
+      name_cn: "适合作礼物"
+      definition: "礼赠对象、礼盒感或送人场景"
+      trigger_keywords: ["送礼", "礼物", "妈妈", "女友"]
+      counter_examples: ["无礼赠语义与包装", "自用为主却硬写送礼"]
+    mood_practical_value:
+      name_cn: "实用耐脏易打理"
+      definition: "耐脏、易洗、实用功能向命题"
+      trigger_keywords: ["耐脏", "好洗", "实用", "防油", "防水"]
+      counter_examples: ["纯颜值种草无功能点", "宣称功能画面无证据"]
+
+  L4_risk:
+    risk_too_generic:
+      name_cn: "内容过于通用"
+      definition: "缺乏桌布品类特异性，可套任意家居图"
+      trigger_keywords: ["家居", "好看", "分享"]
+      trigger_conditions: ["画面与标题可迁移到非桌布品类"]
+      counter_examples: ["明确桌布纹理与上桌语境", "有品类锚点词"]
+    risk_no_product_focus:
+      name_cn: "商品焦点不足"
+      definition: "氛围或道具强但桌布识别弱"
+      trigger_conditions: ["桌布面积过小或被完全遮挡"]
+      counter_examples: ["桌布面积与纹理清晰可辨", "主标题指向桌布"]
+    risk_overstyled_low_sellability:
+      name_cn: "过度风格化难卖货"
+      definition: "像博主作品或艺术片，购买路径弱"
+      trigger_conditions: ["强滤镜、非常规构图、无商品清晰展示"]
+      counter_examples: ["商品清晰且信息可读", "有轻引导购买"]
+    risk_text_too_ad_like:
+      name_cn: "文案过像硬广"
+      definition: "促销贴片、密集卖点、电商海报语气"
+      trigger_keywords: ["秒杀", "限时", "点击购买", "全网最低"]
+      counter_examples: ["口语化种草标题", "轻标签字"]
+    risk_scene_not_reproducible:
+      name_cn: "场景难以复现"
+      definition: "布景过于理想或昂贵，用户难以复制"
+      trigger_conditions: ["豪华场景、专业布景、非常规空间"]
+      counter_examples: ["普通家庭餐桌可复现", "道具常见"]
+    risk_holiday_only:
+      name_cn: "强节点难泛化"
+      definition: "仅适合特定节日，平时迁移差"
+      trigger_conditions: ["强圣诞/新年视觉但无日常款承接"]
+      counter_examples: ["节点款+日常款组合", "可拆节日道具"]
+    risk_style_too_niche:
+      name_cn: "风格过窄"
+      definition: "风格极度小众，人群覆盖过窄"
+      trigger_keywords: ["极繁", "亚文化", "小众到无搜索词"]
+      counter_examples: ["主流奶油法式中古等", "有平台热词"]
+    risk_cloth_not_visible_enough:
+      name_cn: "桌布可见度不足"
+      definition: "桌布在封面中不可辨或占比过低"
+      trigger_conditions: ["tablecloth_area_ratio 过低或关键纹理不可见"]
+      counter_examples: ["桌布占比达标且花型可见", "有细节图补足"]

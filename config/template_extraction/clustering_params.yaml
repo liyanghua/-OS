@@ -1,0 +1,36 @@
+# 两阶段聚类默认参数（与 docs/compile_template.md 对齐）
+
+cover_clustering:
+  method: "kmeans"
+  n_clusters: 15
+  features:
+    - "task_label_vector"
+    - "visual_label_vector"
+    - "semantic_label_vector"
+    - "kw_style"
+    - "kw_scene"
+    - "kw_price"
+    - "kw_event"
+  random_state: 42
+
+strategy_clustering:
+  method: "kmeans"
+  n_clusters: 6
+  features:
+    - "role_sequence_encoded"
+    - "style_consistency_score"
+    - "color_consistency_score"
+    - "has_scene_image"
+    - "has_texture_closeup"
+    - "has_buying_guide"
+    - "semantic_label_vector"
+    - "engagement_proxy_score"
+  random_state: 42
+
+target_templates:
+  - "scene_seed"
+  - "style_anchor"
+  - "texture_detail"
+  - "affordable_makeover"
+  - "festival_gift"
+  - "set_combo"

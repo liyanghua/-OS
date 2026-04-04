@@ -1,0 +1,98 @@
+{
+  "template_id": "tpl_006_set_combo",
+  "template_name": "桌搭方案型",
+  "template_version": "1.0",
+  "template_goal": "呈现可抄作业的整套桌搭方案，提升收藏与连带销售",
+  "fit_platform": ["小红书"],
+  "fit_category": ["桌布"],
+  "fit_scenarios": ["整套搭配灵感", "多品连带", "桌搭合集与抄作业内容"],
+  "fit_styles": ["奶油风", "法式", "北欧", "中古"],
+  "fit_price_band": ["中", "中高"],
+  "core_user_motive": [
+    "想直接照着摆",
+    "不想自己搭配",
+    "喜欢买配好的一套"
+  ],
+  "hook_mechanism": [
+    "桌布+餐具+花器+蜡烛等成套出现",
+    "强调整体统一与可复现",
+    "清单感降低决策成本"
+  ],
+  "cover_role": "set_combo",
+  "image_sequence_pattern": [
+    "cover_hook",
+    "style_expand",
+    "texture_expand",
+    "usage_expand",
+    "guide_expand"
+  ],
+  "visual_rules": {
+    "preferred_shots": ["wide_scene", "topdown"],
+    "required_elements": ["tablecloth", "tableware", "accent_props"],
+    "optional_elements": ["flowers", "candles", "glassware"],
+    "text_overlay_level": "light",
+    "color_direction": ["warm", "cream", "neutral"],
+    "lighting_direction": ["natural", "soft"]
+  },
+  "copy_rules": {
+    "title_style": ["抄作业导向", "整套方案导向", "桌搭教程感"],
+    "cover_copy_style": "short",
+    "recommended_phrases": [
+      "这套桌搭我愿意直接抄作业",
+      "餐桌氛围感，原来要这样搭",
+      "一套桌搭就把家里气质拉起来了",
+      "桌布选对了，整个桌搭都顺了"
+    ],
+    "avoid_phrases": ["单品参数轰炸", "与搭配无关的空洞口号"]
+  },
+  "scene_rules": {
+    "must_have_scene": true,
+    "scene_types": ["完整餐桌方案", "主题桌搭（早餐下午茶等）"],
+    "avoid_scenes": ["元素过满无视觉主层次", "桌布退居边角"]
+  },
+  "product_visibility_rules": {
+    "tablecloth_visibility_min": 0.25,
+    "must_show_pattern_or_texture": true,
+    "avoid_over_occlusion": true
+  },
+  "risk_rules": [
+    "避免用户只记住桌搭没记住桌布",
+    "避免画面太满桌布不突出",
+    "避免变成泛家居搭配而非商品策略",
+    "避免清单过长削弱主品"
+  ],
+  "best_for": ["易与餐具花器蜡烛搭配的商品", "多SKU或周边搭配能力强的品牌"],
+  "avoid_when": [
+    "仅有桌布无搭配延展",
+    "预算极低不适合整套购买心智",
+    "需要强单品卖点解释而非方案感时"
+  ],
+  "seed_examples": ["xhs_tbl_20240310_h7i8", "xhs_tbl_20240311_j9k0"],
+  "cluster_features": {
+    "dominant_task_labels": ["set_combo", "scene_seed"],
+    "dominant_visual_labels": [
+      "composition_layered",
+      "has_tableware",
+      "has_flower_vase",
+      "has_candle",
+      "cloth_with_other_products"
+    ],
+    "dominant_semantic_labels": [
+      "mood_refined_life",
+      "mood_brunch_afternoontea",
+      "mood_photo_friendly",
+      "桌搭",
+      "成套",
+      "抄作业"
+    ]
+  },
+  "evaluation_metrics": {
+    "target_save_like_ratio": 0.36,
+    "target_click_proxy_score": 0.66,
+    "scene_visibility_score_min": 0.59
+  },
+  "derivation_rules": {
+    "can_extend_to": ["title", "detail_page", "short_video_outline"],
+    "prompt_style": "set-combo-checklist"
+  }
+}

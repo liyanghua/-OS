@@ -13,6 +13,9 @@ from apps.intel_hub.config_loader import load_runtime_settings, resolve_repo_pat
 from apps.intel_hub.ingest.mediacrawler_loader import load_mediacrawler_records
 from apps.intel_hub.ingest.rss_loader import count_rss_records, load_rss_records
 from apps.intel_hub.schemas import ReviewUpdateRequest
+from apps.template_extraction.agent import TemplateRetriever, TemplateMatcher
+from apps.template_extraction.labeling import label_note_by_rules
+from apps.intel_hub.parsing.xhs_note_parser import parse_note
 from apps.intel_hub.schemas.opportunity_review import OpportunityReview
 from apps.intel_hub.services.opportunity_promoter import evaluate_opportunity_promotion
 from apps.intel_hub.services.review_aggregator import (
@@ -598,6 +601,95 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 "total_pages": total_pages,
             })
         return {"total": total, "page": page, "page_size": page_size, "items": page_cards, "stats": stats}
+
+    # ── 桌布主图策略模板展示 ──────────────────────────────────
+
+    _tpl_retriever = TemplateRetriever()
+
+    @app.get("/strategy-templates")
+    async def strategy_templates(request: Request) -> Any:
+        templates = _tpl_retriever.list_templates()
+        tpl_dicts = [t.model_dump(mode="json") for t in templates]
+
+        all_notes = _get_notes()
+        notes_total = len(all_notes)
+
+        labeled_count = 0
+        match_examples: list[dict[str, Any]] = []
+
+        if templates and all_notes:
+            matcher = TemplateMatcher(templates)
+            sample_notes = all_notes[:30]
+            for note_rec in sample_notes:
+                raw_payload = note_rec.get("raw_payload", {})
+                title = note_rec.get("title", "")
+                body = note_rec.get("raw_text", "")
+                image_list = note_rec.get("image_list", [])
+                tags = note_rec.get("tags", [])
+                author = note_rec.get("author", "")
+
+                try:
+                    from apps.intel_hub.schemas.xhs_raw import XHSNoteRaw
+
+                    cover_img = image_list[0] if image_list else ""
+                    if isinstance(cover_img, dict):
+                        cover_img = cover_img.get("url", "")
+
+                    raw_note = XHSNoteRaw(
+                        note_id=raw_payload.get("note_id", ""),
+                        title=title,
+                        body=body,
+                        author=author,
+                        platform="xiaohongshu",
+                        image_count=len(image_list),
+                        cover_image=cover_img,
+                        tags=tags if isinstance(tags, list) else [],
+                    )
+                    parsed = parse_note(raw_note)
+                    labeled = label_note_by_rules(parsed)
+                    labeled_count += 1
+
+                    cover_labels = [r.label_id for r in labeled.cover_task_labels[:3]]
+                    semantic_labels = [r.label_id for r in labeled.business_semantic_labels[:2]]
+                    all_labels = cover_labels + semantic_labels
+
+                    top_matches = matcher.match_templates(
+                        opportunity_card=None,
+                        product_brief=title + " " + body[:100],
+                        intent="",
+                        top_k=1,
+                    )
+                    if top_matches and top_matches[0].score > 0:
+                        m = top_matches[0]
+                        match_examples.append({
+                            "title": title,
+                            "body": body,
+                            "cover_image": cover_img,
+                            "labels": all_labels,
+                            "matched_template_name": m.template_name,
+                            "match_score": m.score,
+                            "match_reason": m.reason,
+                        })
+                except Exception:
+                    continue
+
+            match_examples.sort(key=lambda x: x["match_score"], reverse=True)
+            match_examples = match_examples[:10]
+
+        if _wants_html(request):
+            return _render("strategy_templates.html", {
+                "request": request,
+                "templates": tpl_dicts,
+                "notes_total": notes_total,
+                "labeled_count": labeled_count,
+                "match_examples": match_examples,
+            })
+        return {
+            "templates": tpl_dicts,
+            "notes_total": notes_total,
+            "labeled_count": labeled_count,
+            "match_examples": match_examples,
+        }
 
     @app.get("/watchlists")
     async def watchlists(

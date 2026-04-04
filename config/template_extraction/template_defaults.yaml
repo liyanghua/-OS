@@ -1,0 +1,358 @@
+# 六套桌布主图策略模板默认配置（依据 docs/template_define.md）
+
+templates:
+  tpl_001_scene_seed:
+    template_name: "氛围感场景种草型"
+    template_goal: "通过完整桌面场景和生活方式氛围提升点击与收藏"
+    fit_scenarios: ["早餐", "下午茶", "居家晚餐", "朋友聚餐", "一人食", "二人晚餐", "居家拍照角", "日常餐桌焕新"]
+    fit_styles: ["奶油风", "法式", "北欧", "中古", "ins风"]
+    fit_price_band: ["中低", "中"]
+    core_user_motive:
+      - "想要提升家居氛围"
+      - "想低成本改造餐桌"
+      - "想做出片桌搭"
+      - "喜欢精致生活与拍照"
+    hook_mechanism:
+      - "一眼看到完整桌面效果"
+      - "风格与氛围统一"
+      - "让用户代入理想生活方式"
+    cover_role: "hook_click"
+    image_sequence_pattern:
+      - "cover_hook"
+      - "style_expand"
+      - "texture_expand"
+      - "usage_expand"
+      - "guide_expand"
+    visual_rules:
+      preferred_shots: ["topdown", "wide_scene"]
+      required_elements: ["tablecloth", "tableware"]
+      optional_elements: ["flowers", "food", "candles"]
+      text_overlay_level: "light"
+      color_direction: ["warm", "cream", "soft"]
+      lighting_direction: ["natural", "soft"]
+    copy_rules:
+      title_style: ["氛围感导向", "风格标签导向", "低成本改造导向"]
+      cover_copy_style: "short"
+      recommended_phrases:
+        - "一块桌布把餐桌气质拉满"
+        - "周末在家也能有小仪式感"
+        - "这张桌布真的很会制造氛围感"
+        - "换上这块桌布，家里都温柔了"
+      avoid_phrases: ["全网最低", "强促销词", "纯参数堆砌"]
+    scene_rules:
+      must_have_scene: true
+      scene_types: ["居家餐桌", "早餐角", "周末下午茶"]
+      avoid_scenes: ["过度商业棚拍", "背景过杂"]
+    product_visibility_rules:
+      tablecloth_visibility_min: 0.35
+      must_show_pattern_or_texture: true
+      avoid_over_occlusion: true
+    risk_rules:
+      - "避免桌布被食物和道具遮挡过多"
+      - "避免画面只有氛围没有商品识别"
+      - "避免过重文案影响平台感"
+      - "避免花器食物喧宾夺主、像博主分享不像可买商品"
+    best_for: ["高收藏内容", "风格型桌布", "希望走种草路线的商品", "花边蕾丝印花类"]
+    avoid_when:
+      - "核心卖点是防水防油防烫等强功能且需强解释"
+      - "需要突出超低价心智"
+      - "节庆场景过强但非节点期"
+      - "纹理普通主要靠功能卖"
+    dominant_task_labels: ["scene_seed", "style_anchor"]
+    dominant_visual_labels: ["shot_topdown", "cloth_full_spread"]
+    dominant_semantic_labels: ["mood_refined_life", "mood_photo_friendly", "mood_brunch_afternoontea"]
+
+  tpl_002_style_anchor:
+    template_name: "风格定锚型"
+    template_goal: "先把风格身份与空间审美讲清楚，支撑选款与收藏"
+    fit_scenarios: ["法式风餐桌", "奶油风餐厅", "原木风小户型", "中古风居家", "北欧简约桌搭"]
+    fit_styles: ["法式", "奶油风", "原木", "中古", "北欧", "极简"]
+    fit_price_band: ["中", "中高"]
+    core_user_motive:
+      - "想明确自己家是什么风格"
+      - "想抄风格搭配作业"
+      - "对法式/奶油/中古/北欧等有明确偏好"
+    hook_mechanism:
+      - "封面直接建立风格感与风格词"
+      - "桌布与空间餐具花器形成统一风格系统"
+      - "让用户完成审美选择题而非只看好看"
+    cover_role: "style_anchor"
+    image_sequence_pattern:
+      - "cover_hook"
+      - "style_expand"
+      - "texture_expand"
+      - "usage_expand"
+      - "guide_expand"
+    visual_rules:
+      preferred_shots: ["wide_scene", "angled"]
+      required_elements: ["tablecloth", "style_consistent_props"]
+      optional_elements: ["tableware", "flowers", "room_context"]
+      text_overlay_level: "light"
+      color_direction: ["cream", "french_vintage", "neutral", "mori"]
+      lighting_direction: ["natural", "soft"]
+    copy_rules:
+      title_style: ["风格标签导向", "空间气质导向"]
+      cover_copy_style: "short"
+      recommended_phrases:
+        - "法式餐桌真的离不开这种桌布"
+        - "奶油风餐桌氛围感，全靠它"
+        - "中古风桌搭就该配这种布"
+        - "北欧感餐桌，先从桌布开始"
+      avoid_phrases: ["全网最低", "夸张促销", "与风格无关的参数堆砌"]
+    scene_rules:
+      must_have_scene: true
+      scene_types: ["餐厅一角", "完整餐桌", "与家装风格一致的空间"]
+      avoid_scenes: ["风格混乱道具打架", "仅靠滤镜无真实风格线索"]
+    product_visibility_rules:
+      tablecloth_visibility_min: 0.3
+      must_show_pattern_or_texture: true
+      avoid_over_occlusion: true
+    risk_rules:
+      - "避免只有风格词没有真实吸引力"
+      - "避免风格感主要来自配件而非桌布"
+      - "避免过度依赖热词导致内容空心"
+      - "避免封面重字破坏平台感"
+    best_for: ["风格属性明确的桌布", "固定花型配色调性商品", "审美选款型内容"]
+    avoid_when:
+      - "桌布风格属性不明显"
+      - "竞争点在价格或功能而非风格"
+      - "需要强转化弱种草时"
+    dominant_task_labels: ["style_anchor", "scene_seed"]
+    dominant_visual_labels: ["composition_centered", "has_tableware", "text_style_label"]
+    dominant_semantic_labels: ["mood_style_identity", "mood_refined_life"]
+
+  tpl_003_texture_detail:
+    template_name: "质感细节打动型"
+    template_goal: "用纹理与工艺细节建立高级感与值得买感知，偏转化"
+    fit_scenarios: ["中高客单决策", "材质做工差异明显的选款", "在意值不值的对比浏览"]
+    fit_styles: ["法式", "复古", "中古", "日式", "极简"]
+    fit_price_band: ["中", "中高", "高"]
+    core_user_motive:
+      - "想买更有品质感的东西"
+      - "在意做工与空间质感"
+      - "愿为工艺与材质付溢价"
+    hook_mechanism:
+      - "近景特写让纹理与工艺可感知"
+      - "光线打出材质层次"
+      - "先建立想摸想拥有的触感联想"
+    cover_role: "texture_detail"
+    image_sequence_pattern:
+      - "cover_hook"
+      - "style_expand"
+      - "texture_expand"
+      - "usage_expand"
+      - "guide_expand"
+    visual_rules:
+      preferred_shots: ["closeup", "angled"]
+      required_elements: ["tablecloth", "texture_visible"]
+      optional_elements: ["tableware_edge", "hand_detail"]
+      text_overlay_level: "light"
+      color_direction: ["neutral", "warm", "cream"]
+      lighting_direction: ["natural", "dramatic"]
+    copy_rules:
+      title_style: ["质感导向", "工艺价值导向"]
+      cover_copy_style: "minimal"
+      recommended_phrases:
+        - "这桌布的质感真的很高级"
+        - "看到实物才知道它为什么贵"
+        - "花边和垂坠感太加分了"
+        - "原来桌布的高级感是这样拍出来的"
+      avoid_phrases: ["廉价促销口号", "大面积价格贴纸风", "遮挡纹理的夸张贴纸"]
+    scene_rules:
+      must_have_scene: false
+      scene_types: ["上桌局部", "垂坠展示", "边缘工艺近景"]
+      avoid_scenes: ["食物大面积遮挡纹理", "只有面料平铺无桌布语境"]
+    product_visibility_rules:
+      tablecloth_visibility_min: 0.4
+      must_show_pattern_or_texture: true
+      avoid_over_occlusion: true
+    risk_rules:
+      - "避免只拍细节用户看不到上桌整体效果"
+      - "避免高级感变成看不懂拍了什么"
+      - "避免太像面料商拍不像桌布场景"
+      - "避免弱光导致纹理糊成一片"
+    best_for: ["棉麻提花刺绣蕾丝等工艺款", "高客单详情与转化链路", "质感型高级感型商品"]
+    avoid_when:
+      - "材质与市面款无差异"
+      - "低价快消型商品"
+      - "首图必须强场景弱质感时"
+    dominant_task_labels: ["texture_detail", "feature_explain"]
+    dominant_visual_labels: ["shot_closeup", "cloth_texture_emphasis", "lighting_natural"]
+    dominant_semantic_labels: ["mood_photo_friendly", "mood_practical_value", "mood_refined_life"]
+
+  tpl_004_affordable_makeover:
+    template_name: "平价改造型"
+    template_goal: "强调低成本焕新与变化值，兼顾点击与转化"
+    fit_scenarios: ["租房党", "学生党", "小户型", "预算有限想改善家居感受"]
+    fit_styles: ["极简", "奶油风", "北欧", "日式"]
+    fit_price_band: ["低", "中低"]
+    core_user_motive:
+      - "想省钱又要明显变化"
+      - "想快速焕新餐桌"
+      - "想要低门槛可复制的方案"
+    hook_mechanism:
+      - "文案与画面对比强化变化值"
+      - "价格带与性价比心智"
+      - "改造前后或气质差异一眼可见"
+    cover_role: "price_value"
+    image_sequence_pattern:
+      - "cover_hook"
+      - "style_expand"
+      - "texture_expand"
+      - "usage_expand"
+      - "guide_expand"
+    visual_rules:
+      preferred_shots: ["wide_scene", "topdown", "angled"]
+      required_elements: ["tablecloth", "clear_before_after_or_contrast"]
+      optional_elements: ["simple_tableware", "room_rental_context"]
+      text_overlay_level: "medium"
+      color_direction: ["warm", "neutral", "cream"]
+      lighting_direction: ["natural", "soft"]
+    copy_rules:
+      title_style: ["性价比导向", "改造结果导向", "租房小户型导向"]
+      cover_copy_style: "medium"
+      recommended_phrases:
+        - "一张桌布把餐桌救活了"
+        - "百元内改造餐桌，真的太值"
+        - "租房党也能拥有氛围感餐桌"
+        - "低成本把家里变温柔的方法"
+      avoid_phrases: ["全网最低", "虚假宣传式极限用词", "纯低价大字报"]
+    scene_rules:
+      must_have_scene: true
+      scene_types: ["出租屋餐桌", "小户型餐厅", "简单居家桌面"]
+      avoid_scenes: ["奢华样板间反差过大", "大促海报廉价感"]
+    product_visibility_rules:
+      tablecloth_visibility_min: 0.3
+      must_show_pattern_or_texture: false
+      avoid_over_occlusion: true
+    risk_rules:
+      - "避免过于强调便宜拉低质感"
+      - "避免像淘宝促销图不像小红书内容"
+      - "避免只有价格没有视觉吸引力"
+      - "避免对比造假或过度夸张"
+    best_for: ["中低价桌布", "平价替代", "基础款但上桌效果明显"]
+    avoid_when:
+      - "高客单或重工艺品牌"
+      - "品牌强调高端审美调性"
+      - "节庆礼赠为主诉求时"
+    dominant_task_labels: ["price_value", "before_after"]
+    dominant_visual_labels: ["text_medium", "text_price_label", "cloth_partial_visible"]
+    dominant_semantic_labels: ["mood_low_cost_upgrade", "mood_small_space_upgrade", "mood_daily_healing"]
+
+  tpl_005_festival_gift:
+    template_name: "节庆礼赠型"
+    template_goal: "绑定节日/纪念日情绪与仪式感，提升节点点击与转化"
+    fit_scenarios: ["圣诞", "生日", "纪念日", "情人节", "节日聚会", "家庭聚餐布置"]
+    fit_styles: ["法式", "复古", "奶油风"]
+    fit_price_band: ["中", "中高"]
+    core_user_motive:
+      - "想布置特别时刻"
+      - "让聚餐更有仪式感"
+      - "为生日纪念日出片"
+    hook_mechanism:
+      - "节庆道具与色彩与桌布强呼应"
+      - "完整节点场景一眼读懂"
+      - "情绪价值与礼赠心智"
+    cover_role: "gift_event"
+    image_sequence_pattern:
+      - "cover_hook"
+      - "style_expand"
+      - "texture_expand"
+      - "usage_expand"
+      - "guide_expand"
+    visual_rules:
+      preferred_shots: ["wide_scene", "angled"]
+      required_elements: ["tablecloth", "festival_or_gift_props"]
+      optional_elements: ["cake", "candles", "gift_box", "bouquet"]
+      text_overlay_level: "light"
+      color_direction: ["festival_red_green", "warm", "cream"]
+      lighting_direction: ["soft", "dramatic"]
+    copy_rules:
+      title_style: ["节点情绪导向", "礼赠与布置导向"]
+      cover_copy_style: "short"
+      recommended_phrases:
+        - "纪念日晚餐的氛围，全靠这张桌布"
+        - "生日餐桌布置真的少不了它"
+        - "圣诞桌搭一下就有了节日感"
+        - "节日聚餐想出片，先换桌布"
+      avoid_phrases: ["全年通用大促话术", "与节点无关的硬广感"]
+    scene_rules:
+      must_have_scene: true
+      scene_types: ["节日餐桌", "生日晚宴", "纪念日浪漫聚餐"]
+      avoid_scenes: ["道具堆砌杂乱", "只有道具看不清桌布"]
+    product_visibility_rules:
+      tablecloth_visibility_min: 0.3
+      must_show_pattern_or_texture: true
+      avoid_over_occlusion: true
+    risk_rules:
+      - "避免节庆道具淹没桌布"
+      - "避免节点过强导致泛化差、生命周期短"
+      - "避免非节点期长期主推造成违和"
+      - "避免忽略桌布与节庆色彩呼应"
+    best_for: ["节庆配色桌布", "仪式感强款式", "可搭蜡烛花束蛋糕的内容"]
+    avoid_when:
+      - "非节点期作为长期主模板"
+      - "商品缺少节庆适配度"
+      - "款式过于基础难承接氛围"
+    dominant_task_labels: ["gift_event", "scene_seed"]
+    dominant_visual_labels: ["has_festival_props", "has_gift_box", "palette_festival_red_green"]
+    dominant_semantic_labels: ["mood_festival_setup", "mood_anniversary", "mood_giftable", "mood_friends_gathering"]
+
+  tpl_006_set_combo:
+    template_name: "桌搭方案型"
+    template_goal: "呈现可抄作业的整套桌搭方案，提升收藏与连带销售"
+    fit_scenarios: ["整套搭配灵感", "多品连带", "桌搭合集与抄作业内容"]
+    fit_styles: ["奶油风", "法式", "北欧", "中古"]
+    fit_price_band: ["中", "中高"]
+    core_user_motive:
+      - "想直接照着摆"
+      - "不想自己搭配"
+      - "喜欢买配好的一套"
+    hook_mechanism:
+      - "桌布+餐具+花器+蜡烛等成套出现"
+      - "强调整体统一与可复现"
+      - "清单感降低决策成本"
+    cover_role: "set_combo"
+    image_sequence_pattern:
+      - "cover_hook"
+      - "style_expand"
+      - "texture_expand"
+      - "usage_expand"
+      - "guide_expand"
+    visual_rules:
+      preferred_shots: ["wide_scene", "topdown"]
+      required_elements: ["tablecloth", "tableware", "accent_props"]
+      optional_elements: ["flowers", "candles", "glassware"]
+      text_overlay_level: "light"
+      color_direction: ["warm", "cream", "neutral"]
+      lighting_direction: ["natural", "soft"]
+    copy_rules:
+      title_style: ["抄作业导向", "整套方案导向", "桌搭教程感"]
+      cover_copy_style: "short"
+      recommended_phrases:
+        - "这套桌搭我愿意直接抄作业"
+        - "餐桌氛围感，原来要这样搭"
+        - "一套桌搭就把家里气质拉起来了"
+        - "桌布选对了，整个桌搭都顺了"
+      avoid_phrases: ["单品参数轰炸", "与搭配无关的空洞口号"]
+    scene_rules:
+      must_have_scene: true
+      scene_types: ["完整餐桌方案", "主题桌搭（早餐下午茶等）"]
+      avoid_scenes: ["元素过满无视觉主层次", "桌布退居边角"]
+    product_visibility_rules:
+      tablecloth_visibility_min: 0.25
+      must_show_pattern_or_texture: true
+      avoid_over_occlusion: true
+    risk_rules:
+      - "避免用户只记住桌搭没记住桌布"
+      - "避免画面太满桌布不突出"
+      - "避免变成泛家居搭配而非商品策略"
+      - "避免清单过长削弱主品"
+    best_for: ["易与餐具花器蜡烛搭配的商品", "多SKU或周边搭配能力强的品牌"]
+    avoid_when:
+      - "仅有桌布无搭配延展"
+      - "预算极低不适合整套购买心智"
+      - "需要强单品卖点解释而非方案感时"
+    dominant_task_labels: ["set_combo", "scene_seed"]
+    dominant_visual_labels: ["composition_layered", "has_tableware", "has_flower_vase", "has_candle", "cloth_with_other_products"]
+    dominant_semantic_labels: ["mood_refined_life", "mood_brunch_afternoontea", "mood_photo_friendly"]

@@ -1,0 +1,32 @@
+[
+  {
+    "template_id": "tpl_001_scene_seed",
+    "template_name": "氛围感场景种草型",
+    "version": "1.0"
+  },
+  {
+    "template_id": "tpl_002_style_anchor",
+    "template_name": "风格定锚型",
+    "version": "1.0"
+  },
+  {
+    "template_id": "tpl_003_texture_detail",
+    "template_name": "质感细节打动型",
+    "version": "1.0"
+  },
+  {
+    "template_id": "tpl_004_affordable_makeover",
+    "template_name": "平价改造型",
+    "version": "1.0"
+  },
+  {
+    "template_id": "tpl_005_festival_gift",
+    "template_name": "节庆礼赠型",
+    "version": "1.0"
+  },
+  {
+    "template_id": "tpl_006_set_combo",
+    "template_name": "桌搭方案型",
+    "version": "1.0"
+  }
+]
