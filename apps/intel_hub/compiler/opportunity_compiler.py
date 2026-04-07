@@ -12,6 +12,8 @@ from apps.intel_hub.schemas.opportunity import XHSOpportunityCard
 from apps.intel_hub.schemas.signal import Signal
 from apps.intel_hub.schemas.xhs_signals import SceneSignals, SellingThemeSignals, VisualSignals
 
+from apps.intel_hub.projector.label_zh import to_zh
+
 logger = logging.getLogger(__name__)
 
 
@@ -118,10 +120,14 @@ def compile_xhs_opportunities(
     scene: SceneSignals,
     rules: dict[str, Any],
     cross_modal: Any | None = None,
+    note_context: dict[str, Any] | None = None,
 ) -> list[XHSOpportunityCard]:
     """根据三维信号 + 本体映射 + 规则配置 + 跨模态校验生成 XHS 机会卡。"""
     cards: list[XHSOpportunityCard] = []
     note_id = mapping.note_id
+
+    engagement_insight = _build_engagement_insight(note_context)
+    cross_modal_verdict = _build_cross_modal_verdict(cross_modal)
 
     visual_card = _try_visual_opportunity(mapping, visual, rules.get("visual_opportunity", {}), note_id, cross_modal)
     if visual_card:
@@ -136,6 +142,12 @@ def compile_xhs_opportunities(
         cards.append(scene_card)
 
     cards = merge_opportunities(cards, rules.get("merge_rules", {}))
+
+    for card in cards:
+        card.engagement_insight = engagement_insight
+        card.cross_modal_verdict = cross_modal_verdict
+        card.insight_statement = _build_insight_statement(card, engagement_insight, cross_modal_verdict)
+
     return cards
 
 
@@ -220,7 +232,7 @@ def _try_visual_opportunity(
     conf = min(conf, 0.95)
 
     styles = ", ".join(visual.visual_style_signals[:3])
-    scenes = ", ".join(mapping.scene_refs[:2]) if mapping.scene_refs else ""
+    scenes = ", ".join(to_zh(r) for r in mapping.scene_refs[:2]) if mapping.scene_refs else ""
     title = f"视觉差异化: {styles}"
     if scenes:
         title += f" × {scenes}"
@@ -389,3 +401,124 @@ def _try_scene_opportunity(
         suggested_next_step=next_steps,
         **_common_card_fields(mapping, note_id),
     )
+
+
+# ── 洞察构建方法 ──────────────────────────────
+
+
+def _build_engagement_insight(note_context: dict[str, Any] | None) -> str | None:
+    """从笔记互动量构建互动洞察摘要。"""
+    if not note_context:
+        return None
+    like = note_context.get("like_count", 0) or 0
+    collect = note_context.get("collect_count", 0) or 0
+    comment = note_context.get("comment_count", 0) or 0
+    share = note_context.get("share_count", 0) or 0
+    total = like + collect + comment + share
+    if total == 0:
+        return None
+
+    collect_like_ratio = round(collect / max(like, 1), 2)
+    comment_rate = round(comment / max(total, 1) * 100, 1)
+
+    if collect_like_ratio >= 1.0:
+        collect_tag = "强收藏属性"
+    elif collect_like_ratio >= 0.5:
+        collect_tag = "中等收藏属性"
+    else:
+        collect_tag = "低收藏属性"
+
+    if comment_rate >= 10:
+        discuss_tag = "高互动讨论"
+    elif comment_rate >= 5:
+        discuss_tag = "中等讨论度"
+    else:
+        discuss_tag = ""
+
+    parts = [f"{collect} 收藏 / {like} 赞 / 藏赞比 {collect_like_ratio}"]
+    parts.append(collect_tag)
+    if discuss_tag:
+        parts.append(f"评论率 {comment_rate}% ({discuss_tag})")
+    return " — ".join(parts)
+
+
+def _build_cross_modal_verdict(cross_modal: Any | None) -> str | None:
+    """从跨模态校验结果构建验证结论。"""
+    if cross_modal is None:
+        return None
+
+    high = getattr(cross_modal, "high_confidence_claims", []) or []
+    unsupported = getattr(cross_modal, "unsupported_claims", []) or []
+    challenged = getattr(cross_modal, "challenged_claims", []) or []
+    score = getattr(cross_modal, "overall_consistency_score", None)
+
+    total_checked = len(high) + len(unsupported) + len(challenged)
+    if total_checked == 0 and score is None:
+        return None
+
+    parts: list[str] = []
+    if total_checked > 0:
+        parts.append(f"{len(high)}/{total_checked} 卖点获双重验证")
+        if unsupported:
+            parts.append(f"{len(unsupported)} 项无支撑")
+        if challenged:
+            items = ", ".join(challenged[:2])
+            parts.append(f"{len(challenged)} 项存疑（{items}）")
+
+    if score is not None:
+        if score >= 0.7:
+            parts.append(f"一致性 {score:.2f}（高）")
+        elif score >= 0.4:
+            parts.append(f"一致性 {score:.2f}（中）")
+        else:
+            parts.append(f"一致性 {score:.2f}（低）")
+
+    return "，".join(parts) if parts else None
+
+
+_INSIGHT_DIRECTION_MAP: dict[str, str] = {
+    "visual": "视觉种草内容",
+    "scene": "场景种草内容",
+    "demand": "需求转化内容",
+    "product": "产品推荐内容",
+    "content": "展示型种草内容",
+}
+
+
+def _build_insight_statement(
+    card: XHSOpportunityCard,
+    engagement_insight: str | None,
+    cross_modal_verdict: str | None,
+) -> str | None:
+    """一句话总结此机会为何值得关注。"""
+    engagement_tag = ""
+    if engagement_insight:
+        if "强收藏属性" in engagement_insight:
+            engagement_tag = "高藏赞比"
+        elif "中等收藏属性" in engagement_insight:
+            engagement_tag = "中等藏赞比"
+        if "高互动讨论" in engagement_insight:
+            engagement_tag = f"{engagement_tag}+高讨论" if engagement_tag else "高讨论"
+
+    core_subject = ""
+    if card.scene_refs:
+        core_subject = to_zh(card.scene_refs[0])
+    elif card.need_refs:
+        core_subject = to_zh(card.need_refs[0])
+    elif card.style_refs:
+        core_subject = to_zh(card.style_refs[0])
+
+    verification = ""
+    if cross_modal_verdict:
+        if "双重验证" in cross_modal_verdict:
+            verification = "经多维验证"
+        elif "存疑" in cross_modal_verdict or "无支撑" in cross_modal_verdict:
+            verification = "部分待验证"
+
+    direction = _INSIGHT_DIRECTION_MAP.get(card.opportunity_type, "内容策划")
+
+    fragments = [f for f in [engagement_tag, core_subject, verification] if f]
+    if not fragments:
+        return None
+
+    return f"{' + '.join(fragments)} → 适合打{direction}"

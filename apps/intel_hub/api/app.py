@@ -701,9 +701,90 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
     from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
 
     _cp_adapter = IntelHubAdapter(review_store=review_store)
-    set_flow(OpportunityToPlanFlow(adapter=_cp_adapter))
+    _cp_flow = OpportunityToPlanFlow(adapter=_cp_adapter)
+    set_flow(_cp_flow)
     app.include_router(content_planning_router)
     app.include_router(content_planning_router_alias)
+
+    # ── 内容策划工作台页面路由 ─────────────────────────────────
+    @app.get("/content-planning/brief/{opportunity_id}")
+    async def content_brief_page(request: Request, opportunity_id: str) -> Any:
+        """Brief 确认页。"""
+        card = review_store.get_card(opportunity_id)
+        if card is None:
+            raise HTTPException(status_code=404, detail="机会卡未找到")
+
+        try:
+            brief = _cp_flow.build_brief(opportunity_id)
+            brief_dict = brief.model_dump(mode="json")
+        except Exception:
+            brief_dict = {}
+
+        source_notes = _cp_adapter.get_source_notes(card.source_note_ids) if card.source_note_ids else []
+        source_ctx = []
+        for sn in source_notes[:1]:
+            ctx = {"note_context": sn} if isinstance(sn, dict) else {"note_context": {}}
+            source_ctx.append(ctx)
+
+        review_summary = _cp_adapter.get_review_summary(opportunity_id)
+
+        if _wants_html(request):
+            return _render("content_brief.html", {
+                "request": request,
+                "opportunity_id": opportunity_id,
+                "card": card,
+                "brief": brief_dict,
+                "source_notes": source_ctx,
+                "review_summary": review_summary or {},
+            })
+        return {"card": card.model_dump(mode="json") if hasattr(card, "model_dump") else card, "brief": brief_dict}
+
+    @app.get("/content-planning/strategy/{opportunity_id}")
+    async def content_strategy_page(request: Request, opportunity_id: str) -> Any:
+        """模板与策略页。"""
+        card = review_store.get_card(opportunity_id)
+        if card is None:
+            raise HTTPException(status_code=404, detail="机会卡未找到")
+
+        try:
+            data = _cp_flow.build_note_plan(opportunity_id, with_generation=False)
+        except Exception as exc:
+            data = {"brief": {}, "match_result": {}, "strategy": {}, "error": str(exc)}
+
+        if _wants_html(request):
+            return _render("content_strategy.html", {
+                "request": request,
+                "opportunity_id": opportunity_id,
+                "card": card.model_dump(mode="json"),
+                "brief": data.get("brief", {}),
+                "match_result": data.get("match_result", {}),
+                "strategy": data.get("strategy", {}),
+            })
+        return data
+
+    @app.get("/content-planning/plan/{opportunity_id}")
+    async def content_plan_page(request: Request, opportunity_id: str) -> Any:
+        """内容策划页。"""
+        card = review_store.get_card(opportunity_id)
+        if card is None:
+            raise HTTPException(status_code=404, detail="机会卡未找到")
+
+        try:
+            data = _cp_flow.build_note_plan(opportunity_id, with_generation=True)
+        except Exception as exc:
+            data = {"brief": {}, "match_result": {}, "strategy": {}, "note_plan": {}, "error": str(exc)}
+
+        if _wants_html(request):
+            return _render("content_plan.html", {
+                "request": request,
+                "opportunity_id": opportunity_id,
+                "brief": data.get("brief", {}),
+                "strategy": data.get("strategy", {}),
+                "match_result": data.get("match_result", {}),
+                "note_plan": data.get("note_plan", {}),
+                "generated": data.get("generated"),
+            })
+        return data
 
     @app.get("/watchlists")
     async def watchlists(

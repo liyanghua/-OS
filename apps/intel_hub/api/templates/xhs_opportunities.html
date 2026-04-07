@@ -39,6 +39,12 @@
   {% for s, label in status_labels.items() %}
   <a href="/xhs-opportunities?status={{ s }}{% if type_filter %}&type={{ type_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if status_filter == s %}background: {{ status_colors.get(s, 'var(--accent)') }}; color: #fff;{% endif %}">{{ label }}</a>
   {% endfor %}
+
+  <a href="/xhs-opportunities?status=promoted{% if type_filter %}&type={{ type_filter }}{% endif %}"
+     style="margin-left: 16px; display: inline-flex; align-items: center; gap: 4px; padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 700; text-decoration: none;
+       background: linear-gradient(135deg, #2e7d32, #43a047); color: #fff; box-shadow: 0 2px 8px rgba(46,125,50,0.25);">
+    &#x2B50; 只看已升级（进入内容策划）
+  </a>
 </div>
 
 <!-- 卡片列表 -->
@@ -60,11 +66,24 @@
         </div>
       </div>
 
-      <h3 style="margin: 0 0 8px;">{{ card.title }}</h3>
+      <h3 style="margin: 0 0 4px;">{{ card.title }}</h3>
+
+      {% if card.insight_statement %}
+      <p style="margin: 0 0 8px; padding: 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; background: linear-gradient(135deg, #fff8e1, #fff3e0); color: #e65100; line-height: 1.5;">
+        &#x1F4A1; {{ card.insight_statement }}
+      </p>
+      {% endif %}
+
       <p style="margin: 0 0 10px; color: var(--muted); font-size: 14px;">{{ card.summary[:120] }}{% if card.summary|length > 120 %}…{% endif %}</p>
 
-      <!-- 检视摘要 -->
-      <div style="display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-bottom: 8px;">
+      <!-- 洞察 + 检视摘要 -->
+      <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--muted); margin-bottom: 8px;">
+        {% if card.engagement_insight %}
+        <span style="padding: 2px 8px; border-radius: 6px; background: #e8f5e9; color: #2e7d32; font-size: 11px;">{{ card.engagement_insight }}</span>
+        {% endif %}
+        {% if card.cross_modal_verdict %}
+        <span style="padding: 2px 8px; border-radius: 6px; background: #e3f2fd; color: #1565c0; font-size: 11px;">{{ card.cross_modal_verdict }}</span>
+        {% endif %}
         <span>检视 {{ card.review_count }} 次</span>
         {% if card.manual_quality_score_avg is not none %}
         <span>质量 {{ "%.1f"|format(card.manual_quality_score_avg) }}/10</span>
@@ -86,6 +105,21 @@
           <span class="chip" style="background: #e3f2fd; color: #1565c0;">{{ ref }}</span>
         {% endfor %}
       </div>
+
+      {% if card.opportunity_status == 'promoted' %}
+      <div style="margin-top: 8px; display: flex; gap: 8px;">
+        <a href="/content-planning/brief/{{ card.opportunity_id }}" onclick="event.stopPropagation();"
+           style="display: inline-block; padding: 6px 16px; border-radius: 10px; font-size: 12px; font-weight: 700; text-decoration: none;
+             background: var(--accent); color: #fff; box-shadow: 0 2px 6px rgba(138,75,47,0.2);">
+          生成 Brief &rarr;
+        </a>
+        <a href="/content-planning/plan/{{ card.opportunity_id }}" onclick="event.stopPropagation();"
+           style="display: inline-block; padding: 6px 16px; border-radius: 10px; font-size: 12px; font-weight: 600; text-decoration: none;
+             background: #e8f5e9; color: #2e7d32;">
+          一键策划
+        </a>
+      </div>
+      {% endif %}
     </div>
     </a>
     {% endfor %}

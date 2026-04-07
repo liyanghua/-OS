@@ -45,7 +45,16 @@ def _run_pipeline_for_note(raw_dict, comments=None):
     validation = validate_cross_modal_consistency(visual, selling, scene, parsed)
     ontology, rules = _load_configs()
     mapping = project_xhs_signals(visual, selling, scene, ontology, cross_modal=validation)
-    cards = compile_xhs_opportunities(mapping, visual, selling, scene, rules, cross_modal=validation)
+    note_ctx = {
+        "like_count": raw.like_count,
+        "collect_count": raw.collect_count,
+        "comment_count": raw.comment_count,
+        "share_count": raw.share_count,
+    }
+    cards = compile_xhs_opportunities(
+        mapping, visual, selling, scene, rules,
+        cross_modal=validation, note_context=note_ctx,
+    )
     return parsed, visual, selling, scene, mapping, cards, validation
 
 
@@ -117,6 +126,62 @@ class TestXHSOpportunityCompiler:
         _, _, _, _, _, cards, _ = _run_pipeline_for_note(FIXTURE_NOTE_CREAMY)
         for card in cards:
             assert isinstance(card.suggested_next_step, list)
+
+    def test_insight_fields_populated(self):
+        _, _, _, _, _, cards, _ = _run_pipeline_for_note(FIXTURE_NOTE_CREAMY)
+        for card in cards:
+            assert card.insight_statement is None or isinstance(card.insight_statement, str)
+            assert card.engagement_insight is None or isinstance(card.engagement_insight, str)
+            assert card.cross_modal_verdict is None or isinstance(card.cross_modal_verdict, str)
+
+
+class TestInsightBuilders:
+    def test_engagement_insight_high_collect(self):
+        from apps.intel_hub.compiler.opportunity_compiler import _build_engagement_insight
+
+        ctx = {"like_count": 100, "collect_count": 150, "comment_count": 20, "share_count": 10}
+        result = _build_engagement_insight(ctx)
+        assert result is not None
+        assert "强收藏属性" in result
+        assert "1.5" in result
+
+    def test_engagement_insight_none_when_no_context(self):
+        from apps.intel_hub.compiler.opportunity_compiler import _build_engagement_insight
+
+        assert _build_engagement_insight(None) is None
+        assert _build_engagement_insight({}) is None
+
+    def test_cross_modal_verdict_with_data(self):
+        from apps.intel_hub.compiler.opportunity_compiler import _build_cross_modal_verdict
+
+        class FakeCrossModal:
+            high_confidence_claims = ["好看", "百搭"]
+            unsupported_claims = ["材质好"]
+            challenged_claims = []
+            overall_consistency_score = 0.72
+
+        result = _build_cross_modal_verdict(FakeCrossModal())
+        assert result is not None
+        assert "2/3" in result
+        assert "高" in result
+
+    def test_cross_modal_verdict_none(self):
+        from apps.intel_hub.compiler.opportunity_compiler import _build_cross_modal_verdict
+
+        assert _build_cross_modal_verdict(None) is None
+
+    def test_insight_statement_format(self):
+        from apps.intel_hub.compiler.opportunity_compiler import _build_insight_statement
+
+        card = XHSOpportunityCard(
+            opportunity_type="visual",
+            scene_refs=["日式早餐"],
+            need_refs=["出片"],
+        )
+        result = _build_insight_statement(card, "150 收藏 / 100 赞 / 藏赞比 1.5 — 强收藏属性", "2/3 卖点获双重验证")
+        assert result is not None
+        assert "→" in result
+        assert "视觉种草内容" in result
 
 
 class TestMergeOpportunities:

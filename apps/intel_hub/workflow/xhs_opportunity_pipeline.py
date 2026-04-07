@@ -109,8 +109,20 @@ def run_xhs_opportunity_pipeline(
             mapping.value_proposition_refs[:3],
         )
 
-        # Step 4: Compile Opportunities (cross_modal 用于评分调节)
-        cards = compile_xhs_opportunities(mapping, visual, selling, scene, rules_config, cross_modal=validation)
+        # Step 4: Compile Opportunities (cross_modal 用于评分调节, note_context 用于洞察)
+        note_ctx: dict[str, Any] = {}
+        if parsed:
+            rn = parsed.raw_note
+            note_ctx = {
+                "like_count": rn.like_count,
+                "collect_count": rn.collect_count,
+                "comment_count": rn.comment_count,
+                "share_count": rn.share_count,
+            }
+        cards = compile_xhs_opportunities(
+            mapping, visual, selling, scene, rules_config,
+            cross_modal=validation, note_context=note_ctx,
+        )
         logger.info("[%s] 机会卡生成: %d 张", note_id, len(cards))
 
         results.append(PipelineResult(

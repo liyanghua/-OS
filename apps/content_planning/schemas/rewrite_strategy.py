@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -16,10 +17,17 @@ class RewriteStrategy(BaseModel):
     brief_id: str = ""
     template_id: str = ""
 
+    strategy_status: Literal["draft", "generated", "reviewed", "approved"] = "draft"
+
     positioning_statement: str = ""
     new_hook: str = ""
     new_angle: str = ""
     tone_of_voice: str = ""
+
+    hook_strategy: str = ""
+    cta_strategy: str = ""
+    scene_emphasis: list[str] = Field(default_factory=list)
+    rationale: str = ""
 
     keep_elements: list[str] = Field(default_factory=list)
     replace_elements: list[str] = Field(default_factory=list)

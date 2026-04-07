@@ -2,6 +2,7 @@
 
 直接使用 DashScope SDK（项目已有依赖），不依赖 litellm。
 当 DASHSCOPE_API_KEY 缺失或 SDK 未安装时静默降级，返回空结果。
+设置 LOG_LEVEL=DEBUG 可查看完整 prompt / response。
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +66,8 @@ def call_text_llm(
     """调用文本 LLM，返回原始响应文本。失败时返回空字符串。"""
     if not is_llm_available():
         return ""
+    used_model = model or _TEXT_MODEL
+    t0 = time.perf_counter()
     try:
         import dashscope
         from dashscope import Generation
@@ -74,19 +78,37 @@ def call_text_llm(
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": user_prompt})
 
+        logger.debug(
+            "[LLM-REQ] text model=%s\n--- SYSTEM ---\n%s\n--- USER ---\n%s",
+            used_model,
+            (system_prompt or "")[:500],
+            user_prompt[:800],
+        )
+
         response = Generation.call(
-            model=model or _TEXT_MODEL,
+            model=used_model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
             result_format="message",
         )
+        elapsed = time.perf_counter() - t0
         if response.status_code != 200:
-            logger.warning("llm_client text: status %d: %s", response.status_code, response.message)
+            logger.warning(
+                "[LLM-ERR] text model=%s status=%d elapsed=%.1fs msg=%s",
+                used_model, response.status_code, elapsed, response.message,
+            )
             return ""
-        return response.output.choices[0].message.content or ""
+        result = response.output.choices[0].message.content or ""
+        usage = getattr(response, "usage", None)
+        logger.debug(
+            "[LLM-OK] text model=%s elapsed=%.1fs tokens=%s\n--- RESPONSE (first 500) ---\n%s",
+            used_model, elapsed, usage, result[:500],
+        )
+        return result
     except Exception:
-        logger.warning("llm_client text: call failed", exc_info=True)
+        elapsed = time.perf_counter() - t0
+        logger.warning("[LLM-EXC] text model=%s elapsed=%.1fs", used_model, elapsed, exc_info=True)
         return ""
 
 
@@ -103,6 +125,8 @@ def call_vlm(
         return ""
     if not image_urls:
         return ""
+    used_model = model or _VLM_MODEL
+    t0 = time.perf_counter()
     try:
         import dashscope
         from dashscope import MultiModalConversation
@@ -119,16 +143,33 @@ def call_vlm(
             {"role": "user", "content": content},
         ]
 
+        logger.debug(
+            "[VLM-REQ] model=%s images=%d\n--- SYSTEM ---\n%s\n--- USER ---\n%s",
+            used_model, len(image_urls[:max_images]),
+            system_prompt[:500], user_prompt[:800],
+        )
+
         response = MultiModalConversation.call(
-            model=model or _VLM_MODEL,
+            model=used_model,
             messages=messages,
         )
+        elapsed = time.perf_counter() - t0
         if response.status_code != 200:
-            logger.warning("llm_client vlm: status %d: %s", response.status_code, response.message)
+            logger.warning(
+                "[VLM-ERR] model=%s status=%d elapsed=%.1fs msg=%s",
+                used_model, response.status_code, elapsed, response.message,
+            )
             return ""
-        return response.output.choices[0].message.content[0]["text"] or ""
+        result = response.output.choices[0].message.content[0]["text"] or ""
+        usage = getattr(response, "usage", None)
+        logger.debug(
+            "[VLM-OK] model=%s elapsed=%.1fs tokens=%s\n--- RESPONSE (first 500) ---\n%s",
+            used_model, elapsed, usage, result[:500],
+        )
+        return result
     except Exception:
-        logger.warning("llm_client vlm: call failed", exc_info=True)
+        elapsed = time.perf_counter() - t0
+        logger.warning("[VLM-EXC] model=%s elapsed=%.1fs", used_model, elapsed, exc_info=True)
         return ""
 
 
@@ -140,7 +181,9 @@ def parse_json_response(raw_text: str) -> dict[str, Any]:
         end = len(lines) - 1 if lines[-1].strip().startswith("```") else len(lines)
         text = "\n".join(lines[1:end])
     try:
-        return json.loads(text)
+        result = json.loads(text)
+        logger.debug("[JSON-OK] parse_json_response: keys=%s", list(result.keys()) if isinstance(result, dict) else type(result).__name__)
+        return result
     except json.JSONDecodeError:
-        logger.debug("parse_json_response: failed to parse: %s", text[:200])
+        logger.debug("[JSON-ERR] parse_json_response: failed to parse: %s", text[:200])
         return {}

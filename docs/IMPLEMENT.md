@@ -843,3 +843,159 @@ trendradar_output_dir: third_party/TrendRadar/output
 - **C1 脚本**：[apps/content_planning/scripts/run_acceptance_c1.py](apps/content_planning/scripts/run_acceptance_c1.py)（最多 12 条 promoted，输出 Markdown 表，可选 `--with-generation`）。
 - **C2 脚本与索引**：[apps/content_planning/scripts/export_golden_cases.py](apps/content_planning/scripts/export_golden_cases.py) 导出 JSON 至 `data/exports/content_planning/`（已 gitignore），索引 [docs/content_planning_golden_cases.md](docs/content_planning_golden_cases.md)。
 - **生成结果回溯**：`TitleGenerationResult` / `BodyGenerationResult` / `ImageBriefGenerationResult` 增加 `opportunity_id` / `brief_id` / `strategy_id` / `template_id`，由 [plan_trace.py](apps/content_planning/utils/plan_trace.py) 统一从 `NewNotePlan` 填充。
+
+---
+
+### 内容策划工作台升级 V2.0（2026-04-07）
+
+基于 `docs/content_pipeline.md` 的 P0-P7 升级方案和 `docs/template_extaction_workstation_prd.md` 的四页工作台 PRD，将后端从"仅 API"升级为完整工作台。
+
+#### Phase 1: 后端升级
+
+- **RewriteStrategy schema 对齐 PRD**：增加 `strategy_status`、`hook_strategy`、`cta_strategy`、`scene_emphasis`、`rationale` 字段
+- **OpportunityBrief schema 增强**：增加 `brief_status`、`target_audience`、`evidence_summary`、`constraints`、`suggested_direction`、`updated_at` 字段
+- **BriefCompiler review_summary 集成**：从检视摘要提取 `proof_from_source` 补充、`evidence_summary` 构建、`constraints` 提取、`suggested_direction` 生成；高质量评分影响 `content_goal` 表达
+- **strategy_generator LLM 增强**：`_llm_enhance` 从空实现升级为调用 `call_text_llm` 润色策略文案（graceful degradation），增加 `hook_strategy`/`cta_strategy`/`scene_emphasis`/`rationale` 生成
+- **OpportunityToPlanFlow 会话缓存**：内存 `_SessionState` 管理中间产物（brief/match/strategy/plan/generation），支持阶级失效、局部重生成
+- **新增原子方法**：`match_templates()`、`build_strategy()`、`build_plan()`、`regenerate_titles()`/`body()`/`image_briefs()`、`update_brief()`、`compile_note_plan()`、`get_session_data()`
+
+#### Phase 2: 原子 API
+
+新增端点（[routes.py v2](apps/content_planning/api/routes.py)）：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/content-planning/xhs-opportunities/{id}/match-templates` | 模板匹配 |
+| POST | `/content-planning/xhs-opportunities/{id}/generate-strategy` | 生成策略（可指定模板） |
+| POST | `/content-planning/xhs-opportunities/{id}/generate-titles` | 局部重生成标题 |
+| POST | `/content-planning/xhs-opportunities/{id}/generate-body` | 局部重生成正文 |
+| POST | `/content-planning/xhs-opportunities/{id}/generate-image-briefs` | 局部重生成图片指令 |
+| PUT | `/content-planning/briefs/{id}` | Brief 人工编辑 |
+| POST | `/content-planning/xhs-opportunities/{id}/compile-note-plan` | 一键全链路 |
+| GET | `/content-planning/session/{id}` | 会话缓存查询 |
+
+#### Phase 3: 四页工作台 UI
+
+- **机会池页升级**：promoted 快捷入口按钮 + 每张 promoted 卡增加"生成 Brief"和"一键策划"按钮
+- **Brief 确认页** (`content_brief.html`)：三栏布局（来源上下文 / Brief 结构化展示 / 人工修订区），支持保存编辑、重新生成、下一步跳转
+- **模板与策略页** (`content_strategy.html`)：top3 模板候选卡片 + RewriteStrategy 全字段展示，支持模板切换和策略重生成
+- **内容策划页** (`content_plan.html`)：三栏布局（上下文 / NewNotePlan 三维策划 / 生成结果 tab），支持标题/正文/图片指令独立重生成，支持 JSON/Markdown 导出
+- **导航串联**：`base.html` 增加"内容策划"入口，四页通过面包屑 + 下一步按钮串联
+
+#### Phase 4: 验收
+
+- **端到端验收脚本** (`run_e2e_acceptance.py`)：自动选取 promoted 卡，逐步验证 Brief → 模板匹配 → 策略 → 策划方案 → 标题/正文/图片生成 → 回溯链路，输出结果到 `data/exports/content_planning/`
+- **文档更新**：`CONTENT_PLANNING_API.md` v2（完整 API 路由、请求体、工作台流程、curl 示例）
+
+---
+
+### 洞察层升级 V0.8（2026-04-07）
+
+**目标**：为机会卡和 Brief 补充深度洞察字段，消费上游已有的互动数据和跨模态校验结果。
+
+#### 机会卡（发现层洞察）
+
+- **Schema** (`apps/intel_hub/schemas/opportunity.py`)：新增 `engagement_insight`、`cross_modal_verdict`、`insight_statement` 三个字段
+- **编译器** (`apps/intel_hub/compiler/opportunity_compiler.py`)：
+  - `compile_xhs_opportunities` 签名新增 `note_context` 参数
+  - 新增 `_build_engagement_insight`：从互动量计算藏赞比和评论率，输出"X 收藏 / Y 赞 / 藏赞比 Z — 强/中/低收藏属性"
+  - 新增 `_build_cross_modal_verdict`：统计 high_confidence / unsupported / challenged 卖点数量，输出验证结论
+  - 新增 `_build_insight_statement`：综合互动标签、核心场景/卖点和验证状况，生成一句话运营洞察
+- **流水线** (`apps/intel_hub/workflow/xhs_opportunity_pipeline.py`)：传入 `note_context`（like/collect/comment/share）
+
+#### Brief（策划层洞察）
+
+- **Schema** (`apps/content_planning/schemas/opportunity_brief.py`)：新增 `why_worth_doing`、`competitive_angle`、`engagement_proof`、`cross_modal_confidence_label` 四个字段
+- **编译器** (`apps/content_planning/services/brief_compiler.py`)：
+  - 新增 `_build_why_worth_doing`：结合互动量级、卖点验证比例和人工检视评分生成"为什么值得做"判断句
+  - 新增 `_build_competitive_angle`：从 high_confidence_claims 和 challenged_claims 构建差异化切入建议
+  - 新增 `_build_engagement_proof`：格式化互动数据佐证句
+  - 新增 `_build_cross_modal_confidence_label`：基于 overall_consistency_score 输出高/中/低置信标签
+  - 升级 `_infer_content_goal`：根据互动数据特征追加"收藏驱动"/"讨论驱动"标签，根据跨模态一致性追加"已验证"标签
+
+#### UI 适配
+
+- **机会卡列表页** (`xhs_opportunities.html`)：insight_statement 显示为高亮卡片首行，engagement_insight 和 cross_modal_verdict 显示为彩色标签
+- **机会卡详情页** (`xhs_opportunity_detail.html`)：标题下方新增洞察区域（insight_statement 高亮框 + 两个信息标签）
+- **Brief 确认页** (`content_brief.html`)：中栏新增"策划层洞察"面板（why_worth_doing / competitive_angle / engagement_proof / 置信标签 badge），右栏支持编辑"为什么值得做"和"差异化切入"
+
+#### 测试
+
+- 编译器测试新增 `TestInsightBuilders` 类（5 个用例）和 `test_insight_fields_populated`
+- Brief 编译器测试新增 5 个洞察相关用例（含完整数据、空数据、置信标签三档）
+- 全量 231 项测试通过
+
+---
+
+### 标签中文化 + LLM 调试信息升级 V0.9
+
+#### 问题
+
+Brief 和机会卡中大量字段使用英文本体 ID（`scene_dining_table`、`style_creamy`、`need_waterproof` 等），对运营用户不友好。`strategy_generator._llm_enhance` 的 `call_text_llm` 调用只传一个参数导致 TypeError 被静默吞掉，LLM 润色从未生效。LLM 调用无 debug 日志，无法排查 prompt/response。
+
+#### 变更
+
+##### 中文映射模块
+- **新增** `apps/intel_hub/projector/label_zh.py`：从 `config/ontology_mapping.yaml` 的 `keywords[0]` 自动提取中英映射，硬编码补充 template_hints / vp_* / type / status 等无法从 YAML 推导的映射
+  - `to_zh(ref_id)`: 单个翻译，支持 `+` 组合串拆分翻译
+  - `to_zh_list(ref_ids)`: 批量翻译
+
+##### 机会卡中文化
+- `apps/intel_hub/compiler/opportunity_compiler.py`：
+  - 视觉卡 title 中 `mapping.scene_refs` 引用改为 `to_zh(r)` 输出
+  - `_build_insight_statement` 中 `core_subject` 从 scene/need/style refs 取值时使用 `to_zh`
+
+##### Brief 中文化
+- `apps/content_planning/services/brief_compiler.py`：
+  - `compile()` 中 `opportunity_type`、`core_motive`、`primary_value`、`price_positioning` 调用 `to_zh`
+  - `target_user`、`target_scene`、`visual_style_direction`、`secondary_values`、`avoid_directions`、`template_hints` 调用 `to_zh_list`
+  - `_extract_constraints` 中 `risk_refs` 调用 `to_zh`
+  - `_build_target_audience` 中 `audience_refs` 调用 `to_zh`
+  - `opportunity_title`、`opportunity_summary` 通过正则 `_zh_replace_refs` 替换嵌入的英文 ref ID
+
+##### LLM Bug 修复
+- `apps/content_planning/services/strategy_generator.py`：修复 `_llm_enhance` 中 `call_text_llm(prompt)` 为 `call_text_llm("你是小红书内容策略专家。", prompt)`，解决参数缺失导致的 TypeError
+
+##### LLM 调试日志
+- `apps/intel_hub/extraction/llm_client.py`：
+  - `call_text_llm`: 增加 `[LLM-REQ]` / `[LLM-OK]` / `[LLM-ERR]` / `[LLM-EXC]` debug 日志，记录 model、elapsed、prompt (前 800 字)、response (前 500 字)、tokens
+  - `call_vlm`: 增加 `[VLM-REQ]` / `[VLM-OK]` / `[VLM-ERR]` / `[VLM-EXC]` debug 日志
+  - `parse_json_response`: 成功时记录 `[JSON-OK]` keys，失败时记录 `[JSON-ERR]`
+  - 设置 `LOG_LEVEL=DEBUG` 即可查看完整 LLM 交互
+
+##### 测试适配
+- `apps/content_planning/tests/test_brief_compiler.py`：`opportunity_type` 断言改为 `"视觉"`，template_hints 断言改为中文标签（`"风格定锚"` / `"质感佐证"` / `"场景种草"`）
+- 全量 32 项测试通过
+
+---
+
+### LLM 驱动模板匹配 + 策略生成升级 V1.0
+
+#### 问题
+
+- 模板匹配基于纯子串 `in` 关键词碰撞，权重硬编码，无语义理解，区分度低（多个模板经常同分）
+- 策略生成全靠 `f"..."` 模板字符串拼接，输出千篇一律，LLM 只润色 5 个字段措辞
+
+#### 变更
+
+##### A. LLM 驱动模板匹配
+- `apps/template_extraction/agent/template_matcher.py`：
+  - 新增 `_try_llm_match` 方法：一次 LLM 调用评估全部模板，输入 Brief 摘要 + 6 套模板关键属性，输出 `[{template_id, score(0-100), reason}]` JSON
+  - 新增 `_build_brief_summary` / `_build_templates_summary` / `_parse_llm_scores` 辅助方法
+  - `match_templates` 增加 LLM 优先路径：有 brief 时先尝试 LLM，失败/不可用时 fallback 到现有规则打分
+  - 打分标准嵌入 prompt：场景契合度 30%、内容目标匹配 25%、风格一致性 20%、钩子机制适配 15%、规避冲突扣分 10%
+
+##### B. LLM 主导策略生成
+- `apps/content_planning/services/strategy_generator.py`：
+  - `generate()` 从"规则生成 + LLM 润色"重构为"LLM 生成全部字段 + 规则校验兜底"
+  - 新增 `_try_llm_generate`：构建约束清单（Brief 信息 + 模板属性 + 匹配信息）+ JSON schema hint，一次 LLM 调用生成 RewriteStrategy 全部字段
+  - 新增 `_merge_llm_with_fallback`：LLM 输出的有效字段优先，缺失字段用规则兜底填充
+  - 规则层 `_rule_based_generate` 完整保留作为 fallback，LLM 不可用时整体降级
+
+##### 向后兼容
+- `MatchResult` / `RewriteStrategy` schema 不变，下游无感知
+- flow 层和 API 路由零改动
+- `DASHSCOPE_API_KEY` 缺失或 LLM 异常时两个模块均 graceful fallback 到规则逻辑
+
+##### 测试
+- 全量 35 项测试通过（LLM 不可用时自动走规则路径验证）

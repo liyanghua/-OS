@@ -1,15 +1,17 @@
 """模板匹配器：根据机会卡 + 商品简介 + 意图匹配最佳模板。
 
-支持两种模式：
-1. 旧模式（向后兼容）：opportunity_card dict + product_brief 文本
-2. brief-aware 模式：传入 OpportunityBrief 结构化对象时自动使用更精准的打分
+支持三种模式：
+1. LLM 驱动（优先）：一次 LLM 调用评估全部模板，输出结构化评分
+2. brief-aware 规则（LLM 不可用时降级）：关键词子串匹配
+3. 旧模式（向后兼容）：opportunity_card dict + product_brief 文本
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from apps.template_extraction.schemas.template import TableclothMainImageStrategyTemplate
 
@@ -50,8 +52,14 @@ class TemplateMatcher:
     ) -> list[MatchResult]:
         """匹配模板，返回 top_k 候选。
 
-        当 brief 存在时走 brief-aware 精准打分；否则走旧逻辑保持向后兼容。
+        优先级：LLM 驱动 > brief-aware 规则 > 旧模式关键词匹配。
         """
+        if brief is not None:
+            llm_results = self._try_llm_match(brief)
+            if llm_results:
+                llm_results.sort(key=lambda x: x.score, reverse=True)
+                return llm_results[:top_k]
+
         scores = []
         for tpl_id, tpl in self._templates.items():
             if brief is not None:
@@ -70,6 +78,126 @@ class TemplateMatcher:
             )
         scores.sort(key=lambda x: x.score, reverse=True)
         return scores[:top_k]
+
+    # ── LLM 驱动匹配 ──
+
+    def _try_llm_match(self, brief: OpportunityBrief) -> list[MatchResult] | None:
+        """一次 LLM 调用评估全部模板。失败时返回 None 触发 fallback。"""
+        try:
+            from apps.intel_hub.extraction.llm_client import (
+                call_text_llm,
+                is_llm_available,
+                parse_json_response,
+            )
+        except ImportError:
+            return None
+        if not is_llm_available():
+            return None
+
+        brief_summary = self._build_brief_summary(brief)
+        tpl_summaries = self._build_templates_summary()
+
+        system = "你是小红书桌布类目资深内容策划专家，擅长为不同机会匹配最佳主图策略模板。"
+        user = (
+            "请根据以下 Brief 信息，为每套模板打分（0-100）并说明理由。\n\n"
+            f"## Brief\n{brief_summary}\n\n"
+            f"## 候选模板\n{tpl_summaries}\n\n"
+            "## 输出要求\n"
+            "请输出 JSON 数组，每个元素包含 template_id、score（0-100 整数）、reason（一句话中文理由）。\n"
+            "打分标准：场景契合度 30%、内容目标匹配 25%、风格一致性 20%、"
+            "钩子机制适配 15%、规避冲突扣分 10%。\n"
+            "示例：\n"
+            '[{"template_id": "tpl_001_scene_seed", "score": 82, "reason": "场景与氛围感需求高度契合"}]\n'
+        )
+
+        try:
+            raw = call_text_llm(system, user, temperature=0.2)
+            if not raw:
+                return None
+            data = parse_json_response(raw)
+            if isinstance(data, dict) and "results" in data:
+                data = data["results"]
+            if isinstance(data, dict):
+                data = list(data.values()) if all(isinstance(v, dict) for v in data.values()) else None
+            if not isinstance(data, list):
+                raw_stripped = raw.strip()
+                if raw_stripped.startswith("["):
+                    try:
+                        data = json.loads(raw_stripped)
+                    except json.JSONDecodeError:
+                        return None
+                else:
+                    return None
+
+            results = self._parse_llm_scores(data)
+            if len(results) >= len(self._templates) // 2:
+                logger.info("LLM 模板匹配成功，返回 %d 个评分", len(results))
+                return results
+            return None
+        except Exception:
+            logger.debug("LLM 模板匹配失败，降级到规则匹配", exc_info=True)
+            return None
+
+    def _build_brief_summary(self, brief: OpportunityBrief) -> str:
+        lines = []
+        if brief.opportunity_title:
+            lines.append(f"- 标题: {brief.opportunity_title}")
+        if brief.content_goal:
+            lines.append(f"- 内容目标: {brief.content_goal}")
+        if brief.target_scene:
+            lines.append(f"- 目标场景: {', '.join(brief.target_scene[:5])}")
+        if brief.primary_value:
+            lines.append(f"- 核心价值: {brief.primary_value}")
+        if brief.visual_style_direction:
+            lines.append(f"- 视觉风格: {', '.join(brief.visual_style_direction[:4])}")
+        if brief.template_hints:
+            lines.append(f"- 模板偏好: {', '.join(brief.template_hints[:4])}")
+        if brief.avoid_directions:
+            lines.append(f"- 规避方向: {', '.join(brief.avoid_directions[:3])}")
+        if brief.secondary_values:
+            lines.append(f"- 次要卖点: {', '.join(brief.secondary_values[:3])}")
+        return "\n".join(lines) if lines else "（无详情）"
+
+    def _build_templates_summary(self) -> str:
+        lines = []
+        for tpl in self._templates.values():
+            parts = [
+                f"ID={tpl.template_id}",
+                f"名称={tpl.template_name}",
+                f"目标={tpl.template_goal[:40]}",
+            ]
+            if tpl.fit_scenarios:
+                parts.append(f"场景={','.join(tpl.fit_scenarios[:3])}")
+            if tpl.fit_styles:
+                parts.append(f"风格={','.join(tpl.fit_styles[:3])}")
+            if tpl.best_for:
+                parts.append(f"适用={','.join(tpl.best_for[:3])}")
+            if tpl.avoid_when:
+                parts.append(f"不适用={','.join(tpl.avoid_when[:2])}")
+            lines.append(f"- {' | '.join(parts)}")
+        return "\n".join(lines)
+
+    def _parse_llm_scores(self, data: list[Any]) -> list[MatchResult]:
+        results = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            tid = item.get("template_id", "")
+            if tid not in self._templates:
+                continue
+            try:
+                score_raw = item.get("score", 0)
+                score = max(0.0, min(float(score_raw) / 100.0, 1.0))
+            except (ValueError, TypeError):
+                score = 0.0
+            reason = str(item.get("reason", self._templates[tid].template_name))
+            results.append(MatchResult(
+                template_id=tid,
+                template_name=self._templates[tid].template_name,
+                score=score,
+                reason=reason,
+            ))
+        return results
 
     # ── brief-aware 打分 ──
 

@@ -47,3 +47,8 @@ class XHSOpportunityCard(BaseModel):
     composite_review_score: float | None = None
     qualified_opportunity: bool = False
     opportunity_status: str = "pending_review"
+
+    # V0.8 发现层洞察字段
+    engagement_insight: str | None = None
+    cross_modal_verdict: str | None = None
+    insight_statement: str | None = None

@@ -1,0 +1,658 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  /* 本页三栏需宽于 base.shell 默认 1120px */
+  body .shell {
+    max-width: 1600px;
+  }
+  .cp-shell-wrap {
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+  .cp-breadcrumb {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .cp-breadcrumb a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .cp-breadcrumb span.sep { color: var(--border); }
+  .cp-breadcrumb .current { color: var(--ink); font-weight: 700; }
+  .cp-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .cp-col-left {
+    width: 300px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+  }
+  .cp-col-mid {
+    flex: 1;
+    min-width: 0;
+  }
+  .cp-col-right {
+    width: 350px;
+    flex-shrink: 0;
+  }
+  .cp-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 8px 22px rgba(92, 66, 39, 0.06);
+  }
+  .cp-card h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .cp-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 8px 22px rgba(92, 66, 39, 0.06);
+  }
+  .cp-section h2 {
+    margin: 0 0 14px;
+    font-size: 17px;
+    color: var(--ink);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+  }
+  .cp-hook {
+    background: linear-gradient(135deg, rgba(138, 75, 47, 0.1), rgba(255, 253, 248, 0.9));
+    border: 1px solid rgba(138, 75, 47, 0.2);
+    border-radius: 14px;
+    padding: 14px 16px;
+    font-size: 15px;
+    line-height: 1.55;
+    margin: 10px 0;
+  }
+  .cp-slot-card {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 14px;
+    margin-bottom: 12px;
+    background: rgba(255, 255, 255, 0.65);
+  }
+  .cp-slot-head {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+  .cp-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .cp-tab {
+    border: 1px solid var(--border);
+    background: rgba(255, 253, 248, 0.8);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .cp-tab.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .cp-tab-panel { display: none; }
+  .cp-tab-panel.active { display: block; }
+  .cp-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .cp-badge.llm { background: #e8dff5; color: #5b2d8a; }
+  .cp-badge.rule { background: #e3efe8; color: #2d6a4f; }
+  .cp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .cp-btn {
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .cp-btn.secondary {
+    background: var(--surface);
+    color: var(--accent);
+  }
+  .cp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .cp-placeholder {
+    padding: 20px;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: 18px;
+    text-align: center;
+    font-size: 14px;
+  }
+  .cp-title-item {
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+  }
+  .cp-title-item:last-child { border-bottom: none; }
+  .cp-meta { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
+  @media (max-width: 1100px) {
+    .cp-layout { flex-direction: column; }
+    .cp-col-left, .cp-col-right { width: 100%; position: relative; top: 0; max-height: none; }
+  }
+</style>
+
+<div class="cp-shell-wrap" style="--accent: #8a4b2f; --surface: #fffdf8;">
+  <div class="headline" style="margin-bottom: 18px;">
+    <div class="cp-breadcrumb">
+      <a href="/xhs-opportunities">机会池</a>
+      <span class="sep">→</span>
+      <a href="/content-planning/brief/{{ opportunity_id }}">Brief 确认</a>
+      <span class="sep">→</span>
+      <a href="/content-planning/strategy/{{ opportunity_id }}">模板与策略</a>
+      <span class="sep">→</span>
+      <span class="current">内容策划</span>
+    </div>
+    <h2 style="margin: 0 0 6px; font-size: 22px;">内容策划工作站</h2>
+    <p class="meta" style="margin: 0;">机会 ID：<code>{{ opportunity_id }}</code></p>
+  </div>
+
+  <div class="cp-layout">
+    {# —— 左栏：上下文 —— #}
+    <aside class="cp-col-left">
+      <div class="cp-card">
+        <h3>机会摘要</h3>
+        <div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">{{ brief.opportunity_title | default('—', true) }}</div>
+        {% if brief.content_goal %}
+        <p class="meta" style="margin: 0 0 8px;"><strong>内容目标</strong>：{{ brief.content_goal }}</p>
+        {% endif %}
+        {% if brief.target_scene %}
+        <div class="chips" style="margin-top: 8px;">
+          {% for s in brief.target_scene %}
+          <span class="chip">{{ s }}</span>
+          {% endfor %}
+        </div>
+        {% elif not brief.content_goal %}
+        <p class="meta" style="margin: 0;">暂无场景标签</p>
+        {% endif %}
+      </div>
+
+      <div class="cp-card">
+        <h3>选定模板</h3>
+        {% set pt = match_result.primary_template if match_result else none %}
+        {% if pt %}
+        <div style="font-weight: 700;">{{ pt.template_name | default('—', true) }}</div>
+        <p class="meta" style="margin: 6px 0 0;">匹配分：<strong style="color: var(--accent);">{{ (pt.score | default(0) | float) | round(2) }}</strong></p>
+        {% else %}
+        <p class="meta" style="margin: 0;">—</p>
+        {% endif %}
+      </div>
+
+      <div class="cp-card">
+        <h3>策略摘要</h3>
+        {% if strategy.positioning_statement %}
+        <p class="meta" style="margin: 0 0 10px; line-height: 1.5;"><strong>定位</strong>：{{ strategy.positioning_statement }}</p>
+        {% endif %}
+        {% if strategy.tone_of_voice %}
+        <p class="meta" style="margin: 0; line-height: 1.5;"><strong>语气</strong>：{{ strategy.tone_of_voice }}</p>
+        {% endif %}
+        {% if not strategy.positioning_statement and not strategy.tone_of_voice %}
+        <p class="meta" style="margin: 0;">—</p>
+        {% endif %}
+      </div>
+    </aside>
+
+    {# —— 中栏：NewNotePlan —— #}
+    <main class="cp-col-mid">
+      {% set tp = note_plan.title_plan if note_plan else none %}
+      {% set bp = note_plan.body_plan if note_plan else none %}
+
+      <section class="cp-section">
+        <h2>A. 标题策划</h2>
+        {% if tp and tp.title_axes %}
+        <div class="chips" style="margin-bottom: 12px;">
+          {% for ax in tp.title_axes %}
+          <span class="chip">{{ ax }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if tp and tp.candidate_titles %}
+        <p class="meta" style="margin: 0 0 6px; font-weight: 700;">候选标题</p>
+        <ol style="margin: 0; padding-left: 1.2em; line-height: 1.65;">
+          {% for t in tp.candidate_titles %}
+          <li style="margin-bottom: 6px;">{{ t }}</li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+        {% if tp and tp.do_not_use_phrases %}
+        <p class="meta" style="margin: 14px 0 6px; font-weight: 700;">禁用措辞</p>
+        <div class="chips">
+          {% for ph in tp.do_not_use_phrases %}
+          <span class="chip" style="background: #fde8e8; color: #b42318;">{{ ph }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if not tp or (not tp.title_axes and not tp.candidate_titles and not tp.do_not_use_phrases) %}
+        <p class="meta" style="margin: 0;">暂无标题策划数据</p>
+        {% endif %}
+      </section>
+
+      <section class="cp-section">
+        <h2>B. 正文策划</h2>
+        {% if bp and bp.opening_hook %}
+        <p class="meta" style="margin: 0 0 6px; font-weight: 700;">开篇钩子</p>
+        <div class="cp-hook">{{ bp.opening_hook }}</div>
+        {% endif %}
+        {% if bp and bp.body_outline %}
+        <p class="meta" style="margin: 0 0 6px; font-weight: 700;">正文提纲</p>
+        <ol style="margin: 0 0 12px; padding-left: 1.2em; line-height: 1.65;">
+          {% for line in bp.body_outline %}
+          <li style="margin-bottom: 6px;">{{ line }}</li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+        {% if bp and bp.cta_direction %}
+        <p class="meta" style="margin: 0 0 4px; font-weight: 700;">行动号召方向</p>
+        <p style="margin: 0 0 12px; line-height: 1.55;">{{ bp.cta_direction }}</p>
+        {% endif %}
+        {% if bp and bp.tone_notes %}
+        <p class="meta" style="margin: 0 0 6px; font-weight: 700;">语气备注</p>
+        <ul style="margin: 0; padding-left: 1.2em; line-height: 1.55;">
+          {% for n in bp.tone_notes %}
+          <li style="margin-bottom: 4px;">{{ n }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if not bp or (not bp.opening_hook and not bp.body_outline and not bp.cta_direction and not bp.tone_notes) %}
+        <p class="meta" style="margin: 0;">暂无正文策划数据</p>
+        {% endif %}
+      </section>
+
+      <section class="cp-section">
+        <h2>C. 图片策划</h2>
+        {% if note_plan and note_plan.image_plan and note_plan.image_plan.image_slots %}
+        {% for slot in note_plan.image_plan.image_slots %}
+        <div class="cp-slot-card">
+          <div class="cp-slot-head">槽位 {{ slot.slot_index | default(loop.index0 + 1) }} · {{ slot.role | default('—') }} · {{ slot.intent | default('') }}</div>
+          {% if slot.visual_brief %}
+          <p class="meta" style="margin: 0 0 8px; line-height: 1.5;"><strong>视觉 brief</strong>：{{ slot.visual_brief }}</p>
+          {% endif %}
+          {% if slot.copy_hints %}
+          <p class="meta" style="margin: 0 0 4px;">文案提示</p>
+          <div class="chips" style="margin-bottom: 8px;">
+            {% for h in slot.copy_hints %}
+            <span class="chip">{{ h }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if slot.must_include_elements %}
+          <p class="meta" style="margin: 0 0 4px;">必须包含</p>
+          <div class="chips" style="margin-bottom: 8px;">
+            {% for el in slot.must_include_elements %}
+            <span class="chip" style="background: #e3f5e8; color: #1b6b3a;">{{ el }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if slot.avoid_elements %}
+          <p class="meta" style="margin: 0 0 4px;">避免元素</p>
+          <div class="chips">
+            {% for el in slot.avoid_elements %}
+            <span class="chip" style="background: #fde8e8; color: #b42318;">{{ el }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="meta" style="margin: 0;">暂无图片策划（image_plan）</p>
+        {% endif %}
+      </section>
+    </main>
+
+    {# —— 右栏：生成结果 Tab —— #}
+    <aside class="cp-col-right">
+      <div class="cp-section" style="margin-bottom: 0;">
+        <h2 style="border: none; padding-bottom: 0;">生成结果</h2>
+        <div class="cp-tabs" role="tablist">
+          <button type="button" class="cp-tab active" data-tab="tab-titles" role="tab" aria-selected="true">标题候选</button>
+          <button type="button" class="cp-tab" data-tab="tab-body" role="tab" aria-selected="false">正文草稿</button>
+          <button type="button" class="cp-tab" data-tab="tab-images" role="tab" aria-selected="false">图片执行指令</button>
+        </div>
+
+        <div id="tab-titles" class="cp-tab-panel active" role="tabpanel">
+          {% if generated and generated.titles and generated.titles.titles %}
+          {% set tr = generated.titles %}
+          <div class="cp-badge {{ 'llm' if (tr.mode | default('rule') | string | lower) == 'llm' else 'rule' }}">{{ '大模型' if (tr.mode | default('rule') | string | lower) == 'llm' else '规则' }}</div>
+          {% for item in tr.titles %}
+          <div class="cp-title-item">
+            <div style="font-weight: 700; font-size: 15px; line-height: 1.4;">{{ loop.index }}. {{ item.title_text | default('—', true) }}</div>
+            {% if item.axis %}
+            <span class="chip" style="margin-top: 8px; display: inline-block;">{{ item.axis }}</span>
+            {% endif %}
+            {% if item.rationale %}
+            <div class="cp-meta">理由：{{ item.rationale }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="cp-placeholder">点击下方按钮生成</div>
+          {% endif %}
+        </div>
+
+        <div id="tab-body" class="cp-tab-panel" role="tabpanel">
+          {% if generated and generated.body %}
+          {% set br = generated.body %}
+          <div class="cp-badge {{ 'llm' if (br.mode | default('rule') | string | lower) == 'llm' else 'rule' }}">{{ '大模型' if (br.mode | default('rule') | string | lower) == 'llm' else '规则' }}</div>
+          {% if br.opening_hook %}
+          <p class="meta" style="margin: 0 0 4px; font-weight: 700;">开篇钩子</p>
+          <div class="cp-hook" style="margin-bottom: 12px;">{{ br.opening_hook }}</div>
+          {% endif %}
+          {% if br.body_outline %}
+          <p class="meta" style="margin: 0 0 6px; font-weight: 700;">正文提纲</p>
+          <ol style="margin: 0 0 12px; padding-left: 1.2em; line-height: 1.55;">
+            {% for line in br.body_outline %}
+            <li style="margin-bottom: 4px;">{{ line }}</li>
+            {% endfor %}
+          </ol>
+          {% endif %}
+          {% if br.body_draft %}
+          <p class="meta" style="margin: 0 0 6px; font-weight: 700;">正文草稿</p>
+          <div style="font-size: 14px; line-height: 1.6; white-space: pre-wrap;">{{ br.body_draft }}</div>
+          {% endif %}
+          {% if br.cta_text %}
+          <p class="meta" style="margin: 12px 0 4px; font-weight: 700;">CTA 文案</p>
+          <p style="margin: 0; line-height: 1.5;">{{ br.cta_text }}</p>
+          {% endif %}
+          {% if br.tone_check %}
+          <p class="meta" style="margin: 12px 0 4px; font-weight: 700;">语气自检</p>
+          <p style="margin: 0; line-height: 1.5;">{{ br.tone_check }}</p>
+          {% endif %}
+          {% else %}
+          <div class="cp-placeholder">暂无正文生成结果，请点击下方按钮生成</div>
+          {% endif %}
+        </div>
+
+        <div id="tab-images" class="cp-tab-panel" role="tabpanel">
+          {% if generated and generated.image_briefs and generated.image_briefs.slot_briefs %}
+          {% set ir = generated.image_briefs %}
+          <div class="cp-badge {{ 'llm' if (ir.mode | default('rule') | string | lower) == 'llm' else 'rule' }}">{{ '大模型' if (ir.mode | default('rule') | string | lower) == 'llm' else '规则' }}</div>
+          {% for sb in ir.slot_briefs %}
+          <div class="cp-slot-card">
+            <div class="cp-slot-head">槽位 {{ sb.slot_index | default(loop.index) }} · {{ sb.role | default('—') }}</div>
+            {% if sb.subject %}<p class="meta" style="margin: 0 0 4px;"><strong>主体</strong>：{{ sb.subject }}</p>{% endif %}
+            {% if sb.composition %}<p class="meta" style="margin: 0 0 4px;"><strong>构图</strong>：{{ sb.composition }}</p>{% endif %}
+            {% if sb.props %}
+            <p class="meta" style="margin: 6px 0 2px;">道具</p>
+            <div class="chips" style="margin-bottom: 6px;">
+              {% for p in sb.props %}<span class="chip">{{ p }}</span>{% endfor %}
+            </div>
+            {% endif %}
+            {% if sb.text_overlay %}<p class="meta" style="margin: 0 0 4px;"><strong>叠字</strong>：{{ sb.text_overlay }}</p>{% endif %}
+            {% if sb.color_mood %}<p class="meta" style="margin: 0 0 4px;"><strong>色彩情绪</strong>：{{ sb.color_mood }}</p>{% endif %}
+            {% if sb.avoid_items %}
+            <p class="meta" style="margin: 6px 0 2px;">避免项</p>
+            <div class="chips">
+              {% for a in sb.avoid_items %}
+              <span class="chip" style="background: #fde8e8; color: #b42318;">{{ a }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="cp-placeholder">暂无图片执行指令，请点击下方按钮生成</div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="cp-actions">
+    <button type="button" class="cp-btn" id="btn-gen-titles">重新生成标题</button>
+    <button type="button" class="cp-btn" id="btn-gen-body">重新生成正文</button>
+    <button type="button" class="cp-btn" id="btn-gen-images">重新生成图片指令</button>
+    <button type="button" class="cp-btn secondary" id="btn-export-json">导出 JSON</button>
+    <button type="button" class="cp-btn secondary" id="btn-export-md">导出 Markdown</button>
+  </div>
+</div>
+
+<script type="application/json" id="cp-plan-data">
+{{ {
+  "opportunity_id": opportunity_id,
+  "brief": brief,
+  "strategy": strategy,
+  "note_plan": note_plan,
+  "generated": generated,
+  "match_result": match_result
+} | tojson }}
+</script>
+
+<script>
+(function () {
+  var apiPrefix = {{ (api_prefix | default('/content-planning')) | tojson }};
+  var opportunityId = {{ opportunity_id | tojson }};
+  var base = apiPrefix.replace(/\/$/, '') + '/xhs-opportunities/' + encodeURIComponent(opportunityId);
+
+  function switchTab(id) {
+    document.querySelectorAll('.cp-tab').forEach(function (btn) {
+      var on = btn.getAttribute('data-tab') === id;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.cp-tab-panel').forEach(function (panel) {
+      panel.classList.toggle('active', panel.id === id);
+    });
+  }
+
+  document.querySelectorAll('.cp-tab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      switchTab(btn.getAttribute('data-tab'));
+    });
+  });
+
+  function postRegenerate(pathSuffix, btn) {
+    var url = base + pathSuffix;
+    if (btn) { btn.disabled = true; }
+    fetch(url, { method: 'POST', headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function () { window.location.reload(); })
+      .catch(function (e) {
+        alert('请求失败：' + (e && e.message ? e.message : e));
+        if (btn) { btn.disabled = false; }
+      });
+  }
+
+  document.getElementById('btn-gen-titles').addEventListener('click', function () {
+    postRegenerate('/generate-titles', this);
+  });
+  document.getElementById('btn-gen-body').addEventListener('click', function () {
+    postRegenerate('/generate-body', this);
+  });
+  document.getElementById('btn-gen-images').addEventListener('click', function () {
+    postRegenerate('/generate-image-briefs', this);
+  });
+
+  function readPlanData() {
+    var el = document.getElementById('cp-plan-data');
+    if (!el || !el.textContent) return {};
+    try { return JSON.parse(el.textContent); } catch (e) { return {}; }
+  }
+
+  function downloadBlob(filename, mime, text) {
+    var blob = new Blob([text], { type: mime });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  document.getElementById('btn-export-json').addEventListener('click', function () {
+    var data = readPlanData();
+    downloadBlob('content-plan-' + opportunityId + '.json', 'application/json;charset=utf-8',
+      JSON.stringify(data, null, 2));
+  });
+
+  function mdEscape(s) {
+    if (s == null) return '';
+    return String(s).replace(/\|/g, '\\|');
+  }
+
+  function buildMarkdown(d) {
+    var lines = [];
+    lines.push('# 内容策划导出');
+    lines.push('');
+    lines.push('**机会 ID**：`' + mdEscape(d.opportunity_id) + '`');
+    lines.push('');
+    lines.push('## 机会摘要');
+    if (d.brief) {
+      lines.push('- **标题**：' + mdEscape(d.brief.opportunity_title));
+      lines.push('- **内容目标**：' + mdEscape(d.brief.content_goal));
+      if (d.brief.target_scene && d.brief.target_scene.length) {
+        lines.push('- **目标场景**：' + d.brief.target_scene.map(mdEscape).join('、'));
+      }
+    }
+    lines.push('');
+    lines.push('## 模板匹配');
+    if (d.match_result && d.match_result.primary_template) {
+      var pt = d.match_result.primary_template;
+      lines.push('- **模板**：' + mdEscape(pt.template_name));
+      lines.push('- **得分**：' + String(pt.score));
+    }
+    lines.push('');
+    lines.push('## 策略');
+    if (d.strategy) {
+      lines.push('- **定位**：' + mdEscape(d.strategy.positioning_statement));
+      lines.push('- **语气**：' + mdEscape(d.strategy.tone_of_voice));
+    }
+    lines.push('');
+    lines.push('## 标题策划');
+    var np = d.note_plan;
+    if (np && np.title_plan) {
+      var tp = np.title_plan;
+      if (tp.title_axes && tp.title_axes.length) lines.push('**轴**：' + tp.title_axes.map(mdEscape).join('；'));
+      if (tp.candidate_titles && tp.candidate_titles.length) {
+        lines.push('');
+        tp.candidate_titles.forEach(function (t, i) { lines.push((i + 1) + '. ' + mdEscape(t)); });
+      }
+      if (tp.do_not_use_phrases && tp.do_not_use_phrases.length) {
+        lines.push('');
+        lines.push('**禁用**：' + tp.do_not_use_phrases.map(mdEscape).join('、'));
+      }
+    }
+    lines.push('');
+    lines.push('## 正文策划');
+    if (np && np.body_plan) {
+      var bp = np.body_plan;
+      if (bp.opening_hook) { lines.push('### 开篇钩子'); lines.push(mdEscape(bp.opening_hook)); lines.push(''); }
+      if (bp.body_outline && bp.body_outline.length) {
+        lines.push('### 提纲');
+        bp.body_outline.forEach(function (x, i) { lines.push((i + 1) + '. ' + mdEscape(x)); });
+        lines.push('');
+      }
+      if (bp.cta_direction) { lines.push('### CTA 方向'); lines.push(mdEscape(bp.cta_direction)); lines.push(''); }
+      if (bp.tone_notes && bp.tone_notes.length) {
+        lines.push('### 语气备注');
+        bp.tone_notes.forEach(function (n) { lines.push('- ' + mdEscape(n)); });
+        lines.push('');
+      }
+    }
+    lines.push('## 图片策划');
+    if (np && np.image_plan && np.image_plan.image_slots && np.image_plan.image_slots.length) {
+      np.image_plan.image_slots.forEach(function (slot) {
+        lines.push('### 槽位 ' + String(slot.slot_index));
+        lines.push('- **角色**：' + mdEscape(slot.role));
+        lines.push('- **意图**：' + mdEscape(slot.intent));
+        lines.push('- **视觉**：' + mdEscape(slot.visual_brief));
+        if (slot.copy_hints && slot.copy_hints.length) lines.push('- **文案提示**：' + slot.copy_hints.map(mdEscape).join('、'));
+        if (slot.must_include_elements && slot.must_include_elements.length) lines.push('- **必须包含**：' + slot.must_include_elements.map(mdEscape).join('、'));
+        if (slot.avoid_elements && slot.avoid_elements.length) lines.push('- **避免**：' + slot.avoid_elements.map(mdEscape).join('、'));
+        lines.push('');
+      });
+    } else {
+      lines.push('_无_');
+      lines.push('');
+    }
+    lines.push('## 生成结果');
+    var g = d.generated;
+    if (g && g.titles && g.titles.titles && g.titles.titles.length) {
+      lines.push('### 标题候选（' + mdEscape(g.titles.mode) + '）');
+      g.titles.titles.forEach(function (t, i) {
+        lines.push((i + 1) + '. **' + mdEscape(t.title_text) + '**（轴：' + mdEscape(t.axis) + '）');
+        if (t.rationale) lines.push('   - ' + mdEscape(t.rationale));
+      });
+      lines.push('');
+    }
+    if (g && g.body) {
+      var b = g.body;
+      lines.push('### 正文草稿（' + mdEscape(b.mode) + '）');
+      if (b.opening_hook) { lines.push(mdEscape(b.opening_hook)); lines.push(''); }
+      if (b.body_outline && b.body_outline.length) b.body_outline.forEach(function (x, i) { lines.push((i + 1) + '. ' + mdEscape(x)); });
+      if (b.body_draft) { lines.push(mdEscape(b.body_draft)); lines.push(''); }
+      if (b.cta_text) lines.push('**CTA**：' + mdEscape(b.cta_text));
+      if (b.tone_check) lines.push('**语气自检**：' + mdEscape(b.tone_check));
+      lines.push('');
+    }
+    if (g && g.image_briefs && g.image_briefs.slot_briefs && g.image_briefs.slot_briefs.length) {
+      lines.push('### 图片指令（' + mdEscape(g.image_briefs.mode) + '）');
+      g.image_briefs.slot_briefs.forEach(function (sb) {
+        lines.push('#### 槽位 ' + String(sb.slot_index));
+        lines.push('- 主体：' + mdEscape(sb.subject));
+        lines.push('- 构图：' + mdEscape(sb.composition));
+        if (sb.props && sb.props.length) lines.push('- 道具：' + sb.props.map(mdEscape).join('、'));
+        lines.push('- 叠字：' + mdEscape(sb.text_overlay));
+        lines.push('- 色彩：' + mdEscape(sb.color_mood));
+        if (sb.avoid_items && sb.avoid_items.length) lines.push('- 避免：' + sb.avoid_items.map(mdEscape).join('、'));
+        lines.push('');
+      });
+    }
+    return lines.join('\n');
+  }
+
+  document.getElementById('btn-export-md').addEventListener('click', function () {
+    var md = buildMarkdown(readPlanData());
+    downloadBlob('content-plan-' + opportunityId + '.md', 'text/markdown;charset=utf-8', md);
+  });
+})();
+</script>
+{% endblock %}

@@ -297,7 +297,25 @@
         </div>
       </div>
 
-      <h2 style="margin: 0 0 10px;">{{ card.title }}</h2>
+      <h2 style="margin: 0 0 8px;">{{ card.title }}</h2>
+
+      {% if card.insight_statement %}
+      <div style="margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: linear-gradient(135deg, #fff8e1, #fff3e0); border: 1px solid #ffe0b2;">
+        <div style="font-size: 14px; font-weight: 600; color: #e65100; line-height: 1.5;">{{ card.insight_statement }}</div>
+      </div>
+      {% endif %}
+
+      {% if card.engagement_insight or card.cross_modal_verdict %}
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+        {% if card.engagement_insight %}
+        <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; background: #e8f5e9; color: #2e7d32;">{{ card.engagement_insight }}</span>
+        {% endif %}
+        {% if card.cross_modal_verdict %}
+        <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; background: #e3f2fd; color: #1565c0;">{{ card.cross_modal_verdict }}</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <p style="margin: 0 0 16px; color: var(--muted); font-size: 15px; line-height: 1.6;">{{ card.summary }}</p>
 
       <!-- 标签 -->

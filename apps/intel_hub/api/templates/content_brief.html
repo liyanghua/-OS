@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .cp-brief-shell { max-width: 1480px; margin: 0 auto; }
+  .cp-brief-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    width: 100%;
+  }
+  .cp-brief-left {
+    width: 380px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+  }
+  .cp-brief-mid {
+    flex: 1;
+    min-width: 0;
+  }
+  .cp-brief-right {
+    width: 320px;
+    flex-shrink: 0;
+  }
+  .cp-field-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin: 0 0 6px;
+  }
+  .cp-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .cp-form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .cp-form-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--ink);
+    margin-bottom: 14px;
+  }
+  .cp-form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(138, 75, 47, 0.15);
+  }
+  .cp-btn {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    border: none;
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    margin-bottom: 10px;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .cp-btn:active { transform: scale(0.99); }
+  .cp-btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .cp-btn-secondary {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid rgba(138, 75, 47, 0.25);
+  }
+  .cp-btn-ghost {
+    background: var(--surface);
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  .cp-breadcrumb {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .cp-breadcrumb a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .cp-breadcrumb .current {
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .cp-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .cp-chip {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+  .cp-proof-list {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  #cp-save-status {
+    font-size: 12px;
+    margin-top: 8px;
+    min-height: 18px;
+  }
+</style>
+
+<div class="cp-brief-shell">
+  <div style="margin-bottom: 16px;">
+    <a href="/xhs-opportunities" style="color: var(--accent); text-decoration: none; font-size: 14px;">&larr; 返回机会池</a>
+  </div>
+
+  <div class="headline" style="margin-bottom: 20px;">
+    <h2 style="margin: 0 0 6px; font-size: 20px;">内容策划工作台</h2>
+    <p class="meta" style="margin: 0;">第 2 步：Brief 确认 · 机会 ID <code>{{ opportunity_id }}</code></p>
+  </div>
+
+  <div class="cp-brief-row">
+    <!-- 左栏 -->
+    <aside class="cp-brief-left">
+      <div class="cp-field-label">来源上下文</div>
+      {% if source_notes %}
+      {% set note = source_notes[0].note_context %}
+      <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 14px;">
+        {% if note.cover_image %}
+        <div style="position: relative;">
+          <img src="{{ note.cover_image }}" alt="封面" style="width: 100%; display: block; max-height: 220px; object-fit: cover;" loading="lazy"
+            onerror="this.parentElement.style.display='none'">
+        </div>
+        {% endif %}
+        <div style="padding: 14px 16px;">
+          <h3 style="margin: 0 0 8px; font-size: 15px; line-height: 1.4;">{{ note.title or '（无标题）' }}</h3>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">
+            @{{ note.author_name or '未知作者' }}
+            {% if note.note_url %}
+            <a href="{{ note.note_url }}" target="_blank" rel="noopener noreferrer" style="margin-left: 8px; color: var(--accent); text-decoration: none; font-size: 11px;">查看原文</a>
+            {% endif %}
+          </div>
+          <div style="font-size: 13px; line-height: 1.65; color: var(--ink); max-height: 200px; overflow-y: auto; white-space: pre-wrap;">{{ note.body or '' }}</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty" style="border-radius: 18px; margin-bottom: 14px;">暂无来源笔记上下文</div>
+      {% endif %}
+
+      <div class="cp-field-label">机会卡摘要</div>
+      <div class="card" style="background: linear-gradient(135deg, var(--accent-soft), rgba(255,253,248,0.95)); border-color: rgba(138, 75, 47, 0.22); margin-bottom: 14px;">
+        <div style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">{{ card.title or '—' }}</div>
+        <p class="meta" style="margin: 0 0 10px; line-height: 1.5;">{{ card.summary or '—' }}</p>
+        <div class="chips" style="margin-top: 0;">
+          <span class="chip">{{ card.opportunity_type or '—' }}</span>
+          {% if card.confidence is defined and card.confidence is not none %}
+          <span class="chip">置信度 {{ '%.2f'|format(card.confidence) }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% set rs = review_summary if review_summary is not none else {} %}
+      <div class="cp-field-label">检视汇总</div>
+      <div class="card" style="border-radius: 18px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
+          <div>
+            <div style="font-size: 22px; font-weight: 800; color: var(--accent);">{{ rs['review_count'] if rs and 'review_count' in rs else 0 }}</div>
+            <div class="meta" style="font-size: 11px;">检视条数</div>
+          </div>
+          <div>
+            {% set avgq = rs['avg_quality_score'] if rs and 'avg_quality_score' in rs else none %}
+            <div style="font-size: 22px; font-weight: 800; color: var(--accent);">
+              {% if avgq is not none %}{{ avgq }}{% else %}—{% endif %}
+            </div>
+            <div class="meta" style="font-size: 11px;">平均质量分</div>
+          </div>
+          <div>
+            <div style="font-size: 22px; font-weight: 800; color: var(--accent);">{{ rs['actionable_count'] if rs and 'actionable_count' in rs else 0 }}</div>
+            <div class="meta" style="font-size: 11px;">可执行条数</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 中栏 -->
+    <main class="cp-brief-mid">
+      {% if brief %}
+      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+          <span class="cp-badge">
+            {% if brief.brief_status == 'draft' %}草稿
+            {% elif brief.brief_status == 'generated' %}已生成
+            {% elif brief.brief_status == 'reviewed' %}已审阅
+            {% elif brief.brief_status == 'approved' %}已定稿
+            {% else %}{{ brief.brief_status or '—' }}{% endif %}
+          </span>
+          {% if brief.opportunity_type %}<span class="meta">类型 · {{ brief.opportunity_type }}</span>{% endif %}
+        </div>
+        <h3 style="margin: 0 0 8px; font-size: 18px;">{{ brief.opportunity_title or '—' }}</h3>
+        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: var(--muted);">{{ brief.opportunity_summary or '—' }}</p>
+      </div>
+
+      {% if brief.why_worth_doing or brief.competitive_angle or brief.engagement_proof or brief.cross_modal_confidence_label %}
+      <div class="card" style="margin-bottom: 14px; border-radius: 18px; background: linear-gradient(135deg, #fffde7, #fff8e1); border: 1px solid #ffe082;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <div class="cp-field-label" style="margin: 0; color: #e65100;">策划层洞察</div>
+          {% if brief.cross_modal_confidence_label %}
+          <span style="font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+            {% if '高置信' in (brief.cross_modal_confidence_label or '') %}background: #c8e6c9; color: #2e7d32;
+            {% elif '中置信' in (brief.cross_modal_confidence_label or '') %}background: #fff9c4; color: #f57f17;
+            {% else %}background: #ffcdd2; color: #c62828;{% endif %}">
+            {{ brief.cross_modal_confidence_label }}
+          </span>
+          {% endif %}
+        </div>
+
+        {% if brief.why_worth_doing %}
+        <div style="margin-bottom: 10px;">
+          <div style="font-size: 11px; font-weight: 600; color: #bf360c; margin-bottom: 4px;">为什么值得做</div>
+          <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #4e342e; font-weight: 500;">{{ brief.why_worth_doing }}</p>
+        </div>
+        {% endif %}
+
+        {% if brief.competitive_angle %}
+        <div style="margin-bottom: 10px;">
+          <div style="font-size: 11px; font-weight: 600; color: #bf360c; margin-bottom: 4px;">差异化切入</div>
+          <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #4e342e;">{{ brief.competitive_angle }}</p>
+        </div>
+        {% endif %}
+
+        {% if brief.engagement_proof %}
+        <div>
+          <div style="font-size: 11px; font-weight: 600; color: #bf360c; margin-bottom: 4px;">互动数据佐证</div>
+          <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #6d4c41;">{{ brief.engagement_proof }}</p>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
+        <div class="cp-field-label" style="margin-top: 0;">受众与场景</div>
+        <div class="cp-chip-row">
+          {% for t in brief.target_user or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+        </div>
+        <div class="cp-field-label" style="margin-top: 12px;">场景</div>
+        <div class="cp-chip-row">
+          {% for t in brief.target_scene or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
+        <div class="cp-field-label" style="margin-top: 0;">动机与目标</div>
+        <p style="margin: 0 0 10px; font-size: 14px; line-height: 1.6;"><strong>核心动机</strong> · {{ brief.core_motive or '—' }}</p>
+        <p style="margin: 0 0 10px; font-size: 14px; line-height: 1.6;"><strong>内容目标</strong> · {{ brief.content_goal or '—' }}</p>
+        <p style="margin: 0; font-size: 14px; line-height: 1.6;"><strong>主价值</strong> · {{ brief.primary_value or '—' }}</p>
+      </div>
+
+      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
+        <div class="cp-field-label" style="margin-top: 0;">次要价值与视觉</div>
+        <div class="cp-chip-row">
+          {% for t in brief.secondary_values or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+        </div>
+        <div class="cp-field-label" style="margin-top: 12px;">视觉风格方向</div>
+        <div class="cp-chip-row">
+          {% for t in brief.visual_style_direction or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
+        <div class="cp-field-label" style="margin-top: 0;">定位与平台</div>
+        <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6;"><strong>价格定位</strong> · {{ brief.price_positioning or '—' }}</p>
+        <p style="margin: 0; font-size: 14px; line-height: 1.6;"><strong>平台表达</strong> · {{ brief.platform_expression or '—' }}</p>
+      </div>
+
+      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
+        <div class="cp-field-label" style="margin-top: 0;">模板提示与规避</div>
+        <div class="cp-field-label" style="text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--ink);">模板线索</div>
+        <div class="cp-chip-row">
+          {% for t in brief.template_hints or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+        </div>
+        <div class="cp-field-label" style="margin-top: 12px; text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--ink);">避免方向</div>
+        <div class="cp-chip-row">
+          {% for t in brief.avoid_directions or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
+        <div class="cp-field-label" style="margin-top: 0;">来源佐证</div>
+        {% if brief.proof_from_source %}
+        <ul class="cp-proof-list">
+          {% for p in brief.proof_from_source %}
+          <li>{{ p }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="meta" style="margin: 0;">—</p>
+        {% endif %}
+      </div>
+
+      <div class="card" style="border-radius: 18px;">
+        <div class="cp-field-label" style="margin-top: 0;">证据摘要</div>
+        <p style="margin: 0 0 14px; font-size: 14px; line-height: 1.65;">{{ brief.evidence_summary or '—' }}</p>
+        <div class="cp-field-label">约束条件</div>
+        {% if brief.constraints %}
+        <ul class="cp-proof-list" style="margin-bottom: 14px;">
+          {% for c in brief.constraints %}
+          <li>{{ c }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="meta" style="margin: 0 0 14px;">—</p>
+        {% endif %}
+        <div class="cp-field-label">建议方向</div>
+        <p style="margin: 0; font-size: 14px; line-height: 1.65;">{{ brief.suggested_direction or '—' }}</p>
+      </div>
+      {% else %}
+      <div class="empty" style="border-radius: 18px;">暂无 Brief，请先点击右侧「重新生成 Brief」。</div>
+      {% endif %}
+    </main>
+
+    <!-- 右栏 -->
+    <aside class="cp-brief-right">
+      <div class="card" style="border-radius: 18px;">
+        <h3 style="margin: 0 0 16px; font-size: 16px;">人工修订</h3>
+
+        <label class="cp-form-label" for="cp-target-user">目标用户（逗号分隔）</label>
+        <input class="cp-form-input" id="cp-target-user" type="text" autocomplete="off"
+          value="{{ (((brief.target_user or []) | join(', ')) if brief else '') | e }}" placeholder="例如：宝妈, 新客">
+
+        <label class="cp-form-label" for="cp-target-scene">目标场景（逗号分隔）</label>
+        <input class="cp-form-input" id="cp-target-scene" type="text" autocomplete="off"
+          value="{{ (((brief.target_scene or []) | join(', ')) if brief else '') | e }}" placeholder="例如：下午茶, 居家">
+
+        <label class="cp-form-label" for="cp-content-goal">内容目标</label>
+        <input class="cp-form-input" id="cp-content-goal" type="text" autocomplete="off"
+          value="{{ (((brief.content_goal or '') if brief else '')) | e }}">
+
+        <label class="cp-form-label" for="cp-primary-value">主价值</label>
+        <input class="cp-form-input" id="cp-primary-value" type="text" autocomplete="off"
+          value="{{ (((brief.primary_value or '') if brief else '')) | e }}">
+
+        <label class="cp-form-label" for="cp-visual-style">视觉风格方向（逗号分隔）</label>
+        <input class="cp-form-input" id="cp-visual-style" type="text" autocomplete="off"
+          value="{{ (((brief.visual_style_direction or []) | join(', ')) if brief else '') | e }}">
+
+        <label class="cp-form-label" for="cp-avoid">避免方向（逗号分隔）</label>
+        <input class="cp-form-input" id="cp-avoid" type="text" autocomplete="off"
+          value="{{ (((brief.avoid_directions or []) | join(', ')) if brief else '') | e }}">
+
+        <label class="cp-form-label" for="cp-template-hints">模板线索（逗号分隔）</label>
+        <input class="cp-form-input" id="cp-template-hints" type="text" autocomplete="off"
+          value="{{ (((brief.template_hints or []) | join(', ')) if brief else '') | e }}">
+
+        <div style="border-top: 1px solid var(--border); margin: 8px 0 14px; padding-top: 14px;">
+          <div class="cp-field-label" style="margin-bottom: 10px; color: #e65100;">洞察修订</div>
+        </div>
+
+        <label class="cp-form-label" for="cp-why-worth">为什么值得做</label>
+        <textarea class="cp-form-input" id="cp-why-worth" rows="2" style="resize: vertical;">{{ ((brief.why_worth_doing or '') if brief else '') | e }}</textarea>
+
+        <label class="cp-form-label" for="cp-competitive">差异化切入</label>
+        <textarea class="cp-form-input" id="cp-competitive" rows="2" style="resize: vertical;">{{ ((brief.competitive_angle or '') if brief else '') | e }}</textarea>
+
+        <button type="button" class="cp-btn cp-btn-primary" id="cp-btn-save">保存修订</button>
+        <button type="button" class="cp-btn cp-btn-secondary" id="cp-btn-regen">重新生成 Brief</button>
+        <a class="cp-btn cp-btn-ghost" id="cp-btn-next" href="/content-planning/strategy/{{ opportunity_id }}">下一步：模板匹配 →</a>
+
+        <div id="cp-save-status" class="meta" aria-live="polite"></div>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="cp-breadcrumb" aria-label="面包屑">
+    <a href="/xhs-opportunities">机会池</a>
+    <span aria-hidden="true">→</span>
+    <span class="current">Brief 确认</span>
+    <span aria-hidden="true">→</span>
+    <a href="/content-planning/strategy/{{ opportunity_id }}">模板与策略</a>
+    <span aria-hidden="true">→</span>
+    <span class="meta">内容策划</span>
+  </nav>
+</div>
+
+<script>
+(function () {
+  var opportunityId = {{ opportunity_id | tojson }};
+
+  function splitTags(s) {
+    if (!s || typeof s !== 'string') return [];
+    return s.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+
+  function strOrNull(el) {
+    var v = (el && el.value) ? el.value.trim() : '';
+    return v.length ? v : null;
+  }
+
+  var statusEl = document.getElementById('cp-save-status');
+
+  function setStatus(msg, isError) {
+    if (!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.style.color = isError ? '#b71c1c' : 'var(--muted)';
+    if (msg && !isError) statusEl.style.color = 'var(--accent)';
+  }
+
+  document.getElementById('cp-btn-save').addEventListener('click', function () {
+    setStatus('保存中…', false);
+    var body = {
+      target_user: splitTags(document.getElementById('cp-target-user').value),
+      target_scene: splitTags(document.getElementById('cp-target-scene').value),
+      content_goal: strOrNull(document.getElementById('cp-content-goal')),
+      primary_value: strOrNull(document.getElementById('cp-primary-value')),
+      visual_style_direction: splitTags(document.getElementById('cp-visual-style').value),
+      avoid_directions: splitTags(document.getElementById('cp-avoid').value),
+      template_hints: splitTags(document.getElementById('cp-template-hints').value),
+      why_worth_doing: strOrNull(document.getElementById('cp-why-worth')),
+      competitive_angle: strOrNull(document.getElementById('cp-competitive'))
+    };
+
+    fetch('/content-planning/briefs/' + encodeURIComponent(opportunityId), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = { _raw: text };
+          }
+          return { ok: res.ok, status: res.status, data: data, raw: text };
+        });
+      })
+      .then(function (r) {
+        if (r.ok) {
+          setStatus('已保存', false);
+        } else {
+          var d = r.data;
+          var detail = d && (d.detail || d.message);
+          if (detail == null && r.raw) detail = r.raw;
+          if (detail == null) detail = '未知错误';
+          if (typeof detail !== 'string') detail = JSON.stringify(detail);
+          setStatus('保存失败（' + r.status + '）：' + detail, true);
+        }
+      })
+      .catch(function (err) {
+        setStatus('保存失败：' + (err && err.message ? err.message : String(err)), true);
+      });
+  });
+
+  document.getElementById('cp-btn-regen').addEventListener('click', function () {
+    setStatus('正在重新生成…', false);
+    fetch('/content-planning/xhs-opportunities/' + encodeURIComponent(opportunityId) + '/generate-brief', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+      .then(function (res) {
+        if (res.ok) {
+          window.location.reload();
+          return;
+        }
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = { _raw: text };
+          }
+          var detail = data && (data.detail || data.message);
+          if (detail == null && text) detail = text;
+          if (detail == null) detail = '未知错误';
+          if (typeof detail !== 'string') detail = JSON.stringify(detail);
+          setStatus('重新生成失败（' + res.status + '）：' + detail, true);
+        });
+      })
+      .catch(function (err) {
+        setStatus('重新生成失败：' + (err && err.message ? err.message : String(err)), true);
+      });
+  });
+})();
+</script>
+{% endblock %}

@@ -37,7 +37,7 @@ def test_compile_basic():
     brief = compiler.compile(card)
 
     assert brief.opportunity_id == "opp_test_001"
-    assert brief.opportunity_type == "visual"
+    assert brief.opportunity_type == "视觉"
     assert "早餐" in brief.target_scene
     assert "精致生活宝妈" in brief.target_user
     assert brief.content_goal == "种草收藏"
@@ -67,11 +67,96 @@ def test_template_hints_visual():
     compiler = BriefCompiler()
     card = _make_card(opportunity_type="visual")
     brief = compiler.compile(card)
-    assert "style_anchor" in brief.template_hints or "texture_proof" in brief.template_hints
+    assert "风格定锚" in brief.template_hints or "质感佐证" in brief.template_hints
 
 
 def test_template_hints_scene():
     compiler = BriefCompiler()
     card = _make_card(opportunity_type="scene")
     brief = compiler.compile(card)
-    assert "scene_seed" in brief.template_hints
+    assert "场景种草" in brief.template_hints
+
+
+def test_insight_fields_with_pipeline_data():
+    compiler = BriefCompiler()
+    card = _make_card()
+    parsed_note = {
+        "note_context": {
+            "like_count": 200,
+            "collect_count": 300,
+            "comment_count": 50,
+            "share_count": 20,
+        },
+        "cross_modal_validation": {
+            "overall_consistency_score": 0.75,
+            "high_confidence_claims": ["好看", "百搭"],
+            "unsupported_claims": ["耐用"],
+            "challenged_claims": [],
+        },
+        "selling_theme_signals": {
+            "validated_selling_points": ["氛围感", "百搭"],
+        },
+    }
+    brief = compiler.compile(card, parsed_note=parsed_note)
+
+    assert brief.why_worth_doing is not None
+    assert "藏赞比" in brief.why_worth_doing
+    assert brief.competitive_angle is not None
+    assert "好看" in brief.competitive_angle or "百搭" in brief.competitive_angle
+    assert brief.engagement_proof is not None
+    assert "300 收藏" in brief.engagement_proof
+    assert brief.cross_modal_confidence_label is not None
+    assert "高置信" in brief.cross_modal_confidence_label
+
+
+def test_insight_fields_none_without_pipeline_data():
+    compiler = BriefCompiler()
+    card = _make_card()
+    brief = compiler.compile(card)
+
+    assert brief.engagement_proof is None
+    assert brief.cross_modal_confidence_label is None
+
+
+def test_content_goal_enriched_with_engagement():
+    compiler = BriefCompiler()
+    card = _make_card()
+    parsed_note = {
+        "note_context": {
+            "like_count": 200,
+            "collect_count": 200,
+            "comment_count": 80,
+            "share_count": 20,
+        },
+        "cross_modal_validation": {
+            "overall_consistency_score": 0.8,
+            "high_confidence_claims": [],
+            "unsupported_claims": [],
+            "challenged_claims": [],
+        },
+        "selling_theme_signals": {},
+    }
+    brief = compiler.compile(card, parsed_note=parsed_note)
+
+    assert "收藏驱动" in brief.content_goal
+    assert "已验证" in brief.content_goal
+
+
+def test_cross_modal_confidence_labels():
+    compiler = BriefCompiler()
+    card = _make_card()
+
+    high = {"note_context": {}, "selling_theme_signals": {},
+            "cross_modal_validation": {"overall_consistency_score": 0.85, "high_confidence_claims": [], "unsupported_claims": [], "challenged_claims": []}}
+    brief_h = compiler.compile(card, parsed_note=high)
+    assert "高置信" in (brief_h.cross_modal_confidence_label or "")
+
+    mid = {"note_context": {}, "selling_theme_signals": {},
+           "cross_modal_validation": {"overall_consistency_score": 0.55, "high_confidence_claims": [], "unsupported_claims": ["x"], "challenged_claims": []}}
+    brief_m = compiler.compile(card, parsed_note=mid)
+    assert "中置信" in (brief_m.cross_modal_confidence_label or "")
+
+    low = {"note_context": {}, "selling_theme_signals": {},
+           "cross_modal_validation": {"overall_consistency_score": 0.2, "high_confidence_claims": [], "unsupported_claims": ["x", "y"], "challenged_claims": ["z"]}}
+    brief_l = compiler.compile(card, parsed_note=low)
+    assert "低置信" in (brief_l.cross_modal_confidence_label or "")
