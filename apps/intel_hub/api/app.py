@@ -691,6 +691,20 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
             "match_examples": match_examples,
         }
 
+    # ── content_planning 路由挂载 ──────────────────────────────
+    from apps.content_planning.api.routes import (
+        router as content_planning_router,
+        router_alias as content_planning_router_alias,
+        set_flow,
+    )
+    from apps.content_planning.services.opportunity_to_plan_flow import OpportunityToPlanFlow
+    from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
+
+    _cp_adapter = IntelHubAdapter(review_store=review_store)
+    set_flow(OpportunityToPlanFlow(adapter=_cp_adapter))
+    app.include_router(content_planning_router)
+    app.include_router(content_planning_router_alias)
+
     @app.get("/watchlists")
     async def watchlists(
         request: Request,

@@ -770,3 +770,76 @@ trendradar_output_dir: third_party/TrendRadar/output
 - 接入图像 embedding
 - 真实数据端到端验证
 - UMAP+HDBSCAN 聚类对比
+
+## 内容策划编译链 (Content Planning Pipeline) 进展
+
+### V1.0 完整链路实现 (2026-04-04)
+
+已完成全链路：promoted 机会卡 → OpportunityBrief → 选模板 → RewriteStrategy → NewNotePlan → LLM 生成标题/正文/图片指令。
+
+#### 目录结构
+
+- `apps/content_planning/` 独立内容策划编译层，不侵入 intel_hub / template_extraction
+
+#### Phase 1: Schema 层
+
+- `schemas/opportunity_brief.py` — OpportunityBrief（结构化机会摘要，后续步骤的统一锚点）
+- `schemas/rewrite_strategy.py` — RewriteStrategy（Brief + 模板 → 可执行改写方向）
+- `schemas/note_plan.py` — TitlePlan / BodyPlan / NewNotePlan（标题/正文/图片三维策划）
+- `schemas/content_generation.py` — TitleGenerationResult / BodyGenerationResult / ImageBriefGenerationResult（LLM 生成产物）
+- `schemas/template_match_result.py` — TemplateMatchResult / TemplateMatchEntry（结构化匹配结果）
+- 修改 `MainImagePlan` 新增 `opportunity_id` / `brief_id` / `strategy_id` 可选回溯字段
+
+#### Phase 2: Adapter + BriefCompiler
+
+- `adapters/intel_hub_adapter.py` — IntelHubAdapter（桥接 review_store / pipeline_details / raw notes）
+- `services/brief_compiler.py` — BriefCompiler（规则优先，逐字段从机会卡提炼 Brief）
+
+#### Phase 3: TemplateMatcher 改造
+
+- `template_matcher.py` 新增 `brief: OpportunityBrief | None` 参数
+- brief-aware 精准打分（content_goal / target_scene / visual_style / template_hints / avoid_directions）
+- 向后兼容：brief 为 None 时完全走旧逻辑
+- 修复 `phrase[:4]` bug（按字符截取改为按 bigram token 匹配）
+
+#### Phase 4: RewriteStrategyGenerator
+
+- `services/strategy_generator.py` — 规则优先的改写策略生成，预留 `_llm_enhance` 接口
+- 从 Brief + 模板规则合成 positioning / hook / tone / keep / replace / enhance / avoid / 标题/正文/图片策略
+
+#### Phase 5: NewNotePlanCompiler
+
+- `services/new_note_plan_compiler.py` — 整合 Brief + Strategy + Template 编译完整策划
+- 复用 `MainImagePlanCompiler` 生成图片策划，自动填充回溯 ID
+
+#### Phase 6: LLM 驱动内容生成器
+
+- `services/title_generator.py` — LLM 优先的标题生成（5 条候选 + 切入角度 + 理由），规则降级
+- `services/body_generator.py` — LLM 优先的正文生成（开头/段落/CTA/语气自检），规则降级
+- `services/image_brief_generator.py` — LLM 优先的图片执行指令生成（每张图的主体/构图/道具/色调），规则降级
+- 三个生成器均复用 `llm_client.call_text_llm` + `parse_json_response`
+
+#### Phase 7: 编排流 + API
+
+- `services/opportunity_to_plan_flow.py` — OpportunityToPlanFlow 一站式编排入口
+- `api/routes.py` — FastAPI 路由：`POST /content-planning/xhs-opportunities/{id}/generate-brief` 和 `POST .../generate-note-plan`
+- 挂载到 `apps/intel_hub/api/app.py`，共享 review_store
+
+#### Phase 8: 测试
+
+- 28+ 个 content_planning 测试（含 promoted 门禁、生成结果回溯字段等），覆盖：
+  - 7 个 Schema 序列化测试
+  - 5 个 BriefCompiler 单元测试
+  - 3 个 StrategyGenerator 单元测试
+  - 3 个 NewNotePlanCompiler 测试
+  - 4 个 Generator 降级模式测试
+  - E2E Flow（mock adapter）：未找到 / 未 promoted / plan_only / with_generation / 生成回溯 ID
+- template_extraction 22 个测试无回归
+
+#### 验收报告落地（对照 template_extraction_result_check 建议项）
+
+- **promoted 门禁**：`OpportunityToPlanFlow.build_brief` 仅当 `opportunity_status == "promoted"` 继续，否则抛出 `OpportunityNotPromotedError`；API 映射为 **403**（[exceptions.py](apps/content_planning/exceptions.py)、[routes.py](apps/content_planning/api/routes.py)）。
+- **API 文档 + 无前缀别名**：主路径仍为 `/content-planning/...`；另注册 **兼容路由** `POST /xhs-opportunities/{id}/generate-brief|generate-note-plan`。说明见 [docs/CONTENT_PLANNING_API.md](docs/CONTENT_PLANNING_API.md)。请求体增加 `mode: plan_only | full`（`full` 等价开启生成）。
+- **C1 脚本**：[apps/content_planning/scripts/run_acceptance_c1.py](apps/content_planning/scripts/run_acceptance_c1.py)（最多 12 条 promoted，输出 Markdown 表，可选 `--with-generation`）。
+- **C2 脚本与索引**：[apps/content_planning/scripts/export_golden_cases.py](apps/content_planning/scripts/export_golden_cases.py) 导出 JSON 至 `data/exports/content_planning/`（已 gitignore），索引 [docs/content_planning_golden_cases.md](docs/content_planning_golden_cases.md)。
+- **生成结果回溯**：`TitleGenerationResult` / `BodyGenerationResult` / `ImageBriefGenerationResult` 增加 `opportunity_id` / `brief_id` / `strategy_id` / `template_id`，由 [plan_trace.py](apps/content_planning/utils/plan_trace.py) 统一从 `NewNotePlan` 填充。

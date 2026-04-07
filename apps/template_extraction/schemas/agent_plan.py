@@ -29,3 +29,7 @@ class MainImagePlan(BaseModel):
     matcher_rationale: str = ""
     global_notes: str = ""
     image_slots: list[ImageSlotPlan] = Field(default_factory=list)
+
+    opportunity_id: str | None = None
+    brief_id: str | None = None
+    strategy_id: str | None = None

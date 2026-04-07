@@ -28,6 +28,7 @@ __pycache__/
 
 # runtime data
 data/output/
+data/exports/content_planning/*.json
 data/*.sqlite
 data/xhs_review.sqlite
 
