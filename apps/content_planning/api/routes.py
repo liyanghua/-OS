@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from apps.content_planning.exceptions import OpportunityNotPromotedError
@@ -59,6 +59,12 @@ class BriefUpdateRequest(BaseModel):
     target_audience: str | None = None
 
 
+class ApprovalActionRequest(BaseModel):
+    object_type: Literal["brief", "strategy", "plan", "asset_bundle"]
+    decision: Literal["pending_review", "approved", "changes_requested", "rejected"]
+    notes: str = ""
+
+
 # ── Error Handling ────────────────────────────────────────────
 
 def _handle_flow_error(fn):
@@ -81,25 +87,51 @@ def _resolve_with_generation(body: GeneratePlanRequest) -> bool:
     return body.with_generation or body.mode == "full"
 
 
+def _maybe_bind_workspace_context(flow: OpportunityToPlanFlow, request: Request, opportunity_id: str) -> None:
+    workspace_id = request.headers.get("x-workspace-id", "")
+    if not workspace_id:
+        return
+    user_id = request.headers.get("x-user-id", "")
+    api_token = request.headers.get("x-api-token", "")
+    brand_id = request.headers.get("x-brand-id") or None
+    campaign_id = request.headers.get("x-campaign-id") or None
+    try:
+        flow.bind_workspace_context(
+            opportunity_id=opportunity_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            api_token=api_token,
+            brand_id=brand_id,
+            campaign_id=campaign_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
 # ═══════════════════════════════════════════════════════════════
 #  原子 API（主前缀 /content-planning/...）
 # ═══════════════════════════════════════════════════════════════
 
 @router.post("/xhs-opportunities/{opportunity_id}/generate-brief")
 @_handle_flow_error
-async def generate_brief(opportunity_id: str) -> dict[str, Any]:
-    return _get_flow().build_brief(opportunity_id).model_dump(mode="json")
+async def generate_brief(opportunity_id: str, request: Request) -> dict[str, Any]:
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    return flow.build_brief(opportunity_id).model_dump(mode="json")
 
 
 @router.post("/xhs-opportunities/{opportunity_id}/generate-note-plan")
 @_handle_flow_error
 async def generate_note_plan(
     opportunity_id: str,
+    request: Request,
     body: GeneratePlanRequest | None = None,
 ) -> dict[str, Any]:
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
     if body is None:
         body = GeneratePlanRequest()
-    return _get_flow().build_note_plan(
+    return flow.build_note_plan(
         opportunity_id,
         with_generation=_resolve_with_generation(body),
         preferred_template_id=body.preferred_template_id,
@@ -108,66 +140,83 @@ async def generate_note_plan(
 
 @router.post("/xhs-opportunities/{opportunity_id}/match-templates")
 @_handle_flow_error
-async def match_templates(opportunity_id: str) -> dict[str, Any]:
+async def match_templates(opportunity_id: str, request: Request) -> dict[str, Any]:
     """Brief → 模板匹配。"""
-    return _get_flow().match_templates(opportunity_id).model_dump(mode="json")
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    return flow.match_templates(opportunity_id).model_dump(mode="json")
 
 
 @router.post("/xhs-opportunities/{opportunity_id}/generate-strategy")
 @_handle_flow_error
 async def generate_strategy(
     opportunity_id: str,
+    request: Request,
     body: GenerateStrategyRequest | None = None,
 ) -> dict[str, Any]:
     """模板 → RewriteStrategy。"""
     tid = body.template_id if body else None
-    return _get_flow().build_strategy(
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    return flow.build_strategy(
         opportunity_id, template_id=tid,
     ).model_dump(mode="json")
 
 
 @router.post("/xhs-opportunities/{opportunity_id}/generate-titles")
 @_handle_flow_error
-async def generate_titles(opportunity_id: str) -> dict[str, Any]:
+async def generate_titles(opportunity_id: str, request: Request) -> dict[str, Any]:
     """局部重生成标题。"""
-    return _get_flow().regenerate_titles(opportunity_id).model_dump(mode="json")
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    return flow.regenerate_titles(opportunity_id).model_dump(mode="json")
 
 
 @router.post("/xhs-opportunities/{opportunity_id}/generate-body")
 @_handle_flow_error
-async def generate_body(opportunity_id: str) -> dict[str, Any]:
+async def generate_body(opportunity_id: str, request: Request) -> dict[str, Any]:
     """局部重生成正文。"""
-    return _get_flow().regenerate_body(opportunity_id).model_dump(mode="json")
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    return flow.regenerate_body(opportunity_id).model_dump(mode="json")
 
 
 @router.post("/xhs-opportunities/{opportunity_id}/generate-image-briefs")
 @_handle_flow_error
-async def generate_image_briefs(opportunity_id: str) -> dict[str, Any]:
+async def generate_image_briefs(opportunity_id: str, request: Request) -> dict[str, Any]:
     """局部重生成图片执行指令。"""
-    return _get_flow().regenerate_image_briefs(opportunity_id).model_dump(mode="json")
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    return flow.regenerate_image_briefs(opportunity_id).model_dump(mode="json")
 
 
 @router.put("/briefs/{opportunity_id}")
 @_handle_flow_error
 async def update_brief(
     opportunity_id: str,
+    request: Request,
     body: BriefUpdateRequest,
 ) -> dict[str, Any]:
     """人工编辑 Brief（按 opportunity_id 索引）。"""
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
     partial = {k: v for k, v in body.model_dump().items() if v is not None}
-    return _get_flow().update_brief(opportunity_id, partial).model_dump(mode="json")
+    return flow.update_brief(opportunity_id, partial).model_dump(mode="json")
 
 
 @router.post("/xhs-opportunities/{opportunity_id}/compile-note-plan")
 @_handle_flow_error
 async def compile_note_plan(
     opportunity_id: str,
+    request: Request,
     body: GeneratePlanRequest | None = None,
 ) -> dict[str, Any]:
     """编排型一键全链路。"""
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
     if body is None:
         body = GeneratePlanRequest(mode="full")
-    return _get_flow().compile_note_plan(
+    return flow.compile_note_plan(
         opportunity_id,
         with_generation=_resolve_with_generation(body),
         preferred_template_id=body.preferred_template_id,
@@ -176,9 +225,11 @@ async def compile_note_plan(
 
 @router.get("/session/{opportunity_id}")
 @_handle_flow_error
-async def get_session(opportunity_id: str) -> dict[str, Any]:
+async def get_session(opportunity_id: str, request: Request) -> dict[str, Any]:
     """获取当前会话缓存。"""
-    return _get_flow().get_session_data(opportunity_id)
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    return flow.get_session_data(opportunity_id)
 
 
 @router.get("/strategies/{opportunity_id}")
@@ -217,19 +268,23 @@ async def regenerate_image_slot(opportunity_id: str, slot_index: int) -> dict[st
 
 @router.get("/asset-bundle/{opportunity_id}")
 @_handle_flow_error
-async def get_asset_bundle(opportunity_id: str) -> dict[str, Any]:
+async def get_asset_bundle(opportunity_id: str, request: Request) -> dict[str, Any]:
     """组装并返回 AssetBundle。"""
-    bundle = _get_flow().assemble_asset_bundle(opportunity_id)
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    bundle = flow.assemble_asset_bundle(opportunity_id)
     return bundle.model_dump(mode="json")
 
 
 @router.get("/asset-bundle/{opportunity_id}/export")
 @_handle_flow_error
-async def export_asset_bundle(opportunity_id: str, format: str = "json") -> Any:
+async def export_asset_bundle(opportunity_id: str, request: Request, format: str = "json") -> Any:
     """导出 AssetBundle。format: json / markdown / image_package"""
     from apps.content_planning.services.asset_exporter import AssetExporter
 
-    bundle = _get_flow().assemble_asset_bundle(opportunity_id)
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    bundle = flow.mark_asset_bundle_exported(opportunity_id)
     exporter = AssetExporter()
     if format == "markdown":
         from fastapi.responses import PlainTextResponse
@@ -238,6 +293,31 @@ async def export_asset_bundle(opportunity_id: str, format: str = "json") -> Any:
     elif format == "image_package":
         return exporter.export_image_package(bundle)
     return exporter.export_json(bundle)
+
+
+@router.post("/xhs-opportunities/{opportunity_id}/approve")
+@_handle_flow_error
+async def approve_content_object(
+    opportunity_id: str,
+    request: Request,
+    body: ApprovalActionRequest,
+) -> dict[str, Any]:
+    flow = _get_flow()
+    workspace_id = request.headers.get("x-workspace-id", "")
+    user_id = request.headers.get("x-user-id", "")
+    api_token = request.headers.get("x-api-token", "")
+    if not workspace_id:
+        raise HTTPException(status_code=400, detail="x-workspace-id header is required")
+    approval = flow.approve_object(
+        opportunity_id=opportunity_id,
+        object_type=body.object_type,
+        decision=body.decision,
+        notes=body.notes,
+        workspace_id=workspace_id,
+        user_id=user_id,
+        api_token=api_token,
+    )
+    return approval.model_dump(mode="json")
 
 
 class BatchCompileRequest(BaseModel):
@@ -316,8 +396,10 @@ async def submit_asset_feedback(
 
 @router_alias.post("/xhs-opportunities/{opportunity_id}/generate-brief")
 @_handle_flow_error
-async def generate_brief_alias(opportunity_id: str) -> dict[str, Any]:
-    return _get_flow().build_brief(opportunity_id).model_dump(mode="json")
+async def generate_brief_alias(opportunity_id: str, request: Request) -> dict[str, Any]:
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    return flow.build_brief(opportunity_id).model_dump(mode="json")
 
 
 @router_alias.post("/xhs-opportunities/{opportunity_id}/generate-note-plan")

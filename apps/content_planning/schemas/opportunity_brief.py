@@ -17,6 +17,14 @@ class OpportunityBrief(BaseModel):
     brief_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:16])
     opportunity_id: str = ""
     source_note_ids: list[str] = Field(default_factory=list)
+    workspace_id: str = ""
+    brand_id: str = ""
+    campaign_id: str = ""
+    created_by: str = ""
+    updated_by: str = ""
+    approval_status: Literal["pending_review", "approved", "changes_requested", "rejected"] = "pending_review"
+    visibility: Literal["workspace", "brand", "private"] = "workspace"
+    version: int = 1
 
     brief_status: Literal["draft", "generated", "reviewed", "approved"] = "draft"
 

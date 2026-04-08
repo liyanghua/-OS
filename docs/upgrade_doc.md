@@ -8,6 +8,21 @@
 
 ---
 
+# 2026-04-08 增量状态：B2B Pilot Foundation 已落一层平台骨架
+
+本轮新增的不是另一套算法链，而是商业化交付地基：
+
+- `apps/b2b_platform`
+- workspace / brand / campaign / membership / connector
+- opportunity queue
+- approval record
+- usage event
+- `content_planning` 对象 tenant context
+
+这意味着后续 Batch 3/4/5 不需要再把系统默认成“单人专家工作台”，可以直接围绕真实品牌工作区继续扩。
+
+---
+
 # 使用原则
 
 
@@ -629,4 +644,3 @@
    - API
    - 未来可如何用于模板 A/B 和机会判断优化
 ```
-

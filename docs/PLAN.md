@@ -106,3 +106,19 @@
 - 定时自动执行 TrendRadar + MediaCrawler 抓取 + pipeline 刷新
 - 扩展 MediaCrawler 到更多平台（抖音/快手/B站）
 - 增量加载优化（基于文件日期/mtime 过滤）
+
+## Phase 7: B2B Pilot Foundation
+
+- 目标：在不推翻现有 XHS 内容编译链的前提下，补齐可售试点版平台骨架。
+- 产出：
+  - `apps/b2b_platform`
+  - workspace / brand / campaign / membership / connector
+  - promoted opportunity brand queue
+  - approval record
+  - usage metering
+  - `content_planning` 对象 tenant context
+- 当前状态：首版已完成。
+- 下一步：
+  - 替换 SQLite 为 Postgres
+  - 补真正登录体系与审计
+  - 补对象存储和生产级 worker

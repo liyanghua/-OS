@@ -9,6 +9,112 @@ TABLECLOTH_FIXTURE_OUTPUT = ROOT / "data" / "fixtures" / "trendradar_tablecloth"
 
 
 class ApiSurfaceTests(unittest.TestCase):
+    def test_b2b_platform_bootstrap_queue_and_content_planning_review(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.b2b_platform.storage import B2BPlatformStore
+        from apps.content_planning.storage.plan_store import ContentPlanStore
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.schemas.evidence import XHSEvidenceRef
+        from apps.intel_hub.schemas.opportunity import XHSOpportunityCard
+        from apps.intel_hub.storage.xhs_review_store import XHSReviewStore
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            storage_path = tmp / "intel_hub.sqlite"
+            runtime_path = tmp / "runtime.yaml"
+            runtime_path.write_text(
+                "\n".join(
+                    [
+                        f"trendradar_output_dir: {FIXTURE_OUTPUT.as_posix()}",
+                        f"storage_path: {storage_path.as_posix()}",
+                        f"b2b_platform_db_path: {(tmp / 'b2b.sqlite').as_posix()}",
+                        "default_page_size: 20",
+                        "fixture_fallback_dir: ''",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            review_store = XHSReviewStore(tmp / "xhs_review.sqlite")
+            card = XHSOpportunityCard(
+                opportunity_id="opp_api_b2b_001",
+                title="桌布场景机会卡",
+                summary="promoted 机会卡",
+                opportunity_type="visual",
+                scene_refs=["早餐"],
+                style_refs=["奶油风"],
+                need_refs=["提升颜值"],
+                visual_pattern_refs=["暖调"],
+                audience_refs=["精致宝妈"],
+                value_proposition_refs=["氛围感强"],
+                evidence_refs=[XHSEvidenceRef(snippet="桌布很出片")],
+                source_note_ids=["note_001"],
+                confidence=0.92,
+                opportunity_status="promoted",
+            )
+            cards_json = tmp / "cards.json"
+            cards_json.write_text(f"[{card.model_dump_json()}]", encoding="utf-8")
+            review_store.sync_cards_from_json(cards_json)
+
+            client = TestClient(
+                create_app(
+                    runtime_path,
+                    review_store=review_store,
+                    content_plan_store=ContentPlanStore(tmp / "plan.sqlite"),
+                    platform_store=B2BPlatformStore(tmp / "b2b.sqlite"),
+                )
+            )
+
+            bootstrap = client.post(
+                "/b2b/bootstrap",
+                json={
+                    "organization_name": "Acme Group",
+                    "workspace_name": "Acme Beauty",
+                    "brand_name": "Acme Table",
+                    "campaign_name": "Spring Launch",
+                    "admin_user_id": "u_admin",
+                    "admin_display_name": "Admin",
+                },
+            )
+            self.assertEqual(bootstrap.status_code, 200)
+            payload = bootstrap.json()
+            workspace_id = payload["workspace"]["workspace_id"]
+            brand_id = payload["brand"]["brand_id"]
+            campaign_id = payload["campaign"]["campaign_id"]
+            token = payload["admin_membership"]["api_token"]
+            headers = {
+                "X-Workspace-Id": workspace_id,
+                "X-User-Id": "u_admin",
+                "X-Api-Token": token,
+            }
+
+            queued = client.post(
+                f"/b2b/workspaces/{workspace_id}/opportunities/{card.opportunity_id}/queue",
+                headers=headers,
+                json={"brand_id": brand_id, "campaign_id": campaign_id, "queue_status": "promoted"},
+            )
+            self.assertEqual(queued.status_code, 200)
+
+            brief = client.post(
+                f"/content-planning/xhs-opportunities/{card.opportunity_id}/generate-brief",
+                headers=headers,
+            )
+            self.assertEqual(brief.status_code, 200)
+            self.assertEqual(brief.json()["workspace_id"], workspace_id)
+
+            approved = client.post(
+                f"/content-planning/xhs-opportunities/{card.opportunity_id}/approve",
+                headers=headers,
+                json={"object_type": "brief", "decision": "approved", "notes": "Ready"},
+            )
+            self.assertEqual(approved.status_code, 200)
+            self.assertEqual(approved.json()["decision"], "approved")
+
+            usage = client.get(f"/b2b/workspaces/{workspace_id}/usage", headers=headers)
+            self.assertEqual(usage.status_code, 200)
+            self.assertEqual(usage.json()["by_event_type"]["brief_generated"], 1)
+
     def test_api_serves_paginated_lists_and_html_dashboard(self) -> None:
         from fastapi.testclient import TestClient
 

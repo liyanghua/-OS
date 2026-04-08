@@ -14,6 +14,13 @@ logger = logging.getLogger(__name__)
 # 逻辑字段名 -> 表列名（update_field 可用）
 _FIELD_TO_COLUMN: dict[str, str] = {
     "session_status": "session_status",
+    "workspace_id": "workspace_id",
+    "brand_id": "brand_id",
+    "campaign_id": "campaign_id",
+    "created_by": "created_by",
+    "updated_by": "updated_by",
+    "visibility": "visibility",
+    "version": "version",
     "brief": "brief_json",
     "brief_json": "brief_json",
     "match_result": "match_json",
@@ -28,6 +35,8 @@ _FIELD_TO_COLUMN: dict[str, str] = {
     "body_json": "body_json",
     "image_briefs": "image_briefs_json",
     "image_briefs_json": "image_briefs_json",
+    "asset_bundle": "asset_bundle_json",
+    "asset_bundle_json": "asset_bundle_json",
     "pipeline_run_id": "pipeline_run_id",
     "stale_flags": "stale_flags_json",
     "stale_flags_json": "stale_flags_json",
@@ -42,6 +51,7 @@ _JSON_COLUMNS = frozenset(
         "titles_json",
         "body_json",
         "image_briefs_json",
+        "asset_bundle_json",
         "stale_flags_json",
     }
 )
@@ -82,6 +92,13 @@ class ContentPlanStore:
                 CREATE TABLE IF NOT EXISTS planning_sessions (
                     opportunity_id TEXT PRIMARY KEY,
                     session_status TEXT NOT NULL DEFAULT 'draft',
+                    workspace_id TEXT,
+                    brand_id TEXT,
+                    campaign_id TEXT,
+                    created_by TEXT,
+                    updated_by TEXT,
+                    visibility TEXT NOT NULL DEFAULT 'workspace',
+                    version INTEGER NOT NULL DEFAULT 1,
                     brief_json TEXT,
                     match_json TEXT,
                     strategy_json TEXT,
@@ -89,6 +106,7 @@ class ContentPlanStore:
                     titles_json TEXT,
                     body_json TEXT,
                     image_briefs_json TEXT,
+                    asset_bundle_json TEXT,
                     pipeline_run_id TEXT,
                     stale_flags_json TEXT,
                     created_at TEXT NOT NULL,
@@ -103,12 +121,35 @@ class ContentPlanStore:
                 CREATE INDEX IF NOT EXISTS idx_planning_sessions_updated_at
                 ON planning_sessions(updated_at DESC)
             """)
+            existing_columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(planning_sessions)").fetchall()
+            }
+            for column, ddl in {
+                "workspace_id": "TEXT",
+                "brand_id": "TEXT",
+                "campaign_id": "TEXT",
+                "created_by": "TEXT",
+                "updated_by": "TEXT",
+                "visibility": "TEXT NOT NULL DEFAULT 'workspace'",
+                "version": "INTEGER NOT NULL DEFAULT 1",
+                "asset_bundle_json": "TEXT",
+            }.items():
+                if column not in existing_columns:
+                    conn.execute(f"ALTER TABLE planning_sessions ADD COLUMN {column} {ddl}")
 
     def save_session(
         self,
         opportunity_id: str,
         *,
         session_status: str = "draft",
+        workspace_id: str | None = None,
+        brand_id: str | None = None,
+        campaign_id: str | None = None,
+        created_by: str | None = None,
+        updated_by: str | None = None,
+        visibility: str | None = None,
+        version: int | None = None,
         brief: Any = None,
         match_result: Any = None,
         strategy: Any = None,
@@ -116,6 +157,7 @@ class ContentPlanStore:
         titles: Any = None,
         body: Any = None,
         image_briefs: Any = None,
+        asset_bundle: Any = None,
         pipeline_run_id: str | None = None,
         stale_flags: dict[str, bool] | None = None,
     ) -> None:
@@ -132,15 +174,23 @@ class ContentPlanStore:
                     """
                     INSERT INTO planning_sessions (
                         opportunity_id, session_status,
+                        workspace_id, brand_id, campaign_id, created_by, updated_by, visibility, version,
                         brief_json, match_json, strategy_json, plan_json,
-                        titles_json, body_json, image_briefs_json,
+                        titles_json, body_json, image_briefs_json, asset_bundle_json,
                         pipeline_run_id, stale_flags_json,
                         created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         opportunity_id,
                         session_status,
+                        workspace_id,
+                        brand_id,
+                        campaign_id,
+                        created_by,
+                        updated_by,
+                        visibility or "workspace",
+                        version or 1,
                         _serialize(brief) if brief is not None else None,
                         _serialize(match_result) if match_result is not None else None,
                         _serialize(strategy) if strategy is not None else None,
@@ -148,6 +198,7 @@ class ContentPlanStore:
                         _serialize(titles) if titles is not None else None,
                         _serialize(body) if body is not None else None,
                         _serialize(image_briefs) if image_briefs is not None else None,
+                        _serialize(asset_bundle) if asset_bundle is not None else None,
                         pipeline_run_id,
                         _serialize(stale_flags) if stale_flags is not None else None,
                         now,
@@ -161,6 +212,27 @@ class ContentPlanStore:
 
             assignments.append("session_status = ?")
             params.append(session_status)
+            if workspace_id is not None:
+                assignments.append("workspace_id = ?")
+                params.append(workspace_id)
+            if brand_id is not None:
+                assignments.append("brand_id = ?")
+                params.append(brand_id)
+            if campaign_id is not None:
+                assignments.append("campaign_id = ?")
+                params.append(campaign_id)
+            if created_by is not None:
+                assignments.append("created_by = ?")
+                params.append(created_by)
+            if updated_by is not None:
+                assignments.append("updated_by = ?")
+                params.append(updated_by)
+            if visibility is not None:
+                assignments.append("visibility = ?")
+                params.append(visibility)
+            if version is not None:
+                assignments.append("version = ?")
+                params.append(version)
 
             if brief is not None:
                 assignments.append("brief_json = ?")
@@ -183,6 +255,9 @@ class ContentPlanStore:
             if image_briefs is not None:
                 assignments.append("image_briefs_json = ?")
                 params.append(_serialize(image_briefs))
+            if asset_bundle is not None:
+                assignments.append("asset_bundle_json = ?")
+                params.append(_serialize(asset_bundle))
             if pipeline_run_id is not None:
                 assignments.append("pipeline_run_id = ?")
                 params.append(pipeline_run_id)
@@ -204,8 +279,9 @@ class ContentPlanStore:
             row = conn.execute(
                 """
                 SELECT opportunity_id, session_status,
+                       workspace_id, brand_id, campaign_id, created_by, updated_by, visibility, version,
                        brief_json, match_json, strategy_json, plan_json,
-                       titles_json, body_json, image_briefs_json,
+                       titles_json, body_json, image_briefs_json, asset_bundle_json,
                        pipeline_run_id, stale_flags_json,
                        created_at, updated_at
                 FROM planning_sessions WHERE opportunity_id = ?
@@ -219,6 +295,13 @@ class ContentPlanStore:
         return {
             "opportunity_id": row["opportunity_id"],
             "session_status": row["session_status"],
+            "workspace_id": row["workspace_id"],
+            "brand_id": row["brand_id"],
+            "campaign_id": row["campaign_id"],
+            "created_by": row["created_by"],
+            "updated_by": row["updated_by"],
+            "visibility": row["visibility"],
+            "version": row["version"],
             "brief": _deserialize(row["brief_json"]),
             "match_result": _deserialize(row["match_json"]),
             "strategy": _deserialize(row["strategy_json"]),
@@ -226,6 +309,7 @@ class ContentPlanStore:
             "titles": _deserialize(row["titles_json"]),
             "body": _deserialize(row["body_json"]),
             "image_briefs": _deserialize(row["image_briefs_json"]),
+            "asset_bundle": _deserialize(row["asset_bundle_json"]),
             "pipeline_run_id": row["pipeline_run_id"],
             "stale_flags": _deserialize(row["stale_flags_json"]),
             "created_at": row["created_at"],
@@ -330,8 +414,9 @@ class ContentPlanStore:
             rows = conn.execute(
                 f"""
                 SELECT opportunity_id, session_status,
+                       workspace_id, brand_id, campaign_id, created_by, updated_by, visibility, version,
                        brief_json, match_json, strategy_json, plan_json,
-                       titles_json, body_json, image_briefs_json,
+                       titles_json, body_json, image_briefs_json, asset_bundle_json,
                        pipeline_run_id, stale_flags_json,
                        created_at, updated_at
                 FROM planning_sessions {where}
@@ -347,6 +432,13 @@ class ContentPlanStore:
                 {
                     "opportunity_id": row["opportunity_id"],
                     "session_status": row["session_status"],
+                    "workspace_id": row["workspace_id"],
+                    "brand_id": row["brand_id"],
+                    "campaign_id": row["campaign_id"],
+                    "created_by": row["created_by"],
+                    "updated_by": row["updated_by"],
+                    "visibility": row["visibility"],
+                    "version": row["version"],
                     "brief": _deserialize(row["brief_json"]),
                     "match_result": _deserialize(row["match_json"]),
                     "strategy": _deserialize(row["strategy_json"]),
@@ -354,6 +446,7 @@ class ContentPlanStore:
                     "titles": _deserialize(row["titles_json"]),
                     "body": _deserialize(row["body_json"]),
                     "image_briefs": _deserialize(row["image_briefs_json"]),
+                    "asset_bundle": _deserialize(row["asset_bundle_json"]),
                     "pipeline_run_id": row["pipeline_run_id"],
                     "stale_flags": _deserialize(row["stale_flags_json"]),
                     "created_at": row["created_at"],

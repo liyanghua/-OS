@@ -19,6 +19,14 @@ class AssetBundle(BaseModel):
     opportunity_id: str = ""
     template_id: str = ""
     template_name: str = ""
+    workspace_id: str = ""
+    brand_id: str = ""
+    campaign_id: str = ""
+    created_by: str = ""
+    updated_by: str = ""
+    approval_status: Literal["pending_review", "approved", "changes_requested", "rejected"] = "pending_review"
+    visibility: Literal["workspace", "brand", "private"] = "workspace"
+    version: int = 1
 
     title_candidates: list[dict] = Field(default_factory=list)
     body_outline: list[str] = Field(default_factory=list)
@@ -28,3 +36,4 @@ class AssetBundle(BaseModel):
     export_status: Literal["draft", "ready", "exported"] = "draft"
     lineage: PlanLineage | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

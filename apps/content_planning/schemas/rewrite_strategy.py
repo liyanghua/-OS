@@ -18,6 +18,13 @@ class RewriteStrategy(BaseModel):
     opportunity_id: str = ""
     brief_id: str = ""
     template_id: str = ""
+    workspace_id: str = ""
+    brand_id: str = ""
+    campaign_id: str = ""
+    created_by: str = ""
+    updated_by: str = ""
+    approval_status: Literal["pending_review", "approved", "changes_requested", "rejected"] = "pending_review"
+    visibility: Literal["workspace", "brand", "private"] = "workspace"
 
     strategy_status: Literal["draft", "generated", "reviewed", "approved"] = "draft"
 
@@ -51,3 +58,4 @@ class RewriteStrategy(BaseModel):
     lineage: PlanLineage | None = None
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
