@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
+from apps.content_planning.schemas.lineage import PlanLineage
 from apps.template_extraction.schemas.agent_plan import MainImagePlan
 
 
@@ -49,4 +50,5 @@ class NewNotePlan(BaseModel):
     image_plan: MainImagePlan | None = None
 
     publish_notes: list[str] = Field(default_factory=list)
+    lineage: PlanLineage | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

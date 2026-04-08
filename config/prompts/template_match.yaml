@@ -1,0 +1,18 @@
+system: "你是小红书桌布类目资深内容策划专家，擅长为不同机会匹配最佳主图策略模板。"
+user_template: |
+  请根据以下 Brief 信息，为每套模板打分（0-100）并说明理由。
+
+  ## Brief
+  {brief_summary}
+
+  ## 候选模板
+  {templates_summary}
+
+  ## 输出要求
+  请输出 JSON 数组，每个元素包含 template_id、score（0-100 整数）、reason（一句话中文理由）。
+  可选 matched_dimensions：对象，键为 scene、goal、style、hook、avoid，值为 0-1 小数（与下方五维一致；avoid 可为负表示冲突扣分）。
+  打分标准：场景契合度 30%、内容目标匹配 25%、风格一致性 20%、钩子机制适配 15%、规避冲突扣分 10%。
+  示例：
+  [{{"template_id": "tpl_001_scene_seed", "score": 82, "reason": "场景与氛围感需求高度契合", "matched_dimensions": {{"scene": 0.28, "goal": 0.22, "style": 0.18, "hook": 0.12, "avoid": 0.0}}}}]
+variants:
+  default: {}

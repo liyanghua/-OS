@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from apps.content_planning.schemas.lineage import PlanLineage
+
 
 class OpportunityBrief(BaseModel):
     """结构化的机会摘要，是后续模板选择、策略生成、内容编译的统一入参。"""
@@ -49,6 +51,14 @@ class OpportunityBrief(BaseModel):
     competitive_angle: str | None = None
     engagement_proof: str | None = None
     cross_modal_confidence_label: str | None = None
+
+    # V2.0 策划深度字段
+    why_now: str | None = None
+    differentiation_view: str | None = None
+    proof_blocks: list[dict] | None = None
+    planning_direction: str | None = None
+
+    lineage: PlanLineage | None = None
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

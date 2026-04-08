@@ -13,6 +13,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from apps.content_planning.services.prompt_registry import load_prompt
 from apps.template_extraction.schemas.template import TableclothMainImageStrategyTemplate
 
 if TYPE_CHECKING:
@@ -27,6 +28,7 @@ class MatchResult:
     template_name: str
     score: float
     reason: str
+    matched_dimensions: dict[str, float] | None = None
 
 
 _GOAL_TEMPLATE_AFFINITY: dict[str, list[str]] = {
@@ -63,17 +65,20 @@ class TemplateMatcher:
         scores = []
         for tpl_id, tpl in self._templates.items():
             if brief is not None:
-                score = self._score_with_brief(tpl, brief)
+                score, dimensions = self._score_with_brief(tpl, brief)
                 reason = self._explain_brief_score(tpl, brief)
+                matched_dims = dimensions
             else:
                 score = self._score_template(tpl, opportunity_card, product_brief, intent)
                 reason = self._explain_score(tpl, opportunity_card, product_brief, intent)
+                matched_dims = None
             scores.append(
                 MatchResult(
                     template_id=tpl_id,
                     template_name=tpl.template_name,
                     score=score,
                     reason=reason,
+                    matched_dimensions=matched_dims,
                 )
             )
         scores.sort(key=lambda x: x.score, reverse=True)
@@ -97,17 +102,10 @@ class TemplateMatcher:
         brief_summary = self._build_brief_summary(brief)
         tpl_summaries = self._build_templates_summary()
 
-        system = "你是小红书桌布类目资深内容策划专家，擅长为不同机会匹配最佳主图策略模板。"
-        user = (
-            "请根据以下 Brief 信息，为每套模板打分（0-100）并说明理由。\n\n"
-            f"## Brief\n{brief_summary}\n\n"
-            f"## 候选模板\n{tpl_summaries}\n\n"
-            "## 输出要求\n"
-            "请输出 JSON 数组，每个元素包含 template_id、score（0-100 整数）、reason（一句话中文理由）。\n"
-            "打分标准：场景契合度 30%、内容目标匹配 25%、风格一致性 20%、"
-            "钩子机制适配 15%、规避冲突扣分 10%。\n"
-            "示例：\n"
-            '[{"template_id": "tpl_001_scene_seed", "score": 82, "reason": "场景与氛围感需求高度契合"}]\n'
+        prompt_cfg = load_prompt("template_match")
+        system = prompt_cfg["system"]
+        user = prompt_cfg["user_template"].format(
+            brief_summary=brief_summary, templates_summary=tpl_summaries
         )
 
         try:
@@ -177,6 +175,26 @@ class TemplateMatcher:
             lines.append(f"- {' | '.join(parts)}")
         return "\n".join(lines)
 
+    @staticmethod
+    def _parse_matched_dimensions(item: dict[str, Any]) -> dict[str, float] | None:
+        raw = item.get("matched_dimensions") or item.get("dimension_scores")
+        if not isinstance(raw, dict):
+            return None
+        out: dict[str, float] = {}
+        for key in ("scene", "goal", "style", "hook", "avoid"):
+            if key not in raw:
+                continue
+            try:
+                v = float(raw[key])
+            except (TypeError, ValueError):
+                continue
+            if v > 1.0 or v < -1.0:
+                v = max(-1.0, min(v / 100.0, 1.0))
+            else:
+                v = max(-1.0, min(v, 1.0))
+            out[key] = v
+        return out or None
+
     def _parse_llm_scores(self, data: list[Any]) -> list[MatchResult]:
         results = []
         for item in data:
@@ -191,11 +209,13 @@ class TemplateMatcher:
             except (ValueError, TypeError):
                 score = 0.0
             reason = str(item.get("reason", self._templates[tid].template_name))
+            matched_dims = self._parse_matched_dimensions(item)
             results.append(MatchResult(
                 template_id=tid,
                 template_name=self._templates[tid].template_name,
                 score=score,
                 reason=reason,
+                matched_dimensions=matched_dims,
             ))
         return results
 
@@ -205,38 +225,54 @@ class TemplateMatcher:
         self,
         tpl: TableclothMainImageStrategyTemplate,
         brief: OpportunityBrief,
-    ) -> float:
+    ) -> tuple[float, dict[str, float]]:
+        dimensions: dict[str, float] = {
+            "scene": 0.0,
+            "goal": 0.0,
+            "style": 0.0,
+            "hook": 0.0,
+            "avoid": 0.0,
+        }
         score = 0.0
         tpl_key = self._extract_tpl_key(tpl)
 
         if brief.content_goal:
             affinities = _GOAL_TEMPLATE_AFFINITY.get(brief.content_goal, [])
             if any(a in tpl.template_id or a == tpl_key for a in affinities):
+                dimensions["goal"] += 0.30
                 score += 0.30
 
         scene_hits = sum(1 for s in brief.target_scene if any(s in fs for fs in tpl.fit_scenarios))
-        score += min(scene_hits * 0.10, 0.30)
+        scene_add = min(scene_hits * 0.10, 0.30)
+        dimensions["scene"] = scene_add
+        score += scene_add
 
         style_hits = sum(1 for s in brief.visual_style_direction if any(s in fs for fs in tpl.fit_styles))
-        score += min(style_hits * 0.08, 0.24)
+        style_add = min(style_hits * 0.08, 0.24)
+        dimensions["style"] = style_add
+        score += style_add
 
         if brief.primary_value:
             hooks = " ".join(tpl.hook_mechanism) + " " + " ".join(tpl.best_for)
             if brief.primary_value in hooks:
+                dimensions["hook"] += 0.15
                 score += 0.15
 
         for hint in brief.template_hints:
             if hint in tpl.template_id or hint == tpl_key:
+                dimensions["hook"] += 0.20
                 score += 0.20
                 break
 
         if brief.avoid_directions:
-            avoid_text = " ".join(brief.avoid_directions)
             avoid_when = " ".join(tpl.avoid_when)
             overlap = sum(1 for a in brief.avoid_directions if a in avoid_when)
-            score -= overlap * 0.10
+            avoid_penalty = overlap * 0.10
+            dimensions["avoid"] -= avoid_penalty
+            score -= avoid_penalty
 
-        return max(min(score, 1.0), 0.0)
+        final = max(min(score, 1.0), 0.0)
+        return final, dimensions
 
     def _explain_brief_score(
         self,

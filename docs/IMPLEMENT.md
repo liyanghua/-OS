@@ -818,6 +818,7 @@ trendradar_output_dir: third_party/TrendRadar/output
 - `services/body_generator.py` — LLM 优先的正文生成（开头/段落/CTA/语气自检），规则降级
 - `services/image_brief_generator.py` — LLM 优先的图片执行指令生成（每张图的主体/构图/道具/色调），规则降级
 - 三个生成器均复用 `llm_client.call_text_llm` + `parse_json_response`
+- **Prompt Registry（2026-04-08）**：`config/prompts/*.yaml` + `apps/content_planning/services/prompt_registry.py`（`load_prompt` / 进程内缓存）；`strategy_generator` / `title_generator` / `body_generator` / `image_brief_generator` 与 `apps/template_extraction/agent/template_matcher.py` 的 LLM 分支从 YAML 加载提示词（`image_brief` / `template_match` 中带 JSON 示例的模板对花括号做 `str.format` 转义）。
 
 #### Phase 7: 编排流 + API
 
@@ -999,3 +1000,226 @@ Brief 和机会卡中大量字段使用英文本体 ID（`scene_dining_table`、
 
 ##### 测试
 - 全量 35 项测试通过（LLM 不可用时自动走规则路径验证）
+
+---
+
+### Batch 1：决策编译层生产化基础（2026-04-08）
+
+目标：把已有编译链做成可持久化、可回溯、可版本化的生产级骨架。
+
+#### 1.1 会话持久化与对象落库
+
+- **新增** `apps/content_planning/storage/plan_store.py` — `ContentPlanStore` 类
+  - SQLite 表 `planning_sessions`：`opportunity_id` PK + `session_status` + 7 个 `*_json` 列 + `pipeline_run_id` + `stale_flags_json` + `created_at` / `updated_at`
+  - UPSERT 语义：非 None 字段才更新
+  - `save_session` / `load_session` / `update_field` / `update_stale_flags` / `list_sessions` / `delete_session` / `session_count`
+- **改造** `apps/content_planning/services/opportunity_to_plan_flow.py`：
+  - `OpportunityToPlanFlow.__init__` 接受可选 `plan_store` 参数
+  - `_get_session` 先查内存缓存 → SQLite → 新建
+  - 每步操作完成后调用 `_persist()` 写回 SQLite
+  - 新增 `stale_flags` 状态追踪 + `_mark_fresh` 方法
+- **改造** `apps/intel_hub/api/app.py`：初始化 `ContentPlanStore` 并注入 Flow
+
+#### 1.2 pipeline_run_id / lineage / version chain
+
+- **新增** `apps/content_planning/schemas/lineage.py` — `PlanLineage` 模型
+  - 字段：`pipeline_run_id` / `source_note_ids` / `opportunity_id` / `review_id` / `brief_id` / `template_id` / `strategy_id` / `plan_id` / `parent_version_id` / `derived_from_id` / `created_at`
+- **修改** 6 个 schema 增加 `lineage: PlanLineage | None = None`：
+  - `OpportunityBrief` / `RewriteStrategy` / `NewNotePlan` / `TitleGenerationResult` / `BodyGenerationResult` / `ImageBriefGenerationResult`
+- **修改** `XHSOpportunityCard`：增加 `pipeline_run_id: str | None = None`
+- **Flow 传递**：`build_brief` / `build_strategy` / `build_plan` / `regenerate_*` 均构建 lineage 并挂载
+
+#### 1.3 Prompt Registry / Prompt 配置化
+
+- **新增** `apps/content_planning/services/prompt_registry.py` — `load_prompt(scene, variant)` + YAML 缓存
+- **新增** 5 个 YAML 配置：
+  - `config/prompts/strategy.yaml` / `title.yaml` / `body.yaml` / `image_brief.yaml` / `template_match.yaml`
+- **改造** 5 个 service 从 registry 加载 prompt：
+  - `strategy_generator.py` / `title_generator.py` / `body_generator.py` / `image_brief_generator.py` / `template_matcher.py`
+- 行为完全不变，只做结构性抽离
+
+#### 验证
+
+- 全量 209 项测试通过
+- 所有 import 正常
+- 向后兼容：所有新字段默认 None，旧数据不受影响
+
+---
+
+### Batch 2：决策编译层增强（2026-04-08）
+
+目标：让机会卡、Brief、Strategy、TemplateMatcher 更强、更可审阅。
+
+#### 2.1 机会卡增强
+
+- **Schema**：`XHSOpportunityCard` 新增 `action_recommendation: str | None` + `opportunity_strength_score: float | None`
+- **编译器**：`_build_action_recommendation`（基于 opportunity_type + confidence + engagement 生成运营建议句）、`_build_strength_score`（加权公式 confidence 40% + engagement 30% + cross_modal 30%）
+- 使用真实互动数据（like/collect/comment/share）
+
+#### 2.2 BriefCompiler 升级
+
+- **Schema**：`OpportunityBrief` 新增 `why_now` / `differentiation_view` / `proof_blocks: list[dict]` / `planning_direction`
+- **编译器**：4 个新 builder（`_build_why_now` / `_build_differentiation_view` / `_build_proof_blocks` / `_build_planning_direction`）
+- `proof_blocks` 结构化为 `{"type": "engagement"|"visual"|"validation"|"review", "content": ..., "source": ...}`
+- `planning_direction` 为模板匹配和策略生成提供直接输入
+
+#### 2.3 TemplateMatcher 多候选与解释增强
+
+- **Schema**：`TemplateMatchEntry` 新增 `matched_dimensions: dict[str, float] | None`（scene/goal/style/hook/avoid 各维度分）
+- `MatchResult` 增加 `matched_dimensions` 属性
+- `_score_with_brief` 追踪各维度得分并返回
+- Flow 层构建 `TemplateMatchEntry` 时传递维度分
+
+#### 2.4 RewriteStrategy 增强为可对比对象
+
+- **Schema**：`RewriteStrategy` 新增 `strategy_version: int = 1` / `comparison_note: str | None` / `editable_blocks: list[str] | None`
+- `_merge_llm_with_fallback` 自动生成 comparison_note（标注 LLM 优化了哪些字段）
+- `editable_blocks` 列出所有可编辑字段名
+
+#### 验证
+
+- 全量 209 项测试通过
+- 所有新字段向后兼容（默认 None / 空值）
+
+---
+
+### Batch 3：对象交互层工作台化（2026-04-08）
+
+目标：把当前流程页升级成对象化工作台。
+
+#### 3.1 重构工作台信息架构
+
+- 三工作台重命名与定位：
+  - `content_brief.html` → **机会工作台**：机会上下文 + Brief 编辑 + 操作面板
+  - `content_strategy.html` → **策划工作台**：Brief 摘要 + 模板匹配 + 策略详情
+  - `content_plan.html` → **资产工作台**：策略摘要 + 内容生成结果 + 导出操作
+- 已有三栏布局保持不变（左30%/中45%/右25%）
+
+#### 3.2 局部失效与局部重算显式化
+
+- `_SessionState` 增加 `stale_flags: dict[str, bool]`（7 个 key）
+- `invalidate_downstream` 自动更新 stale_flags
+- `_mark_fresh` 在每步完成后标记为新鲜
+- `_persist` 每步写回 stale_flags 到 SQLite
+- 三个工作台页面 API 返回 stale_flags
+- 前端显示状态标记：绿色 ✓ / 红色 ⟳
+
+#### 3.3 多策略对比视图支撑
+
+- `ContentPlanStore` 新增 `save_strategy` / `load_strategies` 方法
+- `strategy_json` 支持 list 存储，向后兼容 dict
+- API 新增 `GET /content-planning/strategies/{opportunity_id}`
+
+#### 3.4 图位级对象化
+
+- `ImageSlotPlan` 增加 `slot_id: str`（uuid 前 8 位）+ `slot_version: int = 1`
+- API 新增 `POST /content-planning/xhs-opportunities/{opportunity_id}/regenerate-image-slot/{slot_index}`
+- 单图位查询返回指定槽位的 brief
+
+#### 验证
+
+- 全量 209 项测试通过
+- stale_flags 在三个工作台页面正确渲染
+
+---
+
+### Batch 4：资产生产层资产包化（2026-04-08）
+
+目标：标题/正文/图片统一为可导出资产包。
+
+#### 4.1 AssetBundle 统一对象
+
+- **新增** `apps/content_planning/schemas/asset_bundle.py` — `AssetBundle` schema
+  - 字段：`asset_bundle_id` / `plan_id` / `opportunity_id` / `template_id` / `template_name` / `title_candidates` / `body_outline` / `body_draft` / `image_execution_briefs` / `export_status` / `lineage` / `created_at`
+- **新增** `apps/content_planning/services/asset_assembler.py` — `AssetAssembler.assemble()`
+  - 从 `TitleGenerationResult` / `BodyGenerationResult` / `ImageBriefGenerationResult` 组装 AssetBundle
+  - 自动判断 export_status（有标题+正文 → ready，否则 draft）
+- **Flow 集成**：`OpportunityToPlanFlow.assemble_asset_bundle()` 方法
+- **API**：`GET /content-planning/asset-bundle/{opportunity_id}`
+
+#### 4.2 导出层
+
+- **新增** `apps/content_planning/services/asset_exporter.py` — `AssetExporter`
+  - `export_json(bundle)` → JSON 字典
+  - `export_markdown(bundle)` → 运营文档 Markdown
+  - `export_image_package(bundle)` → 设计团队结构化指令
+- **API**：`GET /content-planning/asset-bundle/{id}/export?format=json|markdown|image_package`
+
+#### 4.3 批量内容资产生产
+
+- **Flow**：`OpportunityToPlanFlow.batch_compile(opportunity_ids)` 方法
+  - 支持部分成功/部分失败
+  - 返回 `{succeeded: list[AssetBundle], failed: list[{id, error}], total}`
+- **API**：`POST /content-planning/batch-compile`
+
+#### 验证
+
+- 全量 209 项测试通过
+- AssetBundle / Assembler / Exporter 类型检查通过
+
+---
+
+### Batch 5：批量化、异步化、反馈闭环（2026-04-08）
+
+目标：让系统进入生产环境可持续运行。
+
+#### 5.1 异步并行生成
+
+- `_run_generation` 从串行改为 `ThreadPoolExecutor(max_workers=3)` 并行
+  - 三路 LLM 调用（标题/正文/图片）同时执行
+  - 某一路失败不影响其他，错误信息写入 `_generation_errors`
+  - 超时 60 秒
+- 使用 ThreadPoolExecutor 而非 asyncio（因为 LLM 客户端是同步的）
+
+#### 5.2 运营看板基础指标
+
+- **新增** `apps/content_planning/services/dashboard_metrics.py` — `DashboardMetrics`
+  - `opportunity_pool`：总量 / 已检视 / 已 promote / promote 率 / 平均质量分
+  - `planning_pipeline`：总会话数 / 已生成数 / 已导出数 / 生成率
+  - `template_distribution`：按类型分布
+- **API**：`GET /content-planning/dashboard`
+
+#### 5.3 效果回流闭环
+
+- **新增** `apps/content_planning/schemas/feedback.py`
+  - `PublishedAssetResult`：发布效果数据
+  - `EngagementResult`：互动效果快照
+  - `TemplateEffectivenessRecord`：模板有效性记录
+- **API**：`POST /content-planning/asset-bundle/{id}/feedback`
+  - 接收效果数据，构建 `PublishedAssetResult`
+  - 数据结构先做好，暂不做自动学习
+
+#### 验证
+
+- 全量 209 项测试通过
+- 所有新模块 import 验证通过
+- ContentPlanStore CRUD 验证通过
+- PromptRegistry YAML 加载验证通过
+- Schema lineage 字段验证通过
+
+---
+
+### 五批升级总结
+
+| Batch | 目标 | 状态 |
+|-------|------|------|
+| 1 | 决策编译层生产化基础（持久化/血缘/Prompt配置化） | ✅ 完成 |
+| 2 | 决策编译层增强（机会卡/Brief/Strategy/Matcher 升级） | ✅ 完成 |
+| 3 | 对象交互层工作台化（三工作台/stale_flags/多策略/图位） | ✅ 完成 |
+| 4 | 资产生产层资产包化（AssetBundle/导出/批量编译） | ✅ 完成 |
+| 5 | 批量化、异步化、反馈闭环（并行生成/看板/回流） | ✅ 完成 |
+
+新增文件：
+- `apps/content_planning/schemas/lineage.py`
+- `apps/content_planning/schemas/asset_bundle.py`
+- `apps/content_planning/schemas/feedback.py`
+- `apps/content_planning/storage/plan_store.py`
+- `apps/content_planning/services/prompt_registry.py`
+- `apps/content_planning/services/asset_assembler.py`
+- `apps/content_planning/services/asset_exporter.py`
+- `apps/content_planning/services/dashboard_metrics.py`
+- `config/prompts/strategy.yaml`
+- `config/prompts/title.yaml`
+- `config/prompts/body.yaml`
+- `config/prompts/image_brief.yaml`
+- `config/prompts/template_match.yaml`

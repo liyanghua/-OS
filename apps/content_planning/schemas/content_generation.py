@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
+from apps.content_planning.schemas.lineage import PlanLineage
+
 
 class TitleCandidate(BaseModel):
     """单条标题候选。"""
@@ -25,6 +27,7 @@ class TitleGenerationResult(BaseModel):
     template_id: str = ""
     titles: list[TitleCandidate] = Field(default_factory=list)
     mode: str = "rule"
+    lineage: PlanLineage | None = None
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -42,6 +45,7 @@ class BodyGenerationResult(BaseModel):
     cta_text: str = ""
     tone_check: str = ""
     mode: str = "rule"
+    lineage: PlanLineage | None = None
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -68,4 +72,5 @@ class ImageBriefGenerationResult(BaseModel):
     template_id: str = ""
     slot_briefs: list[ImageSlotBrief] = Field(default_factory=list)
     mode: str = "rule"
+    lineage: PlanLineage | None = None
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

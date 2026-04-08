@@ -190,8 +190,19 @@
       <span class="sep">→</span>
       <span class="current">内容策划</span>
     </div>
-    <h2 style="margin: 0 0 6px; font-size: 22px;">内容策划工作站</h2>
+    <h2 style="margin: 0 0 6px; font-size: 22px;">资产工作台 · 内容生成</h2>
     <p class="meta" style="margin: 0;">机会 ID：<code>{{ opportunity_id }}</code></p>
+
+    {% if stale_flags %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+      {% for key in ['brief','match','strategy','plan','titles','body','image_briefs'] %}
+      {% set is_stale = stale_flags.get(key, false) %}
+      <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">
+        {{ key }} {{ '⟳' if is_stale else '✓' }}
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
 
   <div class="cp-layout">

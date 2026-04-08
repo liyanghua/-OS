@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from apps.content_planning.schemas.lineage import PlanLineage
+
 
 class RewriteStrategy(BaseModel):
     """从"用哪个模板"到"具体怎么改"的关键翻译层。"""
@@ -40,5 +42,12 @@ class RewriteStrategy(BaseModel):
 
     differentiation_axis: list[str] = Field(default_factory=list)
     risk_notes: list[str] = Field(default_factory=list)
+
+    # V2.0 对比与版本字段
+    strategy_version: int = 1
+    comparison_note: str | None = None
+    editable_blocks: list[str] | None = None
+
+    lineage: PlanLineage | None = None
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -52,3 +52,8 @@ class XHSOpportunityCard(BaseModel):
     engagement_insight: str | None = None
     cross_modal_verdict: str | None = None
     insight_statement: str | None = None
+    pipeline_run_id: str | None = None
+
+    # V2.0 决策增强字段
+    action_recommendation: str | None = None
+    opportunity_strength_score: float | None = None

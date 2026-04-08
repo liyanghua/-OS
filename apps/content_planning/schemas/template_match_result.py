@@ -12,6 +12,7 @@ class TemplateMatchEntry(BaseModel):
     template_name: str = ""
     score: float = 0.0
     reason: str = ""
+    matched_dimensions: dict[str, float] | None = None
 
 
 class TemplateMatchResult(BaseModel):

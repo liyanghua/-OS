@@ -149,9 +149,20 @@
   </div>
 
   <div class="headline" style="margin-bottom: 20px;">
-    <h2 style="margin: 0 0 6px; font-size: 20px;">内容策划工作台</h2>
-    <p class="meta" style="margin: 0;">第 2 步：Brief 确认 · 机会 ID <code>{{ opportunity_id }}</code></p>
+    <h2 style="margin: 0 0 6px; font-size: 20px;">机会工作台 / Brief 确认</h2>
+    <p class="meta" style="margin: 0;">机会 ID <code>{{ opportunity_id }}</code>{% if pipeline_run_id %} · Pipeline <code>{{ pipeline_run_id }}</code>{% endif %}</p>
   </div>
+
+  {% if stale_flags %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs'] %}
+    {% set is_stale = stale_flags.get(key, false) %}
+    <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">
+      {{ key }} {{ '⟳' if is_stale else '✓' }}
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <div class="cp-brief-row">
     <!-- 左栏 -->

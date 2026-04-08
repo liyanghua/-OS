@@ -136,8 +136,19 @@
 </nav>
 
 <div class="headline" style="padding: 20px 24px;">
-  <h2 style="margin: 0 0 4px; font-size: 22px;">内容策划工作站 · 模板与策略</h2>
-  <p class="meta" style="margin: 0;">第 3 步：确认模板候选并审阅改写策略</p>
+  <h2 style="margin: 0 0 4px; font-size: 22px;">策划工作台 · 模板与策略</h2>
+  <p class="meta" style="margin: 0;">确认模板候选并审阅改写策略</p>
+
+  {% if stale_flags %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs'] %}
+    {% set is_stale = stale_flags.get(key, false) %}
+    <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">
+      {{ key }} {{ '⟳' if is_stale else '✓' }}
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 
 {# —— Brief 摘要条 —— #}

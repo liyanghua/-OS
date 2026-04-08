@@ -11,6 +11,7 @@ from typing import Any
 
 from apps.content_planning.schemas.opportunity_brief import OpportunityBrief
 from apps.content_planning.schemas.rewrite_strategy import RewriteStrategy
+from apps.content_planning.services.prompt_registry import load_prompt
 from apps.content_planning.schemas.template_match_result import TemplateMatchResult
 from apps.template_extraction.schemas.template import TableclothMainImageStrategyTemplate
 
@@ -85,20 +86,9 @@ class RewriteStrategyGenerator:
         constraints = self._build_constraints(brief, match_result, tpl)
         schema_hint = self._build_output_schema()
 
-        system = "你是小红书桌布类目资深内容策略师，擅长将机会洞察转化为高转化的内容改写策略。"
-        user = (
-            "请根据以下约束信息，生成一份完整的小红书内容改写策略。\n\n"
-            f"## 约束信息\n{constraints}\n\n"
-            f"## 输出 JSON 格式\n{schema_hint}\n\n"
-            "## 要求\n"
-            "1. positioning_statement：用一句话概括内容定位，体现核心卖点和模板策略方向\n"
-            "2. new_hook：设计一个引发点击/收藏的钩子句式，结合场景和利益点\n"
-            "3. title_strategy：给出 3-4 条标题策略指导（如风格参考、关键词前置、场景化表达）\n"
-            "4. body_strategy：给出 3-4 条正文策略（开头场景代入、中段价值铺垫、结尾行动引导）\n"
-            "5. image_strategy：给出 3-4 条图片策略（图组顺序、景别、色彩方向）\n"
-            "6. 所有内容需符合小红书语境，避免硬广感，强调真实感和代入感\n"
-            "7. 直接输出 JSON，不要包含其他文字\n"
-        )
+        prompt_cfg = load_prompt("strategy")
+        system = prompt_cfg["system"]
+        user = prompt_cfg["user_template"].format(constraints=constraints, schema_hint=schema_hint)
 
         try:
             raw = call_text_llm(system, user, temperature=0.4, max_tokens=3000)
@@ -170,6 +160,25 @@ class RewriteStrategyGenerator:
         lines.append(f"- 匹配分: {primary.score:.2f}")
         if primary.reason:
             lines.append(f"- 匹配理由: {primary.reason}")
+        if primary.matched_dimensions:
+            dim_parts = [
+                f"{k}: {v:.2f}"
+                for k, v in sorted(
+                    primary.matched_dimensions.items(),
+                    key=lambda kv: (-abs(kv[1]), kv[0]),
+                )
+            ]
+            lines.append(f"- 各维度得分: {'; '.join(dim_parts)}")
+        secondary = match_result.secondary_templates[:3]
+        if secondary:
+            cand_bits = []
+            for t in secondary:
+                bit = f"{t.template_name}（{t.score:.2f}）"
+                if t.matched_dimensions:
+                    top_dim = max(t.matched_dimensions.items(), key=lambda kv: abs(kv[1]))[0]
+                    bit += f"·{top_dim}"
+                cand_bits.append(bit)
+            lines.append(f"- 备选候选: {' | '.join(cand_bits)}")
 
         return "\n".join(lines)
 
@@ -223,6 +232,18 @@ class RewriteStrategyGenerator:
                 merged[field] = [str(v) for v in llm_val if v]
             else:
                 merged[field] = getattr(fallback, field)
+
+        # Build comparison note if LLM produced meaningful differences（字符串 + 列表字段）
+        diffs: list[str] = []
+        for field in _STR_FIELDS:
+            if merged.get(field) != getattr(fallback, field) and merged.get(field):
+                diffs.append(field)
+        for field in _LIST_FIELDS:
+            if merged.get(field) != getattr(fallback, field):
+                diffs.append(field)
+        if diffs:
+            merged["comparison_note"] = f"LLM 优化了 {len(diffs)} 个字段：{'、'.join(diffs[:5])}"
+        merged["editable_blocks"] = list(_STR_FIELDS) + list(_LIST_FIELDS)
 
         return RewriteStrategy(**merged)
 
@@ -283,6 +304,8 @@ class RewriteStrategyGenerator:
             image_strategy=image_strategy,
             differentiation_axis=diff_axis[:4],
             risk_notes=risk_notes,
+            strategy_version=1,
+            editable_blocks=list(_STR_FIELDS) + list(_LIST_FIELDS),
         )
 
     @staticmethod

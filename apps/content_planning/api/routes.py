@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -179,6 +179,135 @@ async def compile_note_plan(
 async def get_session(opportunity_id: str) -> dict[str, Any]:
     """获取当前会话缓存。"""
     return _get_flow().get_session_data(opportunity_id)
+
+
+@router.get("/strategies/{opportunity_id}")
+@_handle_flow_error
+async def list_strategies(opportunity_id: str) -> dict[str, Any]:
+    """获取某机会卡的所有策略列表。"""
+    flow = _get_flow()
+    session_data = flow.get_session_data(opportunity_id)
+    strategy = session_data.get("strategy")
+    if strategy is None:
+        return {"strategies": [], "count": 0}
+    if isinstance(strategy, list):
+        return {"strategies": strategy, "count": len(strategy)}
+    if isinstance(strategy, dict):
+        return {"strategies": [strategy], "count": 1}
+    return {"strategies": [], "count": 0}
+
+
+@router.post("/xhs-opportunities/{opportunity_id}/regenerate-image-slot/{slot_index}")
+@_handle_flow_error
+async def regenerate_image_slot(opportunity_id: str, slot_index: int) -> dict[str, Any]:
+    """单张图位重生成。"""
+    flow = _get_flow()
+    result = flow.regenerate_image_briefs(opportunity_id)
+    briefs_data = result.model_dump(mode="json")
+    slot_briefs = briefs_data.get("slot_briefs", [])
+    target = None
+    for sb in slot_briefs:
+        if sb.get("slot_index") == slot_index:
+            target = sb
+            break
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"图位 {slot_index} 未找到")
+    return {"slot_index": slot_index, "slot_brief": target, "total_slots": len(slot_briefs)}
+
+
+@router.get("/asset-bundle/{opportunity_id}")
+@_handle_flow_error
+async def get_asset_bundle(opportunity_id: str) -> dict[str, Any]:
+    """组装并返回 AssetBundle。"""
+    bundle = _get_flow().assemble_asset_bundle(opportunity_id)
+    return bundle.model_dump(mode="json")
+
+
+@router.get("/asset-bundle/{opportunity_id}/export")
+@_handle_flow_error
+async def export_asset_bundle(opportunity_id: str, format: str = "json") -> Any:
+    """导出 AssetBundle。format: json / markdown / image_package"""
+    from apps.content_planning.services.asset_exporter import AssetExporter
+
+    bundle = _get_flow().assemble_asset_bundle(opportunity_id)
+    exporter = AssetExporter()
+    if format == "markdown":
+        from fastapi.responses import PlainTextResponse
+
+        return PlainTextResponse(exporter.export_markdown(bundle), media_type="text/markdown")
+    elif format == "image_package":
+        return exporter.export_image_package(bundle)
+    return exporter.export_json(bundle)
+
+
+class BatchCompileRequest(BaseModel):
+    opportunity_ids: list[str] = Field(min_length=1)
+
+
+@router.post("/batch-compile")
+@_handle_flow_error
+async def batch_compile(body: BatchCompileRequest) -> dict[str, Any]:
+    """批量编译 promoted 卡。"""
+    return _get_flow().batch_compile(body.opportunity_ids)
+
+
+@router.get("/dashboard")
+async def dashboard_metrics() -> dict[str, Any]:
+    """运营看板基础指标。"""
+    from apps.content_planning.services.dashboard_metrics import DashboardMetrics
+
+    flow = _get_flow()
+    adapter = flow._adapter
+    review_store = getattr(adapter, "_review_store", None) or getattr(adapter, "_store", None)
+    metrics = DashboardMetrics(
+        review_store=review_store,
+        plan_store=flow._store,
+    )
+    return metrics.compute()
+
+
+class AssetFeedbackRequest(BaseModel):
+    published_note_id: str = ""
+    like_count: int = 0
+    collect_count: int = 0
+    comment_count: int = 0
+    share_count: int = 0
+    view_count: int = 0
+    performance_label: str = "unknown"
+    feedback_notes: str = ""
+
+
+@router.post("/asset-bundle/{asset_bundle_id}/feedback")
+async def submit_asset_feedback(
+    asset_bundle_id: str,
+    body: AssetFeedbackRequest,
+) -> dict[str, Any]:
+    """提交资产发布效果反馈。"""
+    from apps.content_planning.schemas.feedback import PublishedAssetResult
+
+    _Perf = Literal["excellent", "good", "average", "poor", "unknown"]
+    allowed: tuple[str, ...] = ("excellent", "good", "average", "poor", "unknown")
+    label_raw = body.performance_label if body.performance_label in allowed else "unknown"
+    label = cast(_Perf, label_raw)
+
+    result = PublishedAssetResult(
+        asset_bundle_id=asset_bundle_id,
+        published_note_id=body.published_note_id,
+        like_count=body.like_count,
+        collect_count=body.collect_count,
+        comment_count=body.comment_count,
+        share_count=body.share_count,
+        view_count=body.view_count,
+        performance_label=label,
+        feedback_notes=body.feedback_notes,
+    )
+
+    return {
+        "status": "received",
+        "result_id": result.result_id,
+        "asset_bundle_id": asset_bundle_id,
+        "performance_label": result.performance_label,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════

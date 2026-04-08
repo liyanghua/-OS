@@ -9,6 +9,7 @@ from apps.content_planning.schemas.content_generation import (
     ImageSlotBrief,
 )
 from apps.content_planning.schemas.note_plan import NewNotePlan
+from apps.content_planning.services.prompt_registry import load_prompt
 from apps.content_planning.utils.plan_trace import plan_trace_kwargs
 from apps.content_planning.schemas.rewrite_strategy import RewriteStrategy
 from apps.intel_hub.extraction.llm_client import (
@@ -20,16 +21,9 @@ from apps.template_extraction.schemas.agent_plan import ImageSlotPlan
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = """\
-你是一位专业的视觉策划 Agent，擅长小红书桌布品类的商品图组策划。
-你的任务是根据给定的图片策划方案和视觉约束，为每张图输出详细的拍摄执行指令。
 
-输出要求：
-1. 为每个图片槽位生成具体的拍摄/设计指令
-2. 包含主体、构图、道具、文字叠层、色调氛围等维度
-3. 标注应规避的元素
-4. 输出严格 JSON 格式
-"""
+def _get_system_prompt() -> str:
+    return load_prompt("image_brief")["system"]
 
 
 class ImageBriefGenerator:
@@ -57,7 +51,7 @@ class ImageBriefGenerator:
         strategy: RewriteStrategy,
     ) -> ImageBriefGenerationResult:
         user_prompt = self._build_user_prompt(plan, strategy)
-        raw = call_text_llm(_SYSTEM_PROMPT, user_prompt, temperature=0.5, max_tokens=3000)
+        raw = call_text_llm(_get_system_prompt(), user_prompt, temperature=0.5, max_tokens=3000)
         if not raw:
             return ImageBriefGenerationResult(**plan_trace_kwargs(plan), mode="llm_empty")
 
@@ -100,12 +94,10 @@ class ImageBriefGenerator:
             )
 
         parts.append(
-            '\n请输出 JSON：\n'
-            '{"slot_briefs": [{"slot_index": 1, "role": "角色", "subject": "主体描述", '
-            '"composition": "构图方式", "props": ["道具1", "道具2"], '
-            '"text_overlay": "文字叠层说明", "color_mood": "色调氛围", '
-            '"avoid": ["规避项1"]}]}\n'
-            f"共 {len(plan.image_plan.image_slots)} 张图。"
+            "\n"
+            + load_prompt("image_brief")["output_hint"].format(
+                slot_count=len(plan.image_plan.image_slots)
+            ).strip()
         )
         return "\n\n".join(parts)
 

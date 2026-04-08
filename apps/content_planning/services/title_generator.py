@@ -9,6 +9,7 @@ from apps.content_planning.schemas.content_generation import (
     TitleGenerationResult,
 )
 from apps.content_planning.schemas.note_plan import NewNotePlan
+from apps.content_planning.services.prompt_registry import load_prompt
 from apps.content_planning.utils.plan_trace import plan_trace_kwargs
 from apps.content_planning.schemas.rewrite_strategy import RewriteStrategy
 from apps.intel_hub.extraction.llm_client import (
@@ -19,16 +20,9 @@ from apps.intel_hub.extraction.llm_client import (
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = """\
-你是一位资深小红书桌布品类的内容策划专家。
-你的任务是根据给定的策划方案和改写策略，生成 5 条高质量的小红书笔记标题。
 
-输出要求：
-1. 每条标题贴合小红书用户阅读习惯，字数 10-25 字
-2. 标题需覆盖不同切入角度（如场景代入、利益点、悬念、口语化等）
-3. 避免使用被标记为禁用的词汇
-4. 输出严格 JSON 格式
-"""
+def _get_system_prompt() -> str:
+    return load_prompt("title")["system"]
 
 
 class TitleGenerator:
@@ -53,7 +47,7 @@ class TitleGenerator:
         strategy: RewriteStrategy,
     ) -> TitleGenerationResult:
         user_prompt = self._build_user_prompt(plan, strategy)
-        raw = call_text_llm(_SYSTEM_PROMPT, user_prompt, temperature=0.7, max_tokens=1500)
+        raw = call_text_llm(_get_system_prompt(), user_prompt, temperature=0.7, max_tokens=1500)
         if not raw:
             return TitleGenerationResult(**plan_trace_kwargs(plan), mode="llm_empty", titles=[])
 
@@ -85,10 +79,7 @@ class TitleGenerator:
         if plan.title_plan.do_not_use_phrases:
             parts.append(f"## 禁用词汇\n{'、'.join(plan.title_plan.do_not_use_phrases[:6])}")
 
-        parts.append(
-            '\n请输出 JSON：{"titles": [{"text": "标题", "axis": "切入角度", "rationale": "选用理由"}]}\n'
-            "生成 5 条标题。"
-        )
+        parts.append("\n" + load_prompt("title")["output_hint"].strip())
         return "\n\n".join(parts)
 
     @staticmethod

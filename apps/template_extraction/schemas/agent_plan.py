@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import uuid
+
 from pydantic import BaseModel, Field
 
 
 class ImageSlotPlan(BaseModel):
     """单张主图槽位：角色、意图、视觉 brief 与文案/元素约束。"""
 
+    slot_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:8])
+    slot_version: int = 1
     slot_index: int
     role: str
     intent: str

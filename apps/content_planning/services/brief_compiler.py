@@ -77,6 +77,13 @@ class BriefCompiler:
         brief.opportunity_title = self._zh_replace_refs(brief.opportunity_title or "")
         brief.opportunity_summary = self._zh_replace_refs(brief.opportunity_summary or "")
 
+        brief.why_now = self._build_why_now(card, note_context)
+        brief.differentiation_view = self._build_differentiation_view(
+            card, cross_modal_dict, brief.competitive_angle
+        )
+        brief.proof_blocks = self._build_proof_blocks(card, note_context, cross_modal_dict, review_summary)
+        brief.planning_direction = self._build_planning_direction(card, brief.target_scene, brief.content_goal)
+
         return brief
 
     @staticmethod
@@ -376,6 +383,130 @@ class BriefCompiler:
         else:
             label = f"低置信（一致性 {score:.2f}，{issue_count} 项不支持）"
         return label
+
+    @staticmethod
+    def _build_why_now(card: Any, note_context: dict[str, Any] | None) -> str | None:
+        """从互动数据和品类趋势推断「为什么现在做」。"""
+        parts: list[str] = []
+        if note_context:
+            like = note_context.get("like_count", 0) or 0
+            collect = note_context.get("collect_count", 0) or 0
+            total = like + collect
+            if total >= 500:
+                parts.append("原始笔记互动量级较高，市场关注度已有基础")
+            elif total >= 100:
+                parts.append("原始笔记有一定互动基础")
+
+        insight = getattr(card, "insight_statement", None)
+        if insight and ("强收藏" in insight or "高藏赞比" in insight):
+            parts.append("收藏属性强，种草时机成熟")
+
+        if hasattr(card, "opportunity_type"):
+            type_hint = {"visual": "视觉类内容竞争窗口期", "scene": "场景赛道尚有差异化空间", "demand": "用户需求明确但供给不足"}
+            hint = type_hint.get(card.opportunity_type)
+            if hint:
+                parts.append(hint)
+
+        return "；".join(parts) if parts else None
+
+    @staticmethod
+    def _build_differentiation_view(
+        card: Any,
+        cross_modal_dict: dict[str, Any] | None,
+        competitive_angle: str | None = None,
+    ) -> str | None:
+        """从高置信卖点和质疑点构建差异化视角。"""
+        parts: list[str] = []
+        if cross_modal_dict:
+            high = cross_modal_dict.get("high_confidence_claims", [])
+            challenged = cross_modal_dict.get("challenged_claims", [])
+            if high:
+                parts.append(f"已验证优势：{'、'.join(high[:3])}")
+            if challenged:
+                parts.append(f"可避开的争议点：{'、'.join(challenged[:2])}")
+
+        competitive = competitive_angle or getattr(card, "competitive_angle", None) or getattr(
+            card, "action_recommendation", None
+        )
+        if competitive and isinstance(competitive, str):
+            parts.append(f"竞争切入：{competitive[:60]}")
+
+        return "；".join(parts) if parts else None
+
+    @staticmethod
+    def _build_proof_blocks(card: Any, note_context: dict[str, Any] | None, cross_modal_dict: dict[str, Any] | None, review_summary: dict[str, Any] | None) -> list[dict] | None:
+        """构建结构化证据块。"""
+        blocks: list[dict] = []
+
+        if note_context:
+            like = note_context.get("like_count", 0) or 0
+            collect = note_context.get("collect_count", 0) or 0
+            comment = note_context.get("comment_count", 0) or 0
+            if like + collect + comment > 0:
+                blocks.append({
+                    "type": "engagement",
+                    "content": f"赞 {like} / 藏 {collect} / 评 {comment}",
+                    "source": "原始笔记互动数据",
+                })
+
+        if cross_modal_dict:
+            high = cross_modal_dict.get("high_confidence_claims", [])
+            if high:
+                blocks.append({
+                    "type": "visual",
+                    "content": f"跨模态高置信卖点：{'、'.join(high[:3])}",
+                    "source": "跨模态校验",
+                })
+
+            score = cross_modal_dict.get("overall_consistency_score")
+            if score is not None:
+                blocks.append({
+                    "type": "validation",
+                    "content": f"一致性评分 {score:.2f}",
+                    "source": "跨模态校验",
+                })
+
+        if review_summary:
+            avg_q = review_summary.get("average_manual_quality_score")
+            if avg_q is None:
+                avg_q = review_summary.get("avg_quality_score")
+            if avg_q is not None and avg_q > 0:
+                blocks.append({
+                    "type": "review",
+                    "content": f"人工质量均分 {avg_q:.1f}",
+                    "source": "人工检视",
+                })
+
+        return blocks if blocks else None
+
+    @staticmethod
+    def _build_planning_direction(card: Any, brief_target_scene: list[str], brief_content_goal: str | None) -> str | None:
+        """为模板匹配和策略生成提供直接输入的方向建议。"""
+        parts: list[str] = []
+
+        if brief_content_goal:
+            parts.append(f"内容目标：{brief_content_goal}")
+
+        if brief_target_scene:
+            parts.append(f"主打场景：{'、'.join(brief_target_scene[:3])}")
+
+        action_rec = getattr(card, "action_recommendation", None)
+        if action_rec and isinstance(action_rec, str):
+            for seg in action_rec.split("；"):
+                if "场景方向" in seg or "适合做" in seg:
+                    parts.append(seg.strip())
+                    break
+
+        strength = getattr(card, "opportunity_strength_score", None)
+        if strength is not None:
+            if strength >= 0.7:
+                parts.append("综合强度高，可大胆策划")
+            elif strength >= 0.5:
+                parts.append("综合强度中等，策划需差异化切入")
+            else:
+                parts.append("综合强度偏低，建议小成本试水")
+
+        return "；".join(parts) if parts else None
 
     @staticmethod
     def _zh_replace_refs(text: str) -> str:

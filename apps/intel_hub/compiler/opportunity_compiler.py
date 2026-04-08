@@ -147,6 +147,8 @@ def compile_xhs_opportunities(
         card.engagement_insight = engagement_insight
         card.cross_modal_verdict = cross_modal_verdict
         card.insight_statement = _build_insight_statement(card, engagement_insight, cross_modal_verdict)
+        card.action_recommendation = _build_action_recommendation(card, note_context)
+        card.opportunity_strength_score = _build_strength_score(card, note_context, cross_modal)
 
     return cards
 
@@ -522,3 +524,70 @@ def _build_insight_statement(
         return None
 
     return f"{' + '.join(fragments)} → 适合打{direction}"
+
+
+def _build_action_recommendation(
+    card: XHSOpportunityCard,
+    note_context: dict[str, Any] | None,
+) -> str | None:
+    """基于机会类型 + 置信度 + 互动特征生成运营建议句。"""
+    if card.confidence < 0.3:
+        return None
+
+    direction = _INSIGHT_DIRECTION_MAP.get(card.opportunity_type, "内容策划")
+
+    actions: list[str] = []
+    if card.confidence >= 0.7:
+        actions.append(f"高置信度机会，建议优先策划{direction}")
+    elif card.confidence >= 0.5:
+        actions.append(f"中等置信度，建议进一步验证后策划{direction}")
+    else:
+        actions.append(f"初步机会信号，建议观察后决定是否策划{direction}")
+
+    if note_context:
+        collect = note_context.get("collect_count", 0) or 0
+        like = note_context.get("like_count", 0) or 0
+        if collect > 0 and like > 0 and collect / like >= 1.0:
+            actions.append("收藏率高，适合做收藏型种草内容")
+        comment = note_context.get("comment_count", 0) or 0
+        if comment >= 20:
+            actions.append("评论活跃，可挖掘用户真实需求做选题")
+
+    if card.scene_refs:
+        scenes = "、".join(to_zh(r) for r in card.scene_refs[:2])
+        actions.append(f"场景方向：{scenes}")
+
+    return "；".join(actions)
+
+
+def _build_strength_score(
+    card: XHSOpportunityCard,
+    note_context: dict[str, Any] | None,
+    cross_modal: Any | None,
+) -> float | None:
+    """综合强度分：confidence 40% + engagement_ratio 30% + cross_modal_score 30%。"""
+    confidence_component = card.confidence * 0.4
+
+    engagement_component = 0.0
+    if note_context:
+        like = note_context.get("like_count", 0) or 0
+        collect = note_context.get("collect_count", 0) or 0
+        comment = note_context.get("comment_count", 0) or 0
+        total = like + collect + comment
+        if total > 0:
+            collect_ratio = min(collect / max(like, 1), 2.0) / 2.0
+            comment_ratio = min(comment / max(total, 1), 0.3) / 0.3
+            engagement_component = (collect_ratio * 0.6 + comment_ratio * 0.4) * 0.3
+
+    cross_modal_component = 0.0
+    if cross_modal is not None:
+        score = getattr(cross_modal, "overall_consistency_score", None)
+        if score is not None:
+            cross_modal_component = score * 0.3
+        else:
+            cross_modal_component = 0.15
+    else:
+        cross_modal_component = 0.15
+
+    total_score = confidence_component + engagement_component + cross_modal_component
+    return round(min(total_score, 1.0), 3)

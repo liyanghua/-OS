@@ -699,9 +699,11 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
     )
     from apps.content_planning.services.opportunity_to_plan_flow import OpportunityToPlanFlow
     from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
+    from apps.content_planning.storage.plan_store import ContentPlanStore
 
     _cp_adapter = IntelHubAdapter(review_store=review_store)
-    _cp_flow = OpportunityToPlanFlow(adapter=_cp_adapter)
+    _plan_store = ContentPlanStore(resolve_repo_path("data/content_plan.sqlite"))
+    _cp_flow = OpportunityToPlanFlow(adapter=_cp_adapter, plan_store=_plan_store)
     set_flow(_cp_flow)
     app.include_router(content_planning_router)
     app.include_router(content_planning_router_alias)
@@ -709,7 +711,7 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
     # ── 内容策划工作台页面路由 ─────────────────────────────────
     @app.get("/content-planning/brief/{opportunity_id}")
     async def content_brief_page(request: Request, opportunity_id: str) -> Any:
-        """Brief 确认页。"""
+        """Brief 确认页 / 机会工作台。"""
         card = review_store.get_card(opportunity_id)
         if card is None:
             raise HTTPException(status_code=404, detail="机会卡未找到")
@@ -727,6 +729,9 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
             source_ctx.append(ctx)
 
         review_summary = _cp_adapter.get_review_summary(opportunity_id)
+        session_data = _cp_flow.get_session_data(opportunity_id)
+        stale_flags = session_data.get("stale_flags", {})
+        pipeline_run_id = session_data.get("pipeline_run_id", "")
 
         if _wants_html(request):
             return _render("content_brief.html", {
@@ -736,12 +741,14 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 "brief": brief_dict,
                 "source_notes": source_ctx,
                 "review_summary": review_summary or {},
+                "stale_flags": stale_flags,
+                "pipeline_run_id": pipeline_run_id,
             })
         return {"card": card.model_dump(mode="json") if hasattr(card, "model_dump") else card, "brief": brief_dict}
 
     @app.get("/content-planning/strategy/{opportunity_id}")
     async def content_strategy_page(request: Request, opportunity_id: str) -> Any:
-        """模板与策略页。"""
+        """模板与策略页 / 策划工作台。"""
         card = review_store.get_card(opportunity_id)
         if card is None:
             raise HTTPException(status_code=404, detail="机会卡未找到")
@@ -751,6 +758,9 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
         except Exception as exc:
             data = {"brief": {}, "match_result": {}, "strategy": {}, "error": str(exc)}
 
+        session_data = _cp_flow.get_session_data(opportunity_id)
+        stale_flags = session_data.get("stale_flags", {})
+
         if _wants_html(request):
             return _render("content_strategy.html", {
                 "request": request,
@@ -759,12 +769,13 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 "brief": data.get("brief", {}),
                 "match_result": data.get("match_result", {}),
                 "strategy": data.get("strategy", {}),
+                "stale_flags": stale_flags,
             })
         return data
 
     @app.get("/content-planning/plan/{opportunity_id}")
     async def content_plan_page(request: Request, opportunity_id: str) -> Any:
-        """内容策划页。"""
+        """内容策划页 / 资产工作台。"""
         card = review_store.get_card(opportunity_id)
         if card is None:
             raise HTTPException(status_code=404, detail="机会卡未找到")
@@ -773,6 +784,9 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
             data = _cp_flow.build_note_plan(opportunity_id, with_generation=True)
         except Exception as exc:
             data = {"brief": {}, "match_result": {}, "strategy": {}, "note_plan": {}, "error": str(exc)}
+
+        session_data = _cp_flow.get_session_data(opportunity_id)
+        stale_flags = session_data.get("stale_flags", {})
 
         if _wants_html(request):
             return _render("content_plan.html", {
@@ -783,6 +797,7 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
                 "match_result": data.get("match_result", {}),
                 "note_plan": data.get("note_plan", {}),
                 "generated": data.get("generated"),
+                "stale_flags": stale_flags,
             })
         return data
 

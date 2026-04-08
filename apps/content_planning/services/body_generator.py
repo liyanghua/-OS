@@ -6,6 +6,7 @@ import logging
 
 from apps.content_planning.schemas.content_generation import BodyGenerationResult
 from apps.content_planning.schemas.note_plan import NewNotePlan
+from apps.content_planning.services.prompt_registry import load_prompt
 from apps.content_planning.utils.plan_trace import plan_trace_kwargs
 from apps.content_planning.schemas.rewrite_strategy import RewriteStrategy
 from apps.intel_hub.extraction.llm_client import (
@@ -16,18 +17,9 @@ from apps.intel_hub.extraction.llm_client import (
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = """\
-你是一位资深小红书内容写作专家，擅长桌布/家居品类的种草笔记写作。
-你的任务是根据给定的正文策划和改写策略，生成一篇完整的小红书笔记正文。
 
-输出要求：
-1. 正文 200-500 字，贴合小红书用户阅读习惯
-2. 开头用场景代入或钩子吸引注意力
-3. 中段围绕产品卖点展开，自然融入场景
-4. 结尾含明确的行动引导（收藏/购买/关注等）
-5. 语气真实、分享感强，避免硬广
-6. 输出严格 JSON 格式
-"""
+def _get_system_prompt() -> str:
+    return load_prompt("body")["system"]
 
 
 class BodyGenerator:
@@ -52,7 +44,7 @@ class BodyGenerator:
         strategy: RewriteStrategy,
     ) -> BodyGenerationResult:
         user_prompt = self._build_user_prompt(plan, strategy)
-        raw = call_text_llm(_SYSTEM_PROMPT, user_prompt, temperature=0.7, max_tokens=2000)
+        raw = call_text_llm(_get_system_prompt(), user_prompt, temperature=0.7, max_tokens=2000)
         if not raw:
             return BodyGenerationResult(**plan_trace_kwargs(plan), mode="llm_empty")
 
@@ -87,11 +79,7 @@ class BodyGenerator:
         if bp.tone_notes:
             parts.append(f"## 语气注意\n{'、'.join(bp.tone_notes)}")
 
-        parts.append(
-            '\n请输出 JSON：\n'
-            '{"opening_hook": "开头句", "body_sections": ["段落1", "段落2", ...], '
-            '"body_draft": "完整正文", "cta": "行动引导句", "tone_check": "语气自检说明"}'
-        )
+        parts.append("\n" + load_prompt("body")["output_hint"].strip())
         return "\n\n".join(parts)
 
     @staticmethod
