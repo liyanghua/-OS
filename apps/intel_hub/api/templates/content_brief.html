@@ -2,253 +2,208 @@
 
 {% block content %}
 <style>
-  .cp-brief-shell { max-width: 1480px; margin: 0 auto; }
-  .cp-brief-row {
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-    width: 100%;
+  .ws-shell { max-width: 1520px; margin: 0 auto; }
+  .ws-anchor {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 18px; margin-bottom: 14px;
+    background: linear-gradient(135deg, var(--accent-soft), rgba(255,253,248,0.95));
+    border: 1px solid rgba(138,75,47,0.18); border-radius: 16px;
   }
-  .cp-brief-left {
-    width: 380px;
-    flex-shrink: 0;
-    position: sticky;
-    top: 20px;
-    align-self: flex-start;
+  .ws-anchor-id { font-family: monospace; font-size: 12px; color: var(--muted); }
+  .ws-anchor-badge {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 999px;
   }
-  .cp-brief-mid {
-    flex: 1;
-    min-width: 0;
+  .ws-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .ws-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid transparent; transition: all 0.15s;
   }
-  .cp-brief-right {
-    width: 320px;
-    flex-shrink: 0;
-  }
-  .cp-field-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    margin: 0 0 6px;
-  }
-  .cp-badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-  .cp-form-label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--ink);
-    margin-bottom: 6px;
-  }
-  .cp-form-input {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 10px 12px;
-    font-size: 13px;
-    font-family: inherit;
-    background: var(--surface);
-    color: var(--ink);
-    margin-bottom: 14px;
-  }
-  .cp-form-input:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(138, 75, 47, 0.15);
-  }
-  .cp-btn {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
-    border: none;
-    border-radius: 14px;
-    padding: 12px 16px;
-    font-size: 14px;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    text-align: center;
-    text-decoration: none;
-    margin-bottom: 10px;
-    transition: opacity 0.15s, transform 0.1s;
-  }
-  .cp-btn:active { transform: scale(0.99); }
-  .cp-btn-primary {
-    background: var(--accent);
-    color: #fff;
-  }
-  .cp-btn-secondary {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border: 1px solid rgba(138, 75, 47, 0.25);
-  }
-  .cp-btn-ghost {
-    background: var(--surface);
-    color: var(--accent);
-    border: 1px solid var(--border);
-  }
-  .cp-breadcrumb {
-    margin-top: 28px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-    font-size: 13px;
-    color: var(--muted);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-  }
-  .cp-breadcrumb a {
-    color: var(--accent);
-    text-decoration: none;
-    font-weight: 600;
-  }
-  .cp-breadcrumb .current {
-    color: var(--ink);
-    font-weight: 700;
-  }
-  .cp-chip-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 6px;
-  }
-  .cp-chip {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border-radius: 999px;
-    padding: 4px 10px;
-    font-size: 12px;
-  }
-  .cp-proof-list {
-    margin: 8px 0 0;
-    padding-left: 18px;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--ink);
-  }
-  #cp-save-status {
-    font-size: 12px;
-    margin-top: 8px;
-    min-height: 18px;
-  }
+  .ws-chip:hover { opacity: 0.85; transform: translateY(-1px); }
+  .ws-chip-green { background: #dcfce7; color: #166534; }
+  .ws-chip-amber { background: #fef9c4; color: #92400e; }
+  .ws-chip-blue { background: #dbeafe; color: #1e40af; }
+  .ws-chip-red { background: #fee2e2; color: #991b1b; }
+  .ws-row { display: flex; gap: 20px; align-items: flex-start; width: 100%; }
+  .ws-left { width: 380px; flex-shrink: 0; position: sticky; top: 20px; align-self: flex-start; }
+  .ws-mid { flex: 1; min-width: 0; }
+  .ws-right { width: 320px; flex-shrink: 0; }
+  .ws-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 14px; box-shadow: 0 8px 22px rgba(92,66,39,0.06); }
+  .ws-card h3 { margin: 0 0 10px; font-size: 14px; color: var(--accent); font-weight: 700; }
+  .ws-field-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 6px; }
+  .ws-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+  .ws-form-label { display: block; font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .ws-form-input { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font-size: 13px; font-family: inherit; background: var(--surface); color: var(--ink); margin-bottom: 14px; }
+  .ws-form-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(138,75,47,0.15); }
+  .ws-btn { display: block; width: 100%; box-sizing: border-box; border: none; border-radius: 14px; padding: 12px 16px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; text-align: center; text-decoration: none; margin-bottom: 10px; transition: opacity 0.15s, transform 0.1s; }
+  .ws-btn:active { transform: scale(0.99); }
+  .ws-btn-primary { background: var(--accent); color: #fff; }
+  .ws-btn-secondary { background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(138,75,47,0.25); }
+  .ws-btn-ghost { background: var(--surface); color: var(--accent); border: 1px solid var(--border); }
+  .ws-lock-btn { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; color: var(--muted); }
+  .ws-lock-btn.locked { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .ws-agent-box { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border: 1px solid #c4b5fd; border-radius: 16px; padding: 14px; margin-bottom: 14px; }
+  .ws-agent-title { font-size: 12px; font-weight: 700; color: #6d28d9; margin-bottom: 8px; }
+  .ws-agent-text { font-size: 13px; line-height: 1.6; color: #4c1d95; }
+  .ws-opp-mini { display: block; padding: 8px 10px; border-radius: 10px; margin-bottom: 6px; font-size: 12px; text-decoration: none; color: var(--ink); border: 1px solid var(--border); transition: background 0.1s; }
+  .ws-opp-mini:hover { background: var(--accent-soft); }
+  .ws-opp-mini.active { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+  .ws-stale-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .ws-stale { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+  .ws-breadcrumb { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .ws-breadcrumb a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .ws-breadcrumb .current { color: var(--ink); font-weight: 700; }
+  .ws-chip-row-section { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .ws-chip-tag { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+  .ws-proof-list { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.6; color: var(--ink); }
+  #ws-save-status { font-size: 12px; margin-top: 8px; min-height: 18px; }
+  .ws-versions-panel { display: none; max-height: 300px; overflow-y: auto; }
+  .ws-versions-panel.open { display: block; }
+  .ws-version-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
 </style>
 
-<div class="cp-brief-shell">
-  <div style="margin-bottom: 16px;">
+<div class="ws-shell">
+  <div style="margin-bottom: 12px;">
     <a href="/xhs-opportunities" style="color: var(--accent); text-decoration: none; font-size: 14px;">&larr; 返回机会池</a>
   </div>
 
-  <div class="headline" style="margin-bottom: 20px;">
-    <h2 style="margin: 0 0 6px; font-size: 20px;">机会工作台 / Brief 确认</h2>
-    <p class="meta" style="margin: 0;">机会 ID <code>{{ opportunity_id }}</code>{% if pipeline_run_id %} · Pipeline <code>{{ pipeline_run_id }}</code>{% endif %}</p>
+  {# ═══ 对象锚点栏 ═══ #}
+  <div class="ws-anchor">
+    <span class="ws-anchor-badge" style="background: var(--accent); color: #fff;">Opportunity Workspace</span>
+    <span class="ws-anchor-id">ID: {{ opportunity_id }}</span>
+    {% if card.opportunity_type %}
+    <span class="ws-anchor-badge" style="background: #e8f5e9; color: #2e7d32;">{{ card.opportunity_type }}</span>
+    {% endif %}
+    {% if card.opportunity_status %}
+    <span class="ws-anchor-badge">{{ card.opportunity_status }}</span>
+    {% endif %}
+    {% if card.opportunity_strength_score is defined and card.opportunity_strength_score %}
+    <span class="ws-anchor-badge" style="background: #fff3e0; color: #e65100;">强度 {{ '%.0f'|format(card.opportunity_strength_score * 100) }}%</span>
+    {% endif %}
+    {% if pipeline_run_id %}<span class="ws-anchor-id">Pipeline {{ pipeline_run_id }}</span>{% endif %}
   </div>
 
+  {# ═══ AI 建议 Chips ═══ #}
+  <div class="ws-chip-row" id="ws-ai-chips">
+    {% set strength = card.opportunity_strength_score if card.opportunity_strength_score is defined else 0 %}
+    {% if strength >= 0.7 %}
+    <span class="ws-chip ws-chip-green" data-action="promote" data-priority="high">值得深入</span>
+    {% elif strength >= 0.5 %}
+    <span class="ws-chip ws-chip-amber" data-action="watch">建议观望</span>
+    {% else %}
+    <span class="ws-chip ws-chip-red" data-action="skip">优先级低</span>
+    {% endif %}
+    {% set ot = card.opportunity_type if card.opportunity_type is defined else '' %}
+    {% if ot in ['visual', 'scene'] %}
+    <span class="ws-chip ws-chip-green" data-action="hint" data-goal="种草收藏">适合种草</span>
+    {% elif ot in ['demand', 'product'] %}
+    <span class="ws-chip ws-chip-blue" data-action="hint" data-goal="转化">适合转化</span>
+    {% endif %}
+  </div>
+
+  {# ═══ Stale Flags ═══ #}
   {% if stale_flags %}
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+  <div class="ws-stale-row">
     {% for key in ['brief','match','strategy','plan','titles','body','image_briefs'] %}
     {% set is_stale = stale_flags.get(key, false) %}
-    <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">
+    <span class="ws-stale" style="background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">
       {{ key }} {{ '⟳' if is_stale else '✓' }}
     </span>
     {% endfor %}
   </div>
   {% endif %}
 
-  <div class="cp-brief-row">
-    <!-- 左栏 -->
-    <aside class="cp-brief-left">
-      <div class="cp-field-label">来源上下文</div>
-      {% if source_notes %}
-      {% set note = source_notes[0].note_context %}
-      <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 14px;">
-        {% if note.cover_image %}
-        <div style="position: relative;">
-          <img src="{{ note.cover_image }}" alt="封面" style="width: 100%; display: block; max-height: 220px; object-fit: cover;" loading="lazy"
-            onerror="this.parentElement.style.display='none'">
-        </div>
-        {% endif %}
-        <div style="padding: 14px 16px;">
-          <h3 style="margin: 0 0 8px; font-size: 15px; line-height: 1.4;">{{ note.title or '（无标题）' }}</h3>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">
-            @{{ note.author_name or '未知作者' }}
-            {% if note.note_url %}
-            <a href="{{ note.note_url }}" target="_blank" rel="noopener noreferrer" style="margin-left: 8px; color: var(--accent); text-decoration: none; font-size: 11px;">查看原文</a>
-            {% endif %}
-          </div>
-          <div style="font-size: 13px; line-height: 1.65; color: var(--ink); max-height: 200px; overflow-y: auto; white-space: pre-wrap;">{{ note.body or '' }}</div>
-        </div>
-      </div>
-      {% else %}
-      <div class="empty" style="border-radius: 18px; margin-bottom: 14px;">暂无来源笔记上下文</div>
-      {% endif %}
-
-      <div class="cp-field-label">机会卡摘要</div>
-      <div class="card" style="background: linear-gradient(135deg, var(--accent-soft), rgba(255,253,248,0.95)); border-color: rgba(138, 75, 47, 0.22); margin-bottom: 14px;">
+  <div class="ws-row">
+    {# ═══ 左栏 ═══ #}
+    <aside class="ws-left">
+      <div class="ws-card">
+        <h3>机会卡摘要</h3>
         <div style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">{{ card.title or '—' }}</div>
-        <p class="meta" style="margin: 0 0 10px; line-height: 1.5;">{{ card.summary or '—' }}</p>
-        <div class="chips" style="margin-top: 0;">
-          <span class="chip">{{ card.opportunity_type or '—' }}</span>
+        <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: var(--muted);">{{ card.summary or '—' }}</p>
+        <div class="ws-chip-row-section">
+          <span class="ws-chip-tag">{{ card.opportunity_type or '—' }}</span>
           {% if card.confidence is defined and card.confidence is not none %}
-          <span class="chip">置信度 {{ '%.2f'|format(card.confidence) }}</span>
+          <span class="ws-chip-tag">置信度 {{ '%.2f'|format(card.confidence) }}</span>
           {% endif %}
         </div>
+        {% if card.insight_statement %}
+        <div style="margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: #fff8e1; border: 1px solid #ffe082;">
+          <div style="font-size: 13px; font-weight: 600; color: #e65100;">{{ card.insight_statement }}</div>
+        </div>
+        {% endif %}
+        {% if card.engagement_insight or card.cross_modal_verdict %}
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+          {% if card.engagement_insight %}<span style="font-size: 11px; padding: 3px 8px; border-radius: 8px; background: #e8f5e9; color: #2e7d32;">{{ card.engagement_insight }}</span>{% endif %}
+          {% if card.cross_modal_verdict %}<span style="font-size: 11px; padding: 3px 8px; border-radius: 8px; background: #e3f2fd; color: #1565c0;">{{ card.cross_modal_verdict }}</span>{% endif %}
+        </div>
+        {% endif %}
       </div>
 
       {% set rs = review_summary if review_summary is not none else {} %}
-      <div class="cp-field-label">检视汇总</div>
-      <div class="card" style="border-radius: 18px;">
+      <div class="ws-card">
+        <h3>检视汇总</h3>
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
           <div>
             <div style="font-size: 22px; font-weight: 800; color: var(--accent);">{{ rs['review_count'] if rs and 'review_count' in rs else 0 }}</div>
-            <div class="meta" style="font-size: 11px;">检视条数</div>
+            <div style="font-size: 11px; color: var(--muted);">检视条数</div>
           </div>
           <div>
             {% set avgq = rs['avg_quality_score'] if rs and 'avg_quality_score' in rs else none %}
-            <div style="font-size: 22px; font-weight: 800; color: var(--accent);">
-              {% if avgq is not none %}{{ avgq }}{% else %}—{% endif %}
-            </div>
-            <div class="meta" style="font-size: 11px;">平均质量分</div>
+            <div style="font-size: 22px; font-weight: 800; color: var(--accent);">{% if avgq is not none %}{{ avgq }}{% else %}—{% endif %}</div>
+            <div style="font-size: 11px; color: var(--muted);">平均质量分</div>
           </div>
           <div>
             <div style="font-size: 22px; font-weight: 800; color: var(--accent);">{{ rs['actionable_count'] if rs and 'actionable_count' in rs else 0 }}</div>
-            <div class="meta" style="font-size: 11px;">可执行条数</div>
+            <div style="font-size: 11px; color: var(--muted);">可执行条数</div>
           </div>
         </div>
       </div>
+
+      <div class="ws-field-label">来源笔记</div>
+      {% if source_notes %}
+      {% set note = source_notes[0].note_context %}
+      <div class="ws-card" style="padding: 0; overflow: hidden;">
+        {% if note.cover_image %}
+        <div style="position: relative;">
+          <img src="{{ note.cover_image }}" alt="封面" style="width: 100%; display: block; max-height: 200px; object-fit: cover;" loading="lazy" onerror="this.parentElement.style.display='none'">
+        </div>
+        {% endif %}
+        <div style="padding: 12px 14px;">
+          <h4 style="margin: 0 0 6px; font-size: 14px; line-height: 1.4;">{{ note.title or '（无标题）' }}</h4>
+          <div style="font-size: 12px; color: var(--muted);">@{{ note.author_name or '未知作者' }}
+            {% if note.note_url %}<a href="{{ note.note_url }}" target="_blank" style="margin-left: 6px; color: var(--accent); text-decoration: none; font-size: 11px;">查看原文</a>{% endif %}
+          </div>
+          <div style="font-size: 12px; line-height: 1.55; color: var(--ink); max-height: 120px; overflow-y: auto; margin-top: 8px; white-space: pre-wrap;">{{ note.body or '' }}</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="ws-card" style="text-align: center; color: var(--muted);">暂无来源笔记上下文</div>
+      {% endif %}
     </aside>
 
-    <!-- 中栏 -->
-    <main class="cp-brief-mid">
+    {# ═══ 中栏 ═══ #}
+    <main class="ws-mid">
       {% if brief %}
-      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
+      <div class="ws-card">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
-          <span class="cp-badge">
+          <span class="ws-badge">
             {% if brief.brief_status == 'draft' %}草稿
             {% elif brief.brief_status == 'generated' %}已生成
             {% elif brief.brief_status == 'reviewed' %}已审阅
             {% elif brief.brief_status == 'approved' %}已定稿
             {% else %}{{ brief.brief_status or '—' }}{% endif %}
           </span>
-          {% if brief.opportunity_type %}<span class="meta">类型 · {{ brief.opportunity_type }}</span>{% endif %}
+          {% if brief.opportunity_type %}<span style="font-size: 12px; color: var(--muted);">类型 · {{ brief.opportunity_type }}</span>{% endif %}
         </div>
-        <h3 style="margin: 0 0 8px; font-size: 18px;">{{ brief.opportunity_title or '—' }}</h3>
+        <h3 style="margin: 0 0 8px; font-size: 18px; color: var(--ink);">{{ brief.opportunity_title or '—' }}</h3>
         <p style="margin: 0; font-size: 14px; line-height: 1.6; color: var(--muted);">{{ brief.opportunity_summary or '—' }}</p>
       </div>
 
       {% if brief.why_worth_doing or brief.competitive_angle or brief.engagement_proof or brief.cross_modal_confidence_label %}
-      <div class="card" style="margin-bottom: 14px; border-radius: 18px; background: linear-gradient(135deg, #fffde7, #fff8e1); border: 1px solid #ffe082;">
+      <div class="ws-card" style="background: linear-gradient(135deg, #fffde7, #fff8e1); border: 1px solid #ffe082;">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-          <div class="cp-field-label" style="margin: 0; color: #e65100;">策划层洞察</div>
+          <div class="ws-field-label" style="margin: 0; color: #e65100;">策划层洞察</div>
           {% if brief.cross_modal_confidence_label %}
           <span style="font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
             {% if '高置信' in (brief.cross_modal_confidence_label or '') %}background: #c8e6c9; color: #2e7d32;
@@ -258,21 +213,18 @@
           </span>
           {% endif %}
         </div>
-
         {% if brief.why_worth_doing %}
         <div style="margin-bottom: 10px;">
           <div style="font-size: 11px; font-weight: 600; color: #bf360c; margin-bottom: 4px;">为什么值得做</div>
           <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #4e342e; font-weight: 500;">{{ brief.why_worth_doing }}</p>
         </div>
         {% endif %}
-
         {% if brief.competitive_angle %}
         <div style="margin-bottom: 10px;">
           <div style="font-size: 11px; font-weight: 600; color: #bf360c; margin-bottom: 4px;">差异化切入</div>
           <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #4e342e;">{{ brief.competitive_angle }}</p>
         </div>
         {% endif %}
-
         {% if brief.engagement_proof %}
         <div>
           <div style="font-size: 11px; font-weight: 600; color: #bf360c; margin-bottom: 4px;">互动数据佐证</div>
@@ -282,250 +234,267 @@
       </div>
       {% endif %}
 
-      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
-        <div class="cp-field-label" style="margin-top: 0;">受众与场景</div>
-        <div class="cp-chip-row">
-          {% for t in brief.target_user or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+      <div class="ws-card">
+        <div class="ws-field-label" style="margin-top: 0;">受众与场景</div>
+        <div class="ws-chip-row-section">
+          {% for t in brief.target_user or [] %}<span class="ws-chip-tag">{{ t }}</span>{% else %}<span style="font-size: 12px; color: var(--muted);">—</span>{% endfor %}
         </div>
-        <div class="cp-field-label" style="margin-top: 12px;">场景</div>
-        <div class="cp-chip-row">
-          {% for t in brief.target_scene or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+        <div class="ws-field-label" style="margin-top: 12px;">场景</div>
+        <div class="ws-chip-row-section">
+          {% for t in brief.target_scene or [] %}<span class="ws-chip-tag">{{ t }}</span>{% else %}<span style="font-size: 12px; color: var(--muted);">—</span>{% endfor %}
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
-        <div class="cp-field-label" style="margin-top: 0;">动机与目标</div>
+      <div class="ws-card">
+        <div class="ws-field-label" style="margin-top: 0;">动机与目标</div>
         <p style="margin: 0 0 10px; font-size: 14px; line-height: 1.6;"><strong>核心动机</strong> · {{ brief.core_motive or '—' }}</p>
         <p style="margin: 0 0 10px; font-size: 14px; line-height: 1.6;"><strong>内容目标</strong> · {{ brief.content_goal or '—' }}</p>
         <p style="margin: 0; font-size: 14px; line-height: 1.6;"><strong>主价值</strong> · {{ brief.primary_value or '—' }}</p>
       </div>
 
-      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
-        <div class="cp-field-label" style="margin-top: 0;">次要价值与视觉</div>
-        <div class="cp-chip-row">
-          {% for t in brief.secondary_values or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+      <div class="ws-card">
+        <div class="ws-field-label" style="margin-top: 0;">次要价值与视觉</div>
+        <div class="ws-chip-row-section">
+          {% for t in brief.secondary_values or [] %}<span class="ws-chip-tag">{{ t }}</span>{% else %}<span style="font-size: 12px; color: var(--muted);">—</span>{% endfor %}
         </div>
-        <div class="cp-field-label" style="margin-top: 12px;">视觉风格方向</div>
-        <div class="cp-chip-row">
-          {% for t in brief.visual_style_direction or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+        <div class="ws-field-label" style="margin-top: 12px;">视觉风格方向</div>
+        <div class="ws-chip-row-section">
+          {% for t in brief.visual_style_direction or [] %}<span class="ws-chip-tag">{{ t }}</span>{% else %}<span style="font-size: 12px; color: var(--muted);">—</span>{% endfor %}
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
-        <div class="cp-field-label" style="margin-top: 0;">定位与平台</div>
+      <div class="ws-card">
+        <div class="ws-field-label" style="margin-top: 0;">定位与平台</div>
         <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6;"><strong>价格定位</strong> · {{ brief.price_positioning or '—' }}</p>
         <p style="margin: 0; font-size: 14px; line-height: 1.6;"><strong>平台表达</strong> · {{ brief.platform_expression or '—' }}</p>
       </div>
 
-      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
-        <div class="cp-field-label" style="margin-top: 0;">模板提示与规避</div>
-        <div class="cp-field-label" style="text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--ink);">模板线索</div>
-        <div class="cp-chip-row">
-          {% for t in brief.template_hints or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+      <div class="ws-card">
+        <div class="ws-field-label" style="margin-top: 0;">模板提示与规避</div>
+        <div style="font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">模板线索</div>
+        <div class="ws-chip-row-section">
+          {% for t in brief.template_hints or [] %}<span class="ws-chip-tag">{{ t }}</span>{% else %}<span style="font-size: 12px; color: var(--muted);">—</span>{% endfor %}
         </div>
-        <div class="cp-field-label" style="margin-top: 12px; text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--ink);">避免方向</div>
-        <div class="cp-chip-row">
-          {% for t in brief.avoid_directions or [] %}<span class="cp-chip">{{ t }}</span>{% else %}<span class="meta">—</span>{% endfor %}
+        <div style="font-size: 12px; font-weight: 600; color: var(--ink); margin: 12px 0 4px;">避免方向</div>
+        <div class="ws-chip-row-section">
+          {% for t in brief.avoid_directions or [] %}<span class="ws-chip-tag">{{ t }}</span>{% else %}<span style="font-size: 12px; color: var(--muted);">—</span>{% endfor %}
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 14px; border-radius: 18px;">
-        <div class="cp-field-label" style="margin-top: 0;">来源佐证</div>
+      <div class="ws-card">
+        <div class="ws-field-label" style="margin-top: 0;">来源佐证</div>
         {% if brief.proof_from_source %}
-        <ul class="cp-proof-list">
-          {% for p in brief.proof_from_source %}
-          <li>{{ p }}</li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="meta" style="margin: 0;">—</p>
-        {% endif %}
+        <ul class="ws-proof-list">{% for p in brief.proof_from_source %}<li>{{ p }}</li>{% endfor %}</ul>
+        {% else %}<p style="margin: 0; font-size: 12px; color: var(--muted);">—</p>{% endif %}
       </div>
 
-      <div class="card" style="border-radius: 18px;">
-        <div class="cp-field-label" style="margin-top: 0;">证据摘要</div>
+      <div class="ws-card">
+        <div class="ws-field-label" style="margin-top: 0;">证据摘要</div>
         <p style="margin: 0 0 14px; font-size: 14px; line-height: 1.65;">{{ brief.evidence_summary or '—' }}</p>
-        <div class="cp-field-label">约束条件</div>
+        <div class="ws-field-label">约束条件</div>
         {% if brief.constraints %}
-        <ul class="cp-proof-list" style="margin-bottom: 14px;">
-          {% for c in brief.constraints %}
-          <li>{{ c }}</li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="meta" style="margin: 0 0 14px;">—</p>
-        {% endif %}
-        <div class="cp-field-label">建议方向</div>
+        <ul class="ws-proof-list" style="margin-bottom: 14px;">{% for c in brief.constraints %}<li>{{ c }}</li>{% endfor %}</ul>
+        {% else %}<p style="margin: 0 0 14px; font-size: 12px; color: var(--muted);">—</p>{% endif %}
+        <div class="ws-field-label">建议方向</div>
         <p style="margin: 0; font-size: 14px; line-height: 1.65;">{{ brief.suggested_direction or '—' }}</p>
       </div>
       {% else %}
-      <div class="empty" style="border-radius: 18px;">暂无 Brief，请先点击右侧「重新生成 Brief」。</div>
+      <div class="ws-card" style="text-align: center; color: var(--muted); padding: 40px;">暂无 Brief，请先点击右侧「重新生成 Brief」。</div>
       {% endif %}
     </main>
 
-    <!-- 右栏 -->
-    <aside class="cp-brief-right">
-      <div class="card" style="border-radius: 18px;">
-        <h3 style="margin: 0 0 16px; font-size: 16px;">人工修订</h3>
+    {# ═══ 右栏 ═══ #}
+    <aside class="ws-right">
+      <div class="ws-agent-box">
+        <div class="ws-agent-title">AI 分析建议</div>
+        <div class="ws-agent-text" id="ws-agent-explanation">
+          {% if card.action_recommendation %}{{ card.action_recommendation }}{% else %}点击「重新生成 Brief」后，AI 将提供编译分析。{% endif %}
+        </div>
+        {% if card.insight_statement %}
+        <div style="margin-top: 8px; font-size: 12px; color: #5b21b6;">洞察：{{ card.insight_statement }}</div>
+        {% endif %}
+      </div>
 
-        <label class="cp-form-label" for="cp-target-user">目标用户（逗号分隔）</label>
-        <input class="cp-form-input" id="cp-target-user" type="text" autocomplete="off"
-          value="{{ (((brief.target_user or []) | join(', ')) if brief else '') | e }}" placeholder="例如：宝妈, 新客">
+      {% set brief_locks = (brief.get('locks', {}) if brief else {}) %}
+      <div class="ws-card">
+        <h3 style="font-size: 16px; color: var(--ink);">人工修订</h3>
 
-        <label class="cp-form-label" for="cp-target-scene">目标场景（逗号分隔）</label>
-        <input class="cp-form-input" id="cp-target-scene" type="text" autocomplete="off"
-          value="{{ (((brief.target_scene or []) | join(', ')) if brief else '') | e }}" placeholder="例如：下午茶, 居家">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <label class="ws-form-label" for="ws-target-user">目标用户</label>
+          <button type="button" class="ws-lock-btn{% if brief_locks.get('target_user') %} locked{% endif %}" data-field="target_user" data-obj="brief" title="锁定此字段">{% if brief_locks.get('target_user') %}🔒{% else %}🔓{% endif %}</button>
+        </div>
+        <input class="ws-form-input" id="ws-target-user" type="text" autocomplete="off" value="{{ (((brief.target_user or []) | join(', ')) if brief else '') | e }}" placeholder="例如：宝妈, 新客">
 
-        <label class="cp-form-label" for="cp-content-goal">内容目标</label>
-        <input class="cp-form-input" id="cp-content-goal" type="text" autocomplete="off"
-          value="{{ (((brief.content_goal or '') if brief else '')) | e }}">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <label class="ws-form-label" for="ws-target-scene">目标场景</label>
+          <button type="button" class="ws-lock-btn{% if brief_locks.get('target_scene') %} locked{% endif %}" data-field="target_scene" data-obj="brief" title="锁定此字段">{% if brief_locks.get('target_scene') %}🔒{% else %}🔓{% endif %}</button>
+        </div>
+        <input class="ws-form-input" id="ws-target-scene" type="text" autocomplete="off" value="{{ (((brief.target_scene or []) | join(', ')) if brief else '') | e }}" placeholder="例如：下午茶, 居家">
 
-        <label class="cp-form-label" for="cp-primary-value">主价值</label>
-        <input class="cp-form-input" id="cp-primary-value" type="text" autocomplete="off"
-          value="{{ (((brief.primary_value or '') if brief else '')) | e }}">
+        <label class="ws-form-label" for="ws-content-goal">内容目标</label>
+        <input class="ws-form-input" id="ws-content-goal" type="text" autocomplete="off" value="{{ (((brief.content_goal or '') if brief else '')) | e }}">
 
-        <label class="cp-form-label" for="cp-visual-style">视觉风格方向（逗号分隔）</label>
-        <input class="cp-form-input" id="cp-visual-style" type="text" autocomplete="off"
-          value="{{ (((brief.visual_style_direction or []) | join(', ')) if brief else '') | e }}">
+        <label class="ws-form-label" for="ws-primary-value">主价值</label>
+        <input class="ws-form-input" id="ws-primary-value" type="text" autocomplete="off" value="{{ (((brief.primary_value or '') if brief else '')) | e }}">
 
-        <label class="cp-form-label" for="cp-avoid">避免方向（逗号分隔）</label>
-        <input class="cp-form-input" id="cp-avoid" type="text" autocomplete="off"
-          value="{{ (((brief.avoid_directions or []) | join(', ')) if brief else '') | e }}">
+        <label class="ws-form-label" for="ws-visual-style">视觉风格方向</label>
+        <input class="ws-form-input" id="ws-visual-style" type="text" autocomplete="off" value="{{ (((brief.visual_style_direction or []) | join(', ')) if brief else '') | e }}">
 
-        <label class="cp-form-label" for="cp-template-hints">模板线索（逗号分隔）</label>
-        <input class="cp-form-input" id="cp-template-hints" type="text" autocomplete="off"
-          value="{{ (((brief.template_hints or []) | join(', ')) if brief else '') | e }}">
+        <label class="ws-form-label" for="ws-avoid">避免方向</label>
+        <input class="ws-form-input" id="ws-avoid" type="text" autocomplete="off" value="{{ (((brief.avoid_directions or []) | join(', ')) if brief else '') | e }}">
+
+        <label class="ws-form-label" for="ws-template-hints">模板线索</label>
+        <input class="ws-form-input" id="ws-template-hints" type="text" autocomplete="off" value="{{ (((brief.template_hints or []) | join(', ')) if brief else '') | e }}">
 
         <div style="border-top: 1px solid var(--border); margin: 8px 0 14px; padding-top: 14px;">
-          <div class="cp-field-label" style="margin-bottom: 10px; color: #e65100;">洞察修订</div>
+          <div class="ws-field-label" style="margin-bottom: 10px; color: #e65100;">洞察修订</div>
         </div>
 
-        <label class="cp-form-label" for="cp-why-worth">为什么值得做</label>
-        <textarea class="cp-form-input" id="cp-why-worth" rows="2" style="resize: vertical;">{{ ((brief.why_worth_doing or '') if brief else '') | e }}</textarea>
+        <label class="ws-form-label" for="ws-why-worth">为什么值得做</label>
+        <textarea class="ws-form-input" id="ws-why-worth" rows="2" style="resize: vertical;">{{ ((brief.why_worth_doing or '') if brief else '') | e }}</textarea>
 
-        <label class="cp-form-label" for="cp-competitive">差异化切入</label>
-        <textarea class="cp-form-input" id="cp-competitive" rows="2" style="resize: vertical;">{{ ((brief.competitive_angle or '') if brief else '') | e }}</textarea>
+        <label class="ws-form-label" for="ws-competitive">差异化切入</label>
+        <textarea class="ws-form-input" id="ws-competitive" rows="2" style="resize: vertical;">{{ ((brief.competitive_angle or '') if brief else '') | e }}</textarea>
 
-        <button type="button" class="cp-btn cp-btn-primary" id="cp-btn-save">保存修订</button>
-        <button type="button" class="cp-btn cp-btn-secondary" id="cp-btn-regen">重新生成 Brief</button>
-        <a class="cp-btn cp-btn-ghost" id="cp-btn-next" href="/content-planning/strategy/{{ opportunity_id }}">下一步：模板匹配 →</a>
+        <button type="button" class="ws-btn ws-btn-primary" id="ws-btn-save">保存修订</button>
+        <button type="button" class="ws-btn ws-btn-secondary" id="ws-btn-regen">重新生成 Brief</button>
+        <button type="button" class="ws-btn ws-btn-ghost" id="ws-btn-versions">查看历史版本</button>
+        <a class="ws-btn ws-btn-ghost" href="/content-planning/strategy/{{ opportunity_id }}">进入策划 →</a>
 
-        <div id="cp-save-status" class="meta" aria-live="polite"></div>
+        <div id="ws-save-status" style="font-size: 12px; margin-top: 8px; min-height: 18px;" aria-live="polite"></div>
+      </div>
+
+      <div class="ws-card" id="ws-versions-container" style="display: none;">
+        <h3>Brief 版本历史</h3>
+        <div id="ws-versions-list"></div>
       </div>
     </aside>
   </div>
 
-  <nav class="cp-breadcrumb" aria-label="面包屑">
+  <nav class="ws-breadcrumb" aria-label="面包屑">
     <a href="/xhs-opportunities">机会池</a>
     <span aria-hidden="true">→</span>
-    <span class="current">Brief 确认</span>
+    <span class="current">Opportunity Workspace</span>
     <span aria-hidden="true">→</span>
-    <a href="/content-planning/strategy/{{ opportunity_id }}">模板与策略</a>
+    <a href="/content-planning/strategy/{{ opportunity_id }}">Planning Workspace</a>
     <span aria-hidden="true">→</span>
-    <span class="meta">内容策划</span>
+    <span style="color: var(--muted);">Creation Workspace</span>
   </nav>
 </div>
 
 <script>
 (function () {
   var opportunityId = {{ opportunity_id | tojson }};
-
-  function splitTags(s) {
-    if (!s || typeof s !== 'string') return [];
-    return s.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
-  }
-
-  function strOrNull(el) {
-    var v = (el && el.value) ? el.value.trim() : '';
-    return v.length ? v : null;
-  }
-
-  var statusEl = document.getElementById('cp-save-status');
-
+  function splitTags(s) { if (!s || typeof s !== 'string') return []; return s.split(',').map(function(x){ return x.trim(); }).filter(Boolean); }
+  function strOrNull(el) { var v = (el && el.value) ? el.value.trim() : ''; return v.length ? v : null; }
+  var statusEl = document.getElementById('ws-save-status');
   function setStatus(msg, isError) {
     if (!statusEl) return;
     statusEl.textContent = msg || '';
-    statusEl.style.color = isError ? '#b71c1c' : 'var(--muted)';
-    if (msg && !isError) statusEl.style.color = 'var(--accent)';
+    statusEl.style.color = isError ? '#b71c1c' : (msg ? 'var(--accent)' : 'var(--muted)');
   }
 
-  document.getElementById('cp-btn-save').addEventListener('click', function () {
+  document.getElementById('ws-btn-save').addEventListener('click', function () {
     setStatus('保存中…', false);
     var body = {
-      target_user: splitTags(document.getElementById('cp-target-user').value),
-      target_scene: splitTags(document.getElementById('cp-target-scene').value),
-      content_goal: strOrNull(document.getElementById('cp-content-goal')),
-      primary_value: strOrNull(document.getElementById('cp-primary-value')),
-      visual_style_direction: splitTags(document.getElementById('cp-visual-style').value),
-      avoid_directions: splitTags(document.getElementById('cp-avoid').value),
-      template_hints: splitTags(document.getElementById('cp-template-hints').value),
-      why_worth_doing: strOrNull(document.getElementById('cp-why-worth')),
-      competitive_angle: strOrNull(document.getElementById('cp-competitive'))
+      target_user: splitTags(document.getElementById('ws-target-user').value),
+      target_scene: splitTags(document.getElementById('ws-target-scene').value),
+      content_goal: strOrNull(document.getElementById('ws-content-goal')),
+      primary_value: strOrNull(document.getElementById('ws-primary-value')),
+      visual_style_direction: splitTags(document.getElementById('ws-visual-style').value),
+      avoid_directions: splitTags(document.getElementById('ws-avoid').value),
+      template_hints: splitTags(document.getElementById('ws-template-hints').value),
+      why_worth_doing: strOrNull(document.getElementById('ws-why-worth')),
+      competitive_angle: strOrNull(document.getElementById('ws-competitive'))
     };
-
     fetch('/content-planning/briefs/' + encodeURIComponent(opportunityId), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-      .then(function (res) {
-        return res.text().then(function (text) {
-          var data = null;
-          try {
-            data = text ? JSON.parse(text) : null;
-          } catch (e) {
-            data = { _raw: text };
-          }
-          return { ok: res.ok, status: res.status, data: data, raw: text };
-        });
-      })
-      .then(function (r) {
-        if (r.ok) {
-          setStatus('已保存', false);
-        } else {
-          var d = r.data;
-          var detail = d && (d.detail || d.message);
-          if (detail == null && r.raw) detail = r.raw;
-          if (detail == null) detail = '未知错误';
-          if (typeof detail !== 'string') detail = JSON.stringify(detail);
-          setStatus('保存失败（' + r.status + '）：' + detail, true);
-        }
-      })
-      .catch(function (err) {
-        setStatus('保存失败：' + (err && err.message ? err.message : String(err)), true);
-      });
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function(res){ return res.text().then(function(text){ var data = null; try { data = text ? JSON.parse(text) : null; } catch(e) { data = {_raw: text}; } return {ok: res.ok, status: res.status, data: data, raw: text}; }); })
+    .then(function(r){ if(r.ok){ setStatus('已保存', false); } else { var d=r.data; var detail=d&&(d.detail||d.message); if(detail==null&&r.raw) detail=r.raw; if(detail==null) detail='未知错误'; if(typeof detail!=='string') detail=JSON.stringify(detail); setStatus('保存失败（'+r.status+'）：'+detail, true); } })
+    .catch(function(err){ setStatus('保存失败：'+(err&&err.message?err.message:String(err)), true); });
   });
 
-  document.getElementById('cp-btn-regen').addEventListener('click', function () {
+  document.getElementById('ws-btn-regen').addEventListener('click', function () {
     setStatus('正在重新生成…', false);
     fetch('/content-planning/xhs-opportunities/' + encodeURIComponent(opportunityId) + '/generate-brief', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}'
-    })
-      .then(function (res) {
-        if (res.ok) {
-          window.location.reload();
-          return;
-        }
-        return res.text().then(function (text) {
-          var data = null;
-          try {
-            data = text ? JSON.parse(text) : null;
-          } catch (e) {
-            data = { _raw: text };
-          }
-          var detail = data && (data.detail || data.message);
-          if (detail == null && text) detail = text;
-          if (detail == null) detail = '未知错误';
-          if (typeof detail !== 'string') detail = JSON.stringify(detail);
-          setStatus('重新生成失败（' + res.status + '）：' + detail, true);
-        });
-      })
-      .catch(function (err) {
-        setStatus('重新生成失败：' + (err && err.message ? err.message : String(err)), true);
-      });
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+    }).then(function(res){ if(res.ok){ window.location.reload(); return; } return res.text().then(function(text){ var data=null; try{data=text?JSON.parse(text):null;}catch(e){data={_raw:text};} var detail=data&&(data.detail||data.message); if(detail==null&&text)detail=text; if(detail==null)detail='未知错误'; if(typeof detail!=='string')detail=JSON.stringify(detail); setStatus('重新生成失败（'+res.status+'）：'+detail, true); }); })
+    .catch(function(err){ setStatus('重新生成失败：'+(err&&err.message?err.message:String(err)), true); });
   });
+
+  document.getElementById('ws-btn-versions').addEventListener('click', function () {
+    var container = document.getElementById('ws-versions-container');
+    if (container.style.display !== 'none') { container.style.display = 'none'; return; }
+    container.style.display = 'block';
+    var list = document.getElementById('ws-versions-list');
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px;">加载中…</div>';
+    fetch('/content-planning/versions/' + encodeURIComponent(opportunityId) + '/brief')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data.versions || data.versions.length === 0) { list.innerHTML = '<div style="color:var(--muted);font-size:12px;">暂无历史版本</div>'; return; }
+        var html = '';
+        data.versions.forEach(function(v, i){
+          html += '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">';
+          html += '<strong>版本 ' + (v.version || (i+1)) + '</strong>';
+          if(v.opportunity_title) html += ' · ' + v.opportunity_title;
+          if(v.brief_status) html += ' <span style="color:var(--muted);">(' + v.brief_status + ')</span>';
+          html += '<button type="button" onclick="restoreVersion(\'brief\',' + (v.version||i+1) + ')" style="float:right;font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;color:var(--accent);">恢复</button>';
+          html += '</div>';
+        });
+        list.innerHTML = html;
+      })
+      .catch(function(){ list.innerHTML = '<div style="color:#c62828;font-size:12px;">加载失败</div>'; });
+  });
+
+  window.restoreVersion = function(type, ver) {
+    fetch('/content-planning/restore-version/' + encodeURIComponent(opportunityId), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({object_type: type, version: ver})
+    }).then(function(r){ if(r.ok) window.location.reload(); else alert('恢复失败'); })
+    .catch(function(){ alert('恢复失败'); });
+  };
+
+  document.querySelectorAll('.ws-lock-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var field = btn.getAttribute('data-field');
+      var objType = btn.getAttribute('data-obj');
+      var isLocked = btn.classList.contains('locked');
+      var endpoint = isLocked ? '/content-planning/unlock/' : '/content-planning/lock/';
+      fetch(endpoint + encodeURIComponent(opportunityId), {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({object_type: objType, field: field, locked_by: 'user'})
+      }).then(function(r){ if(r.ok){ btn.classList.toggle('locked'); btn.textContent = btn.classList.contains('locked') ? '🔒' : '🔓'; } })
+      .catch(function(){});
+    });
+  });
+
+  var agentEl = document.getElementById('ws-agent-explanation');
+  document.querySelectorAll('#ws-ai-chips .ws-chip').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      var goal = chip.getAttribute('data-goal');
+      var action = chip.getAttribute('data-action');
+      var hint = chip.textContent.trim();
+      if (goal && agentEl) {
+        var cg = document.getElementById('ws-content-goal');
+        if (cg) cg.value = goal;
+        setStatus('已将内容目标设为：' + goal, false);
+      } else if (agentEl && hint) {
+        var extra = '【' + hint + '】';
+        if (action === 'promote') extra += ' 建议优先推进该机会并完善 Brief。';
+        else if (action === 'watch') extra += ' 建议持续观察信号后再决策。';
+        else if (action === 'skip') extra += ' 当前信号偏弱，可暂缓或降低投入。';
+        agentEl.textContent = (agentEl.textContent.trim() ? agentEl.textContent.trim() + '\n\n' : '') + extra;
+      }
+    });
+  });
+
+  // Agent run helper
+  function runAgent(role, extra) {
+    return fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({agent_role: role, extra: extra || {}})
+    }).then(function(r){ return r.json(); });
+  }
 })();
 </script>
 {% endblock %}

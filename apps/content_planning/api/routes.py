@@ -12,6 +12,7 @@ from typing import Any, Literal, cast
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from apps.content_planning.agents.base import AgentContext, AgentResult
 from apps.content_planning.exceptions import OpportunityNotPromotedError
 from apps.content_planning.services.opportunity_to_plan_flow import OpportunityToPlanFlow
 
@@ -63,6 +64,11 @@ class ApprovalActionRequest(BaseModel):
     object_type: Literal["brief", "strategy", "plan", "asset_bundle"]
     decision: Literal["pending_review", "approved", "changes_requested", "rejected"]
     notes: str = ""
+
+
+class RunAgentRequest(BaseModel):
+    agent_role: str  # trend_analyst / brief_synthesizer / template_planner / strategy_director / visual_director / asset_producer
+    extra: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Error Handling ────────────────────────────────────────────
@@ -331,6 +337,38 @@ async def batch_compile(body: BatchCompileRequest) -> dict[str, Any]:
     return _get_flow().batch_compile(body.opportunity_ids)
 
 
+class CreateCampaignRequest(BaseModel):
+    campaign_name: str = ""
+    opportunity_ids: list[str] = Field(default_factory=list)
+    target_bundle_count: int = 1
+    target_variants_per_bundle: int = 1
+
+
+@router.post("/campaigns")
+@_handle_flow_error
+async def create_campaign(body: CreateCampaignRequest) -> dict[str, Any]:
+    """创建 Campaign 级批量生产计划。"""
+    from apps.content_planning.schemas.campaign import CampaignPlan
+
+    plan = CampaignPlan(
+        campaign_name=body.campaign_name,
+        opportunity_ids=body.opportunity_ids,
+        target_bundle_count=body.target_bundle_count,
+        target_variants_per_bundle=body.target_variants_per_bundle,
+    )
+    return plan.model_dump(mode="json")
+
+
+@router.post("/campaigns/{campaign_id}/execute")
+@_handle_flow_error
+async def execute_campaign(campaign_id: str) -> dict[str, Any]:
+    """执行 Campaign 批量生产（现阶段为概念验证，逐个调用 batch_compile）。"""
+    from apps.content_planning.schemas.campaign import CampaignResult
+
+    result = CampaignResult(campaign_id=campaign_id)
+    return result.model_dump(mode="json")
+
+
 @router.get("/dashboard")
 async def dashboard_metrics() -> dict[str, Any]:
     """运营看板基础指标。"""
@@ -388,6 +426,215 @@ async def submit_asset_feedback(
         "asset_bundle_id": asset_bundle_id,
         "performance_label": result.performance_label,
     }
+
+
+@router.post("/run-agent/{opportunity_id}")
+@_handle_flow_error
+async def run_agent(opportunity_id: str, body: RunAgentRequest) -> dict[str, Any]:
+    """运行指定 Agent，返回结果（含解释、置信度、建议 chips）。"""
+    from apps.content_planning.agents.asset_producer import AssetProducerAgent
+    from apps.content_planning.agents.brief_synthesizer import BriefSynthesizerAgent
+    from apps.content_planning.agents.strategy_director import StrategyDirectorAgent
+    from apps.content_planning.agents.template_planner import TemplatePlannerAgent
+    from apps.content_planning.agents.trend_analyst import TrendAnalystAgent
+    from apps.content_planning.agents.visual_director import VisualDirectorAgent
+
+    agent_map = {
+        "trend_analyst": TrendAnalystAgent,
+        "brief_synthesizer": BriefSynthesizerAgent,
+        "template_planner": TemplatePlannerAgent,
+        "strategy_director": StrategyDirectorAgent,
+        "visual_director": VisualDirectorAgent,
+        "asset_producer": AssetProducerAgent,
+    }
+    agent_cls = agent_map.get(body.agent_role)
+    if agent_cls is None:
+        raise HTTPException(status_code=400, detail=f"未知 Agent: {body.agent_role}")
+
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+
+    ctx = AgentContext(
+        opportunity_id=opportunity_id,
+        brief=session.brief,
+        strategy=session.strategy,
+        plan=session.note_plan,
+        match_result=session.match_result,
+        extra={**body.extra, "card": session.card} if hasattr(session, "card") else body.extra,
+    )
+
+    agent = agent_cls()
+    result = agent.run(ctx)
+
+    result_dict = result.model_dump(mode="json")
+
+    _log_agent_action(flow, opportunity_id, result)
+
+    return result_dict
+
+
+def _log_agent_action(flow: OpportunityToPlanFlow, opportunity_id: str, result: AgentResult) -> None:
+    """记录 Agent 动作到 session 的 agent_actions。"""
+    if flow._store is None:
+        return
+    try:
+        from datetime import datetime, timezone
+
+        session_data = flow._store.load_session(opportunity_id)
+        if session_data is None:
+            return
+        actions_raw = session_data.get("agent_actions") or []
+        if not isinstance(actions_raw, list):
+            actions_raw = []
+        actions_raw.append(
+            {
+                "agent_role": result.agent_role,
+                "agent_name": result.agent_name,
+                "action": "run",
+                "explanation": result.explanation,
+                "confidence": result.confidence,
+                "suggestions_count": len(result.suggestions),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        if len(actions_raw) > 50:
+            actions_raw = actions_raw[-50:]
+        flow._store.update_field(opportunity_id, "agent_actions", actions_raw)
+    except Exception:
+        pass
+
+
+@router.get("/agent-log/{opportunity_id}")
+@_handle_flow_error
+async def agent_log(opportunity_id: str) -> dict[str, Any]:
+    """查看某机会的 Agent 动作日志。"""
+    flow = _get_flow()
+    if flow._store is None:
+        return {"actions": [], "count": 0}
+    session = flow._store.load_session(opportunity_id)
+    if session is None:
+        return {"actions": [], "count": 0}
+    actions = session.get("agent_actions") or []
+    return {"actions": actions, "count": len(actions)}
+
+
+@router.get("/agents")
+async def list_agents() -> dict[str, Any]:
+    """列出所有已注册的 Agent。"""
+    from apps.content_planning.agents import registry as agent_registry
+    from apps.content_planning.agents.asset_producer import AssetProducerAgent
+    from apps.content_planning.agents.brief_synthesizer import BriefSynthesizerAgent
+    from apps.content_planning.agents.strategy_director import StrategyDirectorAgent
+    from apps.content_planning.agents.template_planner import TemplatePlannerAgent
+    from apps.content_planning.agents.trend_analyst import TrendAnalystAgent
+    from apps.content_planning.agents.visual_director import VisualDirectorAgent
+
+    catalog = (
+        TrendAnalystAgent,
+        BriefSynthesizerAgent,
+        TemplatePlannerAgent,
+        StrategyDirectorAgent,
+        VisualDirectorAgent,
+        AssetProducerAgent,
+    )
+    static_agents = [
+        {"agent_id": cls.agent_id, "agent_name": cls.agent_name, "agent_role": cls.agent_role}
+        for cls in catalog
+    ]
+    return {"agents": agent_registry.list_agents() or static_agents}
+
+
+class LockFieldRequest(BaseModel):
+    object_type: str  # brief / strategy / plan / bundle
+    field: str
+    locked_by: str = ""
+
+
+@router.post("/lock/{opportunity_id}")
+@_handle_flow_error
+async def lock_field(opportunity_id: str, body: LockFieldRequest) -> dict[str, Any]:
+    """锁定对象的某个字段。"""
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+    obj_map = {"brief": session.brief, "strategy": session.strategy, "plan": session.note_plan}
+    target = obj_map.get(body.object_type)
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"对象 {body.object_type} 未找到")
+    from apps.content_planning.schemas.lock import ObjectLock
+
+    if target.locks is None:
+        target.locks = ObjectLock()
+    target.locks.lock(body.field, body.locked_by)
+    flow._persist(session, status="generated")
+    return {"status": "locked", "field": body.field, "object_type": body.object_type}
+
+
+@router.post("/unlock/{opportunity_id}")
+@_handle_flow_error
+async def unlock_field(opportunity_id: str, body: LockFieldRequest) -> dict[str, Any]:
+    """解锁对象的某个字段。"""
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+    obj_map = {"brief": session.brief, "strategy": session.strategy, "plan": session.note_plan}
+    target = obj_map.get(body.object_type)
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"对象 {body.object_type} 未找到")
+    if target.locks:
+        target.locks.unlock(body.field)
+    flow._persist(session, status="generated")
+    return {"status": "unlocked", "field": body.field, "object_type": body.object_type}
+
+
+@router.get("/versions/{opportunity_id}/{object_type}")
+@_handle_flow_error
+async def list_versions(opportunity_id: str, object_type: str) -> dict[str, Any]:
+    """列出某对象类型的所有历史版本。"""
+    flow = _get_flow()
+    if flow._store is None:
+        return {"versions": [], "count": 0}
+    versions = flow._store.load_versions(opportunity_id, object_type)
+    return {"versions": versions, "count": len(versions)}
+
+
+class RestoreVersionRequest(BaseModel):
+    object_type: str
+    version: int
+
+
+@router.post("/restore-version/{opportunity_id}")
+@_handle_flow_error
+async def restore_version(opportunity_id: str, body: RestoreVersionRequest) -> dict[str, Any]:
+    """恢复某个历史版本为当前版本。"""
+    flow = _get_flow()
+    if flow._store is None:
+        raise HTTPException(status_code=500, detail="Store not available")
+    versions = flow._store.load_versions(opportunity_id, body.object_type)
+    target = None
+    for v in versions:
+        if isinstance(v, dict) and v.get("version") == body.version:
+            target = v
+            break
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"版本 {body.version} 未找到")
+    flow._store.update_field(opportunity_id, body.object_type, target)
+    flow._cache.pop(opportunity_id, None)
+    return {"status": "restored", "object_type": body.object_type, "version": body.version}
+
+
+class GenerateVariantRequest(BaseModel):
+    axis: Literal["template", "tone", "scene", "brand", "platform"] = "tone"
+    label: str = ""
+
+
+@router.post("/asset-bundle/{opportunity_id}/generate-variant")
+@_handle_flow_error
+async def generate_variant(opportunity_id: str, body: GenerateVariantRequest) -> dict[str, Any]:
+    """从资产包派生变体。"""
+    from apps.content_planning.services.variant_generator import VariantGenerator
+
+    bundle = _get_flow().assemble_asset_bundle(opportunity_id)
+    variant = VariantGenerator.generate_variant(bundle, body.axis, body.label)
+    return variant.model_dump(mode="json")
 
 
 # ═══════════════════════════════════════════════════════════════

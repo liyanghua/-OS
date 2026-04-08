@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from apps.content_planning.schemas.lineage import PlanLineage
+from apps.content_planning.schemas.lock import ObjectLock
 
 
 class OpportunityBrief(BaseModel):
@@ -67,6 +68,7 @@ class OpportunityBrief(BaseModel):
     planning_direction: str | None = None
 
     lineage: PlanLineage | None = None
+    locks: ObjectLock | None = None
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

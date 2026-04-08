@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from apps.content_planning.schemas.lineage import PlanLineage
+from apps.content_planning.schemas.lock import ObjectLock
 
 
 class AssetBundle(BaseModel):
@@ -27,6 +28,7 @@ class AssetBundle(BaseModel):
     approval_status: Literal["pending_review", "approved", "changes_requested", "rejected"] = "pending_review"
     visibility: Literal["workspace", "brand", "private"] = "workspace"
     version: int = 1
+    variant_set_id: str | None = None
 
     title_candidates: list[dict] = Field(default_factory=list)
     body_outline: list[str] = Field(default_factory=list)
@@ -35,5 +37,6 @@ class AssetBundle(BaseModel):
 
     export_status: Literal["draft", "ready", "exported"] = "draft"
     lineage: PlanLineage | None = None
+    locks: ObjectLock | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -34,6 +34,3 @@ data/xhs_review.sqlite
 
 # third-party clones
 third_party/TrendRadar/
-
-# local worktrees
-.worktrees/

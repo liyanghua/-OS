@@ -908,6 +908,11 @@ trendradar_output_dir: third_party/TrendRadar/output
 | PUT | `/content-planning/briefs/{id}` | Brief 人工编辑 |
 | POST | `/content-planning/xhs-opportunities/{id}/compile-note-plan` | 一键全链路 |
 | GET | `/content-planning/session/{id}` | 会话缓存查询 |
+| POST | `/content-planning/run-agent/{id}` | 运行指定 Agent（`agent_role` + `extra`），返回解释/置信度/suggestions |
+| GET | `/content-planning/agent-log/{id}` | 某机会的 Agent 动作日志（依赖 `plan_store.agent_actions_json`） |
+| GET | `/content-planning/agents` | 已注册 Agent 目录（registry 非空时优先返回 registry） |
+
+四页工作台模板内增加 `runAgent(role, extra)`，请求上述 `run-agent` 端点。
 
 #### Phase 3: 四页工作台 UI
 
@@ -1257,3 +1262,215 @@ Brief 和机会卡中大量字段使用英文本体 ID（`scene_dining_table`、
 - `config/prompts/body.yaml`
 - `config/prompts/image_brief.yaml`
 - `config/prompts/template_match.yaml`
+
+---
+
+## AI-native 产品层升级 — Phase 1：对象模型增强 + Agent 基础设施
+
+### 日期：2026-04-07
+
+### 目标
+补齐 G1（锁定）/G2（变体）/G3（Agent 抽象）/G6（多版本），为后续工作台页面提供数据与 Agent 基础。
+
+### 1.4 Agent 抽象层 ✅
+
+新增 `apps/content_planning/agents/` 目录：
+
+| 文件 | 角色 | 包装的 Service |
+|------|------|----------------|
+| `base.py` | 基类 + AgentChip / AgentContext / AgentResult | — |
+| `registry.py` | AgentRegistry（注册/发现/按角色查找） | — |
+| `trend_analyst.py` | 趋势分析师 (trend_analyst) | opportunity_compiler + promoter |
+| `brief_synthesizer.py` | Brief 编译师 (brief_synthesizer) | BriefCompiler |
+| `template_planner.py` | 模板策划师 (template_planner) | TemplateMatcher + TemplateRetriever |
+| `strategy_director.py` | 策略总监 (strategy_director) | RewriteStrategyGenerator |
+| `visual_director.py` | 视觉总监 (visual_director) | ImageBriefGenerator + NewNotePlanCompiler |
+| `asset_producer.py` | 资产制作人 (asset_producer) | TitleGenerator + BodyGenerator + AssetAssembler |
+
+Agent 层是 service 的包装层，不改变现有 service 逻辑。
+
+### 1.1 对象锁定机制 ✅
+
+- 新增 `apps/content_planning/schemas/lock.py` — `ObjectLock` 模型
+- `OpportunityBrief` / `RewriteStrategy` / `NewNotePlan` / `AssetBundle` 增加 `locks: ObjectLock | None`
+- API: `POST /content-planning/lock/{opp_id}` / `POST /content-planning/unlock/{opp_id}`
+
+### 1.2 并行多版本存储 ✅
+
+- `planning_sessions` 表增加 `brief_versions_json` / `strategy_versions_json` / `plan_versions_json`
+- `append_version` / `load_versions` 方法（保留最新 10 个快照）
+- API: `GET /content-planning/versions/{opp_id}/{type}` / `POST /content-planning/restore-version/{opp_id}`
+
+### 1.3 变体系统骨架 ✅
+
+- 新增 `apps/content_planning/schemas/variant.py` — `Variant` / `VariantSet`
+- 新增 `apps/content_planning/services/variant_generator.py`
+- `AssetBundle` 增加 `variant_set_id`
+- API: `POST /content-planning/asset-bundle/{opp_id}/generate-variant`
+
+### Phase 1 验证
+
+- 全量导入验证：6 个 Agent + Lock + Variant + VariantGenerator 全部 OK
+- 测试：235 passed, 0 failed
+
+---
+
+## AI-native 产品层升级 — Phase 2：4 个工作台页面重构
+
+### 日期：2026-04-07
+
+### 目标
+把现有 3 个"步骤页"重构为 4 个"对象工作台"，补齐 G5（Board 视图）/ G7（AI chips）/ G8（交互增强）。
+
+### 2.1 Opportunity Workspace ✅
+
+重构 `content_brief.html` → 三栏 Opportunity Workspace：
+- 对象锚点栏（Card ID/类型/状态/强度分/Pipeline）
+- AI 建议 chips（值得深入/建议观望/适合种草/适合转化）
+- 左栏：机会卡摘要 + 检视汇总 + 来源笔记
+- 中栏：Brief 全量内容（含策划层洞察）
+- 右栏：AI 分析建议 + 人工修订表单 + 锁定按钮 + 版本历史 + CTA
+
+### 2.2 Planning Workspace ✅
+
+重构 `content_strategy.html` → 三栏 Planning Workspace：
+- 对象锚点链路（Card → Brief → Template → Strategy）
+- 左栏：Brief 摘要 + 场景受众 + 策划深度（why_now/differentiation/planning_direction）
+- 中栏：Top 3 模板卡片（含 matched_dimensions）+ 双列策略展示
+- 右栏：AI 策划建议 + Strategy AI Chips（更偏种草/转化/礼赠/平价改造）+ 操作区 + 版本历史
+
+### 2.3 Creation Workspace ✅
+
+重构 `content_plan.html` → 三栏 Creation Workspace：
+- 对象锚点（完整链路 Card → Brief → Strategy → Plan）
+- 左栏：机会/模板/策略摘要上下文
+- 中栏：Plan Board（A. 标题策划 + 生成标题、B. 正文策划 + 生成正文、C. 图片策划 + 生成图片指令）
+- 右栏：AI 创作分析 + 标题/图片 AI Chips + 操作按钮 + 资产包链接
+
+### 2.4 Asset Workspace ✅ (新增)
+
+新增 `content_assets.html` + 路由 `GET /content-planning/assets/{opportunity_id}`：
+- 对象锚点（Brief → Strategy → Plan → Asset Bundle）
+- 左栏：资产包信息 + 血缘链路可视化 + Brief/策略摘要
+- 中栏：Tab 视图（标题候选 / 正文 / 图片执行 Brief / 变体）
+- 右栏：Agent 说明 + 导出 JSON/Markdown + 生成变体 + 标记已发布
+
+### Phase 2 验证
+
+- 测试：235 passed, 0 failed
+- App 路由数：66（含新增 Asset Workspace 路由）
+- 全量导入验证通过
+
+---
+
+## AI-native 产品层升级 — Phase 3：AI 角色协同层
+
+### 日期：2026-04-07
+
+### 目标
+让 Agent 不只是包装层，而是真正的协同参与者（G3 运行时），前端可调用 Agent、查看解释、记录动作轨迹。
+
+### 3.1 Agent 运行与解释 ✅
+
+- 新增 `POST /content-planning/run-agent/{opportunity_id}` — 按 agent_role 实例化 Agent 并运行
+- 返回 `AgentResult`（output_object + explanation + confidence + suggestions/chips + comparison）
+- 运行后自动记录动作日志
+
+### 3.2 Agent 动作日志 ✅
+
+- `planning_sessions` 表增加 `agent_actions_json` 列
+- `_log_agent_action` 自动追加每次 Agent 运行记录（保留最近 50 条）
+- `GET /content-planning/agent-log/{opportunity_id}` — 查看 Agent 动作轨迹
+- `GET /content-planning/agents` — 列出所有 Agent（6 个角色）
+
+### 3.3 人类 + AI 动作分区 ✅
+
+- 4 个工作台页面右栏已明确分为 AI 可做区（agent-box、chips）和人可做区（表单、按钮）
+- 前端 `runAgent(role, extra)` 函数已注入所有 4 个工作台模板
+- Agent 运行结果可直接在 AI 分析区域展示
+
+### Phase 3 验证
+
+- 测试：235 passed, 0 failed
+- Agent API 导入验证通过
+- agent_actions 存储列迁移兼容
+
+---
+
+## AI-native 产品层升级 — Phase 4：品类解耦 + Campaign 级生产
+
+### 日期：2026-04-07
+
+### 目标
+解耦品类硬编码（G4），支持 Campaign 级批量生产扩展结构。
+
+### 4.1 品类配置抽象 ✅
+
+- 新增 `config/categories/tablecloth.yaml` — 桌布品类完整配置
+  - `extractor_hints`（visual/selling_theme/scene）
+  - `ontology_overrides`
+  - `template_family`
+  - `prompt_fragments`（category_context / visual_style_guide）
+  - `brand_defaults`
+- PromptRegistry 升级为三级加载：`load_prompt(scene, variant, category)`
+  - scene YAML → variant 选择 → category prompt_fragments 注入
+  - 新增 `load_category(category)` / `load_prompt_with_category(...)` 辅助函数
+  - 品类片段通过 `{category_context}` 等占位符注入 prompt template
+  - 向后兼容：无 category 参数时行为不变
+
+### 4.2 Campaign 级批量生产 ✅
+
+- 新增 `apps/content_planning/schemas/campaign.py`
+  - `PlatformVersion`（xiaohongshu/ecommerce_main/sku/video_script）
+  - `CampaignPlan`（campaign_id + opportunity_ids + target_bundle_count + platform_versions）
+  - `CampaignResult`（total/completed/failed bundles + platform_versions_generated）
+- API: `POST /content-planning/campaigns` — 创建 Campaign 计划
+- API: `POST /content-planning/campaigns/{campaign_id}/execute` — 执行 Campaign（概念验证）
+- `AssetBundle.campaign_id` 已存在，可关联 Campaign
+
+### Phase 4 验证
+
+- 测试：235 passed, 0 failed
+- 品类配置加载验证：tablecloth YAML 正确读取
+- Campaign schema 验证：CampaignPlan / CampaignResult 构建成功
+
+---
+
+## 四阶段升级总结
+
+| Phase | 目标 | 状态 |
+|-------|------|------|
+| 1 | 对象模型增强 + Agent 基础设施（锁定/多版本/变体/Agent 抽象） | ✅ 完成 |
+| 2 | 4 个工作台页面重构（Opportunity/Planning/Creation/Asset） | ✅ 完成 |
+| 3 | AI 角色协同层（Agent 运行/动作日志/人机分区） | ✅ 完成 |
+| 4 | 品类解耦 + Campaign 级生产（categories YAML/三级加载/Campaign API） | ✅ 完成 |
+
+新增文件：
+- `apps/content_planning/agents/__init__.py`
+- `apps/content_planning/agents/base.py`
+- `apps/content_planning/agents/registry.py`
+- `apps/content_planning/agents/trend_analyst.py`
+- `apps/content_planning/agents/brief_synthesizer.py`
+- `apps/content_planning/agents/template_planner.py`
+- `apps/content_planning/agents/strategy_director.py`
+- `apps/content_planning/agents/visual_director.py`
+- `apps/content_planning/agents/asset_producer.py`
+- `apps/content_planning/schemas/lock.py`
+- `apps/content_planning/schemas/variant.py`
+- `apps/content_planning/schemas/campaign.py`
+- `apps/content_planning/services/variant_generator.py`
+- `apps/intel_hub/api/templates/content_assets.html`
+- `config/categories/tablecloth.yaml`
+
+新增路由：
+- `POST /content-planning/lock/{opportunity_id}`
+- `POST /content-planning/unlock/{opportunity_id}`
+- `GET /content-planning/versions/{opportunity_id}/{object_type}`
+- `POST /content-planning/restore-version/{opportunity_id}`
+- `POST /content-planning/asset-bundle/{opportunity_id}/generate-variant`
+- `POST /content-planning/run-agent/{opportunity_id}`
+- `GET /content-planning/agent-log/{opportunity_id}`
+- `GET /content-planning/agents`
+- `GET /content-planning/assets/{opportunity_id}` (HTML)
+- `POST /content-planning/campaigns`
+- `POST /content-planning/campaigns/{campaign_id}/execute`

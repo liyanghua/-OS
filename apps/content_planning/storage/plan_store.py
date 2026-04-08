@@ -40,6 +40,8 @@ _FIELD_TO_COLUMN: dict[str, str] = {
     "pipeline_run_id": "pipeline_run_id",
     "stale_flags": "stale_flags_json",
     "stale_flags_json": "stale_flags_json",
+    "agent_actions": "agent_actions_json",
+    "agent_actions_json": "agent_actions_json",
 }
 
 _JSON_COLUMNS = frozenset(
@@ -53,6 +55,7 @@ _JSON_COLUMNS = frozenset(
         "image_briefs_json",
         "asset_bundle_json",
         "stale_flags_json",
+        "agent_actions_json",
     }
 )
 
@@ -106,9 +109,13 @@ class ContentPlanStore:
                     titles_json TEXT,
                     body_json TEXT,
                     image_briefs_json TEXT,
+                    brief_versions_json TEXT,
+                    strategy_versions_json TEXT,
+                    plan_versions_json TEXT,
                     asset_bundle_json TEXT,
                     pipeline_run_id TEXT,
                     stale_flags_json TEXT,
+                    agent_actions_json TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -134,6 +141,10 @@ class ContentPlanStore:
                 "visibility": "TEXT NOT NULL DEFAULT 'workspace'",
                 "version": "INTEGER NOT NULL DEFAULT 1",
                 "asset_bundle_json": "TEXT",
+                "brief_versions_json": "TEXT",
+                "strategy_versions_json": "TEXT",
+                "plan_versions_json": "TEXT",
+                "agent_actions_json": "TEXT",
             }.items():
                 if column not in existing_columns:
                     conn.execute(f"ALTER TABLE planning_sessions ADD COLUMN {column} {ddl}")
@@ -281,8 +292,10 @@ class ContentPlanStore:
                 SELECT opportunity_id, session_status,
                        workspace_id, brand_id, campaign_id, created_by, updated_by, visibility, version,
                        brief_json, match_json, strategy_json, plan_json,
-                       titles_json, body_json, image_briefs_json, asset_bundle_json,
-                       pipeline_run_id, stale_flags_json,
+                       titles_json, body_json, image_briefs_json,
+                       brief_versions_json, strategy_versions_json, plan_versions_json,
+                       asset_bundle_json,
+                       pipeline_run_id, stale_flags_json, agent_actions_json,
                        created_at, updated_at
                 FROM planning_sessions WHERE opportunity_id = ?
                 """,
@@ -309,9 +322,13 @@ class ContentPlanStore:
             "titles": _deserialize(row["titles_json"]),
             "body": _deserialize(row["body_json"]),
             "image_briefs": _deserialize(row["image_briefs_json"]),
+            "brief_versions": _deserialize(row["brief_versions_json"]),
+            "strategy_versions": _deserialize(row["strategy_versions_json"]),
+            "plan_versions": _deserialize(row["plan_versions_json"]),
             "asset_bundle": _deserialize(row["asset_bundle_json"]),
             "pipeline_run_id": row["pipeline_run_id"],
             "stale_flags": _deserialize(row["stale_flags_json"]),
+            "agent_actions": _deserialize(row["agent_actions_json"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -352,6 +369,48 @@ class ContentPlanStore:
                 logger.warning(
                     "update_stale_flags: 未找到 opportunity_id=%s，跳过更新", opportunity_id
                 )
+
+    def append_version(self, opportunity_id: str, object_type: str, version_data: Any) -> None:
+        """Append a version snapshot to the versions list."""
+        col_map = {"brief": "brief_versions_json", "strategy": "strategy_versions_json", "plan": "plan_versions_json"}
+        column = col_map.get(object_type)
+        if column is None:
+            raise ValueError(f"Unknown object_type: {object_type}")
+
+        session = self.load_session(opportunity_id)
+        if session is None:
+            return
+
+        versions_key = f"{object_type}_versions"
+        existing = []
+        raw = session.get(versions_key)
+        if isinstance(raw, list):
+            existing = raw
+
+        new_ver = version_data.model_dump(mode="json") if hasattr(version_data, "model_dump") else version_data
+        existing.append(new_ver)
+
+        # Keep max 10 versions
+        if len(existing) > 10:
+            existing = existing[-10:]
+
+        now = _utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE planning_sessions SET {column} = ?, updated_at = ? WHERE opportunity_id = ?",
+                (_serialize(existing), now, opportunity_id),
+            )
+
+    def load_versions(self, opportunity_id: str, object_type: str) -> list[dict]:
+        """Load all version snapshots for an object type."""
+        session = self.load_session(opportunity_id)
+        if session is None:
+            return []
+        versions_key = f"{object_type}_versions"
+        raw = session.get(versions_key)
+        if isinstance(raw, list):
+            return raw
+        return []
 
     def save_strategy(self, opportunity_id: str, strategy: Any) -> None:
         """Append a strategy to the strategy list for this opportunity."""

@@ -974,6 +974,40 @@ def create_app(
             })
         return data
 
+    @app.get("/content-planning/assets/{opportunity_id}")
+    async def content_assets_page(request: Request, opportunity_id: str) -> Any:
+        """资产工作台。"""
+        card = review_store.get_card(opportunity_id)
+        if card is None:
+            raise HTTPException(status_code=404, detail="机会卡未找到")
+
+        try:
+            bundle = _cp_flow.assemble_asset_bundle(opportunity_id)
+            bundle_dict = bundle.model_dump(mode="json") if hasattr(bundle, "model_dump") else {}
+        except Exception:
+            bundle_dict = {}
+
+        try:
+            data = _cp_flow.build_note_plan(opportunity_id, with_generation=True)
+        except Exception:
+            data = {}
+
+        session_data = _cp_flow.get_session_data(opportunity_id)
+
+        if _wants_html(request):
+            return _render("content_assets.html", {
+                "request": request,
+                "opportunity_id": opportunity_id,
+                "bundle": bundle_dict,
+                "brief": data.get("brief", {}),
+                "strategy": data.get("strategy", {}),
+                "match_result": data.get("match_result", {}),
+                "generated": data.get("generated"),
+                "lineage": bundle_dict.get("lineage", {}),
+                "stale_flags": session_data.get("stale_flags", {}),
+            })
+        return {"bundle": bundle_dict}
+
     @app.get("/watchlists")
     async def watchlists(
         request: Request,

@@ -1,0 +1,48 @@
+# 品类配置：桌布（tablecloth）
+# 用于 Prompt Registry 三级加载、抽取器提示词注入、模板族选择
+
+category_id: tablecloth
+category_name: 桌布
+category_name_en: tablecloth
+
+# 品类级别的抽取器提示词补充
+extractor_hints:
+  visual:
+    focus_elements: ["桌布", "桌旗", "餐垫", "餐桌"]
+    style_keywords: ["棉麻", "提花", "刺绣", "印花", "流苏"]
+    scene_keywords: ["餐桌", "下午茶", "聚餐", "书桌", "办公"]
+  selling_theme:
+    key_selling_points: ["材质手感", "花色款式", "尺寸规格", "防水防油", "可机洗"]
+    price_anchors: ["9.9", "19.9", "39.9", "69.9", "99"]
+  scene:
+    primary_scenes: ["家庭聚餐", "下午茶", "节日装饰", "日常用餐", "拍照场景"]
+    seasonal_hints: ["春夏清新", "秋冬温暖", "新年红色", "圣诞主题"]
+
+# 品类级别的 Ontology 覆盖
+ontology_overrides:
+  core_subject: "桌布/桌旗/餐垫"
+  product_category: "家居软装"
+  typical_price_range: "9.9-199"
+
+# 品类关联的模板族
+template_family: "tablecloth_main_image"
+
+# 品类级别的 Prompt 片段（可在 PromptRegistry 的 user_template 中通过 {category_context} 引用）
+prompt_fragments:
+  category_context: |
+    品类：桌布/桌旗/餐垫。
+    核心价值维度：材质手感、花色美观度、场景适配、性价比。
+    常见购买场景：家庭聚餐、下午茶布置、节日装饰、日常用餐。
+    平台表达偏好：真实场景图 > 产品细节图 > 纯白底图。
+  visual_style_guide: |
+    桌布品类视觉要点：
+    - 拍摄角度偏好：俯拍45度、平铺展示
+    - 配色：暖色调为主，强调家居氛围感
+    - 道具搭配：餐具、花瓶、食物、饮品
+    - 避免：过度精修、冷色调商业感
+
+# 品类级别的品牌默认值
+brand_defaults:
+  tone: "温暖、真实、生活化"
+  avoid_words: ["最便宜", "全网最低", "骨折价"]
+  platform_style: "小红书原生种草"

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  body .shell { max-width: 1560px; }
+  .aw-shell { max-width: 1560px; margin: 0 auto; }
+  .aw-anchor { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 16px; margin-bottom: 12px; background: linear-gradient(135deg, var(--accent-soft), rgba(255,253,248,0.95)); border: 1px solid rgba(138,75,47,0.18); border-radius: 14px; font-size: 12px; }
+  .aw-anchor-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .aw-anchor-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .aw-anchor-sep { color: var(--border); }
+  .aw-row { display: flex; gap: 20px; align-items: flex-start; }
+  .aw-left { width: 340px; flex-shrink: 0; position: sticky; top: 20px; align-self: flex-start; }
+  .aw-mid { flex: 1; min-width: 0; }
+  .aw-right { width: 320px; flex-shrink: 0; }
+  .aw-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 14px; box-shadow: 0 8px 22px rgba(92,66,39,0.06); }
+  .aw-card h3 { margin: 0 0 10px; font-size: 14px; color: var(--accent); font-weight: 700; }
+  .aw-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .aw-tab { border: 1px solid var(--border); background: rgba(255,253,248,0.8); color: var(--muted); border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .aw-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .aw-tab-panel { display: none; }
+  .aw-tab-panel.active { display: block; }
+  .aw-btn { display: block; width: 100%; box-sizing: border-box; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 14px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; margin-bottom: 10px; text-align: center; text-decoration: none; }
+  .aw-btn.secondary { background: var(--surface); color: var(--accent); }
+  .aw-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .aw-agent-box { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border: 1px solid #c4b5fd; border-radius: 16px; padding: 14px; margin-bottom: 14px; }
+  .aw-agent-title { font-size: 12px; font-weight: 700; color: #6d28d9; margin-bottom: 8px; }
+  .aw-agent-text { font-size: 13px; line-height: 1.6; color: #4c1d95; }
+  .aw-lineage-chain { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+  .aw-lineage-node { padding: 3px 8px; border-radius: 8px; background: #f5f5f5; }
+  .aw-title-item { border-bottom: 1px solid var(--border); padding: 10px 0; }
+  .aw-title-item:last-child { border-bottom: none; }
+  .aw-slot-card { border: 1px solid var(--border); border-radius: 14px; padding: 12px; margin-bottom: 10px; background: rgba(255,255,255,0.65); }
+  .aw-status-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
+  @media (max-width: 1100px) { .aw-row { flex-direction: column; } .aw-left, .aw-right { width: 100%; position: relative; top: 0; } }
+</style>
+
+<div class="aw-shell" style="--accent: #8a4b2f; --surface: #fffdf8;">
+  <div style="margin-bottom: 10px;">
+    <a href="/content-planning/plan/{{ opportunity_id }}" style="color: var(--accent); text-decoration: none; font-size: 14px;">&larr; 返回 Creation Workspace</a>
+  </div>
+
+  <div class="aw-anchor">
+    <span class="aw-anchor-badge" style="background: var(--accent); color: #fff;">Asset Workspace</span>
+    <a class="aw-anchor-link" href="/content-planning/brief/{{ opportunity_id }}">Brief</a>
+    <span class="aw-anchor-sep">→</span>
+    <a class="aw-anchor-link" href="/content-planning/strategy/{{ opportunity_id }}">Strategy</a>
+    <span class="aw-anchor-sep">→</span>
+    <a class="aw-anchor-link" href="/content-planning/plan/{{ opportunity_id }}">Plan</a>
+    <span class="aw-anchor-sep">→</span>
+    <span style="font-weight: 700; color: var(--ink);">Asset Bundle</span>
+    <span style="color: var(--muted); margin-left: auto;">ID: {{ opportunity_id }}</span>
+  </div>
+
+  <div class="aw-row">
+    <aside class="aw-left">
+      <div class="aw-card">
+        <h3>资产包信息</h3>
+        {% if bundle %}
+        <div style="margin-bottom: 8px;">
+          <span class="aw-status-badge" style="{% if bundle.export_status == 'ready' %}background:#dcfce7;color:#166534;{% elif bundle.export_status == 'exported' %}background:#dbeafe;color:#1e40af;{% else %}background:#fef9c4;color:#92400e;{% endif %}">
+            {% if bundle.export_status == 'draft' %}草稿{% elif bundle.export_status == 'ready' %}就绪{% elif bundle.export_status == 'exported' %}已导出{% else %}{{ bundle.export_status or '—' }}{% endif %}
+          </span>
+        </div>
+        <p style="margin: 0 0 6px; font-size: 12px; color: var(--muted);">Bundle ID: <code style="font-size: 11px;">{{ bundle.asset_bundle_id or '—' }}</code></p>
+        <p style="margin: 0 0 6px; font-size: 12px; color: var(--muted);">Plan ID: <code style="font-size: 11px;">{{ bundle.plan_id or '—' }}</code></p>
+        {% if bundle.created_at %}<p style="margin: 0; font-size: 11px; color: var(--muted);">创建：{{ bundle.created_at }}</p>{% endif %}
+        {% else %}
+        <p style="margin: 0; font-size: 12px; color: var(--muted);">资产包尚未组装。请在 Creation Workspace 生成内容后查看。</p>
+        {% endif %}
+      </div>
+
+      {% if lineage and lineage is mapping and (lineage.get('opportunity_id') or lineage.get('brief_id') or lineage.get('plan_id')) %}
+      <div class="aw-card">
+        <h3>血缘链路</h3>
+        <div class="aw-lineage-chain">
+          {% if lineage.get('opportunity_id') %}<span class="aw-lineage-node">Card: {{ (lineage.opportunity_id|string)[:8] }}…</span><span>→</span>{% endif %}
+          {% if lineage.get('brief_id') %}<span class="aw-lineage-node">Brief: {{ (lineage.brief_id|string)[:8] }}…</span><span>→</span>{% endif %}
+          {% if lineage.get('template_id') %}<span class="aw-lineage-node">Template: {{ (lineage.template_id|string)[:8] }}…</span><span>→</span>{% endif %}
+          {% if lineage.get('strategy_id') %}<span class="aw-lineage-node">Strategy: {{ (lineage.strategy_id|string)[:8] }}…</span><span>→</span>{% endif %}
+          {% if lineage.get('plan_id') %}<span class="aw-lineage-node">Plan: {{ (lineage.plan_id|string)[:8] }}…</span>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="aw-card">
+        <h3>Brief 摘要</h3>
+        {% if brief %}<div style="font-size: 13px; font-weight: 600;">{{ brief.opportunity_title|default('—', true) }}</div><p style="margin: 6px 0 0; font-size: 12px; color: var(--muted);">{{ brief.content_goal|default('—', true) }}</p>{% else %}<p style="margin: 0; font-size: 12px; color: var(--muted);">—</p>{% endif %}
+      </div>
+
+      <div class="aw-card">
+        <h3>策略摘要</h3>
+        {% if strategy %}<p style="margin: 0; font-size: 12px; color: var(--muted);">{{ strategy.positioning_statement|default('—', true) }}</p>{% else %}<p style="margin: 0; font-size: 12px; color: var(--muted);">—</p>{% endif %}
+      </div>
+    </aside>
+
+    <main class="aw-mid">
+      <div class="aw-tabs" role="tablist">
+        <button type="button" class="aw-tab active" data-tab="tab-titles" role="tab">标题候选</button>
+        <button type="button" class="aw-tab" data-tab="tab-body" role="tab">正文</button>
+        <button type="button" class="aw-tab" data-tab="tab-images" role="tab">图片执行 Brief</button>
+        <button type="button" class="aw-tab" data-tab="tab-variants" role="tab">变体</button>
+      </div>
+
+      <div id="tab-titles" class="aw-tab-panel active" role="tabpanel">
+        {% if bundle and bundle.title_candidates %}
+        {% for t in bundle.title_candidates %}
+        <div class="aw-title-item">
+          <div style="font-weight: 700; font-size: 15px; line-height: 1.4;">{{ loop.index }}. {{ t.title_text|default('—', true) }}</div>
+          {% if t.axis %}<span style="display:inline-block;margin-top:4px;font-size:11px;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);">{{ t.axis }}</span>{% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="aw-card" style="text-align: center; color: var(--muted);">暂无标题候选</div>
+        {% endif %}
+      </div>
+
+      <div id="tab-body" class="aw-tab-panel" role="tabpanel">
+        {% if bundle and bundle.body_draft %}
+        {% if bundle.body_outline %}<p style="font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 8px;">正文提纲</p><ol style="margin: 0 0 14px; padding-left: 1.2em; line-height: 1.55;">{% for line in bundle.body_outline %}<li style="margin-bottom: 4px;">{{ line }}</li>{% endfor %}</ol>{% endif %}
+        <p style="font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 8px;">正文草稿</p>
+        <div style="font-size: 14px; line-height: 1.7; white-space: pre-wrap;">{{ bundle.body_draft }}</div>
+        {% else %}
+        <div class="aw-card" style="text-align: center; color: var(--muted);">暂无正文</div>
+        {% endif %}
+      </div>
+
+      <div id="tab-images" class="aw-tab-panel" role="tabpanel">
+        {% if bundle and bundle.image_execution_briefs %}
+        {% for sb in bundle.image_execution_briefs %}
+        <div class="aw-slot-card">
+          <div style="font-weight: 700; font-size: 13px; margin-bottom: 6px;">槽位 {{ sb.slot_index|default(loop.index) }} · {{ sb.role|default('—') }}</div>
+          {% if sb.subject %}<p style="margin:0 0 4px;font-size:12px;color:var(--muted);"><strong>主体</strong>：{{ sb.subject }}</p>{% endif %}
+          {% if sb.composition %}<p style="margin:0 0 4px;font-size:12px;color:var(--muted);"><strong>构图</strong>：{{ sb.composition }}</p>{% endif %}
+          {% if sb.color_mood %}<p style="margin:0;font-size:12px;color:var(--muted);"><strong>色彩</strong>：{{ sb.color_mood }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="aw-card" style="text-align: center; color: var(--muted);">暂无图片执行指令</div>
+        {% endif %}
+      </div>
+
+      <div id="tab-variants" class="aw-tab-panel" role="tabpanel">
+        <div class="aw-card" style="text-align: center; color: var(--muted);">
+          <p>点击右侧「生成变体」创建不同维度的资产变体（语气/场景/品牌等）。</p>
+        </div>
+        <div id="aw-variant-list"></div>
+      </div>
+    </main>
+
+    <aside class="aw-right">
+      <div class="aw-agent-box">
+        <div class="aw-agent-title">资产制作人</div>
+        <div class="aw-agent-text">{% if bundle and bundle.title_candidates %}资产包含 {{ bundle.title_candidates|length }} 条标题候选{% if bundle.body_draft %} + {{ bundle.body_draft|length }} 字正文{% endif %}{% if bundle.image_execution_briefs %} + {{ bundle.image_execution_briefs|length }} 张图位{% endif %}。{% else %}尚未组装资产包。{% endif %}</div>
+      </div>
+
+      <div class="aw-card">
+        <h3>导出与审核</h3>
+        <button type="button" class="aw-btn" id="aw-btn-export-json">导出 JSON</button>
+        <button type="button" class="aw-btn" id="aw-btn-export-md">导出 Markdown</button>
+        <button type="button" class="aw-btn secondary" id="aw-btn-variant">生成变体</button>
+        <button type="button" class="aw-btn secondary" id="aw-btn-publish" {% if not bundle or not bundle.asset_bundle_id %}disabled{% endif %}>标记已发布</button>
+      </div>
+
+      {% if stale_flags %}
+      <div class="aw-card">
+        <h3>对象状态</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          {% for key in ['brief','match','strategy','plan','titles','body','image_briefs'] %}
+          {% set is_stale = stale_flags.get(key, false) %}
+          <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">{{ key }} {{ '⟳' if is_stale else '✓' }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+
+<script>
+(function () {
+  var opportunityId = {{ opportunity_id | tojson }};
+  var bundleId = {{ (bundle.asset_bundle_id if bundle and bundle.asset_bundle_id else '') | tojson }};
+
+  document.querySelectorAll('.aw-tab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.aw-tab').forEach(function(b){ b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
+      document.querySelectorAll('.aw-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+      btn.classList.add('active'); btn.setAttribute('aria-selected','true');
+      document.getElementById(btn.getAttribute('data-tab')).classList.add('active');
+    });
+  });
+
+  document.getElementById('aw-btn-export-json').addEventListener('click', function(){
+    window.location.href = '/content-planning/asset-bundle/' + encodeURIComponent(opportunityId) + '/export?format=json';
+  });
+
+  document.getElementById('aw-btn-export-md').addEventListener('click', function(){
+    window.location.href = '/content-planning/asset-bundle/' + encodeURIComponent(opportunityId) + '/export?format=markdown';
+  });
+
+  document.getElementById('aw-btn-variant').addEventListener('click', function(){
+    this.disabled = true;
+    var btn = this;
+    fetch('/content-planning/asset-bundle/' + encodeURIComponent(opportunityId) + '/generate-variant', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({axis: 'tone', label: '语气变体'})
+    }).then(function(r){ return r.json(); })
+    .then(function(data){
+      btn.disabled = false;
+      var list = document.getElementById('aw-variant-list');
+      var card = document.createElement('div');
+      card.className = 'aw-slot-card';
+      card.innerHTML = '<div style="font-weight:700;font-size:13px;margin-bottom:6px;">变体：' + (data.variant_label||'—') + '</div><p style="font-size:12px;color:var(--muted);margin:0;">轴：' + (data.variant_axis||'—') + '</p>';
+      list.appendChild(card);
+    })
+    .catch(function(){ btn.disabled = false; alert('生成变体失败'); });
+  });
+
+  document.getElementById('aw-btn-publish').addEventListener('click', function(){
+    if (!bundleId) {
+      alert('暂无资产包 ID，请先在策划流程中生成内容。');
+      return;
+    }
+    fetch('/content-planning/asset-bundle/' + encodeURIComponent(bundleId) + '/feedback', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        published_note_id: '',
+        feedback_notes: '标记已发布（工作台）',
+        performance_label: 'unknown'
+      })
+    }).then(function(r){ if(r.ok) alert('已记录发布反馈'); else alert('操作失败'); })
+    .catch(function(){ alert('操作失败'); });
+  });
+
+  // Agent run helper
+  function runAgent(role, extra) {
+    return fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({agent_role: role, extra: extra || {}})
+    }).then(function(r){ return r.json(); });
+  }
+})();
+</script>
+{% endblock %}
