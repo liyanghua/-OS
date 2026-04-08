@@ -348,6 +348,7 @@ class OpportunityToPlanFlow:
             "target_user", "target_scene", "content_goal", "primary_value",
             "visual_style_direction", "avoid_directions", "template_hints",
             "core_motive", "price_positioning", "target_audience",
+            "why_worth_doing", "competitive_angle",
         }
         for key, val in partial.items():
             if key in editable and hasattr(session.brief, key):

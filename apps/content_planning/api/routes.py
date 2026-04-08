@@ -45,6 +45,7 @@ class GeneratePlanRequest(BaseModel):
 
 class GenerateStrategyRequest(BaseModel):
     template_id: str | None = None
+    tone_hint: str | None = None
 
 
 class BriefUpdateRequest(BaseModel):
@@ -58,6 +59,8 @@ class BriefUpdateRequest(BaseModel):
     core_motive: str | None = None
     price_positioning: str | None = None
     target_audience: str | None = None
+    why_worth_doing: str | None = None
+    competitive_angle: str | None = None
 
 
 class ApprovalActionRequest(BaseModel):
