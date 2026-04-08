@@ -47,9 +47,11 @@ class _SessionState:
 
     __slots__ = (
         "opportunity_id", "brief", "match_result", "strategy",
-        "note_plan", "titles", "body", "image_briefs",
+        "note_plan", "titles", "body", "image_briefs", "asset_bundle",
         "templates", "selected_tpl", "updated_at",
         "pipeline_run_id", "stale_flags",
+        "workspace_id", "brand_id", "campaign_id",
+        "created_by", "updated_by", "visibility",
     )
 
     def __init__(self, opportunity_id: str) -> None:
@@ -61,11 +63,18 @@ class _SessionState:
         self.titles: TitleGenerationResult | None = None
         self.body: BodyGenerationResult | None = None
         self.image_briefs: ImageBriefGenerationResult | None = None
+        self.asset_bundle: AssetBundle | None = None
         self.templates: list = []
         self.selected_tpl = None
         self.updated_at = datetime.now(UTC)
         self.pipeline_run_id: str = uuid.uuid4().hex[:16]
         self.stale_flags: dict[str, bool] = {k: False for k in _STALE_KEYS}
+        self.workspace_id = ""
+        self.brand_id = ""
+        self.campaign_id = ""
+        self.created_by = ""
+        self.updated_by = ""
+        self.visibility = "workspace"
 
     def invalidate_downstream(self, from_stage: str = "brief") -> None:
         """从某阶段开始失效下游缓存。"""
@@ -83,6 +92,7 @@ class _SessionState:
             self.titles = None
             self.body = None
             self.image_briefs = None
+            self.asset_bundle = None
             self.stale_flags["titles"] = True
             self.stale_flags["body"] = True
             self.stale_flags["image_briefs"] = True
@@ -99,6 +109,7 @@ class OpportunityToPlanFlow:
         self,
         adapter: IntelHubAdapter | None = None,
         plan_store: Any | None = None,
+        platform_store: Any | None = None,
     ) -> None:
         self._adapter = adapter or IntelHubAdapter()
         self._brief_compiler = BriefCompiler()
@@ -110,6 +121,7 @@ class OpportunityToPlanFlow:
         self._retriever = TemplateRetriever()
         self._cache: dict[str, _SessionState] = {}
         self._store = plan_store
+        self._platform_store = platform_store
 
     def _get_session(self, opportunity_id: str) -> _SessionState:
         if opportunity_id in self._cache:
@@ -155,8 +167,19 @@ class OpportunityToPlanFlow:
                         session.image_briefs = ImageBriefGenerationResult.model_validate(persisted["image_briefs"])
                     except Exception:
                         pass
+                if persisted.get("asset_bundle"):
+                    try:
+                        session.asset_bundle = AssetBundle.model_validate(persisted["asset_bundle"])
+                    except Exception:
+                        pass
                 if persisted.get("stale_flags"):
                     session.stale_flags.update(persisted["stale_flags"])
+                session.workspace_id = persisted.get("workspace_id") or ""
+                session.brand_id = persisted.get("brand_id") or ""
+                session.campaign_id = persisted.get("campaign_id") or ""
+                session.created_by = persisted.get("created_by") or ""
+                session.updated_by = persisted.get("updated_by") or ""
+                session.visibility = persisted.get("visibility") or "workspace"
                 self._cache[opportunity_id] = session
                 return session
 
@@ -171,6 +194,12 @@ class OpportunityToPlanFlow:
         self._store.save_session(
             session.opportunity_id,
             session_status=status,
+            workspace_id=session.workspace_id,
+            brand_id=session.brand_id,
+            campaign_id=session.campaign_id,
+            created_by=session.created_by,
+            updated_by=session.updated_by,
+            visibility=session.visibility,
             brief=session.brief,
             match_result=session.match_result,
             strategy=session.strategy,
@@ -178,6 +207,7 @@ class OpportunityToPlanFlow:
             titles=session.titles,
             body=session.body,
             image_briefs=session.image_briefs,
+            asset_bundle=session.asset_bundle,
             pipeline_run_id=session.pipeline_run_id,
             stale_flags=session.stale_flags,
         )
@@ -188,11 +218,95 @@ class OpportunityToPlanFlow:
             pipeline_run_id=session.pipeline_run_id,
             source_note_ids=session.brief.source_note_ids if session.brief else [],
             opportunity_id=session.opportunity_id,
+            workspace_id=session.workspace_id,
+            brand_id=session.brand_id,
+            campaign_id=session.campaign_id,
             brief_id=session.brief.brief_id if session.brief else "",
             template_id=session.match_result.primary_template.template_id if session.match_result else "",
             strategy_id=session.strategy.strategy_id if session.strategy else "",
             plan_id=session.note_plan.plan_id if session.note_plan else "",
         )
+
+    def _next_version(self, existing: Any | None, *, attr_name: str = "version") -> int:
+        if existing is None:
+            return 1
+        value = getattr(existing, attr_name, 1)
+        if isinstance(value, int) and value >= 1:
+            return value + 1
+        return 1
+
+    def _apply_context(
+        self,
+        session: _SessionState,
+        model: Any,
+        *,
+        previous: Any | None = None,
+        version_attr: str = "version",
+    ) -> Any:
+        if hasattr(model, "workspace_id"):
+            model.workspace_id = session.workspace_id
+        if hasattr(model, "brand_id"):
+            model.brand_id = session.brand_id
+        if hasattr(model, "campaign_id"):
+            model.campaign_id = session.campaign_id
+        if hasattr(model, "created_by") and not getattr(model, "created_by", ""):
+            model.created_by = session.created_by
+        if hasattr(model, "updated_by"):
+            model.updated_by = session.updated_by or session.created_by
+        if hasattr(model, "visibility"):
+            model.visibility = session.visibility
+        if hasattr(model, version_attr):
+            setattr(model, version_attr, self._next_version(previous, attr_name=version_attr))
+        return model
+
+    def _record_usage(self, session: _SessionState, *, event_type: str, object_type: str, object_id: str, units: int = 1) -> None:
+        if self._platform_store is None or not session.workspace_id:
+            return
+        self._platform_store.record_usage(
+            workspace_id=session.workspace_id,
+            brand_id=session.brand_id,
+            campaign_id=session.campaign_id,
+            event_type=event_type,
+            units=units,
+            object_type=object_type,
+            object_id=object_id,
+            actor_user_id=session.updated_by or session.created_by,
+        )
+
+    def bind_workspace_context(
+        self,
+        *,
+        opportunity_id: str,
+        workspace_id: str,
+        user_id: str,
+        api_token: str,
+        brand_id: str | None = None,
+        campaign_id: str | None = None,
+        visibility: str = "workspace",
+    ) -> dict[str, str]:
+        if self._platform_store is None:
+            raise ValueError("B2B platform store is not configured")
+        membership = self._platform_store.authorize(
+            workspace_id=workspace_id,
+            user_id=user_id,
+            api_token=api_token,
+            allowed_roles=("admin", "strategist", "editor", "designer", "reviewer", "viewer"),
+        )
+        session = self._get_session(opportunity_id)
+        queued = self._platform_store.get_queue_entry(workspace_id, opportunity_id)
+        session.workspace_id = workspace_id
+        session.brand_id = brand_id or (queued.brand_id if queued else "")
+        session.campaign_id = campaign_id or (queued.campaign_id if queued else "")
+        session.created_by = session.created_by or user_id
+        session.updated_by = user_id
+        session.visibility = visibility
+        self._persist(session, status="draft")
+        return {
+            "workspace_id": workspace_id,
+            "brand_id": session.brand_id,
+            "campaign_id": session.campaign_id,
+            "role": membership.role,
+        }
 
     # ── 原子操作 ──────────────────────────────────────────────
 
@@ -214,11 +328,14 @@ class OpportunityToPlanFlow:
         lineage.source_note_ids = list(card.source_note_ids)
         lineage.brief_id = brief.brief_id
         brief.lineage = lineage
+        brief.brief_status = "generated"
+        brief = self._apply_context(session, brief, previous=session.brief)
 
         session.brief = brief
         session.invalidate_downstream("match")
         session._mark_fresh("brief")
         self._persist(session, status="generated")
+        self._record_usage(session, event_type="brief_generated", object_type="brief", object_id=brief.brief_id)
         return brief
 
     def update_brief(self, opportunity_id: str, partial: dict[str, Any]) -> OpportunityBrief:
@@ -238,6 +355,8 @@ class OpportunityToPlanFlow:
 
         session.brief.brief_status = "reviewed"
         session.brief.updated_at = datetime.now(UTC)
+        session.brief.updated_by = session.updated_by or session.created_by
+        session.brief.version = self._next_version(session.brief)
         session.invalidate_downstream("match")
         self._persist(session, status="generated")
         return session.brief
@@ -300,6 +419,7 @@ class OpportunityToPlanFlow:
         session.invalidate_downstream("strategy")
         session._mark_fresh("match")
         self._persist(session, status="generated")
+        self._record_usage(session, event_type="templates_matched", object_type="template_match", object_id=match_result.primary_template.template_id)
         return match_result
 
     def build_strategy(
@@ -330,17 +450,26 @@ class OpportunityToPlanFlow:
             raise ValueError(f"模板 {template_id} 加载失败")
         session.selected_tpl = selected_tpl
 
+        previous_strategy = session.strategy
         strategy = self._strategy_gen.generate(session.brief, mr, selected_tpl)
 
         lineage = self._build_lineage(session)
         lineage.strategy_id = strategy.strategy_id
         lineage.template_id = selected_tpl.template_id
         strategy.lineage = lineage
+        strategy.strategy_status = "generated"
+        strategy = self._apply_context(
+            session,
+            strategy,
+            previous=previous_strategy,
+            version_attr="strategy_version",
+        )
 
         session.strategy = strategy
         session.invalidate_downstream("plan")
         session._mark_fresh("strategy")
         self._persist(session, status="generated")
+        self._record_usage(session, event_type="strategy_generated", object_type="strategy", object_id=strategy.strategy_id)
         return strategy
 
     def build_plan(self, opportunity_id: str) -> NewNotePlan:
@@ -353,6 +482,7 @@ class OpportunityToPlanFlow:
         assert session.match_result is not None
         assert session.selected_tpl is not None
 
+        previous_plan = session.note_plan
         note_plan = self._plan_compiler.compile(
             session.brief, session.strategy, session.match_result, session.selected_tpl,
         )
@@ -360,10 +490,13 @@ class OpportunityToPlanFlow:
         lineage = self._build_lineage(session)
         lineage.plan_id = note_plan.plan_id
         note_plan.lineage = lineage
+        note_plan.plan_status = "generated"
+        note_plan = self._apply_context(session, note_plan, previous=previous_plan)
 
         session.note_plan = note_plan
         session._mark_fresh("plan")
         self._persist(session, status="generated")
+        self._record_usage(session, event_type="plan_generated", object_type="plan", object_id=note_plan.plan_id)
         return note_plan
 
     def regenerate_titles(self, opportunity_id: str) -> TitleGenerationResult:
@@ -377,6 +510,7 @@ class OpportunityToPlanFlow:
         session.titles = result
         session._mark_fresh("titles")
         self._persist(session, status="generated")
+        self._record_usage(session, event_type="titles_generated", object_type="title_generation", object_id=session.note_plan.plan_id)
         return result
 
     def regenerate_body(self, opportunity_id: str) -> BodyGenerationResult:
@@ -390,6 +524,7 @@ class OpportunityToPlanFlow:
         session.body = result
         session._mark_fresh("body")
         self._persist(session, status="generated")
+        self._record_usage(session, event_type="body_generated", object_type="body_generation", object_id=session.note_plan.plan_id)
         return result
 
     def regenerate_image_briefs(self, opportunity_id: str) -> ImageBriefGenerationResult:
@@ -403,6 +538,7 @@ class OpportunityToPlanFlow:
         session.image_briefs = result
         session._mark_fresh("image_briefs")
         self._persist(session, status="generated")
+        self._record_usage(session, event_type="image_briefs_generated", object_type="image_generation", object_id=session.note_plan.plan_id)
         return result
 
     # ── 编排操作（兼容旧 API） ─────────────────────────────────
@@ -437,6 +573,7 @@ class OpportunityToPlanFlow:
         if with_generation:
             result["generated"] = self._run_generation(opportunity_id)
 
+        self._record_usage(self._get_session(opportunity_id), event_type="note_plan_compiled", object_type="opportunity", object_id=opportunity_id)
         return result
 
     def compile_note_plan(
@@ -460,6 +597,12 @@ class OpportunityToPlanFlow:
             "opportunity_id": opportunity_id,
             "pipeline_run_id": session.pipeline_run_id,
             "stale_flags": dict(session.stale_flags),
+            "workspace_id": session.workspace_id,
+            "brand_id": session.brand_id,
+            "campaign_id": session.campaign_id,
+            "created_by": session.created_by,
+            "updated_by": session.updated_by,
+            "visibility": session.visibility,
         }
         if session.brief:
             data["brief"] = session.brief.model_dump(mode="json")
@@ -475,6 +618,24 @@ class OpportunityToPlanFlow:
             data["body"] = session.body.model_dump(mode="json")
         if session.image_briefs:
             data["image_briefs"] = session.image_briefs.model_dump(mode="json")
+        if session.asset_bundle:
+            data["asset_bundle"] = session.asset_bundle.model_dump(mode="json")
+        if self._platform_store is not None and session.workspace_id:
+            approvals = self._platform_store.list_approvals(session.workspace_id)
+            summary: dict[str, dict[str, Any]] = {}
+            for record in approvals:
+                if record.object_id in {
+                    getattr(session.brief, "brief_id", ""),
+                    getattr(session.strategy, "strategy_id", ""),
+                    getattr(session.note_plan, "plan_id", ""),
+                    getattr(session.asset_bundle, "asset_bundle_id", ""),
+                }:
+                    summary[record.object_type] = record.model_dump(mode="json")
+            if summary:
+                data["approval_summary"] = {
+                    key: {"latest_decision": value["decision"], "reviewer_id": value["reviewer_id"], "notes": value["notes"]}
+                    for key, value in summary.items()
+                }
         return data
 
     def _run_generation(self, opportunity_id: str) -> dict[str, Any]:
@@ -532,16 +693,27 @@ class OpportunityToPlanFlow:
             self._run_generation(opportunity_id)
             session = self._get_session(opportunity_id)
 
-        return AssetAssembler.assemble(
+        bundle = AssetAssembler.assemble(
             opportunity_id=opportunity_id,
             plan_id=session.note_plan.plan_id if session.note_plan else "",
             template_id=session.match_result.primary_template.template_id if session.match_result else "",
             template_name=session.match_result.primary_template.template_name if session.match_result else "",
+            workspace_id=session.workspace_id,
+            brand_id=session.brand_id,
+            campaign_id=session.campaign_id,
+            created_by=session.created_by,
+            updated_by=session.updated_by or session.created_by,
+            visibility=session.visibility,
+            version=self._next_version(session.asset_bundle),
             titles=session.titles,
             body=session.body,
             image_briefs=session.image_briefs,
             lineage=self._build_lineage(session),
         )
+        session.asset_bundle = bundle
+        self._persist(session, status="generated")
+        self._record_usage(session, event_type="asset_bundle_assembled", object_type="asset_bundle", object_id=bundle.asset_bundle_id)
+        return bundle
 
     def batch_compile(self, opportunity_ids: list[str]) -> dict[str, Any]:
         """批量编译多个 promoted 卡。"""
@@ -555,3 +727,93 @@ class OpportunityToPlanFlow:
             except Exception as exc:
                 failed.append({"opportunity_id": oid, "error": str(exc)})
         return {"succeeded": succeeded, "failed": failed, "total": len(opportunity_ids)}
+
+    def mark_asset_bundle_exported(self, opportunity_id: str) -> AssetBundle:
+        session = self._get_session(opportunity_id)
+        bundle = session.asset_bundle or self.assemble_asset_bundle(opportunity_id)
+        bundle.export_status = "exported"
+        bundle.updated_at = datetime.now(UTC)
+        if session.updated_by:
+            bundle.updated_by = session.updated_by
+        session.asset_bundle = bundle
+        self._persist(session, status="exported")
+        self._record_usage(
+            session,
+            event_type="asset_bundle_exported",
+            object_type="asset_bundle",
+            object_id=bundle.asset_bundle_id,
+        )
+        return bundle
+
+    def approve_object(
+        self,
+        *,
+        opportunity_id: str,
+        object_type: str,
+        decision: str,
+        notes: str,
+        workspace_id: str,
+        user_id: str,
+        api_token: str,
+    ) -> Any:
+        if self._platform_store is None:
+            raise ValueError("B2B platform store is not configured")
+        membership = self._platform_store.authorize(
+            workspace_id=workspace_id,
+            user_id=user_id,
+            api_token=api_token,
+            allowed_roles=("admin", "strategist", "reviewer"),
+        )
+        session = self._get_session(opportunity_id)
+        if session.workspace_id and session.workspace_id != workspace_id:
+            raise PermissionError("session belongs to another workspace")
+        target: Any | None = None
+        target_id = ""
+        target_version = 1
+        if object_type == "brief":
+            if session.brief is None:
+                session.brief = self.build_brief(opportunity_id)
+            target = session.brief
+            target_id = target.brief_id
+            target.brief_status = "approved" if decision == "approved" else "reviewed"
+            target_version = getattr(target, "version", 1)
+        elif object_type == "strategy":
+            if session.strategy is None:
+                target = self.build_strategy(opportunity_id)
+            else:
+                target = session.strategy
+            target_id = target.strategy_id
+            target.strategy_status = "approved" if decision == "approved" else "reviewed"
+            target_version = getattr(target, "strategy_version", 1)
+        elif object_type == "plan":
+            if session.note_plan is None:
+                target = self.build_plan(opportunity_id)
+            else:
+                target = session.note_plan
+            target_id = target.plan_id
+            target.plan_status = "approved" if decision == "approved" else "reviewed"
+            target_version = getattr(target, "version", 1)
+        elif object_type == "asset_bundle":
+            target = session.asset_bundle or self.assemble_asset_bundle(opportunity_id)
+            target_id = target.asset_bundle_id
+            target.export_status = "ready" if decision == "approved" else target.export_status
+            target_version = getattr(target, "version", 1)
+            session.asset_bundle = target
+        else:
+            raise ValueError(f"unknown object_type: {object_type}")
+
+        target.approval_status = decision
+        if hasattr(target, "updated_by"):
+            target.updated_by = user_id
+        self._persist(session, status="generated")
+        approval = self._platform_store.record_approval(
+            workspace_id=workspace_id,
+            object_type=object_type,
+            object_id=target_id,
+            object_version=target_version,
+            decision=decision,
+            reviewer_id=user_id,
+            reviewer_role=membership.role,
+            notes=notes,
+        )
+        return approval

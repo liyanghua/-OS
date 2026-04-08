@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
+from typing import Literal
 
 from apps.content_planning.schemas.lineage import PlanLineage
 from apps.template_extraction.schemas.agent_plan import MainImagePlan
@@ -37,6 +38,15 @@ class NewNotePlan(BaseModel):
     strategy_id: str = ""
     template_id: str = ""
     template_name: str = ""
+    workspace_id: str = ""
+    brand_id: str = ""
+    campaign_id: str = ""
+    created_by: str = ""
+    updated_by: str = ""
+    approval_status: Literal["pending_review", "approved", "changes_requested", "rejected"] = "pending_review"
+    visibility: Literal["workspace", "brand", "private"] = "workspace"
+    version: int = 1
+    plan_status: Literal["draft", "generated", "reviewed", "approved", "exported"] = "draft"
 
     note_goal: str | None = None
     target_user: list[str] = Field(default_factory=list)
@@ -52,3 +62,4 @@ class NewNotePlan(BaseModel):
     publish_notes: list[str] = Field(default_factory=list)
     lineage: PlanLineage | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

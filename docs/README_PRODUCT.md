@@ -1,4 +1,6 @@
-# 本体大脑情报中枢 V0.2
+# 本体大脑情报中枢 V0.8 Pilot Foundation
+
+> 当前主线已经从早期 TrendRadar 情报编译层，升级为「XHS 内容情报编译引擎 + 内容策划链 + B2B 试点平台骨架」。
 
 ## 产品名称与定位
 
@@ -78,3 +80,32 @@
 - 已补齐贴近公开 schema 的 `.json/.jsonl` fixture，以及测试内生成的 `.db` fixture。
 - 当前默认仍读取 `data/fixtures/trendradar_output/output`；真实接入通过 `config/runtime.yaml` 切换 `trendradar_output_dir`。
 - 已新增桌布场景 fixture 与 `category_tablecloth` watchlist / mapping，可通过 `entity=category_tablecloth` 在 UI 查看。
+
+## V0.8 商业化试点骨架
+
+- 新增 `apps/b2b_platform`：
+  - `Organization`
+  - `Workspace`
+  - `BrandProfile`
+  - `Campaign`
+  - `WorkspaceMembership`
+  - `Connector`
+  - `OpportunityQueueEntry`
+  - `ApprovalRecord`
+  - `UsageEvent`
+  - `PublishResult`
+- 现有 `OpportunityBrief` / `RewriteStrategy` / `NewNotePlan` / `AssetBundle` 已可挂到：
+  - `workspace_id`
+  - `brand_id`
+  - `campaign_id`
+- 已支持：
+  - workspace bootstrap
+  - promoted 机会卡进入品牌队列
+  - 内容对象审批
+  - 生成与导出的用量记账
+
+## 当前边界
+
+- 这是试点可售版地基，不是完整企业版平台。
+- 当前仍使用 SQLite，本轮不替换为 Postgres / 对象存储 / 分布式 worker。
+- 当前 auth 为 header token + role，主要用于验证 workspace 隔离与协作边界。

@@ -1,4 +1,4 @@
-# 本体大脑情报中枢 V0.3+ — 四层编译链 + 评论关联 + 视觉分析 + RSS 趋势情报 + XHS 机会卡
+# 本体大脑情报中枢 V0.8 — 四层编译链 + 内容策划 + B2B Pilot Foundation
 
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 > V0.3+ 增量：评论-笔记自动关联 / 千问 VL 视觉分析 / 端到端验证通过。
@@ -7,7 +7,19 @@
 > V0.5.1 四 Extractor 分层升级 + 跨模态校验器。
 > V0.6  Ontology Pipeline 升级：cross_modal 贯穿全链路 + Projector 拆子函数 + Compiler 增强。
 > V0.7  Opportunity Review MVP：机会卡检视 + 人工反馈 + 聚合统计 + 升级判定闭环。
+> V0.8  B2B Pilot Foundation：workspace / brand / campaign / membership / connector / queue / approval / usage。
 > 详见 [PLAN_V2_COMPILATION_CHAIN.md](./PLAN_V2_COMPILATION_CHAIN.md) / [XHS_OPPORTUNITY_PIPELINE.md](./XHS_OPPORTUNITY_PIPELINE.md)
+
+## V0.8 进展 — B2B Pilot Foundation (2026-04-08)
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 平台对象 | **已完成** | 新增 `apps/b2b_platform/`，包含组织、工作区、品牌、活动、成员、连接器、机会队列、审批、用量与发布结果对象 |
+| 平台存储 | **已完成** | `B2BPlatformStore` 使用 SQLite，支持 bootstrap / auth / queue / approvals / usage / snapshot |
+| 内容策划对象升级 | **已完成** | `OpportunityBrief` / `RewriteStrategy` / `NewNotePlan` / `AssetBundle` / `PlanLineage` 新增 tenant context 字段 |
+| 会话持久化升级 | **已完成** | `ContentPlanStore` 新增 tenant context 和 `asset_bundle_json` |
+| API 增量 | **已完成** | 新增 `/b2b/*` 与 `POST /content-planning/xhs-opportunities/{id}/approve` |
+| 计量 | **已完成** | brief / strategy / plan / generation / asset export 自动记录 `UsageEvent` |
 
 ## V0.7 进展 — Opportunity Review MVP (2026-04-03)
 
@@ -119,6 +131,10 @@
 
 ```text
 apps/
+  b2b_platform/
+    __init__.py
+    schemas.py
+    storage.py
   intel_hub/
     api/
       app.py                         # +RSS 路由 /rss/tech, /rss/news
@@ -185,6 +201,7 @@ config/
   scoring.yaml
   dedupe.yaml
   runtime.yaml                      # trendradar + mediacrawler + xhs_sources 多源配置
+                                     # + b2b_platform_db_path
 third_party/
   TrendRadar/                       # git clone（.gitignore 排除）
     .venv/                          # 独立 Python 3.11 虚拟环境
@@ -217,6 +234,23 @@ docs/
 ## 已实现模块
 
 - **小红书 / MediaCrawler → Signal / 卡片 全流程说明**（阶段、配置、Watchlist 角色）：见 [`docs/DATA_PIPELINE_XHS_INTEL_HUB.md`](./DATA_PIPELINE_XHS_INTEL_HUB.md)。
+- **B2B 试点平台骨架**：workspace / brand / campaign / approval / usage 已落地。
+
+## B2B Pilot Quick Start
+
+1. 启动 API：`uvicorn apps.intel_hub.api.app:app --reload`
+2. 调 `POST /b2b/bootstrap` 初始化 workspace
+3. 用返回的 `workspace_id / api_token` 调 `POST /b2b/workspaces/{workspace_id}/opportunities/{opportunity_id}/queue`
+4. 调 `content-planning` 路由时带上：
+   - `X-Workspace-Id`
+   - `X-User-Id`
+   - `X-Api-Token`
+   - 可选：`X-Brand-Id` / `X-Campaign-Id`
+5. 可用新增接口：
+   - `GET /b2b/workspaces/{workspace_id}/usage`
+   - `GET /b2b/workspaces/{workspace_id}/approvals`
+   - `GET /b2b/workspaces/{workspace_id}/snapshot`
+   - `POST /content-planning/xhs-opportunities/{opportunity_id}/approve`
 
 - `ingest/trendradar_loader.py`
   - 最新批次选择

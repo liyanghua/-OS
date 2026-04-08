@@ -1,4 +1,98 @@
-# 本体大脑情报中枢 V0.2 数据模型
+# 本体大脑情报中枢 V0.8 数据模型
+
+## V0.8 新增 B2B 平台对象
+
+- `Organization`
+  - `organization_id`
+  - `name`
+  - `slug`
+- `Workspace`
+  - `workspace_id`
+  - `organization_id`
+  - `name`
+  - `slug`
+  - `status`
+- `BrandProfile`
+  - `brand_id`
+  - `workspace_id`
+  - `name`
+  - `category`
+  - `positioning`
+  - `tone_of_voice`
+  - `product_lines`
+  - `forbidden_terms`
+  - `competitor_refs`
+  - `content_goals`
+- `Campaign`
+  - `campaign_id`
+  - `workspace_id`
+  - `brand_id`
+  - `name`
+  - `objective`
+  - `status`
+- `WorkspaceMembership`
+  - `membership_id`
+  - `workspace_id`
+  - `user_id`
+  - `display_name`
+  - `role`
+  - `api_token`
+- `Connector`
+  - `connector_id`
+  - `workspace_id`
+  - `platform`
+  - `connector_type`
+  - `status`
+  - `config`
+- `OpportunityQueueEntry`
+  - `queue_entry_id`
+  - `workspace_id`
+  - `brand_id`
+  - `campaign_id`
+  - `opportunity_id`
+  - `queue_status`
+- `ApprovalRecord`
+  - `approval_id`
+  - `workspace_id`
+  - `object_type`
+  - `object_id`
+  - `object_version`
+  - `decision`
+  - `reviewer_id`
+  - `reviewer_role`
+- `UsageEvent`
+  - `usage_event_id`
+  - `workspace_id`
+  - `brand_id`
+  - `campaign_id`
+  - `event_type`
+  - `units`
+
+## 内容策划对象新增字段
+
+以下对象已新增：
+
+- `OpportunityBrief`
+- `RewriteStrategy`
+- `NewNotePlan`
+- `AssetBundle`
+
+新增字段：
+
+- `workspace_id`
+- `brand_id`
+- `campaign_id`
+- `created_by`
+- `updated_by`
+- `approval_status`
+- `visibility`
+- `version`（`RewriteStrategy` 使用 `strategy_version`）
+
+`PlanLineage` 也新增：
+
+- `workspace_id`
+- `brand_id`
+- `campaign_id`
 
 ## 核心对象
 
@@ -135,6 +229,15 @@ system
 ```
 
 当前首版 API 回写固定使用 `manual`。
+
+### `approval_status`
+
+```text
+pending_review
+approved
+changes_requested
+rejected
+```
 
 ## 对象关系
 

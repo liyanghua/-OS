@@ -1,3 +1,19 @@
+## V0.8 补充：Platform Foundation Layer
+
+在原有三层之外，当前实现新增一层“平台骨架层”，负责：
+
+- `Organization`
+- `Workspace`
+- `BrandProfile`
+- `Campaign`
+- `WorkspaceMembership`
+- `Connector`
+- `OpportunityQueueEntry`
+- `ApprovalRecord`
+- `UsageEvent`
+
+这层不改变三层对象中心原则，只负责把三层产物挂到 `workspace / brand / campaign`，并补上协作与交付必需的 auth / approval / usage。
+
 ┌──────────────────────────────────────────────────────────────────────┐
 │ 第 1 层：决策编译层 Decision Compilation Layer                      │
 │ “什么值得做，为什么值得做，应该怎么策划”                           │

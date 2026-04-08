@@ -13,6 +13,9 @@ class PlanLineage(BaseModel):
     pipeline_run_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:16])
     source_note_ids: list[str] = Field(default_factory=list)
     opportunity_id: str = ""
+    workspace_id: str = ""
+    brand_id: str = ""
+    campaign_id: str = ""
     review_id: str | None = None
     brief_id: str = ""
     template_id: str = ""

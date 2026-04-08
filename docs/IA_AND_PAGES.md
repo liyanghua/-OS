@@ -1,4 +1,17 @@
-# 本体大脑情报中枢 V0.2 信息架构
+# 本体大脑情报中枢 V0.8 信息架构
+
+## V0.8 新增协作面
+
+除了原有 Signals / Opportunities / Risks / Watchlists，本轮新增一层 API-first 的 B2B 协作面：
+
+- workspace bootstrap
+- brand / campaign 管理
+- connector 管理
+- promoted opportunity 进入品牌队列
+- 内容对象审批
+- usage / approvals / snapshot 查询
+
+当前还没有独立 B2B 后台页面，这一层先通过 API 驱动，现有内容策划页面继续承担对象中心工作台角色。
 
 ## 首版信息架构
 
@@ -114,6 +127,18 @@
 - `GET /risks?review_status=&reviewer=&entity=&topic=&platform=`
 
 HTML 页面提供最小桌布快捷链接与 review status 快速筛选链接。
+
+## 内容策划对象的 B2B 查看方式
+
+- 先通过 `/b2b/bootstrap` 初始化 workspace。
+- 再通过 `/b2b/workspaces/{workspace_id}/opportunities/{opportunity_id}/queue` 把 promoted 卡放入品牌队列。
+- 调用 `/content-planning/*` 时携带：
+  - `X-Workspace-Id`
+  - `X-User-Id`
+  - `X-Api-Token`
+  - 可选 `X-Brand-Id`
+  - 可选 `X-Campaign-Id`
+- 这样 `brief / strategy / plan / asset bundle` 会自动带上 tenant context，并可走审批与用量记账。
 
 ## API 与页面路由策略
 

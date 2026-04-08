@@ -17,6 +17,7 @@ DEFAULT_CONFIG_DIR = REPO_ROOT / "config"
 class RuntimeSettings(BaseModel):
     trendradar_output_dir: str
     storage_path: str
+    b2b_platform_db_path: str = "data/b2b_platform.sqlite"
     default_page_size: int = 20
     fixture_fallback_dir: str | None = None
     raw_snapshot_dir: str = "data/raw"

@@ -1,4 +1,15 @@
-# 本体大脑情报中枢 V0.2 架构
+# 本体大脑情报中枢 V0.8 架构
+
+## V0.8 新增 Platform Foundation Layer
+
+在既有 `intel_hub -> content_planning` 编译链外层，新增一层 TO B 试点平台骨架：
+
+- `apps/b2b_platform`
+- 组织化对象：`Organization / Workspace / BrandProfile / Campaign`
+- 协作对象：`WorkspaceMembership / OpportunityQueueEntry / ApprovalRecord`
+- 运营对象：`Connector / UsageEvent / PublishResult`
+
+这层不重写现有 XHS 机会卡和内容策划链，只负责把现有对象挂到 `workspace / brand / campaign` 并补上 auth / approval / usage。
 
 ## 总体架构
 
@@ -11,6 +22,7 @@
 5. `apps/intel_hub/compiler`：打分、规则 dedupe、编译机会/风险卡。
 6. `apps/intel_hub/storage`：SQLite 持久化与 review writeback。
 7. `apps/intel_hub/api`：提供 JSON API 与极简 HTML 页面。
+8. `apps/b2b_platform`：提供平台对象、轻量 token auth / RBAC、品牌队列、审批与用量计量。
 
 ## 采集器与 intel_hub 的职责边界
 
@@ -212,6 +224,30 @@ SQLite 表仍为：
   - `GET /watchlists`
   - `POST /opportunities/{id}/review`
   - `POST /risks/{id}/review`
+
+新增 B2B 平台 API：
+
+- `POST /b2b/bootstrap`
+- `POST /b2b/workspaces/{workspace_id}/brands`
+- `POST /b2b/workspaces/{workspace_id}/campaigns`
+- `POST /b2b/workspaces/{workspace_id}/memberships`
+- `POST /b2b/workspaces/{workspace_id}/connectors`
+- `POST /b2b/workspaces/{workspace_id}/opportunities/{opportunity_id}/queue`
+- `GET /b2b/workspaces/{workspace_id}/usage`
+- `GET /b2b/workspaces/{workspace_id}/approvals`
+- `GET /b2b/workspaces/{workspace_id}/snapshot`
+
+新增内容策划审批接口：
+
+- `POST /content-planning/xhs-opportunities/{opportunity_id}/approve`
+
+内容策划路由在携带以下 headers 时会绑定 tenant context：
+
+- `X-Workspace-Id`
+- `X-User-Id`
+- `X-Api-Token`
+- 可选：`X-Brand-Id`
+- 可选：`X-Campaign-Id`
 
 本轮新增列表过滤能力：
 

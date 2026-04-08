@@ -7,8 +7,9 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from apps.b2b_platform.storage import B2BPlatformStore
 from apps.intel_hub.config_loader import load_runtime_settings, resolve_repo_path
 from apps.intel_hub.ingest.mediacrawler_loader import load_mediacrawler_records
 from apps.intel_hub.ingest.rss_loader import count_rss_records, load_rss_records
@@ -46,12 +47,65 @@ class CrawlJobRequest(BaseModel):
     login_type: str = "qrcode"
 
 
-def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
+class B2BBootstrapRequest(BaseModel):
+    organization_name: str
+    workspace_name: str
+    brand_name: str
+    campaign_name: str
+    admin_user_id: str
+    admin_display_name: str
+
+
+class CreateBrandRequest(BaseModel):
+    name: str
+    category: str = "generic"
+    positioning: str = ""
+    tone_of_voice: list[str] = Field(default_factory=list)
+    product_lines: list[str] = Field(default_factory=list)
+    forbidden_terms: list[str] = Field(default_factory=list)
+    competitor_refs: list[str] = Field(default_factory=list)
+    content_goals: list[str] = Field(default_factory=list)
+
+
+class CreateCampaignRequest(BaseModel):
+    brand_id: str
+    name: str
+    objective: str = "content_growth"
+
+
+class CreateMembershipRequest(BaseModel):
+    user_id: str
+    display_name: str
+    role: str
+
+
+class CreateConnectorRequest(BaseModel):
+    platform: str
+    connector_type: str
+    status: str = "active"
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class QueueOpportunityRequest(BaseModel):
+    brand_id: str
+    campaign_id: str
+    queue_status: str = "new"
+
+
+def create_app(
+    runtime_config_path: str | Path | None = None,
+    *,
+    repository: Repository | None = None,
+    review_store: XHSReviewStore | None = None,
+    content_plan_store: Any | None = None,
+    platform_store: B2BPlatformStore | None = None,
+) -> FastAPI:
     settings = load_runtime_settings(runtime_config_path)
-    repository = Repository(settings.resolved_storage_path())
+    repository = repository or Repository(settings.resolved_storage_path())
     job_queue = FileJobQueue(resolve_repo_path("data/job_queue.json"))
     session_svc = SessionService(resolve_repo_path("data/sessions"))
-    review_store = XHSReviewStore(resolve_repo_path("data/xhs_review.sqlite"))
+    review_store = review_store or XHSReviewStore(resolve_repo_path("data/xhs_review.sqlite"))
+    platform_store = platform_store or B2BPlatformStore(resolve_repo_path(settings.b2b_platform_db_path))
     _xhs_cards_json = resolve_repo_path("data/output/xhs_opportunities/opportunity_cards.json")
     _xhs_details_json = resolve_repo_path("data/output/xhs_opportunities/pipeline_details.json")
     if _xhs_cards_json.exists():
@@ -104,6 +158,121 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
             reviewer=reviewer,
             status=status,
         )
+
+    def _require_workspace_auth(
+        request: Request,
+        workspace_id: str,
+        *,
+        allowed_roles: tuple[str, ...],
+    ) -> Any:
+        user_id = request.headers.get("x-user-id", "")
+        api_token = request.headers.get("x-api-token", "")
+        try:
+            return platform_store.authorize(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                api_token=api_token,
+                allowed_roles=allowed_roles,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    @app.post("/b2b/bootstrap")
+    async def b2b_bootstrap(body: B2BBootstrapRequest) -> dict[str, Any]:
+        result = platform_store.bootstrap_workspace(
+            organization_name=body.organization_name,
+            workspace_name=body.workspace_name,
+            brand_name=body.brand_name,
+            campaign_name=body.campaign_name,
+            admin_user_id=body.admin_user_id,
+            admin_display_name=body.admin_display_name,
+        )
+        return result.model_dump(mode="json")
+
+    @app.post("/b2b/workspaces/{workspace_id}/brands")
+    async def create_b2b_brand(workspace_id: str, body: CreateBrandRequest, request: Request) -> dict[str, Any]:
+        _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist"))
+        brand = platform_store.create_brand(
+            workspace_id=workspace_id,
+            name=body.name,
+            category=body.category,
+            positioning=body.positioning,
+            tone_of_voice=body.tone_of_voice,
+            product_lines=body.product_lines,
+            forbidden_terms=body.forbidden_terms,
+            competitor_refs=body.competitor_refs,
+            content_goals=body.content_goals,
+        )
+        return brand.model_dump(mode="json")
+
+    @app.post("/b2b/workspaces/{workspace_id}/campaigns")
+    async def create_b2b_campaign(workspace_id: str, body: CreateCampaignRequest, request: Request) -> dict[str, Any]:
+        _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist"))
+        campaign = platform_store.create_campaign(
+            workspace_id=workspace_id,
+            brand_id=body.brand_id,
+            name=body.name,
+            objective=body.objective,
+        )
+        return campaign.model_dump(mode="json")
+
+    @app.post("/b2b/workspaces/{workspace_id}/memberships")
+    async def create_b2b_membership(workspace_id: str, body: CreateMembershipRequest, request: Request) -> dict[str, Any]:
+        _require_workspace_auth(request, workspace_id, allowed_roles=("admin",))
+        membership = platform_store.create_membership(
+            workspace_id=workspace_id,
+            user_id=body.user_id,
+            display_name=body.display_name,
+            role=body.role,
+        )
+        return membership.model_dump(mode="json")
+
+    @app.post("/b2b/workspaces/{workspace_id}/connectors")
+    async def create_b2b_connector(workspace_id: str, body: CreateConnectorRequest, request: Request) -> dict[str, Any]:
+        auth = _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist"))
+        connector = platform_store.create_connector(
+            workspace_id=workspace_id,
+            actor_user_id=auth.user_id,
+            platform=body.platform,
+            connector_type=body.connector_type,
+            config=body.config,
+            status=body.status,
+        )
+        return connector.model_dump(mode="json")
+
+    @app.post("/b2b/workspaces/{workspace_id}/opportunities/{opportunity_id}/queue")
+    async def queue_b2b_opportunity(
+        workspace_id: str,
+        opportunity_id: str,
+        body: QueueOpportunityRequest,
+        request: Request,
+    ) -> dict[str, Any]:
+        auth = _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist", "editor"))
+        entry = platform_store.queue_opportunity(
+            workspace_id=workspace_id,
+            brand_id=body.brand_id,
+            campaign_id=body.campaign_id,
+            opportunity_id=opportunity_id,
+            actor_user_id=auth.user_id,
+            queue_status=body.queue_status,
+        )
+        return entry.model_dump(mode="json")
+
+    @app.get("/b2b/workspaces/{workspace_id}/usage")
+    async def b2b_workspace_usage(workspace_id: str, request: Request) -> dict[str, Any]:
+        _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist", "editor", "reviewer", "designer", "viewer"))
+        return platform_store.usage_summary(workspace_id)
+
+    @app.get("/b2b/workspaces/{workspace_id}/approvals")
+    async def b2b_workspace_approvals(workspace_id: str, request: Request) -> dict[str, Any]:
+        _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist", "reviewer", "viewer"))
+        approvals = platform_store.list_approvals(workspace_id)
+        return {"items": [item.model_dump(mode="json") for item in approvals], "total": len(approvals)}
+
+    @app.get("/b2b/workspaces/{workspace_id}/snapshot")
+    async def b2b_workspace_snapshot(workspace_id: str, request: Request) -> dict[str, Any]:
+        _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist", "editor", "reviewer", "designer", "viewer"))
+        return platform_store.workspace_snapshot(workspace_id)
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request) -> HTMLResponse:
@@ -702,8 +871,12 @@ def create_app(runtime_config_path: str | Path | None = None) -> FastAPI:
     from apps.content_planning.storage.plan_store import ContentPlanStore
 
     _cp_adapter = IntelHubAdapter(review_store=review_store)
-    _plan_store = ContentPlanStore(resolve_repo_path("data/content_plan.sqlite"))
-    _cp_flow = OpportunityToPlanFlow(adapter=_cp_adapter, plan_store=_plan_store)
+    _plan_store = content_plan_store or ContentPlanStore(resolve_repo_path("data/content_plan.sqlite"))
+    _cp_flow = OpportunityToPlanFlow(
+        adapter=_cp_adapter,
+        plan_store=_plan_store,
+        platform_store=platform_store,
+    )
     set_flow(_cp_flow)
     app.include_router(content_planning_router)
     app.include_router(content_planning_router_alias)
