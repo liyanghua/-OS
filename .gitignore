@@ -18,6 +18,7 @@ npm-debug.log*
 # ide
 .idea
 .vscode
+.worktrees/
 
 # Python
 .venv/
