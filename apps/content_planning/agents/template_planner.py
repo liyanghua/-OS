@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+
 from apps.content_planning.agents.base import AgentChip, AgentContext, AgentResult, BaseAgent
 from apps.template_extraction.agent import TemplateMatcher, TemplateRetriever
+
+logger = logging.getLogger(__name__)
 
 
 class TemplatePlannerAgent(BaseAgent):
@@ -16,6 +20,10 @@ class TemplatePlannerAgent(BaseAgent):
         self._retriever = TemplateRetriever()
 
     def run(self, context: AgentContext) -> AgentResult:
+        base_result = self._run_core(context)
+        return self._enhance_with_llm(context, base_result)
+
+    def _run_core(self, context: AgentContext) -> AgentResult:
         brief = context.brief
         if brief is None:
             return self._make_result(explanation="未提供 Brief，无法匹配模板", confidence=0.0)
@@ -63,6 +71,45 @@ class TemplatePlannerAgent(BaseAgent):
             confidence=min(top3[0].score / 100, 1.0) if top3 else 0.0,
             suggestions=chips,
         )
+
+    def _enhance_with_llm(self, context: AgentContext, base_result: AgentResult) -> AgentResult:
+        if base_result.confidence <= 0.0:
+            return base_result
+        try:
+            from apps.content_planning.adapters.llm_router import LLMMessage, llm_router
+            if not llm_router.is_any_available():
+                return base_result
+
+            memory_ctx = self._get_memory_context(context.opportunity_id)
+            conversation = context.extra.get("conversation_history", "")
+
+            system = "你是模板策划师。请分析以下模板匹配结果，解释为何这些模板适合当前 Brief，并给出使用建议。"
+            user_msg = (
+                f"匹配结果：{base_result.explanation}\n"
+                f"记忆上下文：{memory_ctx or '无'}\n"
+                f"对话历史：{conversation or '无'}"
+            )
+
+            resp = llm_router.chat([
+                LLMMessage(role="system", content=system),
+                LLMMessage(role="user", content=user_msg),
+            ], temperature=0.3, max_tokens=800)
+
+            if resp.content:
+                base_result.explanation = f"{base_result.explanation}\n\n💡 深度洞察：{resp.content}"
+                base_result.confidence = min(base_result.confidence + 0.1, 1.0)
+        except Exception:
+            logger.debug("LLM enhancement failed for template_planner", exc_info=True)
+        return base_result
+
+    def _get_memory_context(self, opportunity_id: str) -> str:
+        try:
+            from apps.content_planning.agents.memory import AgentMemory
+            mem = AgentMemory()
+            entries = mem.recall(opportunity_id=opportunity_id, limit=3)
+            return "\n".join(f"- {e.content[:100]}" for e in entries) if entries else ""
+        except Exception:
+            return ""
 
     def explain(self, result: AgentResult) -> str:
         return result.explanation

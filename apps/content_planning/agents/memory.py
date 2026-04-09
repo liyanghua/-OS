@@ -148,6 +148,21 @@ class AgentMemory:
             ))
         return entries
 
+    def inject_context(self, opportunity_id: str, agent_role: str = "", limit: int = 5) -> str:
+        """Build a memory context string for injection into LLM prompts."""
+        entries = self.recall(opportunity_id=opportunity_id, limit=limit)
+        if agent_role:
+            role_entries = [e for e in entries if e.source_agent == agent_role]
+            if role_entries:
+                entries = role_entries + [e for e in entries if e.source_agent != agent_role]
+                entries = entries[:limit]
+        if not entries:
+            return ""
+        lines = []
+        for e in entries:
+            lines.append(f"[{e.category}|{e.source_agent}] {e.content[:150]}")
+        return "\n".join(lines)
+
     def extract_from_result(self, opportunity_id: str, agent_role: str, explanation: str, confidence: float) -> MemoryEntry | None:
         """Auto-extract a memory from an agent result if confidence is high enough."""
         if confidence < 0.6 or len(explanation) < 20:

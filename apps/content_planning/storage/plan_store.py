@@ -121,6 +121,16 @@ class ContentPlanStore:
                 )
             """)
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS evaluations (
+                    evaluation_id TEXT PRIMARY KEY,
+                    opportunity_id TEXT NOT NULL,
+                    eval_type TEXT NOT NULL DEFAULT 'pipeline',
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_evaluations_opp ON evaluations(opportunity_id)")
+            conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_planning_sessions_status
                 ON planning_sessions(session_status)
             """)
@@ -532,3 +542,41 @@ class ContentPlanStore:
         with self._connect() as conn:
             row = conn.execute("SELECT COUNT(*) AS c FROM planning_sessions").fetchone()
             return int(row["c"]) if row else 0
+
+    def save_evaluation(self, evaluation_id: str, opportunity_id: str,
+                        eval_type: str, payload: Any) -> None:
+        """Store an evaluation result."""
+        now = _utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO evaluations
+                   (evaluation_id, opportunity_id, eval_type, payload_json, created_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (evaluation_id, opportunity_id, eval_type, _serialize(payload), now),
+            )
+
+    def load_evaluations(self, opportunity_id: str, eval_type: str | None = None,
+                         limit: int = 20) -> list[dict[str, Any]]:
+        """Load evaluation results for an opportunity."""
+        clauses = ["opportunity_id = ?"]
+        params: list[Any] = [opportunity_id]
+        if eval_type:
+            clauses.append("eval_type = ?")
+            params.append(eval_type)
+        where = " AND ".join(clauses)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM evaluations WHERE {where} ORDER BY created_at DESC LIMIT ?",
+                params + [limit],
+            ).fetchall()
+        results = []
+        for row in rows:
+            payload = _deserialize(row["payload_json"])
+            results.append({
+                "evaluation_id": row["evaluation_id"],
+                "opportunity_id": row["opportunity_id"],
+                "eval_type": row["eval_type"],
+                "payload": payload,
+                "created_at": row["created_at"],
+            })
+        return results

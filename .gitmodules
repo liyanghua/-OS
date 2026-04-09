@@ -1,0 +1,7 @@
+[submodule "third_party/deer-flow"]
+	path = third_party/deer-flow
+	url = https://github.com/bytedance/deer-flow.git
+
+[submodule "third_party/hermes-agent"]
+	path = third_party/hermes-agent
+	url = https://github.com/Franklin-Zhou/hermes.git

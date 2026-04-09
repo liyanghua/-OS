@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from apps.content_planning.agents.base import AgentContext, AgentMessage, AgentResult, AgentThread
+from apps.content_planning.agents.discussion import DiscussionOrchestrator, DiscussionRound
 from apps.content_planning.agents.memory import AgentMemory, MemoryEntry
 from apps.content_planning.agents.plan_graph import PlanGraph, build_default_graph
 from apps.content_planning.agents.skill_registry import SkillDefinition, skill_registry
@@ -840,3 +841,192 @@ async def generate_note_plan_alias(
         with_generation=_resolve_with_generation(body),
         preferred_template_id=body.preferred_template_id,
     )
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Discussion + Evaluation API
+# ═══════════════════════════════════════════════════════════════
+
+class DiscussionRequest(BaseModel):
+    question: str
+    stage: str = ""
+
+
+class EvaluateRequest(BaseModel):
+    stages: list[str] = Field(default_factory=lambda: ["card", "brief", "match", "strategy", "content"])
+
+
+@router.post("/discuss/{opportunity_id}")
+@_handle_flow_error
+async def start_discussion(opportunity_id: str, body: DiscussionRequest) -> dict[str, Any]:
+    """触发多 Agent 阶段讨论。"""
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+
+    card = flow._adapter.get_card(opportunity_id)
+    source_notes = flow._adapter.get_source_notes(card.source_note_ids) if card else []
+
+    template = None
+    if session.match_result and session.match_result.primary_template:
+        template = flow._retriever.get_template(session.match_result.primary_template.template_id)
+
+    ctx = AgentContext(
+        opportunity_id=opportunity_id,
+        brief=session.brief,
+        strategy=session.strategy,
+        plan=session.note_plan,
+        match_result=session.match_result,
+        template=template,
+        source_notes=source_notes,
+        extra={"card": card},
+    )
+
+    orchestrator = DiscussionOrchestrator()
+
+    def _on_message(msg):
+        event_bus.publish_sync(ObjectEvent(
+            event_type="discussion_message",
+            opportunity_id=opportunity_id,
+            object_type="discussion",
+            object_id=msg.message_id,
+            agent_role=msg.agent_role,
+            agent_name=msg.metadata.get("agent_name", msg.agent_role),
+            payload={"role": msg.role, "content": msg.content, "stage": body.stage},
+        ))
+
+    discussion = orchestrator.discuss(
+        opportunity_id=opportunity_id,
+        stage=body.stage,
+        user_question=body.question,
+        context=ctx,
+        on_message=_on_message,
+    )
+
+    return discussion.model_dump(mode="json")
+
+
+@router.post("/evaluate/{opportunity_id}")
+@_handle_flow_error
+async def evaluate_pipeline(opportunity_id: str, body: EvaluateRequest | None = None) -> dict[str, Any]:
+    """运行端到端评价。"""
+    from apps.content_planning.evaluation.stage_evaluator import evaluate_stage
+    from apps.content_planning.evaluation.pipeline_metrics import compute_pipeline_metrics
+    from apps.content_planning.schemas.evaluation import PipelineEvaluation, PipelineMetrics
+
+    flow = _get_flow()
+    session_data = flow.get_session_data(opportunity_id)
+    card = flow._adapter.get_card(opportunity_id)
+
+    stages_to_eval = body.stages if body else ["card", "brief", "match", "strategy", "content"]
+
+    eval_context = {
+        "card": card,
+        "brief": session_data.get("brief"),
+        "match_result": session_data.get("match_result"),
+        "strategy": session_data.get("strategy"),
+        "plan": session_data.get("plan"),
+        "titles": session_data.get("titles"),
+        "body": session_data.get("body"),
+        "image_briefs": session_data.get("image_briefs"),
+    }
+
+    stage_evals = {}
+    for stage in stages_to_eval:
+        try:
+            stage_eval = evaluate_stage(stage, opportunity_id, eval_context)
+            stage_evals[stage] = stage_eval
+        except Exception:
+            pass
+
+    metrics = compute_pipeline_metrics(opportunity_id, session_data)
+
+    pipeline_eval = PipelineEvaluation(
+        opportunity_id=opportunity_id,
+        stage_scores=stage_evals,
+        metrics=metrics,
+    )
+    pipeline_eval.compute_pipeline_score()
+
+    return pipeline_eval.model_dump(mode="json")
+
+
+@router.get("/evaluation/{opportunity_id}")
+@_handle_flow_error
+async def get_evaluation(opportunity_id: str) -> dict[str, Any]:
+    """获取最近的评价结果。"""
+    flow = _get_flow()
+    if flow._store is None:
+        return {"evaluations": []}
+    session = flow._store.load_session(opportunity_id)
+    if session is None:
+        return {"evaluations": []}
+    evals = session.get("evaluations", [])
+    return {"evaluations": evals if isinstance(evals, list) else []}
+
+
+# ── Phase 4: 评价对比 + 学习闭环 ──────────────────────────────
+
+
+class BaselineRequest(BaseModel):
+    """采集 baseline 评价。"""
+    stages: list[str] = Field(default_factory=lambda: ["card", "brief", "match", "strategy", "content"])
+
+
+class CompareRequest(BaseModel):
+    """触发 Before/After 对比。"""
+    apply_learning: bool = True
+    discussion_round_ids: list[str] = Field(default_factory=list)
+
+
+@router.post("/baseline/{opportunity_id}")
+@_handle_flow_error
+async def collect_baseline(opportunity_id: str, body: BaselineRequest | None = None) -> dict[str, Any]:
+    """采集 baseline 评价分数。"""
+    from apps.content_planning.evaluation.comparison import collect_baseline as _collect
+
+    flow = _get_flow()
+    session_data = flow.get_session_data(opportunity_id)
+    card = flow._adapter.get_card(opportunity_id)
+    context = {
+        "card": card,
+        "brief": session_data.get("brief"),
+        "match_result": session_data.get("match_result"),
+        "strategy": session_data.get("strategy"),
+        "plan": session_data.get("plan"),
+        "titles": session_data.get("titles"),
+        "body": session_data.get("body"),
+        "image_briefs": session_data.get("image_briefs"),
+    }
+    baseline = _collect(opportunity_id, context)
+    return baseline.model_dump(mode="json")
+
+
+@router.post("/compare/{opportunity_id}")
+@_handle_flow_error
+async def compare_evaluations(opportunity_id: str, body: CompareRequest | None = None) -> dict[str, Any]:
+    """运行 Before/After 对比 + 可选学习闭环。"""
+    from apps.content_planning.evaluation.comparison import (
+        apply_learning_loop,
+        compare,
+    )
+
+    flow = _get_flow()
+    session_data = flow.get_session_data(opportunity_id)
+    card = flow._adapter.get_card(opportunity_id)
+    context = {
+        "card": card,
+        "brief": session_data.get("brief"),
+        "match_result": session_data.get("match_result"),
+        "strategy": session_data.get("strategy"),
+        "plan": session_data.get("plan"),
+        "titles": session_data.get("titles"),
+        "body": session_data.get("body"),
+        "image_briefs": session_data.get("image_briefs"),
+    }
+
+    report = compare(opportunity_id, context=context)
+
+    if body and body.apply_learning:
+        report = apply_learning_loop(report)
+
+    return report.model_dump(mode="json")

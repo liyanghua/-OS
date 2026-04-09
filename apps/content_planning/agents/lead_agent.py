@@ -45,13 +45,20 @@ class LeadAgent(BaseAgent):
     agent_name = "总调度"
     agent_role = "lead_agent"
 
+    def __init__(self) -> None:
+        super().__init__()
+        from apps.content_planning.adapters.deerflow_adapter import DeerFlowAdapter
+        self._deerflow = DeerFlowAdapter()
+
     def run(self, context: AgentContext) -> AgentResult:
         """Analyze context and delegate to the best sub-agent."""
         user_message = context.extra.get("user_message", "")
         current_stage = context.extra.get("current_stage", "")
         hint = context.extra.get("hint", "")
 
-        target_role = self._route(user_message or hint, current_stage, context)
+        routing = self._route(user_message or hint, current_stage, context)
+        target_role = routing["target"]
+        extra_agents = routing.get("extra_agents", [])
 
         sub_agent = self._instantiate(target_role)
         if sub_agent is None:
@@ -70,7 +77,6 @@ class LeadAgent(BaseAgent):
 
         result = sub_agent.run(context)
 
-        # Auto-extract memory from high-confidence results
         try:
             mem = AgentMemory()
             mem.extract_from_result(
@@ -80,20 +86,72 @@ class LeadAgent(BaseAgent):
         except Exception:
             pass
 
+        suggestions = list(result.suggestions)
+        for extra_role in extra_agents:
+            from apps.content_planning.adapters.deerflow_adapter import AGENT_DESCRIPTIONS
+            label = AGENT_DESCRIPTIONS.get(extra_role, extra_role)
+            suggestions.append(AgentChip(
+                label=f"也问问 {label.split('：')[0]}" if "：" in label else f"也问问 {extra_role}",
+                action=extra_role,
+            ))
+        suggestions.append(
+            AgentChip(label="换个角度分析", action="lead_agent", params={"hint": "换个角度"}),
+        )
+
+        explanation = f"[{result.agent_name}] {result.explanation}"
+        if routing.get("reasoning"):
+            explanation = f"{explanation}\n调度理由：{routing['reasoning']}"
+
         return self._make_result(
             output_object=result.output_object,
-            explanation=f"[{result.agent_name}] {result.explanation}",
+            explanation=explanation,
             confidence=result.confidence,
-            suggestions=result.suggestions + [
-                AgentChip(label="换个角度分析", action="lead_agent", params={"hint": "换个角度"}),
-            ],
+            suggestions=suggestions,
         )
 
     def explain(self, result: AgentResult) -> str:
         return result.explanation
 
-    def _route(self, message: str, stage: str, context: AgentContext) -> str:
-        """Determine which sub-agent to delegate to."""
+    def _route_llm(self, message: str, stage: str, context: AgentContext) -> dict | None:
+        """LLM-driven routing via DeerFlowAdapter."""
+        try:
+            from apps.content_planning.adapters.llm_router import llm_router
+            if not llm_router.is_any_available():
+                return None
+
+            memory_ctx = self._deerflow.recall_relevant_memory(
+                context.opportunity_id, query=message,
+            )
+            object_summary = self._deerflow.build_object_summary(context)
+
+            resp = self._deerflow.route_with_llm(
+                user_message=message,
+                stage=stage,
+                memory_context=memory_ctx,
+                object_summary=object_summary,
+            )
+
+            agents = resp.get("target_agents", [])
+            if not agents:
+                return None
+
+            valid_roles = set(_ROLE_KEYWORDS.keys())
+            agents = [a for a in agents if a in valid_roles]
+            if not agents:
+                return None
+
+            return {
+                "target": agents[0],
+                "extra_agents": agents[1:],
+                "reasoning": resp.get("reasoning", ""),
+                "method": "llm",
+            }
+        except Exception:
+            logger.debug("LLM routing failed, will use keyword fallback", exc_info=True)
+            return None
+
+    def _route_keyword(self, message: str, stage: str, context: AgentContext) -> str:
+        """Keyword-based routing (original logic)."""
         if message:
             scores: dict[str, int] = {}
             msg_lower = message.lower()
@@ -104,7 +162,6 @@ class LeadAgent(BaseAgent):
             if scores:
                 return max(scores, key=scores.get)  # type: ignore[arg-type]
 
-        # Try skill-based routing
         if message:
             matched_skills = skill_registry.find_by_keyword(message)
             if matched_skills:
@@ -124,6 +181,18 @@ class LeadAgent(BaseAgent):
         if context.brief:
             return "brief_synthesizer"
         return "trend_analyst"
+
+    def _route(self, message: str, stage: str, context: AgentContext) -> dict:
+        """Route using LLM first, falling back to keyword matching."""
+        if message:
+            llm_result = self._route_llm(message, stage, context)
+            if llm_result:
+                logger.info("Routing via LLM → %s", llm_result["target"])
+                return llm_result
+
+        keyword_target = self._route_keyword(message, stage, context)
+        logger.info("Routing via keywords → %s", keyword_target)
+        return {"target": keyword_target, "extra_agents": [], "reasoning": "", "method": "keyword"}
 
     def _instantiate(self, role: str) -> BaseAgent | None:
         """Lazy-instantiate a sub-agent by role."""

@@ -1,0 +1,105 @@
+evaluation:
+  card:
+    system: "你是一个内容策划质量评审专家。请评估以下小红书机会卡的质量。"
+    dimensions:
+      - name: signal_completeness
+        name_zh: 信号完整度
+        description: "机会卡是否包含充分的市场信号、用户需求、竞品线索"
+        weight: 0.25
+      - name: actionability
+        name_zh: 可执行性
+        description: "基于该机会卡能否直接开始内容策划"
+        weight: 0.25
+      - name: evidence_sufficiency
+        name_zh: 证据充分度
+        description: "支撑机会判断的证据是否充分（评论、互动数据、跨模态验证等）"
+        weight: 0.25
+      - name: insight_depth
+        name_zh: 洞察深度
+        description: "是否有超越表面数据的深度洞察"
+        weight: 0.25
+    output_format: "返回 JSON: {\"scores\": {\"signal_completeness\": 0.0-1.0, ...}, \"explanations\": {\"signal_completeness\": \"...\", ...}}"
+
+  brief:
+    system: "你是一个内容策划质量评审专家。请评估以下 OpportunityBrief 的质量。"
+    dimensions:
+      - name: planning_depth
+        name_zh: 策划深度
+        description: "Brief 是否深入到可执行的策划细节"
+        weight: 0.25
+      - name: user_targeting
+        name_zh: 用户画像精度
+        description: "目标用户描述是否具体可行"
+        weight: 0.20
+      - name: scene_matching
+        name_zh: 场景匹配度
+        description: "目标场景是否与机会卡洞察一致"
+        weight: 0.20
+      - name: competitive_differentiation
+        name_zh: 竞争差异化
+        description: "是否明确了与竞品的差异化定位"
+        weight: 0.20
+      - name: executability
+        name_zh: 可执行性
+        description: "后续策略和内容是否能基于此 Brief 直接推进"
+        weight: 0.15
+
+  match:
+    system: "你是模板匹配质量评审专家。评估模板匹配结果的合理性。"
+    dimensions:
+      - name: style_consistency
+        name_zh: 风格一致性
+        description: "匹配模板的视觉风格是否与 Brief 方向一致"
+        weight: 0.30
+      - name: scene_fitness
+        name_zh: 场景适配度
+        description: "模板的场景设定是否适合目标用户和场景"
+        weight: 0.30
+      - name: hook_usability
+        name_zh: 钩子可用性
+        description: "模板的标题/封面钩子是否可直接复用或改编"
+        weight: 0.20
+      - name: top_diversity
+        name_zh: 候选多样性
+        description: "Top-3 候选是否提供了有意义的差异化选择"
+        weight: 0.20
+
+  strategy:
+    system: "你是内容策略质量评审专家。评估改写策略的质量。"
+    dimensions:
+      - name: differentiation
+        name_zh: 差异化程度
+        description: "策略是否有别于原始笔记和常见同类内容"
+        weight: 0.30
+      - name: executability
+        name_zh: 可执行性
+        description: "策略是否具体到可以直接指导内容生成"
+        weight: 0.25
+      - name: brief_alignment
+        name_zh: Brief对齐度
+        description: "策略是否忠实反映了 Brief 中的核心方向"
+        weight: 0.25
+      - name: creativity
+        name_zh: 创意新颖度
+        description: "策略中的内容钩子和叙事方式是否有创意"
+        weight: 0.20
+
+  content:
+    system: "你是内容质量评审专家。评估生成的标题、正文和图片策划的整体质量。"
+    dimensions:
+      - name: title_appeal
+        name_zh: 标题吸引力
+        description: "标题是否能在信息流中吸引目标用户点击"
+        weight: 0.25
+      - name: body_structure
+        name_zh: 正文结构性
+        description: "正文是否结构清晰、信息密度合适、有种草力"
+        weight: 0.30
+      - name: image_brief_quality
+        name_zh: 图片Brief可执行度
+        description: "图片执行 Brief 是否具体到可以直接拍摄/制作"
+        weight: 0.25
+      - name: overall_coherence
+        name_zh: 整体一致性
+        description: "标题、正文、图片是否传达一致的品牌调性和内容方向"
+        weight: 0.20

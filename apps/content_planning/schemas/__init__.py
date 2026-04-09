@@ -7,6 +7,12 @@ from apps.content_planning.schemas.content_generation import (
     TitleCandidate,
     TitleGenerationResult,
 )
+from apps.content_planning.schemas.evaluation import (
+    DimensionScore,
+    PipelineEvaluation,
+    PipelineMetrics,
+    StageEvaluation,
+)
 from apps.content_planning.schemas.note_plan import (
     BodyPlan,
     NewNotePlan,
@@ -32,4 +38,8 @@ __all__ = [
     "ImageBriefGenerationResult",
     "TemplateMatchEntry",
     "TemplateMatchResult",
+    "DimensionScore",
+    "StageEvaluation",
+    "PipelineMetrics",
+    "PipelineEvaluation",
 ]

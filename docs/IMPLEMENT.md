@@ -1571,3 +1571,75 @@ Agent 层是 service 的包装层，不改变现有 service 逻辑。
 - `GET /content-planning/assets/{opportunity_id}` (HTML)
 - `POST /content-planning/campaigns`
 - `POST /content-planning/campaigns/{campaign_id}/execute`
+
+---
+
+## DeerFlow + Hermes Agent 融合升级（2026-04-09）
+
+### 概述
+将 DeerFlow 和 Hermes Agent 核心能力融合到内容策划 Agent 体系：
+- Multi-LLM Provider 统一路由（DashScope/OpenAI/Anthropic）
+- 端到端评价体系（5 环节 LLM-as-Judge + 管线聚合指标）
+- LLM-driven LeadAgent 路由（替代纯关键词匹配，带 graceful degradation）
+- PlanGraph 执行引擎（按依赖拓扑异步编排多 Agent）
+- 6 个 Sub-Agent LLM + Memory 增强
+- 多 Agent 阶段讨论（DiscussionOrchestrator）
+- 学习闭环（高分讨论自动提取 Skill，低分写入教训）
+- Before/After 评价对比报告
+
+### 新增文件（15 个）
+
+**适配器层（`apps/content_planning/adapters/`）：**
+- `__init__.py` — 适配器入口
+- `llm_router.py` — Multi-LLM 路由（DashScope + OpenAI + Anthropic）
+- `deerflow_adapter.py` — DeerFlow 能力适配（LLM 路由/结果合成/技能加载/记忆召回）
+- `hermes_adapter.py` — Hermes 能力适配（轨迹压缩/经验提取/Memory Nudge/教训写入）
+
+**评价体系（`apps/content_planning/evaluation/`）：**
+- `__init__.py` — 评价模块入口
+- `stage_evaluator.py` — 5 环节 LLM-as-Judge 评估器
+- `pipeline_metrics.py` — 管线聚合指标
+- `comparison.py` — Before/After 对比 + 学习闭环
+
+**Agent 层：**
+- `agents/graph_executor.py` — PlanGraph 异步执行引擎
+- `agents/discussion.py` — 多 Agent 阶段讨论协调器
+
+**Schema / 配置：**
+- `schemas/evaluation.py` — 评价 Schema（StageEvaluation / PipelineEvaluation）
+- `config/prompts/evaluation.yaml` — 5 阶段评分 Prompt + 维度/权重定义
+
+**第三方（`third_party/`）：**
+- `.gitmodules` — 声明 deer-flow + hermes-agent submodule
+- `third_party/deer-flow/README.md` — Submodule 占位
+- `third_party/hermes-agent/README.md` — Submodule 占位
+
+### 修改文件（12 个）
+
+- `pyproject.toml` — 新增 `llm-openai` / `llm-anthropic` / `llm-all` 可选依赖
+- `agents/lead_agent.py` — LLM-driven 路由（_route_llm）+ 关键词降级 + 多 Agent 建议
+- `agents/trend_analyst.py` — LLM 增强 + Memory 注入
+- `agents/brief_synthesizer.py` — LLM 增强 + Memory 注入
+- `agents/template_planner.py` — LLM 增强 + Memory 注入
+- `agents/strategy_director.py` — LLM 增强 + Memory 注入
+- `agents/visual_director.py` — LLM 增强 + Memory 注入
+- `agents/asset_producer.py` — LLM 增强 + Memory 注入
+- `agents/memory.py` — 新增 `inject_context()` 方法
+- `api/routes.py` — 新增 5 个端点
+- `storage/plan_store.py` — 新增 evaluations 表 + save/load 方法
+- `schemas/__init__.py` — 导出 evaluation schemas
+
+### 新增 API 端点
+
+- `POST /content-planning/discuss/{opportunity_id}` — 多 Agent 讨论
+- `POST /content-planning/evaluate/{opportunity_id}` — 端到端评价
+- `GET /content-planning/evaluation/{opportunity_id}` — 获取评价结果
+- `POST /content-planning/baseline/{opportunity_id}` — 采集 baseline
+- `POST /content-planning/compare/{opportunity_id}` — Before/After 对比
+
+### 架构要点
+
+- **Graceful Degradation**：所有 LLM 增强均带降级——LLM 不可用时回退到规则模式，行为与升级前一致
+- **无新外部依赖**：核心功能不依赖 LangGraph/LangChain；OpenAI/Anthropic SDK 为可选安装
+- **Adapter Pattern**：DeerFlow/Hermes 理念通过 Adapter 层桥接，不直接导入第三方框架代码
+- **循环导入防护**：LeadAgent 对 DeerFlowAdapter 采用延迟导入避免循环依赖

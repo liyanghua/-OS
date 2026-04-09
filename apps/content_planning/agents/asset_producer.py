@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+
 from apps.content_planning.agents.base import AgentChip, AgentContext, AgentResult, BaseAgent
 from apps.content_planning.services.asset_assembler import AssetAssembler
 from apps.content_planning.services.body_generator import BodyGenerator
 from apps.content_planning.services.title_generator import TitleGenerator
+
+logger = logging.getLogger(__name__)
 
 
 class AssetProducerAgent(BaseAgent):
@@ -19,6 +23,10 @@ class AssetProducerAgent(BaseAgent):
         self._body_gen = BodyGenerator()
 
     def run(self, context: AgentContext) -> AgentResult:
+        base_result = self._run_core(context)
+        return self._enhance_with_llm(context, base_result)
+
+    def _run_core(self, context: AgentContext) -> AgentResult:
         plan = context.plan
         strategy = context.strategy
 
@@ -52,6 +60,45 @@ class AssetProducerAgent(BaseAgent):
             confidence=0.7 if bundle.export_status == "ready" else 0.4,
             suggestions=chips,
         )
+
+    def _enhance_with_llm(self, context: AgentContext, base_result: AgentResult) -> AgentResult:
+        if base_result.confidence <= 0.0:
+            return base_result
+        try:
+            from apps.content_planning.adapters.llm_router import LLMMessage, llm_router
+            if not llm_router.is_any_available():
+                return base_result
+
+            memory_ctx = self._get_memory_context(context.opportunity_id)
+            conversation = context.extra.get("conversation_history", "")
+
+            system = "你是资产制作人。请评估以下资产包产出，分析标题吸引力、正文结构完整性，并给出优化建议。"
+            user_msg = (
+                f"资产包：{base_result.explanation}\n"
+                f"记忆上下文：{memory_ctx or '无'}\n"
+                f"对话历史：{conversation or '无'}"
+            )
+
+            resp = llm_router.chat([
+                LLMMessage(role="system", content=system),
+                LLMMessage(role="user", content=user_msg),
+            ], temperature=0.3, max_tokens=800)
+
+            if resp.content:
+                base_result.explanation = f"{base_result.explanation}\n\n💡 深度洞察：{resp.content}"
+                base_result.confidence = min(base_result.confidence + 0.1, 1.0)
+        except Exception:
+            logger.debug("LLM enhancement failed for asset_producer", exc_info=True)
+        return base_result
+
+    def _get_memory_context(self, opportunity_id: str) -> str:
+        try:
+            from apps.content_planning.agents.memory import AgentMemory
+            mem = AgentMemory()
+            entries = mem.recall(opportunity_id=opportunity_id, limit=3)
+            return "\n".join(f"- {e.content[:100]}" for e in entries) if entries else ""
+        except Exception:
+            return ""
 
     def explain(self, result: AgentResult) -> str:
         return result.explanation
