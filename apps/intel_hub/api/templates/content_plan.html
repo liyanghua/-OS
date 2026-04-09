@@ -196,6 +196,7 @@
     <aside class="cw-right cp-col-right">
       <div class="cw-agent-box"><div class="cw-agent-title">视觉总监（Visual Director）</div><div class="cw-agent-text">负责画面风格、封面张力与「广告感」控制；下图位 AI Chips 将约束构图与道具叙事。</div></div>
       <div class="cw-agent-box"><div class="cw-agent-title">资产制作人（Asset Producer）</div><div class="cw-agent-text">{% if strategy.positioning_statement %}基于定位「{{ strategy.positioning_statement[:80] }}{% if strategy.positioning_statement|length > 80 %}…{% endif %}」协调标题/正文/图片一致性与导出资产包。{% else %}生成内容后将汇总为可导出资产包。{% endif %}</div></div>
+      <div class="cw-agent-box"><div class="cw-agent-title">Agent 分析结果</div><div class="cw-agent-text" id="cw-agent-explanation">点击下方 AI Chips 获取 Agent 建议。</div></div>
 
       <div class="cw-card cp-card">
         <h3>局部编辑区</h3>
@@ -263,6 +264,31 @@
         <button type="button" class="cw-btn secondary" id="btn-export-md">导出 Markdown</button>
         <a class="cw-btn" href="/content-planning/assets/{{ opportunity_id }}" style="text-decoration:none;">组装并查看资产包 →</a>
       </div>
+
+      <div class="ws-card" style="margin-top: 12px;">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">协同面板</h3>
+        <div id="cw-collab-panel" style="font-size: 12px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;" id="cw-participants"></div>
+          <div id="cw-graph-status" style="padding: 8px; background: var(--bg-subtle,#f5f5f5); border-radius: 8px;"></div>
+        </div>
+        <button id="cw-load-collab" type="button" style="margin-top: 8px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; cursor: pointer; font-size: 12px; color: var(--accent);">刷新协同状态</button>
+      </div>
+
+      <div class="cw-card" style="margin-top: 12px;">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">协同时间线</h3>
+        <div id="cw-timeline" style="max-height: 260px; overflow-y: auto; font-size: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--bg-subtle, #fafafa);">
+          <div style="color: var(--muted);">等待 Agent 事件...</div>
+        </div>
+      </div>
+
+      <div class="cw-card" style="margin-top: 12px;">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">对话</h3>
+        <div style="display: flex; gap: 6px;">
+          <input id="cw-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
+          <button id="cw-chat-send" type="button" style="padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 13px;">发送</button>
+        </div>
+        <div id="cw-chat-status" style="font-size: 11px; margin-top: 4px; color: var(--muted);"></div>
+      </div>
     </aside>
   </div>
 </div>
@@ -309,6 +335,41 @@
     if (el) el.textContent = refineLines.slice(-12).join('\n');
   }
 
+  async function runAgent(role, extra) {
+    var el = document.getElementById('cw-agent-explanation');
+    if (el) el.innerHTML = '<span style="color:var(--muted)">Agent 思考中...</span>';
+    try {
+      var res = await fetch(cpApi + '/run-agent/' + encodeURIComponent(opportunityId), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({agent_role: role, extra: extra || {}})
+      });
+      if (!res.ok) throw new Error('Agent 调用失败: ' + res.status);
+      var data = await res.json();
+      var html = '<strong>' + (data.agent_name || role) + '</strong>';
+      html += ' <span style="color:var(--muted)">(置信度 ' + Math.round((data.confidence || 0) * 100) + '%)</span>';
+      html += '<p style="margin:8px 0;line-height:1.6">' + (data.explanation || '无解释').replace(/\n/g, '<br>') + '</p>';
+      if (data.suggestions && data.suggestions.length > 0) {
+        html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">';
+        data.suggestions.forEach(function(s) {
+          html += '<button class="js-agent-chip" data-action="' + (s.action || '') + '" data-params=\'' + JSON.stringify(s.params || {}) + '\' style="padding:4px 10px;border-radius:12px;border:1px solid var(--border);background:var(--accent-soft);cursor:pointer;font-size:12px">' + s.label + '</button>';
+        });
+        html += '</div>';
+      }
+      if (el) el.innerHTML = html;
+      document.querySelectorAll('.js-agent-chip').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var action = this.dataset.action;
+          var params = {};
+          try { params = JSON.parse(this.dataset.params); } catch(e) {}
+          if (action) runAgent(action, params);
+        });
+      });
+    } catch (err) {
+      if (el) el.innerHTML = '<span style="color:#b71c1c">' + err.message + '</span>';
+    }
+  }
+
   document.querySelectorAll('.cw-chip[data-chip]').forEach(function (chip) {
     chip.addEventListener('click', function () {
       var g = chip.getAttribute('data-chip-group');
@@ -318,8 +379,10 @@
       chip.classList.toggle('is-active');
       if (g === 'image') {
         appendRefine('[图位 ' + slotIdx + '] ' + label);
+        runAgent('visual_director', {image_hint: label, slot_index: slotIdx});
       } else {
         appendRefine('[标题] ' + label);
+        runAgent('strategy_director', {title_hint: label});
       }
     });
   });
@@ -526,12 +589,120 @@
     downloadBlob('content-plan-' + opportunityId + '.md', 'text/markdown;charset=utf-8', md);
   });
 
-  // Agent run helper
-  function runAgent(role, extra) {
-    return fetch(cpApi + '/run-agent/' + encodeURIComponent(opportunityId), {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({agent_role: role, extra: extra || {}})
-    }).then(function(r){ return r.json(); });
+  // ── Collaboration Panel ──
+  var collabBtn = document.getElementById('cw-load-collab');
+  if (collabBtn) {
+    collabBtn.addEventListener('click', loadCollab);
+    loadCollab();
+  }
+  function loadCollab() {
+    fetch('/content-planning/timeline/' + encodeURIComponent(opportunityId))
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        var pEl = document.getElementById('cw-participants');
+        if (pEl && data.participants) {
+          pEl.innerHTML = data.participants.map(function(p) {
+            var isAgent = p.startsWith('agent_');
+            var color = isAgent ? 'var(--accent)' : '#2e7d32';
+            var icon = isAgent ? '🤖' : '👤';
+            return '<span style="padding:2px 8px;border-radius:10px;background:' + (isAgent ? 'var(--accent-soft,#ede9fe)' : '#e8f5e9') + ';color:' + color + ';font-size:11px">' + icon + ' ' + p + '</span>';
+          }).join('');
+        }
+      }).catch(function(){});
+
+    fetch('/content-planning/graph/' + encodeURIComponent(opportunityId))
+      .then(function(r){ return r.json(); })
+      .then(function(graph) {
+        var el = document.getElementById('cw-graph-status');
+        if (!el || !graph.nodes) return;
+        var nodes = Object.values(graph.nodes);
+        var html = '<div style="font-weight:600;margin-bottom:6px;">流水线状态</div>';
+        nodes.forEach(function(n) {
+          var icon = {pending:'⏳',running:'🔄',completed:'✅',failed:'❌',skipped:'⏭️'}[n.status] || '⏳';
+          html += '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;">';
+          html += '<span>' + icon + '</span>';
+          html += '<span style="flex:1">' + (n.task_description || n.agent_role) + '</span>';
+          html += '<span style="color:var(--muted);font-size:11px">' + n.status + '</span>';
+          html += '</div>';
+        });
+        el.innerHTML = html;
+      }).catch(function(){});
+  }
+
+  // ── Agent Timeline via SSE ──
+  var timelineEl = document.getElementById('cw-timeline');
+  var evtSource = null;
+  try {
+    evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
+    evtSource.addEventListener('agent_result', function(e) {
+      var data = JSON.parse(e.data);
+      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+    });
+    evtSource.addEventListener('chat_response', function(e) {
+      var data = JSON.parse(e.data);
+      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+    });
+    evtSource.addEventListener('object_updated', function(e) {
+      var data = JSON.parse(e.data);
+      appendTimeline('系统', data.object_type + ' 已更新', null);
+    });
+    evtSource.onerror = function() {
+      if (timelineEl) {
+        var div = document.createElement('div');
+        div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
+        div.textContent = '连接中断，刷新页面重连';
+        timelineEl.appendChild(div);
+      }
+    };
+  } catch(err) {}
+
+  function appendTimeline(name, text, confidence) {
+    if (!timelineEl) return;
+    if (timelineEl.querySelector(':scope > div:first-child') && timelineEl.children.length === 1 && timelineEl.children[0].textContent.indexOf('等待') >= 0) {
+      timelineEl.innerHTML = '';
+    }
+    var item = document.createElement('div');
+    item.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);';
+    var header = '<strong style="color:var(--accent)">' + (name || 'Agent') + '</strong>';
+    if (confidence != null) header += ' <span style="color:var(--muted)">(' + Math.round(confidence * 100) + '%)</span>';
+    var time = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+    header += ' <span style="float:right;color:var(--muted);font-size:11px">' + time + '</span>';
+    item.innerHTML = header + '<div style="margin-top:4px;line-height:1.5;color:var(--ink)">' + (text || '').substring(0, 200) + '</div>';
+    timelineEl.appendChild(item);
+    timelineEl.scrollTop = timelineEl.scrollHeight;
+  }
+
+  // ── Chat Input ──
+  var chatInput = document.getElementById('cw-chat-input');
+  var chatSend = document.getElementById('cw-chat-send');
+  var chatStatus = document.getElementById('cw-chat-status');
+  if (chatSend) {
+    chatSend.addEventListener('click', sendChat);
+  }
+  if (chatInput) {
+    chatInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+    });
+  }
+  function sendChat() {
+    var msg = chatInput ? chatInput.value.trim() : '';
+    if (!msg) return;
+    appendTimeline('你', msg, null);
+    if (chatInput) chatInput.value = '';
+    if (chatStatus) chatStatus.textContent = 'Agent 思考中…';
+    fetch('/content-planning/chat/' + encodeURIComponent(opportunityId), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg, role: 'human', current_stage: 'plan'})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (chatStatus) chatStatus.textContent = '';
+      appendTimeline(data.agent_name || 'Agent', data.explanation || '无回复', data.confidence);
+    })
+    .catch(function(err) {
+      if (chatStatus) chatStatus.textContent = '发送失败';
+    });
   }
 })();
 </script>

@@ -29,6 +29,10 @@ from apps.intel_hub.workflow.job_models import CrawlJob
 from apps.intel_hub.workflow.job_queue import FileJobQueue
 from apps.intel_hub.workflow.session_service import SessionService
 
+from apps.content_planning.gateway.sse_handler import sse_stream
+from apps.content_planning.gateway.event_bus import event_bus, ObjectEvent
+from apps.content_planning.gateway.session_manager import session_manager
+
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 TEMPLATE_ENV = Environment(
@@ -882,6 +886,23 @@ def create_app(
     app.include_router(content_planning_router_alias)
 
     # ── 内容策划工作台页面路由 ─────────────────────────────────
+    @app.get("/content-planning/stream/{opportunity_id}")
+    async def content_planning_stream(request: Request, opportunity_id: str):
+        """SSE 事件流：实时推送 Agent 输出与对象变更。"""
+        return await sse_stream(request, opportunity_id)
+
+    @app.get("/content-planning/timeline/{opportunity_id}")
+    async def content_planning_timeline(request: Request, opportunity_id: str):
+        """获取协同时间线（历史消息 + Agent 事件）。"""
+        session = session_manager.get_or_create(opportunity_id)
+        events = event_bus.get_history(opportunity_id)
+        return {
+            "session_id": session.session_id,
+            "messages": [m.model_dump(mode="json") for m in session.recent_messages(50)],
+            "events": [e.model_dump(mode="json") for e in events[-30:]],
+            "participants": session.participants,
+        }
+
     @app.get("/content-planning/brief/{opportunity_id}")
     async def content_brief_page(request: Request, opportunity_id: str) -> Any:
         """Brief 确认页 / 机会工作台。"""
@@ -906,18 +927,19 @@ def create_app(
         stale_flags = session_data.get("stale_flags", {})
         pipeline_run_id = session_data.get("pipeline_run_id", "")
 
+        card_dict = card.model_dump(mode="json") if hasattr(card, "model_dump") else card
         if _wants_html(request):
             return _render("content_brief.html", {
                 "request": request,
                 "opportunity_id": opportunity_id,
-                "card": card,
+                "card": card_dict,
                 "brief": brief_dict,
                 "source_notes": source_ctx,
                 "review_summary": review_summary or {},
                 "stale_flags": stale_flags,
                 "pipeline_run_id": pipeline_run_id,
             })
-        return {"card": card.model_dump(mode="json") if hasattr(card, "model_dump") else card, "brief": brief_dict}
+        return {"card": card_dict, "brief": brief_dict}
 
     @app.get("/content-planning/strategy/{opportunity_id}")
     async def content_strategy_page(request: Request, opportunity_id: str) -> Any:

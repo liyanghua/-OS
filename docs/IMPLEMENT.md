@@ -1,6 +1,103 @@
-# 本体大脑情报中枢 V0.8 — 四层编译链 + 内容策划 + B2B Pilot Foundation
+# 本体大脑情报中枢 V0.9 — AI-native 多角色协同交互架构
 
+> V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
+
+## V0.9 进展 — AI-native 协同架构升级 (2026-04-09)
+
+### Phase 0：基础修复 **已完成**
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| AgentContext 完整化 | **已完成** | `run-agent` 端点现在通过 adapter 注入 card/source_notes/review_summary/template/titles/body/image_briefs/asset_bundle |
+| append_version 接线 | **已完成** | `build_brief`/`build_strategy`/`build_plan` 成功后自动调用 `_snapshot_version` 写入版本历史 |
+| ObjectLock enforcement | **已完成** | `_apply_locks` 方法在重生成时保留已锁定字段值不被覆盖 |
+| runAgent 前端接线 | **已完成** | 4 个工作台的 AI Chips 全部接线到 `run-agent` API，结果包含 agent_name/置信度/动态 chips |
+| BriefUpdateRequest 契约修复 | **已完成** | 新增 `why_worth_doing`/`competitive_angle` 字段 + flow editable 白名单 |
+| GenerateStrategyRequest 契约修复 | **已完成** | 新增 `tone_hint` 字段 |
+
+### Phase 1：协同网关 + SSE 流式 **已完成**
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| Event Bus | **已完成** | `apps/content_planning/gateway/event_bus.py` — 进程内事件总线，按 opportunity_id 订阅/发布，保留 50 条历史 |
+| Session Manager | **已完成** | `apps/content_planning/gateway/session_manager.py` — 多角色协同会话，消息记录与角色过滤 |
+| SSE Handler | **已完成** | `apps/content_planning/gateway/sse_handler.py` — StreamingResponse SSE 流，历史重放 + 心跳 + 实时推送 |
+| SSE 路由 | **已完成** | `GET /content-planning/stream/{id}` — 对象级 SSE 事件流 |
+| Timeline 路由 | **已完成** | `GET /content-planning/timeline/{id}` — 历史消息 + 事件 |
+| Lead Agent | **已完成** | `apps/content_planning/agents/lead_agent.py` — 总调度 Agent，关键词 + Skill + 上下文三层路由 |
+| Agent Timeline UI | **已完成** | 4 个工作台右栏新增 SSE 订阅的实时时间线 + 对话输入框 |
+| 事件注入 | **已完成** | `run-agent` 返回时自动发布 `agent_result` 事件到 Event Bus |
+
+### Phase 2：多轮对话 + 对象上下文 **已完成**
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| AgentMessage / AgentThread | **已完成** | `agents/base.py` 新增多轮对话线程模型，支持 context_summary() |
+| BaseAgent.run_turn | **已完成** | 注入对话历史到 extra，子类可重写实现更丰富多轮行为 |
+| Chat 端点多轮升级 | **已完成** | `POST /content-planning/chat/{id}` 使用 AgentThread 维护上下文 |
+| Thread 查询端点 | **已完成** | `GET /content-planning/threads/{id}` — 最近 30 条消息 + 轮次数 |
+| Session Manager 增强 | **已完成** | 角色过滤、时间线序列化、对话导出 |
+| Object Events 广播 | **已完成** | 7 个 build/regenerate 方法在 _persist 后自动 emit_object_updated |
+
+### Phase 3：Plan Graph 编排 + Memory **已完成**
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| Plan Graph | **已完成** | `agents/plan_graph.py` — LangGraph 风格状态图，6 节点标准流水线，依赖检查 + 就绪发现 + 状态流转 |
+| Agent Memory | **已完成** | `agents/memory.py` — SQLite 持久化跨会话记忆，store/recall/search + auto extract from results |
+| Skill Registry | **已完成** | `agents/skill_registry.py` — 5 个内置 Skill（深度分析/Brief对比/策略辩论/视觉迁移/批量变体）+ YAML 加载 + 关键词匹配 |
+| Lead Agent 增强 | **已完成** | Skill-based 路由 + 自动 Memory 提取 |
+| Graph 端点 | **已完成** | `GET /content-planning/graph/{id}` |
+| Memory 端点 | **已完成** | `GET /content-planning/memory/{id}` |
+| Skills 端点 | **已完成** | `GET /content-planning/skills` |
+
+### Phase 4：前端富交互 **已完成**
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 版本 Diff 视图 | **已完成** | Brief 版本列表增加"对比上版"按钮，逐字段红删绿增对比 |
+| 多策略对比 | **已完成** | Strategy 页面新增双列对比面板（调性/钩子/CTA） |
+| 协同面板 | **已完成** | Plan 页面新增参与者标签（人/Agent）+ 流水线状态图 |
+| Skills 面板 | **已完成** | Asset 页面展示可用技能列表（名称/描述/触发词） |
+
+### 新增文件清单
+
+```
+apps/content_planning/gateway/
+  __init__.py           — 协同网关模块入口
+  event_bus.py          — 进程内事件总线（ObjectEvent + EventBus 单例）
+  session_manager.py    — 多角色协同会话管理
+  sse_handler.py        — SSE StreamingResponse 端点
+
+apps/content_planning/agents/
+  lead_agent.py         — 总调度 Agent（路由 + 委派 + 记忆提取）
+  plan_graph.py         — LangGraph 风格状态图编排
+  memory.py             — SQLite 跨会话 Agent 记忆
+  skill_registry.py     — 可扩展 Skill 注册系统
+```
+
+### 新增 API 端点
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/content-planning/stream/{id}` | SSE 实时事件流 |
+| GET | `/content-planning/timeline/{id}` | 协同时间线 |
+| POST | `/content-planning/chat/{id}` | 对象上下文对话 |
+| GET | `/content-planning/threads/{id}` | 对话线程历史 |
+| GET | `/content-planning/graph/{id}` | Plan Graph 状态图 |
+| GET | `/content-planning/memory/{id}` | Agent 记忆查询 |
+| GET | `/content-planning/skills` | 可用 Skills 列表 |
+
+### 验证结果
+
+- 235 tests 全部通过
+- 所有新模块导入正确
+- Plan Graph 6 节点 5 边正确构建
+- Agent Memory SQLite CRUD 验证通过
+- Skill Registry 5 个默认 Skill 加载成功
+
+---
 > V0.3+ 增量：评论-笔记自动关联 / 千问 VL 视觉分析 / 端到端验证通过。
 > V0.4  RSS 趋势情报：接入 awesome-tech-rss + awesome-rss-feeds，新增「科技趋势」「新闻媒体」原生浏览页。
 > V0.5  XHS 三维结构化机会卡流水线：视觉/卖点/场景三维提取 → 本体映射 → 机会卡生成。

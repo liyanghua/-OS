@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
+from apps.content_planning.gateway.event_bus import emit_object_updated
 from apps.content_planning.exceptions import OpportunityNotPromotedError
 from apps.content_planning.schemas.asset_bundle import AssetBundle
 from apps.content_planning.schemas.content_generation import (
@@ -273,6 +274,26 @@ class OpportunityToPlanFlow:
             actor_user_id=session.updated_by or session.created_by,
         )
 
+    def _snapshot_version(self, session: _SessionState, object_type: str, obj: Any) -> None:
+        """Persist a version snapshot for history/rollback."""
+        if self._store is None or obj is None:
+            return
+        try:
+            self._store.append_version(session.opportunity_id, object_type, obj)
+        except Exception:
+            logger.debug("append_version failed for %s/%s", session.opportunity_id, object_type, exc_info=True)
+
+    def _apply_locks(self, new_obj: Any, old_obj: Any) -> Any:
+        """Preserve locked field values from old_obj onto new_obj."""
+        if old_obj is None or not hasattr(old_obj, "locks") or old_obj.locks is None:
+            return new_obj
+        for field_name in old_obj.locks.locked_field_names():
+            if hasattr(old_obj, field_name) and hasattr(new_obj, field_name):
+                setattr(new_obj, field_name, getattr(old_obj, field_name))
+        if hasattr(new_obj, "locks"):
+            new_obj.locks = old_obj.locks
+        return new_obj
+
     def bind_workspace_context(
         self,
         *,
@@ -331,10 +352,13 @@ class OpportunityToPlanFlow:
         brief.brief_status = "generated"
         brief = self._apply_context(session, brief, previous=session.brief)
 
+        brief = self._apply_locks(brief, session.brief)
         session.brief = brief
+        self._snapshot_version(session, "brief", brief)
         session.invalidate_downstream("match")
         session._mark_fresh("brief")
         self._persist(session, status="generated")
+        emit_object_updated(opportunity_id, "brief", brief.brief_id)
         self._record_usage(session, event_type="brief_generated", object_type="brief", object_id=brief.brief_id)
         return brief
 
@@ -360,6 +384,7 @@ class OpportunityToPlanFlow:
         session.brief.version = self._next_version(session.brief)
         session.invalidate_downstream("match")
         self._persist(session, status="generated")
+        emit_object_updated(opportunity_id, "brief", session.brief.brief_id, agent_name="人工编辑")
         return session.brief
 
     def match_templates(
@@ -466,10 +491,13 @@ class OpportunityToPlanFlow:
             version_attr="strategy_version",
         )
 
+        strategy = self._apply_locks(strategy, previous_strategy)
         session.strategy = strategy
+        self._snapshot_version(session, "strategy", strategy)
         session.invalidate_downstream("plan")
         session._mark_fresh("strategy")
         self._persist(session, status="generated")
+        emit_object_updated(opportunity_id, "strategy", strategy.strategy_id)
         self._record_usage(session, event_type="strategy_generated", object_type="strategy", object_id=strategy.strategy_id)
         return strategy
 
@@ -494,9 +522,12 @@ class OpportunityToPlanFlow:
         note_plan.plan_status = "generated"
         note_plan = self._apply_context(session, note_plan, previous=previous_plan)
 
+        note_plan = self._apply_locks(note_plan, previous_plan)
         session.note_plan = note_plan
+        self._snapshot_version(session, "plan", note_plan)
         session._mark_fresh("plan")
         self._persist(session, status="generated")
+        emit_object_updated(opportunity_id, "plan", note_plan.plan_id)
         self._record_usage(session, event_type="plan_generated", object_type="plan", object_id=note_plan.plan_id)
         return note_plan
 
@@ -511,6 +542,7 @@ class OpportunityToPlanFlow:
         session.titles = result
         session._mark_fresh("titles")
         self._persist(session, status="generated")
+        emit_object_updated(opportunity_id, "titles", session.note_plan.plan_id if session.note_plan else "")
         self._record_usage(session, event_type="titles_generated", object_type="title_generation", object_id=session.note_plan.plan_id)
         return result
 
@@ -525,6 +557,7 @@ class OpportunityToPlanFlow:
         session.body = result
         session._mark_fresh("body")
         self._persist(session, status="generated")
+        emit_object_updated(opportunity_id, "body", session.note_plan.plan_id if session.note_plan else "")
         self._record_usage(session, event_type="body_generated", object_type="body_generation", object_id=session.note_plan.plan_id)
         return result
 
@@ -539,6 +572,7 @@ class OpportunityToPlanFlow:
         session.image_briefs = result
         session._mark_fresh("image_briefs")
         self._persist(session, status="generated")
+        emit_object_updated(opportunity_id, "image_briefs", session.note_plan.plan_id if session.note_plan else "")
         self._record_usage(session, event_type="image_briefs_generated", object_type="image_generation", object_id=session.note_plan.plan_id)
         return result
 

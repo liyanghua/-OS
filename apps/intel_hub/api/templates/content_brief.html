@@ -78,7 +78,7 @@
     {% if card.opportunity_status %}
     <span class="ws-anchor-badge">{{ card.opportunity_status }}</span>
     {% endif %}
-    {% if card.opportunity_strength_score is defined and card.opportunity_strength_score %}
+    {% if card.get('opportunity_strength_score') %}
     <span class="ws-anchor-badge" style="background: #fff3e0; color: #e65100;">强度 {{ '%.0f'|format(card.opportunity_strength_score * 100) }}%</span>
     {% endif %}
     {% if pipeline_run_id %}<span class="ws-anchor-id">Pipeline {{ pipeline_run_id }}</span>{% endif %}
@@ -86,7 +86,7 @@
 
   {# ═══ AI 建议 Chips ═══ #}
   <div class="ws-chip-row" id="ws-ai-chips">
-    {% set strength = card.opportunity_strength_score if card.opportunity_strength_score is defined else 0 %}
+    {% set strength = card.get('opportunity_strength_score') or 0 %}
     {% if strength >= 0.7 %}
     <span class="ws-chip ws-chip-green" data-action="promote" data-priority="high">值得深入</span>
     {% elif strength >= 0.5 %}
@@ -94,7 +94,7 @@
     {% else %}
     <span class="ws-chip ws-chip-red" data-action="skip">优先级低</span>
     {% endif %}
-    {% set ot = card.opportunity_type if card.opportunity_type is defined else '' %}
+    {% set ot = card.get('opportunity_type', '') %}
     {% if ot in ['visual', 'scene'] %}
     <span class="ws-chip ws-chip-green" data-action="hint" data-goal="种草收藏">适合种草</span>
     {% elif ot in ['demand', 'product'] %}
@@ -123,7 +123,7 @@
         <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: var(--muted);">{{ card.summary or '—' }}</p>
         <div class="ws-chip-row-section">
           <span class="ws-chip-tag">{{ card.opportunity_type or '—' }}</span>
-          {% if card.confidence is defined and card.confidence is not none %}
+          {% if card.get('confidence') is not none %}
           <span class="ws-chip-tag">置信度 {{ '%.2f'|format(card.confidence) }}</span>
           {% endif %}
         </div>
@@ -315,7 +315,8 @@
         {% endif %}
       </div>
 
-      {% set brief_locks = (brief.get('locks', {}) if brief else {}) %}
+      {% set _raw_locks = (brief.get('locks') or {}) if brief else {} %}
+      {% set brief_locks = _raw_locks.get('locked_fields', {}) if _raw_locks is mapping else {} %}
       <div class="ws-card">
         <h3 style="font-size: 16px; color: var(--ink);">人工修订</h3>
 
@@ -367,6 +368,22 @@
       <div class="ws-card" id="ws-versions-container" style="display: none;">
         <h3>Brief 版本历史</h3>
         <div id="ws-versions-list"></div>
+      </div>
+
+      <div class="ws-card" style="margin-top: 12px;">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">协同时间线</h3>
+        <div id="ws-timeline" style="max-height: 260px; overflow-y: auto; font-size: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--bg-subtle, #fafafa);">
+          <div style="color: var(--muted);">等待 Agent 事件...</div>
+        </div>
+      </div>
+
+      <div class="ws-card" style="margin-top: 12px;">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">对话</h3>
+        <div style="display: flex; gap: 6px;">
+          <input id="ws-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
+          <button id="ws-chat-send" type="button" style="padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 13px;">发送</button>
+        </div>
+        <div id="ws-chat-status" style="font-size: 11px; margin-top: 4px; color: var(--muted);"></div>
       </div>
     </aside>
   </div>
@@ -434,14 +451,42 @@
         if (!data.versions || data.versions.length === 0) { list.innerHTML = '<div style="color:var(--muted);font-size:12px;">暂无历史版本</div>'; return; }
         var html = '';
         data.versions.forEach(function(v, i){
-          html += '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">';
-          html += '<strong>版本 ' + (v.version || (i+1)) + '</strong>';
-          if(v.opportunity_title) html += ' · ' + v.opportunity_title;
-          if(v.brief_status) html += ' <span style="color:var(--muted);">(' + v.brief_status + ')</span>';
-          html += '<button type="button" onclick="restoreVersion(\'brief\',' + (v.version||i+1) + ')" style="float:right;font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;color:var(--accent);">恢复</button>';
+          html += '<div class="ws-version-item" style="padding:10px 0;border-bottom:1px solid var(--border);">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+          html += '<strong style="font-size:13px;">版本 ' + (v.version || (i+1)) + '</strong>';
+          html += '<div style="display:flex;gap:6px;">';
+          if (i > 0) html += '<button type="button" class="js-diff-btn" data-idx="' + i + '" style="font-size:11px;padding:2px 8px;border:1px solid var(--accent);border-radius:8px;background:transparent;cursor:pointer;color:var(--accent);">对比上版</button>';
+          html += '<button type="button" onclick="restoreVersion(\'brief\',' + (v.version||i+1) + ')" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;color:var(--accent);">恢复</button>';
+          html += '</div></div>';
+          if(v.brief_status) html += ' <span style="color:var(--muted);font-size:11px;">状态: ' + v.brief_status + '</span>';
+          html += '<div class="js-diff-zone" data-idx="' + i + '" style="display:none;margin-top:8px;padding:8px;background:var(--bg-subtle,#f5f5f5);border-radius:6px;font-size:12px;"></div>';
           html += '</div>';
         });
         list.innerHTML = html;
+        window._versionCache = data.versions;
+        document.querySelectorAll('.js-diff-btn').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            var idx = parseInt(this.dataset.idx);
+            var zone = document.querySelector('.js-diff-zone[data-idx="'+idx+'"]');
+            if (!zone || !window._versionCache) return;
+            if (zone.style.display !== 'none') { zone.style.display = 'none'; return; }
+            zone.style.display = 'block';
+            var curr = window._versionCache[idx];
+            var prev = window._versionCache[idx - 1];
+            var diffHtml = '';
+            var fields = ['content_goal','primary_value','target_user','target_scene','visual_style_direction','why_worth_doing','competitive_angle'];
+            fields.forEach(function(f){
+              var cv = JSON.stringify(curr[f] || '');
+              var pv = JSON.stringify(prev[f] || '');
+              if (cv !== pv) {
+                diffHtml += '<div style="margin-bottom:6px;"><span style="font-weight:600;color:var(--ink);">' + f + '</span>';
+                diffHtml += '<div style="color:#b71c1c;text-decoration:line-through;">- ' + pv + '</div>';
+                diffHtml += '<div style="color:#2e7d32;">+ ' + cv + '</div></div>';
+              }
+            });
+            zone.innerHTML = diffHtml || '<div style="color:var(--muted);">无字段差异</div>';
+          });
+        });
       })
       .catch(function(){ list.innerHTML = '<div style="color:#c62828;font-size:12px;">加载失败</div>'; });
   });
@@ -468,32 +513,131 @@
     });
   });
 
-  var agentEl = document.getElementById('ws-agent-explanation');
+  async function runAgent(role, extra) {
+    var el = document.getElementById('ws-agent-explanation');
+    if (el) el.innerHTML = '<span style="color:var(--text-muted)">Agent 思考中...</span>';
+    try {
+      var res = await fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({agent_role: role, extra: extra || {}})
+      });
+      if (!res.ok) throw new Error('Agent 调用失败: ' + res.status);
+      var data = await res.json();
+      var html = '<strong>' + (data.agent_name || role) + '</strong>';
+      html += ' <span style="color:var(--muted)">(置信度 ' + Math.round((data.confidence || 0) * 100) + '%)</span>';
+      html += '<p style="margin:8px 0;line-height:1.6">' + (data.explanation || '无解释').replace(/\n/g, '<br>') + '</p>';
+      if (data.suggestions && data.suggestions.length > 0) {
+        html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">';
+        data.suggestions.forEach(function(s) {
+          html += '<button class="js-agent-chip" data-action="' + (s.action || '') + '" data-params=\'' + JSON.stringify(s.params || {}) + '\' style="padding:4px 10px;border-radius:12px;border:1px solid var(--border);background:var(--bg-subtle,var(--accent-soft));cursor:pointer;font-size:12px">' + s.label + '</button>';
+        });
+        html += '</div>';
+      }
+      if (el) el.innerHTML = html;
+      document.querySelectorAll('.js-agent-chip').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var action = this.dataset.action;
+          var params = {};
+          try { params = JSON.parse(this.dataset.params); } catch(e) {}
+          if (action) runAgent(action, params);
+        });
+      });
+    } catch (err) {
+      if (el) el.innerHTML = '<span style="color:#b71c1c">' + err.message + '</span>';
+    }
+  }
+
   document.querySelectorAll('#ws-ai-chips .ws-chip').forEach(function(chip){
     chip.addEventListener('click', function(){
       var goal = chip.getAttribute('data-goal');
       var action = chip.getAttribute('data-action');
       var hint = chip.textContent.trim();
-      if (goal && agentEl) {
+      if (goal) {
         var cg = document.getElementById('ws-content-goal');
         if (cg) cg.value = goal;
         setStatus('已将内容目标设为：' + goal, false);
-      } else if (agentEl && hint) {
-        var extra = '【' + hint + '】';
-        if (action === 'promote') extra += ' 建议优先推进该机会并完善 Brief。';
-        else if (action === 'watch') extra += ' 建议持续观察信号后再决策。';
-        else if (action === 'skip') extra += ' 当前信号偏弱，可暂缓或降低投入。';
-        agentEl.textContent = (agentEl.textContent.trim() ? agentEl.textContent.trim() + '\n\n' : '') + extra;
+        runAgent('brief_synthesizer', {hint: hint});
+      } else if (action === 'promote' || action === 'watch' || action === 'skip') {
+        runAgent('trend_analyst', {hint: hint});
       }
     });
   });
 
-  // Agent run helper
-  function runAgent(role, extra) {
-    return fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({agent_role: role, extra: extra || {}})
-    }).then(function(r){ return r.json(); });
+  // ── Agent Timeline via SSE ──
+  var timelineEl = document.getElementById('ws-timeline');
+  var evtSource = null;
+  try {
+    evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
+    evtSource.addEventListener('agent_result', function(e) {
+      var data = JSON.parse(e.data);
+      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+    });
+    evtSource.addEventListener('chat_response', function(e) {
+      var data = JSON.parse(e.data);
+      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+    });
+    evtSource.addEventListener('object_updated', function(e) {
+      var data = JSON.parse(e.data);
+      appendTimeline('系统', data.object_type + ' 已更新', null);
+    });
+    evtSource.onerror = function() {
+      if (timelineEl) {
+        var div = document.createElement('div');
+        div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
+        div.textContent = '连接中断，刷新页面重连';
+        timelineEl.appendChild(div);
+      }
+    };
+  } catch(err) {}
+
+  function appendTimeline(name, text, confidence) {
+    if (!timelineEl) return;
+    if (timelineEl.querySelector(':scope > div:first-child') && timelineEl.children.length === 1 && timelineEl.children[0].textContent.indexOf('等待') >= 0) {
+      timelineEl.innerHTML = '';
+    }
+    var item = document.createElement('div');
+    item.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);';
+    var header = '<strong style="color:var(--accent)">' + (name || 'Agent') + '</strong>';
+    if (confidence != null) header += ' <span style="color:var(--muted)">(' + Math.round(confidence * 100) + '%)</span>';
+    var time = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+    header += ' <span style="float:right;color:var(--muted);font-size:11px">' + time + '</span>';
+    item.innerHTML = header + '<div style="margin-top:4px;line-height:1.5;color:var(--ink)">' + (text || '').substring(0, 200) + '</div>';
+    timelineEl.appendChild(item);
+    timelineEl.scrollTop = timelineEl.scrollHeight;
+  }
+
+  // ── Chat Input ──
+  var chatInput = document.getElementById('ws-chat-input');
+  var chatSend = document.getElementById('ws-chat-send');
+  var chatStatus = document.getElementById('ws-chat-status');
+  if (chatSend) {
+    chatSend.addEventListener('click', sendChat);
+  }
+  if (chatInput) {
+    chatInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+    });
+  }
+  function sendChat() {
+    var msg = chatInput ? chatInput.value.trim() : '';
+    if (!msg) return;
+    appendTimeline('你', msg, null);
+    if (chatInput) chatInput.value = '';
+    if (chatStatus) chatStatus.textContent = 'Agent 思考中…';
+    fetch('/content-planning/chat/' + encodeURIComponent(opportunityId), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg, role: 'human', current_stage: 'brief'})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (chatStatus) chatStatus.textContent = '';
+      appendTimeline(data.agent_name || 'Agent', data.explanation || '无回复', data.confidence);
+    })
+    .catch(function(err) {
+      if (chatStatus) chatStatus.textContent = '发送失败';
+    });
   }
 })();
 </script>

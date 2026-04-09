@@ -12,14 +12,20 @@ from typing import Any, Literal, cast
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from apps.content_planning.agents.base import AgentContext, AgentResult
+from apps.content_planning.agents.base import AgentContext, AgentMessage, AgentResult, AgentThread
+from apps.content_planning.agents.memory import AgentMemory, MemoryEntry
+from apps.content_planning.agents.plan_graph import PlanGraph, build_default_graph
+from apps.content_planning.agents.skill_registry import SkillDefinition, skill_registry
 from apps.content_planning.exceptions import OpportunityNotPromotedError
+from apps.content_planning.gateway.event_bus import event_bus, ObjectEvent
+from apps.content_planning.gateway.session_manager import session_manager
 from apps.content_planning.services.opportunity_to_plan_flow import OpportunityToPlanFlow
 
 router = APIRouter(prefix="/content-planning", tags=["content_planning"])
 router_alias = APIRouter(tags=["content_planning"])
 
 _flow: OpportunityToPlanFlow | None = None
+_agent_threads: dict[str, AgentThread] = {}
 
 
 def _get_flow() -> OpportunityToPlanFlow:
@@ -72,6 +78,13 @@ class ApprovalActionRequest(BaseModel):
 class RunAgentRequest(BaseModel):
     agent_role: str  # trend_analyst / brief_synthesizer / template_planner / strategy_director / visual_director / asset_producer
     extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChatMessageRequest(BaseModel):
+    message: str
+    role: str = "human"
+    sender_name: str = ""
+    current_stage: str = ""
 
 
 # ── Error Handling ────────────────────────────────────────────
@@ -457,13 +470,28 @@ async def run_agent(opportunity_id: str, body: RunAgentRequest) -> dict[str, Any
     flow = _get_flow()
     session = flow._get_session(opportunity_id)
 
+    card = flow._adapter.get_card(opportunity_id)
+    source_notes = flow._adapter.get_source_notes(card.source_note_ids) if card else []
+    review_summary = flow._adapter.get_review_summary(opportunity_id) if card else {}
+
+    template = None
+    if session.match_result and session.match_result.primary_template:
+        template = flow._retriever.get_template(session.match_result.primary_template.template_id)
+
     ctx = AgentContext(
         opportunity_id=opportunity_id,
         brief=session.brief,
         strategy=session.strategy,
         plan=session.note_plan,
         match_result=session.match_result,
-        extra={**body.extra, "card": session.card} if hasattr(session, "card") else body.extra,
+        template=template,
+        titles=session.titles,
+        body=session.body,
+        image_briefs=session.image_briefs,
+        asset_bundle=session.asset_bundle,
+        source_notes=source_notes,
+        review_summary=review_summary if isinstance(review_summary, dict) else {},
+        extra={**body.extra, "card": card},
     )
 
     agent = agent_cls()
@@ -473,6 +501,112 @@ async def run_agent(opportunity_id: str, body: RunAgentRequest) -> dict[str, Any
 
     _log_agent_action(flow, opportunity_id, result)
 
+    event_bus.publish_sync(ObjectEvent(
+        event_type="agent_result",
+        opportunity_id=opportunity_id,
+        object_type="agent_result",
+        object_id=result.result_id,
+        agent_role=result.agent_role,
+        agent_name=result.agent_name,
+        payload={"explanation": result.explanation, "confidence": result.confidence},
+    ))
+    session_manager.add_message(
+        opportunity_id,
+        role=f"agent_{result.agent_role}",
+        content=result.explanation,
+        sender_name=result.agent_name,
+        confidence=result.confidence,
+    )
+
+    return result_dict
+
+
+@router.post("/chat/{opportunity_id}")
+@_handle_flow_error
+async def chat_with_agent(opportunity_id: str, body: ChatMessageRequest) -> dict[str, Any]:
+    """对象上下文对话：人类发消息 → Lead Agent 多轮路由 → Sub-Agent 执行。"""
+    from apps.content_planning.agents.lead_agent import LeadAgent
+
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+
+    # Get or create thread
+    if opportunity_id not in _agent_threads:
+        _agent_threads[opportunity_id] = AgentThread(opportunity_id=opportunity_id)
+    thread = _agent_threads[opportunity_id]
+
+    # Record user message in thread + session
+    thread.add_user_message(body.message, stage=body.current_stage, sender=body.sender_name)
+    session_manager.add_message(
+        opportunity_id,
+        role=body.role,
+        content=body.message,
+        sender_name=body.sender_name,
+    )
+
+    # Build context
+    card = flow._adapter.get_card(opportunity_id)
+    source_notes = flow._adapter.get_source_notes(card.source_note_ids) if card else []
+    review_summary = flow._adapter.get_review_summary(opportunity_id) if card else {}
+
+    template = None
+    if session.match_result and session.match_result.primary_template:
+        template = flow._retriever.get_template(session.match_result.primary_template.template_id)
+
+    ctx = AgentContext(
+        opportunity_id=opportunity_id,
+        brief=session.brief,
+        strategy=session.strategy,
+        plan=session.note_plan,
+        match_result=session.match_result,
+        template=template,
+        titles=session.titles,
+        body=session.body,
+        image_briefs=session.image_briefs,
+        asset_bundle=session.asset_bundle,
+        source_notes=source_notes,
+        review_summary=review_summary if isinstance(review_summary, dict) else {},
+        extra={
+            "card": card,
+            "user_message": body.message,
+            "current_stage": body.current_stage,
+        },
+    )
+
+    lead = LeadAgent()
+    result = lead.run_turn(ctx, thread)
+
+    # Record agent response in thread + session
+    thread.add_agent_message(result.explanation, agent_role=result.agent_role, confidence=result.confidence)
+    session_manager.add_message(
+        opportunity_id,
+        role=f"agent_{result.agent_role}",
+        content=result.explanation,
+        sender_name=result.agent_name,
+        confidence=result.confidence,
+    )
+
+    # Emit SSE event
+    event_bus.publish_sync(ObjectEvent(
+        event_type="chat_response",
+        opportunity_id=opportunity_id,
+        object_type="agent_result",
+        object_id=result.result_id,
+        agent_role=result.agent_role,
+        agent_name=result.agent_name,
+        payload={
+            "explanation": result.explanation,
+            "confidence": result.confidence,
+            "suggestions": [s.model_dump(mode="json") for s in result.suggestions],
+            "turn_count": len([m for m in thread.messages if m.role == "user"]),
+        },
+    ))
+
+    _log_agent_action(flow, opportunity_id, result)
+
+    result_dict = result.model_dump(mode="json")
+    result_dict["thread_id"] = thread.thread_id
+    result_dict["turn_count"] = len([m for m in thread.messages if m.role == "user"])
     return result_dict
 
 
@@ -505,6 +639,21 @@ def _log_agent_action(flow: OpportunityToPlanFlow, opportunity_id: str, result: 
         flow._store.update_field(opportunity_id, "agent_actions", actions_raw)
     except Exception:
         pass
+
+
+@router.get("/threads/{opportunity_id}")
+@_handle_flow_error
+async def get_thread(opportunity_id: str) -> dict[str, Any]:
+    """获取对话线程历史。"""
+    thread = _agent_threads.get(opportunity_id)
+    if thread is None:
+        return {"thread_id": None, "messages": [], "turn_count": 0}
+    return {
+        "thread_id": thread.thread_id,
+        "messages": [m.model_dump(mode="json") for m in thread.recent(30)],
+        "turn_count": len([m for m in thread.messages if m.role == "user"]),
+        "active_agent": thread.active_agent,
+    }
 
 
 @router.get("/agent-log/{opportunity_id}")
@@ -638,6 +787,32 @@ async def generate_variant(opportunity_id: str, body: GenerateVariantRequest) ->
     bundle = _get_flow().assemble_asset_bundle(opportunity_id)
     variant = VariantGenerator.generate_variant(bundle, body.axis, body.label)
     return variant.model_dump(mode="json")
+
+
+# ── Graph / Memory / Skills ───────────────────────────────────
+
+@router.get("/graph/{opportunity_id}")
+@_handle_flow_error
+async def get_plan_graph(opportunity_id: str) -> dict[str, Any]:
+    """获取或创建内容策划状态图。"""
+    graph = build_default_graph(opportunity_id)
+    return graph.model_dump(mode="json")
+
+
+@router.get("/memory/{opportunity_id}")
+@_handle_flow_error
+async def get_memories(opportunity_id: str, category: str | None = None) -> dict[str, Any]:
+    """获取机会卡相关的 Agent 记忆。"""
+    mem = AgentMemory()
+    entries = mem.recall(opportunity_id=opportunity_id, category=category)
+    return {"memories": [e.model_dump(mode="json") for e in entries]}
+
+
+@router.get("/skills")
+async def list_skills_catalog() -> dict[str, Any]:
+    """列出所有可用 Skills。"""
+    skills = skill_registry.list_skills()
+    return {"skills": [s.model_dump(mode="json") for s in skills]}
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -214,12 +214,18 @@
     <aside class="pw-right">
       <div class="pw-agent-box">
         <div class="pw-agent-title">AI 策划建议</div>
-        <div class="pw-agent-text">
+        <div class="pw-agent-text" id="pw-agent-explanation">
           {% if strategy.get('rationale') %}{{ strategy.rationale }}{% else %}生成策略后将显示 AI 分析。{% endif %}
         </div>
         {% if strategy.get('comparison_note') %}
         <div style="margin-top: 8px; font-size: 12px; color: #5b21b6;">对比说明：{{ strategy.comparison_note }}</div>
         {% endif %}
+      </div>
+
+      <div class="ws-card" style="margin-top: 12px;">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">多策略对比</h3>
+        <button id="pw-compare-btn" type="button" style="padding: 6px 12px; border: 1px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); cursor: pointer; font-size: 12px; width: 100%;">获取策略版本对比</button>
+        <div id="pw-compare-zone" style="display: none; margin-top: 10px;"></div>
       </div>
 
       <div class="pw-card">
@@ -243,6 +249,22 @@
       <div class="pw-card" id="pw-versions-container" style="display: none;">
         <h3>策略版本历史</h3>
         <div id="pw-versions-list"></div>
+      </div>
+
+      <div class="pw-card" style="margin-top: 12px;">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">协同时间线</h3>
+        <div id="pw-timeline" style="max-height: 260px; overflow-y: auto; font-size: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--bg-subtle, #fafafa);">
+          <div style="color: var(--muted);">等待 Agent 事件...</div>
+        </div>
+      </div>
+
+      <div class="pw-card" style="margin-top: 12px;">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">对话</h3>
+        <div style="display: flex; gap: 6px;">
+          <input id="pw-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
+          <button id="pw-chat-send" type="button" style="padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 13px;">发送</button>
+        </div>
+        <div id="pw-chat-status" style="font-size: 11px; margin-top: 4px; color: var(--muted);"></div>
       </div>
     </aside>
   </div>
@@ -282,11 +304,45 @@
       .catch(function(){ alert("网络错误"); });
   });
 
+  async function runAgent(role, extra) {
+    var el = document.getElementById('pw-agent-explanation');
+    if (el) el.innerHTML = '<span style="color:var(--muted)">Agent 思考中...</span>';
+    try {
+      var res = await fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({agent_role: role, extra: extra || {}})
+      });
+      if (!res.ok) throw new Error('Agent 调用失败: ' + res.status);
+      var data = await res.json();
+      var html = '<strong>' + (data.agent_name || role) + '</strong>';
+      html += ' <span style="color:var(--muted)">(置信度 ' + Math.round((data.confidence || 0) * 100) + '%)</span>';
+      html += '<p style="margin:8px 0;line-height:1.6">' + (data.explanation || '无解释').replace(/\n/g, '<br>') + '</p>';
+      if (data.suggestions && data.suggestions.length > 0) {
+        html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">';
+        data.suggestions.forEach(function(s) {
+          html += '<button class="js-agent-chip" data-action="' + (s.action || '') + '" data-params=\'' + JSON.stringify(s.params || {}) + '\' style="padding:4px 10px;border-radius:12px;border:1px solid var(--border);background:var(--accent-soft);cursor:pointer;font-size:12px">' + s.label + '</button>';
+        });
+        html += '</div>';
+      }
+      if (el) el.innerHTML = html;
+      document.querySelectorAll('.js-agent-chip').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var action = this.dataset.action;
+          var params = {};
+          try { params = JSON.parse(this.dataset.params); } catch(e) {}
+          if (action) runAgent(action, params);
+        });
+      });
+    } catch (err) {
+      if (el) el.innerHTML = '<span style="color:#b71c1c">' + err.message + '</span>';
+    }
+  }
+
   document.querySelectorAll(".js-hint-regen").forEach(function(chip) {
     chip.addEventListener("click", function() {
-      postAndReload(base + "/generate-strategy", {tone_hint: chip.getAttribute("data-hint")})
-        .then(function(r){ if(r.ok) location.reload(); })
-        .catch(function(){});
+      var hint = chip.getAttribute("data-hint");
+      runAgent('strategy_director', {tone_hint: hint});
     });
   });
 
@@ -312,12 +368,114 @@
       .catch(function(){ list.innerHTML = '<div style="color:#c62828;font-size:12px;">加载失败</div>'; });
   });
 
-  // Agent run helper
-  function runAgent(role, extra) {
-    return fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({agent_role: role, extra: extra || {}})
-    }).then(function(r){ return r.json(); });
+  // ── Agent Timeline via SSE ──
+  var timelineEl = document.getElementById('pw-timeline');
+  var evtSource = null;
+  try {
+    evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
+    evtSource.addEventListener('agent_result', function(e) {
+      var data = JSON.parse(e.data);
+      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+    });
+    evtSource.addEventListener('chat_response', function(e) {
+      var data = JSON.parse(e.data);
+      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+    });
+    evtSource.addEventListener('object_updated', function(e) {
+      var data = JSON.parse(e.data);
+      appendTimeline('系统', data.object_type + ' 已更新', null);
+    });
+    evtSource.onerror = function() {
+      if (timelineEl) {
+        var div = document.createElement('div');
+        div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
+        div.textContent = '连接中断，刷新页面重连';
+        timelineEl.appendChild(div);
+      }
+    };
+  } catch(err) {}
+
+  function appendTimeline(name, text, confidence) {
+    if (!timelineEl) return;
+    if (timelineEl.querySelector(':scope > div:first-child') && timelineEl.children.length === 1 && timelineEl.children[0].textContent.indexOf('等待') >= 0) {
+      timelineEl.innerHTML = '';
+    }
+    var item = document.createElement('div');
+    item.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);';
+    var header = '<strong style="color:var(--accent)">' + (name || 'Agent') + '</strong>';
+    if (confidence != null) header += ' <span style="color:var(--muted)">(' + Math.round(confidence * 100) + '%)</span>';
+    var time = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+    header += ' <span style="float:right;color:var(--muted);font-size:11px">' + time + '</span>';
+    item.innerHTML = header + '<div style="margin-top:4px;line-height:1.5;color:var(--ink)">' + (text || '').substring(0, 200) + '</div>';
+    timelineEl.appendChild(item);
+    timelineEl.scrollTop = timelineEl.scrollHeight;
+  }
+
+  // ── Strategy Comparison ──
+  var compareBtn = document.getElementById('pw-compare-btn');
+  if (compareBtn) {
+    compareBtn.addEventListener('click', function() {
+      var zone = document.getElementById('pw-compare-zone');
+      if (!zone) return;
+      zone.style.display = 'block';
+      zone.innerHTML = '<div style="color:var(--muted);font-size:12px">加载策略版本...</div>';
+      fetch('/content-planning/versions/' + encodeURIComponent(opportunityId) + '/strategy')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (!data.versions || data.versions.length < 2) {
+            zone.innerHTML = '<div style="color:var(--muted);font-size:12px">需要至少 2 个版本才能对比</div>';
+            return;
+          }
+          var v = data.versions;
+          var latest = v[v.length - 1];
+          var prev = v[v.length - 2];
+          var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">';
+          html += '<div style="padding:10px;background:var(--bg-subtle,#f5f5f5);border-radius:8px;"><strong>版本 ' + (prev.strategy_version || v.length - 1) + '</strong>';
+          html += '<div style="margin-top:6px;">调性: ' + (prev.tone_and_voice || '—') + '</div>';
+          html += '<div>钩子: ' + (prev.hook_strategy || '—') + '</div>';
+          html += '<div>CTA: ' + (prev.cta_strategy || '—') + '</div></div>';
+          html += '<div style="padding:10px;background:var(--bg-subtle,#f5f5f5);border-radius:8px;border-left:3px solid var(--accent);"><strong>版本 ' + (latest.strategy_version || v.length) + ' (当前)</strong>';
+          html += '<div style="margin-top:6px;">调性: ' + (latest.tone_and_voice || '—') + '</div>';
+          html += '<div>钩子: ' + (latest.hook_strategy || '—') + '</div>';
+          html += '<div>CTA: ' + (latest.cta_strategy || '—') + '</div></div>';
+          html += '</div>';
+          zone.innerHTML = html;
+        })
+        .catch(function(){ zone.innerHTML = '<div style="color:#b71c1c;font-size:12px">加载失败</div>'; });
+    });
+  }
+
+  // ── Chat Input ──
+  var chatInput = document.getElementById('pw-chat-input');
+  var chatSend = document.getElementById('pw-chat-send');
+  var chatStatus = document.getElementById('pw-chat-status');
+  if (chatSend) {
+    chatSend.addEventListener('click', sendChat);
+  }
+  if (chatInput) {
+    chatInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+    });
+  }
+  function sendChat() {
+    var msg = chatInput ? chatInput.value.trim() : '';
+    if (!msg) return;
+    appendTimeline('你', msg, null);
+    if (chatInput) chatInput.value = '';
+    if (chatStatus) chatStatus.textContent = 'Agent 思考中…';
+    fetch('/content-planning/chat/' + encodeURIComponent(opportunityId), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg, role: 'human', current_stage: 'strategy'})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (chatStatus) chatStatus.textContent = '';
+      appendTimeline(data.agent_name || 'Agent', data.explanation || '无回复', data.confidence);
+    })
+    .catch(function(err) {
+      if (chatStatus) chatStatus.textContent = '发送失败';
+    });
   }
 })();
 </script>
