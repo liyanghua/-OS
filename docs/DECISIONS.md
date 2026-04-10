@@ -327,6 +327,124 @@
   - 当需要多角色协作时，扩展审批流和角色权限
   - 当 promoted 卡片需要进入下游系统时，定义导出接口
 
+## D-020 DeerFlow / Hermes 采用 adapter-first + embedded runtime
+
+- 决策内容：业务代码只依赖本地适配层和 workflow substrate，不直接耦合第三方框架内部 API。
+- 原因：
+  - 当前产品主语仍然是 `Brief / Strategy / Plan / Asset` 这些业务对象，不是第三方框架的原生 UI 或 runtime。
+  - 适配层可以让上游框架升级时只改 adapter，不扩散到 routes / services / templates。
+- 替代方案：
+  - 直接把 DeerFlow / Hermes 作为主运行时暴露到产品层
+  - 完全不引入上游代码，只做概念借鉴
+- 当前影响：
+  - `third_party/` 负责上游 pin 与引用说明
+  - `apps/content_planning/adapters/*` 是唯一合法接入边界
+- 后续重审：
+  - 当 graph executor / memory runtime 成熟后，再评估是否更深接入上游内部模块
+
+## D-021 统一 stage workflow 采用顺序 writable rollout
+
+- 决策内容：四阶段共用一套 `task/run/discussion/proposal/evaluation` 底座，但只有 `Brief` 首先开放 apply。
+- 原因：
+  - 可以先验证多 Agent 讨论是否真的提升质量和减少人工编辑
+  - 避免 `Brief -> Strategy -> Plan -> Asset` 一次性全可写导致 stale/approval/version 失控
+- 替代方案：
+  - 四阶段同时开放 proposal apply
+  - 只做只读 council，不做 apply
+- 当前影响：
+  - 先后按 `Brief -> Strategy -> Plan -> Asset` 开放 apply
+  - 任一阶段开放可写前，先要求前一阶段通过 `持久化 / partial apply / stale propagation / comparison` gate
+  - 当前四个阶段都已接入同一套 substrate，但仍只允许一个阶段作为下一轮新增可写能力的主焦点
+- 后续重审：
+  - 当 `graph_executor` 与更完整的 approval gate 接入后，重审是否允许多个阶段并行可写
+
+## D-022 评价与对比必须持久化，不能只靠内存 baseline
+
+- 决策内容：baseline / stage_run / comparison / pipeline 统一落库到 `evaluations`。
+- 原因：
+  - “升级前后是否更好”必须可跨重启复现，不能依赖进程内存
+  - 只有持久化后，前端与人工验收才能看到稳定的历史对比
+- 替代方案：
+  - 用 `_baseline_store` 这类进程内缓存
+  - 即算即返，不保留历史结果
+- 当前影响：
+  - `GET /content-planning/evaluations/{opportunity_id}` 成为标准读取入口
+  - comparison 优先读取最近 baseline，而不是假设同一进程还活着
+- 后续重审：
+  - 当实验量更大时，再拆出专门 experiment store 或报表层
+
+## D-023 Strategy 评分口径升级到 strategy_v2，并与旧四维历史隔离
+
+- 决策内容：`Strategy` 评分本轮直接切到 `strategy_v2` 五维，并且 comparison 只比较相同 `stage + rubric_version` 的结果。
+- 原因：
+  - `Strategy proposal/apply` 开放后，需要更贴近业务决策与平台适配的评价口径
+  - 旧四维（`executability / brief_alignment / creativity`）无法准确衡量策略一致性、平台原生度和品牌守护栏适配
+  - 混用新旧口径会让 uplift 结论失真
+- 替代方案：
+  - 继续沿用旧四维
+  - 新旧口径同时参与同一 comparison
+- 当前影响：
+  - `StageEvaluation` / `StageScorecard` 新增 `rubric_version`
+  - `strategy_v1` 历史记录保留可读，但不进入当前 comparison
+  - Strategy UI 会明确提示“旧口径不参与当前对比”
+- 后续重审：
+  - 当 `Plan / Asset` 也升级后，再决定是否给其它阶段引入口径版本化
+
+## D-024 Plan 评分从 content 口径拆出，并以 plan_v1 独立版本化
+
+- 决策内容：`Plan` 不再沿用共享的 `content` 评分口径，而是单独引入 `plan_v1`，并且 comparison 只比较相同 `stage + rubric_version` 的结果。
+- 原因：
+  - `Plan proposal/apply` 打开后，评价对象已经从“生成产物质量”变成“结构化执行方案质量”
+  - `content` 口径更适合标题/正文/图片产出后的评估，不适合衡量 `NotePlan` 的结构完整性和交接就绪度
+  - 若继续混用，会让 plan uplift 与 asset uplift 混在一起，无法判断哪一层真的改善
+- 替代方案：
+  - 继续把 `plan` 映射到 `content`
+  - 不做 `rubric_version` 隔离，直接与旧 baseline 比较
+- 当前影响：
+  - `StageEvaluation` 支持 `plan` 阶段与 `plan_v1`
+  - `comparison` 会跳过不兼容的旧 `content/plan` baseline
+  - Plan UI 会明确提示“旧口径不参与当前对比”
+- 后续重审：
+  - 当 `Asset` 也进入 proposal/apply 后，再决定是否把 `content` 完整迁移为 `asset_v1`
+
+## D-025 Asset 评分从 content 口径拆出，并以 asset_v1 独立版本化
+
+- 决策内容：`Asset` 不再沿用共享的 `content` 评分口径，而是单独引入 `asset_v1`，并且 comparison 只比较相同 `stage + rubric_version` 的结果。
+- 原因：
+  - `Asset proposal/apply` 打开后，评价对象已经是最终可交付资产包，而不是泛化的“内容生成结果”
+  - 资产层需要显式衡量标题质量、正文说服力、图位执行指令、品牌守护栏和 production readiness
+  - 若继续沿用 `content`，会让 `plan` 与 `asset` 的 uplift 混在一起，无法区分“执行方案变好了”还是“交付资产变好了”
+- 替代方案：
+  - 继续让 `asset` 映射到 `content`
+  - 不做 `rubric_version` 隔离，直接沿用旧 baseline
+- 当前影响：
+  - `StageEvaluation` 支持 `asset` 阶段与 `asset_v1`
+  - comparison 会跳过旧 `content/asset` baseline
+  - Asset UI 会明确提示“旧 content 口径不参与当前对比”
+- 后续重审：
+  - 当 publish feedback 更稳定接回 comparison 后，再评估是否需要把 `asset_v1` 再拆成 `creative_quality` 与 `delivery_readiness` 两层口径
+
+## D-026 内容策划 Agent 性能控制层（Session-first / Fast-Deep / 并行 Council / 超时降级 / 前端延后）
+
+- **决策内容**：在 `content_planning` + `intel_hub` 四阶段工作台引入一层明确的**性能控制策略**，而不是把优化散落在各处 one-off：
+  - **Session-first GET**：plain GET 不隐式重编；`?refresh=1` 或显式按钮触发 `build_brief` / `build_note_plan`。
+  - **Fast / Deep**：`run-agent` 与 `chat` 默认 `fast`；深分析显式 `deep`；Council 保持多 Agent 能力，并可选用轻量 `run_mode`。
+  - **RequestContextBundle**：同一次 API 请求内预装配上下文，经 `AgentContext.extra` 复用，减少重复 memory / object 摘要。
+  - **Council 并行**：specialist 意见有界并行，按参与者顺序写回；失败项进入 `failed_participants` 不拖死整轮。
+  - **LLM fail-fast**：`LLMRouter` 与 `call_text_llm` 带超时；degraded 时上层可走规则或短响应。
+  - **前端延后**：`scheduleDeferred` 延后评分、SSE、skills；Plan 页协同面板不首屏自动拉 `timeline`/`graph`。
+- **原因**：
+  - 对象工作流与阶段语义已稳定，瓶颈主要在 **重复编译、串行 LLM、阻塞式页面副作用请求**。
+  - 需要可文档化、可测试的策略，便于后续调参与监控。
+- **替代方案**：
+  - 仅加缓存不加语义分层（易不一致）
+  - 全面异步化 FastAPI 路由而不先收敛同步 LLM 形态（改动面过大）
+- **当前影响**：
+  - JSON 响应可带 `timing_ms` / `timing_breakdown`；页面带 `X-Render-Timing-Ms`。
+  - 无 provider 或网络失败时，用户仍能得到规则降级与页面渲染（可能伴随日志中的 LLM 异常栈，属预期）。
+- **后续重审**：
+  - 当接入真实生产可观测性（tracing、SLO）后，收紧超时默认值并区分环境（dev/staging/prod）。
+
 ## D-016 MediaCrawler 克隆到 third_party/ 并通过 source_router 接入
 
 - 决策内容：将 MediaCrawler 开源仓库 clone 到 `third_party/MediaCrawler`，通过新增 `mediacrawler_loader.py` 读取其原生笔记级输出（JSON/JSONL/SQLite），通过 `source_router.py` 在 ingest 层与 TrendRadar 汇合。

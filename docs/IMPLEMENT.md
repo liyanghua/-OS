@@ -1643,3 +1643,396 @@ Agent 层是 service 的包装层，不改变现有 service 逻辑。
 - **无新外部依赖**：核心功能不依赖 LangGraph/LangChain；OpenAI/Anthropic SDK 为可选安装
 - **Adapter Pattern**：DeerFlow/Hermes 理念通过 Adapter 层桥接，不直接导入第三方框架代码
 - **循环导入防护**：LeadAgent 对 DeerFlowAdapter 采用延迟导入避免循环依赖
+
+---
+
+## Sprint 0 + Phase 2 / 3：Stage Workflow（2026-04-09）
+
+### 本轮完成
+
+- 将 `third_party/hermes-agent` 上游源修正为 `NousResearch/hermes-agent`
+- 新增 `third_party/UPSTREAM.md`，明确 DeerFlow / Hermes 的本地职责边界
+- 新增统一 stage workflow schema：
+  - `AgentTask`
+  - `AgentRun`
+  - `AgentSessionRef`
+  - `AgentDiscussionRecord`
+  - `StageProposal`
+  - `ProposalDiff`
+  - `ProposalDecision`
+  - `StageScorecard`
+- `ContentPlanStore` 新增独立表：
+  - `agent_tasks`
+  - `agent_runs`
+  - `stage_discussions`
+  - `stage_proposals`
+  - `proposal_decisions`
+- 评价结果不再只临时返回；`stage_run / baseline / comparison / pipeline` 均可落入 `evaluations`
+- 新增通用 stage API：
+  - `POST /content-planning/stages/{stage}/{opportunity_id}/discussions`
+  - `GET /content-planning/discussions/{discussion_id}`
+  - `GET /content-planning/proposals/{proposal_id}`
+  - `POST /content-planning/proposals/{proposal_id}/apply`
+  - `POST /content-planning/proposals/{proposal_id}/reject`
+  - `POST /content-planning/evaluations/{stage}/{opportunity_id}/run`
+  - `GET /content-planning/evaluations/{opportunity_id}`
+  - `GET /content-planning/agent-runs/{run_id}`
+  - `GET /content-planning/agent-tasks/{task_id}`
+- `Brief` 阶段开放第一条可写闭环：
+  - discussion -> proposal -> partial apply
+  - locked field 保护
+  - version bump
+  - stale propagation (`strategy / plan / titles / body / image_briefs / asset_bundle`)
+- Brief 工作台新增：
+  - `Ask the Council`
+  - `Discussion Summary`
+  - `Proposal Diff`
+  - `Apply selected changes`
+  - `Baseline vs Current Scorecard`
+- `Strategy` 阶段本轮开放 proposal/apply：
+  - discussion -> proposal -> partial apply
+  - apply 前强制检查 `brief stale / base_version mismatch`
+  - apply 后只把 `plan / titles / body / image_briefs / asset_bundle` 标 stale
+  - `strategy` 自身保持 fresh，不清空 `match`
+- Strategy 工作台新增：
+  - `Ask the Council`
+  - `Discussion Summary`
+  - `Proposal Diff`
+  - `Apply selected changes`
+  - `Baseline vs Current Scorecard`
+- `strategy` 评分口径切到 `strategy_v2`：
+  - `strategic_coherence`
+  - `differentiation`
+  - `platform_nativeness`
+  - `conversion_relevance`
+  - `brand_guardrail_fit`
+- `Plan` 阶段本轮开放 proposal/apply：
+  - discussion -> proposal -> partial apply
+  - apply 前强制检查 `strategy stale / base_version mismatch`
+  - 允许按 nested field 局部应用（例如 `title_plan.candidate_titles` / `body_plan.body_outline` / `image_plan.global_notes`）
+  - apply 后保持 `plan` fresh，只把 `titles / body / image_briefs / asset_bundle` 标 stale
+- Plan 工作台新增：
+  - `Ask the Council`
+  - `Discussion Summary`
+  - `Proposal Diff`
+  - `Apply selected changes`
+  - `Baseline vs Current Scorecard`
+- `plan` 评分口径新增 `plan_v1`：
+  - `structural_completeness`
+  - `title_body_alignment`
+  - `image_slot_alignment`
+  - `execution_readiness`
+  - `human_handoff_readiness`
+- comparison 现在会同时检查 `strategy_v2` 与 `plan_v1` 的口径兼容性；不兼容 baseline 会被跳过
+- comparison 不再比较不兼容的 `strategy_v1` 历史评分；旧记录保留可读，但不会进入当前 uplift 计算
+
+### 当前策略
+
+- `Brief / Strategy / Plan / Asset` 已开放 apply
+- `Asset` 已进入 proposal + partial apply 阶段：
+  - discussion -> proposal -> partial apply
+  - apply 前强制检查 `plan / titles / body / image_briefs` 是否 stale
+  - 允许按资产块局部应用：
+    - `title_candidates`
+    - `body_outline`
+    - `body_draft`
+    - `image_execution_briefs`
+  - apply 后保持 `asset_bundle` fresh，不反向污染 `brief / strategy / plan`
+  - apply 会递增 `asset_bundle.version`，并回写 `asset_bundle_versions`
+- `Asset` 评分口径升级为 `asset_v1`：
+  - `headline_quality`
+  - `body_persuasiveness`
+  - `visual_instruction_specificity`
+  - `brand_compliance`
+  - `production_readiness`
+- comparison 现在会跳过旧 `content` 口径历史评分；旧记录保留可读，但不会进入当前 `asset_v1` uplift 计算
+- `/content-planning/discuss/{opportunity_id}` 与 `/content-planning/evaluate/{opportunity_id}` 继续保留，兼容旧入口
+
+### 运行与验证
+
+- 新增测试：
+  - `apps/content_planning/tests/test_stage_workflow_api.py`
+- 本轮关键验证命令：
+  - `pytest apps/content_planning/tests/test_stage_workflow_api.py -q`
+  - `pytest apps/content_planning/tests -q`
+  - `pytest apps/intel_hub/tests apps/content_planning/tests -q`
+  - `python -m compileall apps/content_planning apps/intel_hub`
+  - `GET /content-planning/assets/{opportunity_id}` HTML smoke check
+
+### 已知限制
+
+- `brief council graph` 目前仍由 `DiscussionOrchestrator` 驱动，`graph_executor.py` 仍处于下一步接入阶段
+- `Asset` 已开放 apply，但 `asset council` 仍复用 `DiscussionOrchestrator`，还没有切到 `graph_executor.py`
+- Asset 页面 smoke check 在无外网时会触发 LLM provider 连接报错日志，但当前实现会 graceful degrade，不影响页面返回与测试
+- `evaluations` 已持久化，但更细的 A/B experiment UI 还未建设
+
+## 2026-04-09 补充：Agent 性能优化 Chunk 1（Baseline and Instrumentation）
+
+### 本轮完成
+
+- `run-agent`、`chat`、通用 stage discussion 已补请求级时序埋点：
+  - `timing_ms`
+  - `timing_breakdown.context_ms`
+  - `timing_breakdown.agent_ms` / `discussion_ms`
+  - `timing_breakdown.persist_ms`
+- 4 个内容策划页面已补服务端渲染耗时响应头：
+  - `X-Render-Timing-Ms`
+  - 覆盖 `brief / strategy / plan / assets`
+- 新增测试：
+  - `apps/content_planning/tests/test_agent_performance_paths.py`
+  - `apps/intel_hub/tests/test_content_page_fast_paths.py`
+
+### 当前基线（本地离线 / graceful degrade 条件）
+
+以下数据用于后续 Chunk 2+ 的前后对比，不代表外网可用、模型 provider 正常时的真实线上耗时。
+
+- 页面 GET（3 次中位数，单位 ms）：
+  - `GET /content-planning/brief/{id}`: `2`
+  - `GET /content-planning/strategy/{id}`: `9`
+  - `GET /content-planning/plan/{id}`: `18`
+  - `GET /content-planning/assets/{id}`: `0`
+- 交互端点（3 次中位数，单位 ms）：
+  - `POST /content-planning/run-agent/{id}`: `3`
+  - `POST /content-planning/chat/{id}`: `5`
+  - `POST /content-planning/stages/brief/{id}/discussions`: `7`
+
+### 测量说明
+
+- 测量环境：
+  - 本地 `TestClient`
+  - warm session
+  - 临时 SQLite store
+  - 单个已 promoted 的 demo opportunity
+- 当前网络环境下 `dashscope.aliyuncs.com` 不可达，LLM provider 会快速报错并走 graceful degradation。
+- 因此本轮基线主要用于回答：
+  - 哪些路径已经能稳定暴露 timing metadata
+  - 后续 `session-first / fast mode / parallel council / timeout` 改造后，耗时是否下降
+- 本轮基线暂不用于回答：
+  - 外部模型可用时的真实端到端等待时间
+  - 多 provider 下的真实 council latency
+
+### 下一步性能优化顺序
+
+1. 将 `Brief / Strategy / Plan` 页面改成 session-first，去掉 GET 上的隐式重编。
+2. 为 `run-agent` / `chat` 增加 `fast` 与 `deep` 两种执行模式。
+3. 把 council specialist 从串行改成并行，并补 request-scoped context bundle。
+
+## 2026-04-09 补充：Agent 性能优化 Chunk 2（Session-First Pages）
+
+### 本轮完成
+
+- `GET /content-planning/brief/{id}` 不再在 plain GET 上调用 `build_brief()`。
+- `GET /content-planning/strategy/{id}` 不再在 plain GET 上调用 `build_note_plan(...with_generation=False)`。
+- `GET /content-planning/plan/{id}` 不再在 plain GET 上调用 `build_note_plan(...with_generation=True)`。
+- 三个页面统一改成：
+  - 先读取 `planning_sessions` / 内存热层中的 session snapshot
+  - 只有显式 `?refresh=1` 时才触发重编
+  - 若当前 session 没有对象快照，页面显示显式生成 CTA，而不是隐式重跑编译链
+
+### 当前行为
+
+- `brief / strategy / plan` 三页的 plain GET 已是只读热路径。
+- `assets` 页暂时保持现状，继续走当前的 asset-safe 组装路径。
+- HTML 页新增显式提示文案：
+  - “页面不会在加载时自动重编译”
+  - “点击这里显式生成 …”
+
+### 影响与预期收益
+
+- 打开对象页时不再默认触发：
+  - brief 编译
+  - template match
+  - strategy 生成
+  - note plan + generation
+- 这一步先消掉最重的“打开页面即重编”开销，为后续：
+  - `fast / deep mode`
+  - 并行 council
+  - request-scoped context bundle
+  提供干净基线。
+
+### Chunk 2 之后的本地 warm-session 观测
+
+仍在本地离线 / graceful degrade 条件下，4 个页面的 `X-Render-Timing-Ms` 3 次中位数已经下降到：
+
+- `GET /content-planning/brief/{id}`: `0`
+- `GET /content-planning/strategy/{id}`: `0`
+- `GET /content-planning/plan/{id}`: `0`
+- `GET /content-planning/assets/{id}`: `0`
+
+这里的 `0` 是整数毫秒取整结果，意味着页面 GET 已基本退化为 session 读取 + 模板渲染成本；真实线上耗时仍需在 provider 可用环境下继续观察。
+
+## 2026-04-10 补充：Agent 性能优化 Chunk 3（Fast / Deep Execution Modes）
+
+### 本轮完成
+
+- `run-agent` 新增 `mode` 协议，默认 `fast`。
+- `chat` 新增 `mode` 协议，默认 `fast`。
+- stage discussion 的 `run_mode` 新增：
+  - `agent_assisted_council`
+  - `agent_assisted_single`
+- 当前语义收敛为：
+  - `fast`
+    - 单 Agent 默认跳过 `_enhance_with_llm()`
+    - `LeadAgent` 默认跳过 LLM routing，优先走 stage map / keyword fallback
+    - 保持现有对象工作流与返回结构不变
+  - `deep`
+    - 保留当前 richer path
+    - `Ask the Council` 继续走 deep/council
+- `agent_assisted_single` 会把 stage discussion 收缩为单参与者快速建议，用于后续轻量讨论场景。
+
+### 前端接线
+
+- 4 个对象页里现有的单 Agent 快捷动作与聊天入口，已显式携带 `mode: fast`：
+  - `content_brief.html`
+  - `content_strategy.html`
+  - `content_plan.html`
+  - `content_assets.html`
+- `Ask the Council` 没有改成 fast，仍然保持多 Agent deep path。
+
+### 当前收益边界
+
+- 这一轮先切掉的是：
+  - `LeadAgent` 的默认 LLM routing
+  - 各子 Agent 默认的第二次 `_enhance_with_llm()` 调用
+- 还没有切掉的是：
+  - council specialist 的串行执行
+  - provider timeout / circuit breaker
+
+## 2026-04-10 补充：Agent 性能优化 Chunk 4（Request-Scoped Context Bundle）
+
+### 本轮完成
+
+- `run-agent / chat / stage discussion` 统一改为在 routes 层一次性装配 `RequestContextBundle`。
+- bundle 当前包含：
+  - `card`
+  - `source_notes`
+  - `review_summary`
+  - `template`
+  - `memory_context`
+  - `object_summary`
+- `LeadAgent` 的 deep routing 现在会优先复用 bundle 内的：
+  - `memory_context`
+  - `object_summary`
+  不再重复向 DeerFlow adapter 要一次。
+- specialist agents 的深度增强现在会优先复用 bundle 内的 `memory_context`，避免每个 agent 单独再开一次 `AgentMemory.recall()`。
+- `DiscussionOrchestrator` 现在也会优先复用 bundle 里的：
+  - `memory_context`
+  - `object_summary`
+  不再在 council 内重复构建。
+
+### 当前收益边界
+
+- 这一轮先切掉的是：
+  - `chat deep` 中 DeerFlow routing 的重复 memory/object summary 装配
+  - deep specialist path 的重复 memory recall
+  - council path 的重复 memory/object summary 装配
+- 还没有切掉的是：
+  - provider timeout / circuit breaker
+
+## 2026-04-10 补充：Agent 性能优化 Chunk 5（Parallel Council Specialists）
+
+### 本轮完成
+
+- `DiscussionOrchestrator` 已将 specialist 意见收集切换为有界并行执行。
+- 当前并行阶段只覆盖 specialist opinions：
+  - `trend_analyst`
+  - `brief_synthesizer`
+  - `template_planner`
+  - `strategy_director`
+  - `visual_director`
+  - `asset_producer`
+- synthesis 仍保持单次串行，以避免共识生成逻辑变复杂。
+- discussion 输出继续按原参与者顺序写回，因此页面和持久化结构保持稳定。
+- 当单个 specialist 失败时：
+  - 不再整轮报错
+  - discussion 会保留成功观点继续综合
+  - 失败角色写入 `failed_participants`
+  - 对应消息会带 `metadata.status = failed`
+
+### 当前收益边界
+
+- 这一轮先切掉的是：
+  - council specialist 串行等待造成的线性累计耗时
+  - 单个 specialist 报错导致整轮 discussion 失败
+- 还没有切掉的是：
+  - provider timeout / circuit breaker
+  - 更细粒度的 node-level 并行观测与 retry
+
+## 2026-04-10 补充：Agent 性能优化 Chunk 6（LLM Fail-Fast / Degraded Mode）
+
+### 本轮完成
+
+- `LLMRouter.chat`：统一 `ThreadPoolExecutor` 超时；`LLM_TIMEOUT_SECONDS` / `LLM_FAST_MODE_TIMEOUT_SECONDS`；超时或空响应返回 `degraded` + `degraded_reason`。
+- `call_text_llm` / VLM：DashScope 调用包在 `_run_with_timeout` 内，与路由层超时策略一致。
+- `stage_evaluator`：`_llm_evaluate` 单次 `chat` 解析 JSON；`degraded` 或异常时回退规则评分（`evaluator: rule`）。
+- 测试：`test_llm_timeout_returns_degraded_response_quickly`、`test_evaluation_falls_back_to_rule_when_llm_degraded`。
+
+## 2026-04-10 补充：Agent 性能优化 Chunk 7（Frontend Secondary Request Deferral）
+
+### 本轮完成
+
+- 四页 `content_brief / content_strategy / content_plan / content_assets` 内联脚本增加 `scheduleDeferred`（`requestIdleCallback` + 短 `setTimeout` 回退）。
+- **评分卡**：`loadLatestScorecard()` 改为空闲时执行，不再与首屏解析同步争抢。
+- **SSE**：`EventSource` 连接延后约 40ms + idle，减轻首屏主线程压力。
+- **Plan 页协同**：去掉首屏自动 `loadCollab();`，仅用户点击「刷新协同状态」时拉 `timeline` + `graph`。
+- **Assets 页技能**：`/content-planning/skills` 封装为 `loadSkillsPanel`，延后加载。
+- 测试：`test_content_planning_templates_use_deferred_secondary_fetches`（`apps/intel_hub/tests/test_content_page_fast_paths.py`）。
+
+### 收益边界
+
+- 首屏仍包含完整 HTML 与主对象；延后的是非关键侧栏数据与长连接建立时机。
+- 用户若需立即看协同流水线，需手动点一次「刷新协同状态」（Plan）。
+
+## 2026-04-10 补充：Agent 性能优化 Chunk 8（Validation and Rollout）
+
+### 验证命令（本轮已执行）
+
+```bash
+cd .worktrees/codex-four-stage-upgrade  # 或仓库根，视 worktree 而定
+export PYTHONPATH=$PWD
+.venv311/bin/pytest apps/content_planning/tests apps/intel_hub/tests -q
+.venv311/bin/python -m compileall apps/content_planning apps/intel_hub -q
+```
+
+- **结果（本机）**：`248 passed`（`content_planning` + `intel_hub` 全量）；`compileall` 无报错。
+
+### 页面烟测（TestClient + 已生成 note-plan 的 opportunity）
+
+对 `GET /content-planning/brief|strategy|plan|assets/{id}`（`Accept: text/html`）抽样检查：
+
+- **HTTP**：`200`
+- **响应头**：`X-Render-Timing-Ms` 存在且为非负整数
+
+**本轮一次抽样（generate-note-plan 后、本机沙箱/代理可能导致 LLM 日志报错，页面仍应成功）**：
+
+| 路径 | X-Render-Timing-Ms（单次，ms） |
+|------|-------------------------------|
+| `/content-planning/brief/{id}` | 15 |
+| `/content-planning/strategy/{id}` | 12 |
+| `/content-planning/plan/{id}` | 17 |
+| `/content-planning/assets/{id}` | 22 |
+
+> 说明：上述数字为 **单次** 本地测量，用于 Chunk 8 收口；与 Chunk 1 基线表（多轮中位数）口径不同。外网 DashScope 可用时，应以同一脚本重测并更新本表。
+
+### 交互端点「前后」对照（设计目标 vs 离线环境）
+
+| 指标（计划文档 Success Metrics） | 设计目标 | 离线 / 无可用 provider 时行为 |
+|-----------------------------------|----------|-------------------------------|
+| 四页 GET 中位数 | brief ≤250ms / strategy ≤300ms / plan ≤350ms / assets ≤300ms（warm session） | 以 session 快照为主时通常 **远低于** 目标；具体取决于磁盘与模板复杂度 |
+| `run-agent` fast 中位数 | ≤2.5s | monkeypatch 单测可测路径；真实耗时取决于模型 |
+| Council 中位数 | ≤5.0s | 并行 specialist 降低线性累计；仍受 synthesis 与 LLM 限制 |
+| 无 provider | — | `llm_router` / `call_text_llm` 快速失败或超时 → **规则/空响应降级**，接口不挂死 |
+
+### 文档收口
+
+- 新增：`docs/ARCHITECTURE_V2.md`（性能控制层与上述策略总览）。
+- 新增决策：`docs/DECISIONS.md` **D-026**。
+- `docs/README_PRODUCT.md`：增加「相关架构文档」指向 `ARCHITECTURE_V2.md`。
+- 本文（`IMPLEMENT.md`）Chunk 1～8 串联可追溯。
+
+### 建议提交
+
+```bash
+git add docs/IMPLEMENT.md docs/ARCHITECTURE_V2.md docs/DECISIONS.md docs/README_PRODUCT.md
+git commit -m "docs: capture agent performance optimization architecture and metrics"
+```

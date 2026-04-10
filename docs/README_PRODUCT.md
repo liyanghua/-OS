@@ -104,6 +104,10 @@
   - 内容对象审批
   - 生成与导出的用量记账
 
+## 相关架构文档
+
+- 内容策划四阶段工作台与 Agent 性能控制层（Session-first、Fast/Deep、并行 Council、超时降级、前端延后）：见 [`ARCHITECTURE_V2.md`](ARCHITECTURE_V2.md)。
+
 ## 当前边界
 
 - 这是试点可售版地基，不是完整企业版平台。
