@@ -49,11 +49,36 @@
         transition: background .15s;
       }
       .topbar nav a:hover { background: var(--accent-soft); }
+      .topbar nav a.nav-main {
+        font-size: 14px;
+        font-weight: 700;
+        padding: 5px 14px;
+        border-radius: 10px;
+      }
       .nav-sep {
         width: 1px; height: 16px;
         background: var(--border);
         margin: 0 2px;
       }
+      .nav-dd {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: calc(100% + 6px);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px 0;
+        box-shadow: 0 12px 30px rgba(92,66,39,0.12);
+        min-width: 200px;
+        z-index: 1000;
+      }
+      .nav-dd.nav-dd-open { display: block; }
+      .nav-dd-group { padding: 4px 14px; }
+      .nav-dd-group + .nav-dd-group { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
+      .nav-dd-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+      .nav-dd a { display: block; padding: 4px 0; font-size: 13px; color: var(--accent); text-decoration: none; font-weight: 500; }
+      .nav-dd a:hover { color: var(--ink); }
       .headline {
         background: linear-gradient(135deg, rgba(138, 75, 47, 0.14), rgba(255, 255, 255, 0.7));
         border: 1px solid rgba(138, 75, 47, 0.18);
@@ -130,31 +155,54 @@
           <h1 style="margin: 4px 0 0;">本体大脑情报中枢 V0.1</h1>
         </div>
         <nav>
-          <!-- 情报中心 -->
-          <a href="/">总览</a>
-          <a href="/notes">原始笔记</a>
-          <a href="/xhs-opportunities">机会卡</a>
-          <a href="/rss/tech">科技趋势</a>
-          <a href="/rss/news">新闻媒体</a>
+          <a href="/opportunity-workspace" class="nav-main">机会</a>
+          <a href="/xhs-opportunities?status=promoted" class="nav-main">策划</a>
+          <a href="/xhs-opportunities?status=promoted" class="nav-main">资产</a>
+          <a href="/feedback" class="nav-main">结果</a>
           <span class="nav-sep"></span>
-          <!-- 内容策划 -->
-          <a href="/opportunity-pipeline" style="background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;padding:3px 10px;border-radius:999px;">策划管线</a>
-          <a href="/xhs-opportunities?status=promoted">内容策划</a>
-          <a href="/strategy-templates">策略模板</a>
-          <a href="/feedback">反馈与知识</a>
-          <span class="nav-sep"></span>
-          <!-- 协同管理 -->
-          <a href="/workspace">工作区</a>
-          <a href="/review-approval">审批队列</a>
-          <span class="nav-sep"></span>
-          <!-- 情报对象 -->
-          <a href="/signals">信号</a>
-          <a href="/opportunities">商机</a>
-          <a href="/risks">风险</a>
-          <a href="/watchlists">关注列表</a>
+          <div style="position:relative;display:inline-block;" id="nav-more-wrap">
+            <button onclick="document.getElementById('nav-more-dd').classList.toggle('nav-dd-open')"
+              style="background:none;border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:600;padding:3px 10px;border-radius:8px;cursor:pointer;font-family:inherit;">更多 ▾</button>
+            <div id="nav-more-dd" class="nav-dd">
+              <div class="nav-dd-group">
+                <div class="nav-dd-label">情报源</div>
+                <a href="/">总览</a>
+                <a href="/notes">原始笔记</a>
+                <a href="/xhs-opportunities">机会卡列表</a>
+                <a href="/rss/tech">科技趋势</a>
+                <a href="/rss/news">新闻媒体</a>
+              </div>
+              <div class="nav-dd-group">
+                <div class="nav-dd-label">策划工具</div>
+                <a href="/opportunity-pipeline">策划管线</a>
+                <a href="/strategy-templates">策略模板</a>
+                <a href="/brand-config/_">品牌配置</a>
+              </div>
+              <div class="nav-dd-group">
+                <div class="nav-dd-label">协同管理</div>
+                <a href="/workspace">工作区</a>
+                <a href="/review-approval">审批队列</a>
+              </div>
+              <div class="nav-dd-group">
+                <div class="nav-dd-label">情报对象</div>
+                <a href="/signals">信号</a>
+                <a href="/opportunities">商机</a>
+                <a href="/risks">风险</a>
+                <a href="/watchlists">关注列表</a>
+              </div>
+            </div>
+          </div>
         </nav>
       </div>
       {% block content %}{% endblock %}
     </div>
+    <script>
+    document.addEventListener('click', function(e) {
+      var dd = document.getElementById('nav-more-dd');
+      if (dd && !document.getElementById('nav-more-wrap').contains(e.target)) {
+        dd.classList.remove('nav-dd-open');
+      }
+    });
+    </script>
   </body>
 </html>

@@ -52,7 +52,6 @@
   <span id="batch-count">0</span> 张已选
   <button onclick="batchPromote()" style="margin-left:12px;padding:6px 14px;background:#2e7d32;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">批量升级为候选</button>
   <button onclick="batchBrief()" style="margin-left:6px;padding:6px 14px;background:linear-gradient(135deg,#1565c0,#1976d2);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">批量生成 Brief</button>
-  <button onclick="batchAgentPipeline()" style="margin-left:6px;padding:6px 14px;background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">批量 Agent 策划</button>
   <button onclick="clearSelection()" style="margin-left:6px;padding:6px 14px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;font-size:12px;cursor:pointer;">清除选择</button>
 </div>
 
@@ -119,17 +118,22 @@
       </div>
 
       {% if card.opportunity_status == 'promoted' %}
-      <div style="margin-top: 8px; display: flex; gap: 8px;">
-        <a href="/content-planning/brief/{{ card.opportunity_id }}" onclick="event.stopPropagation();"
-           style="display: inline-block; padding: 6px 16px; border-radius: 10px; font-size: 12px; font-weight: 700; text-decoration: none;
-             background: var(--accent); color: #fff; box-shadow: 0 2px 6px rgba(138,75,47,0.2);">
-          生成 Brief &rarr;
-        </a>
-        <button onclick="event.stopPropagation(); quickAgentPipeline('{{ card.opportunity_id }}', this);"
-           style="display: inline-block; padding: 6px 16px; border-radius: 10px; font-size: 12px; font-weight: 600;
-             background: linear-gradient(135deg,#2e7d32,#43a047); color: #fff; border: none; cursor: pointer;">
-          Agent 一键策划
-        </button>
+      <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;" onclick="event.stopPropagation();">
+        <a href="/content-planning/brief/{{ card.opportunity_id }}"
+           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; text-decoration: none;
+             background: var(--accent); color: #fff;">Brief</a>
+        <span style="color: #bbb; font-size: 10px;">&rarr;</span>
+        <a href="/content-planning/strategy/{{ card.opportunity_id }}"
+           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
+             background: #e3f2fd; color: #1565c0;">策略</a>
+        <span style="color: #bbb; font-size: 10px;">&rarr;</span>
+        <a href="/content-planning/plan/{{ card.opportunity_id }}"
+           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
+             background: #f3e8ff; color: #7c3aed;">计划</a>
+        <span style="color: #bbb; font-size: 10px;">&rarr;</span>
+        <a href="/content-planning/assets/{{ card.opportunity_id }}"
+           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
+             background: #e8f5e9; color: #2e7d32;">资产包</a>
       </div>
       {% endif %}
     </a>
@@ -184,93 +188,6 @@ async function batchBrief(){
     alert('批量 Brief 完成: 成功 ' + (d.succeeded||[]).length + ' 失败 ' + (d.failed||[]).length);
   } catch(e) { alert('批量 Brief 失败: ' + e.message); }
   btn.disabled = false; btn.textContent = '批量生成 Brief';
-}
-async function quickAgentPipeline(oppId, btn){
-  btn.disabled = true;
-  const origText = btn.textContent;
-  btn.textContent = '启动中…';
-  try {
-    const resp = await fetch('/content-planning/' + oppId + '/agent-pipeline', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({execution_mode:'deep'})
-    });
-    if(!resp.ok) throw new Error('HTTP ' + resp.status);
-    btn.textContent = '运行中…';
-    btn.style.background = '#1565c0';
-    pollPipeline(oppId, btn, origText);
-  } catch(e) {
-    btn.textContent = '失败';
-    btn.style.background = '#c62828';
-    setTimeout(()=>{ btn.textContent = origText; btn.disabled = false; btn.style.background = 'linear-gradient(135deg,#2e7d32,#43a047)'; }, 3000);
-  }
-}
-async function pollPipeline(oppId, btn, origText){
-  const check = async () => {
-    try {
-      const r = await fetch('/content-planning/' + oppId + '/agent-pipeline/status');
-      if(!r.ok) return true;
-      const d = await r.json();
-      const gs = d.graph_summary || {};
-      btn.textContent = (gs.completed||0) + '/' + (gs.total||0) + ' 完成';
-      if(d.status === 'completed' || d.status === 'partial') {
-        btn.textContent = '✓ 策划完成';
-        btn.style.background = '#2e7d32';
-        btn.onclick = function(e){ e.stopPropagation(); window.location='/content-planning/assets/'+oppId; };
-        btn.disabled = false;
-        return true;
-      }
-      if(d.status === 'failed' || d.status === 'cancelled') {
-        btn.textContent = '失败';
-        btn.style.background = '#c62828';
-        return true;
-      }
-      return false;
-    } catch(e) { return false; }
-  };
-  for(let i = 0; i < 60; i++){
-    await new Promise(r => setTimeout(r, 2000));
-    if(await check()) return;
-  }
-  btn.textContent = '超时';
-}
-async function batchAgentPipeline(){
-  const ids = getSelected();
-  if(!ids.length) return;
-  const btn = event.target;
-  btn.disabled = true; btn.textContent = '启动中…';
-  try {
-    const resp = await fetch('/content-planning/batch-agent-pipeline', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({opportunity_ids:ids, execution_mode:'deep'})
-    });
-    if(!resp.ok) throw new Error('HTTP ' + resp.status);
-    btn.textContent = '运行中…';
-    pollBatchPipeline(ids, btn);
-  } catch(e) {
-    btn.textContent = '批量策划失败';
-    btn.disabled = false;
-  }
-}
-async function pollBatchPipeline(ids, btn){
-  for(let i = 0; i < 60; i++){
-    await new Promise(r => setTimeout(r, 3000));
-    try {
-      const r = await fetch('/content-planning/batch-agent-pipeline/status', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({opportunity_ids:ids})
-      });
-      const d = await r.json();
-      const vals = Object.values(d);
-      const done = vals.filter(v => v.status==='completed'||v.status==='partial'||v.status==='failed');
-      btn.textContent = done.length + '/' + vals.length + ' 完成';
-      if(done.length >= vals.length) {
-        btn.textContent = '✓ 批量完成';
-        btn.disabled = false;
-        return;
-      }
-    } catch(e) {}
-  }
-  btn.textContent = '超时'; btn.disabled = false;
 }
 </script>
 {% endblock %}

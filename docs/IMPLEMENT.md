@@ -2449,3 +2449,68 @@ git commit -m "docs: capture agent performance optimization architecture and met
 | `services/agent_pipeline_runner.py` | 改 — 结构化日志 + 时序修复 + _execute_safe |
 | `agents/graph_executor.py` | 改 — ROUND/NODE_START/NODE_DONE 日志 |
 | `api/templates/_agent_pipeline_panel.html` | 改 — ensureNodeDOM + fallback + console.log |
+
+---
+
+## 四工作台极简化升级 (2026-04-10)
+
+### 概述
+
+将 22 页 / 14 导航项系统收口为「机会台 + 策划台 + 资产台 + 结果台」四主工作台架构。统一 Council/Agent/协同组件，同步升级后端 API 聚合层。
+
+### Phase 0: 基建与测试骨架 ✅
+
+- 新增 `GET /planning/{opportunity_id}` — 策划台聚合 API（一次返回 brief+match+strategy+plan+bundle+vm）
+- 新增 `GET /opportunity-workspace` — 机会台聚合 API（列表+选中卡详情+source_notes+review）
+- 新增 ViewModel 层 `apps/content_planning/viewmodels/planning_workspace_vm.py`（6 个纯函数，空数据安全）
+- 新增 4 个模板骨架：planning_workspace.html / opportunity_workspace.html / asset_workspace.html / result_workspace.html
+- 新增 E2E 测试骨架 `tests/e2e/test_workspace_pages.py`
+
+### Phase 1: 导航收口 ✅
+
+- `base.html` 导航从 14 项收口为 4 个主入口（机会/策划/资产/结果）+ 「更多」折叠下拉
+- 旧 URL 全部保活，仅从主导航降级到「更多」菜单
+- 点击外部自动关闭下拉菜单
+
+### Phase 2: 策划台（核心） ✅
+
+- 策划台三栏布局：左栏上下文 300px + 中栏 4 区块（Brief/模板/策略/Plan Board）+ 右栏 AI 操作区 350px
+- ViewModel 集成：后端路由注入 vm 变量，模板使用 vm.brief_summary / vm.template_candidates / vm.strategy_summary / vm.plan_board
+- 右侧抽屉组件（Brief 编辑表单）
+- 统一 Council 组件 `unified_council.js`（替代 3 套分散实现，支持 stage 参数、SSE 监听、Proposal apply/reject）
+- 旧 Brief/Strategy/Plan 页面加降级横幅
+
+### Phase 3: 机会台 ✅
+
+- master-detail 双栏布局：左 380px 卡片列表 + 右栏详情（4 宫格：洞察/证据/风险/动作）
+- 紧凑工具栏：类型+状态 chip 筛选，选中态高亮
+- 原始笔记预览折叠区
+- 升级/进入策划台操作入口
+
+### Phase 4: 资产台 + 结果台 + 组件统一 ✅
+
+- 资产台：图位对象化（5 个独立图位卡片，各带锁定/重新生成操作）+ 变体前台化 + 导出 3 格式
+- 结果台：发布结果表格 + 模板策略效果指标 + 复盘建议（强化/沉淀两列）
+- `_progress_bar.html` 升级为对象状态条（弱化 step 感，改为面包屑+当前状态+快速跳转）
+- `_collab_sidebar.html` 改为默认折叠（details 包裹）
+- `_agent_pipeline_panel.html` 已集成到策划台右栏 Agent Board 区域
+
+### 文件变更总览
+
+| 文件 | 操作 |
+|------|------|
+| `apps/intel_hub/api/app.py` | 改 — 新增 /planning/{id} + /opportunity-workspace 聚合路由 |
+| `apps/content_planning/viewmodels/__init__.py` | 新增 |
+| `apps/content_planning/viewmodels/planning_workspace_vm.py` | 新增 — 6 个 ViewModel 函数 |
+| `apps/intel_hub/api/templates/base.html` | 改 — 4 主入口 + 更多折叠导航 |
+| `apps/intel_hub/api/templates/planning_workspace.html` | 新增 — 策划台三栏全功能模板 |
+| `apps/intel_hub/api/templates/opportunity_workspace.html` | 新增 — 机会台 master-detail 模板 |
+| `apps/intel_hub/api/templates/asset_workspace.html` | 新增 — 资产台图位对象化模板 |
+| `apps/intel_hub/api/templates/result_workspace.html` | 新增 — 结果台精简 3 块模板 |
+| `apps/intel_hub/api/static/js/unified_council.js` | 新增 — 统一 Council 组件 |
+| `apps/intel_hub/api/templates/_progress_bar.html` | 改 — 对象状态条 |
+| `apps/intel_hub/api/templates/_collab_sidebar.html` | 改 — 默认折叠 |
+| `apps/intel_hub/api/templates/content_brief.html` | 改 — 降级横幅 |
+| `apps/intel_hub/api/templates/content_strategy.html` | 改 — 降级横幅 |
+| `apps/intel_hub/api/templates/content_plan.html` | 改 — 降级横幅 |
+| `tests/e2e/test_workspace_pages.py` | 新增 — E2E 验收测试 |

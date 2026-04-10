@@ -47,8 +47,6 @@
   {# ═══ 全链路进度条 ═══ #}
   {% set lifecycle_statuses = {"brief": "", "strategy": "", "plan": "", "assets": (bundle.get("lifecycle_status","") if bundle else "")} %}
   {% with current_stage="assets" %}{% include "_progress_bar.html" %}{% endwith %}
-  {% set is_promoted = true %}
-  {% include "_agent_pipeline_panel.html" %}
   {% set _bid_bundle = (bundle.brand_id | default("", true)) if bundle is defined and bundle else "" %}
   {% set _bid_brief = (brief.brand_id | default("", true)) if brief is defined and brief else "" %}
   {% set _brand_id = _bid_bundle or _bid_brief %}

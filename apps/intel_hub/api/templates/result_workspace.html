@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  body .shell { max-width: 1200px; }
+
+  .rw-breadcrumb {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: 13px; color: var(--muted); margin-bottom: 8px;
+  }
+  .rw-breadcrumb a {
+    color: var(--accent); text-decoration: none; font-weight: 600;
+    padding: 2px 6px; border-radius: 6px; transition: background .15s;
+  }
+  .rw-breadcrumb a:hover { background: var(--accent-soft); }
+
+  .rw-page-header { margin-bottom: 28px; }
+  .rw-page-title {
+    font-size: 22px; font-weight: 800; color: var(--ink); margin: 0 0 4px;
+  }
+  .rw-page-subtitle {
+    font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0;
+  }
+
+  .rw-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; padding: 24px; margin-bottom: 20px;
+    box-shadow: 0 8px 22px rgba(92,66,39,0.06);
+  }
+  .rw-section-head { margin-bottom: 16px; }
+  .rw-section-head h2 {
+    margin: 0 0 4px; font-size: 16px; font-weight: 700; color: var(--accent);
+  }
+  .rw-section-head p {
+    margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5;
+  }
+
+  /* ── 表格 ── */
+  .rw-table-wrap { overflow-x: auto; }
+  .rw-table {
+    width: 100%; border-collapse: collapse; font-size: 13px; min-width: 680px;
+  }
+  .rw-table thead th {
+    text-align: left; padding: 10px 14px;
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.3px;
+    background: var(--accent-soft); white-space: nowrap;
+  }
+  .rw-table thead th:first-child { border-radius: 10px 0 0 0; }
+  .rw-table thead th:last-child  { border-radius: 0 10px 0 0; }
+  .rw-table tbody td {
+    padding: 11px 14px; border-bottom: 1px solid rgba(215,206,191,0.45);
+    color: var(--ink);
+  }
+  .rw-table tbody tr:nth-child(even) td {
+    background: rgba(241,225,212,0.18);
+  }
+  .rw-table tbody tr:last-child td { border-bottom: none; }
+  .rw-table .rw-cell-name { font-weight: 600; }
+  .rw-table .rw-cell-muted { color: var(--muted); font-size: 12px; }
+  .rw-table .rw-cell-num { font-variant-numeric: tabular-nums; text-align: right; }
+
+  .rw-badge {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .rw-badge-green  { background: #dcfce7; color: #166534; }
+  .rw-badge-amber  { background: #fef9c4; color: #92400e; }
+  .rw-badge-blue   { background: #dbeafe; color: #1e40af; }
+  .rw-badge-red    { background: #fee2e2; color: #991b1b; }
+
+  .rw-empty {
+    padding: 28px 16px; text-align: center; color: var(--muted);
+    border: 1px dashed var(--border); border-radius: 14px;
+    background: rgba(255,255,255,0.5); font-size: 13px;
+  }
+
+  /* ── 指标卡片 ── */
+  .rw-metrics {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  }
+  .rw-metric-card {
+    background: rgba(255,253,248,0.9); border: 1px solid rgba(138,75,47,0.12);
+    border-radius: 14px; padding: 18px 16px; text-align: center;
+  }
+  .rw-metric-value {
+    font-size: 28px; font-weight: 800; color: var(--accent);
+    line-height: 1.2; margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .rw-metric-label {
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+
+  .rw-coming-soon {
+    margin-top: 14px; padding: 20px; text-align: center;
+    border: 1px dashed var(--border); border-radius: 14px;
+    color: var(--muted); font-size: 13px;
+    background: rgba(255,253,248,0.6);
+  }
+
+  /* ── 建议两列 ── */
+  .rw-suggestions {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+  }
+  .rw-suggest-col-title {
+    font-size: 13px; font-weight: 700; color: var(--ink); margin: 0 0 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .rw-suggest-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 6px;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
+  .rw-suggest-icon-up   { background: #dcfce7; color: #166534; }
+  .rw-suggest-icon-down { background: #dbeafe; color: #1e40af; }
+
+  .rw-suggest-card {
+    display: flex; gap: 0; border-radius: 12px; overflow: hidden;
+    background: var(--surface); border: 1px solid rgba(215,206,191,0.5);
+    margin-bottom: 10px; transition: box-shadow .15s;
+  }
+  .rw-suggest-card:hover {
+    box-shadow: 0 4px 14px rgba(92,66,39,0.08);
+  }
+  .rw-suggest-bar {
+    width: 4px; flex-shrink: 0;
+  }
+  .rw-suggest-bar-green { background: #22c55e; }
+  .rw-suggest-bar-blue  { background: #3b82f6; }
+
+  .rw-suggest-body {
+    padding: 12px 14px; flex: 1; min-width: 0;
+  }
+  .rw-suggest-label {
+    font-size: 13px; font-weight: 600; color: var(--ink);
+    line-height: 1.5; margin: 0;
+  }
+
+  /* ── 底部链接 ── */
+  .rw-footer {
+    text-align: center; padding: 12px 0 8px;
+  }
+  .rw-footer a {
+    color: var(--accent); text-decoration: none; font-weight: 600;
+    font-size: 13px; padding: 6px 16px; border-radius: 10px;
+    border: 1px solid var(--accent); transition: all .15s;
+    display: inline-block;
+  }
+  .rw-footer a:hover {
+    background: var(--accent); color: #fff;
+  }
+
+  /* ── 响应式 ── */
+  @media (max-width: 900px) {
+    .rw-metrics { grid-template-columns: repeat(2, 1fr); }
+    .rw-suggestions { grid-template-columns: 1fr; }
+  }
+</style>
+
+{# ═══ 面包屑 ═══ #}
+<nav class="rw-breadcrumb" aria-label="面包屑">
+  <a href="/opportunity-workspace">机会台</a>
+  <span aria-hidden="true">→</span>
+  <span style="color: var(--ink); font-weight: 700;">结果台</span>
+</nav>
+
+{# ═══ 页面标题 ═══ #}
+<div class="rw-page-header">
+  <h1 class="rw-page-title">结果与复盘</h1>
+  <p class="rw-page-subtitle">追踪已发布内容的真实表现，复盘策略与模板效果，沉淀可复用资产</p>
+</div>
+
+{# ═══ 区块 1：发布结果 ═══ #}
+<div class="rw-section">
+  <div class="rw-section-head">
+    <h2>发布结果</h2>
+    <p>已发布资产的基础表现</p>
+  </div>
+
+  {# TODO: 后续对接 API，将 mock 数据替换为后端 publish_results 变量 #}
+  {% set mock_results = [
+    {"name": "春季护肤成分解析｜5 款平价精华横评", "date": "2026-04-08", "views": 12400, "interactions": 1860, "conversion": "3.8%", "status": "excellent"},
+    {"name": "小众香氛种草清单｜办公室也能用的高级感", "date": "2026-04-05", "views": 8300,  "interactions": 1245, "conversion": "4.5%", "status": "excellent"},
+    {"name": "通勤穿搭公式｜极简风一周不重样",       "date": "2026-04-03", "views": 6100,  "interactions": 549,  "conversion": "2.1%", "status": "good"},
+    {"name": "居家收纳好物合集｜小空间救星",         "date": "2026-03-30", "views": 3200,  "interactions": 288,  "conversion": "1.6%", "status": "average"},
+    {"name": "健康轻食便当教程｜上班族 15 分钟搞定", "date": "2026-03-27", "views": 1500,  "interactions": 105,  "conversion": "0.9%", "status": "underperform"}
+  ] %}
+
+  {% if mock_results %}
+  <div class="rw-table-wrap">
+    <table class="rw-table">
+      <thead>
+        <tr>
+          <th>资产名称</th>
+          <th>发布日期</th>
+          <th style="text-align:right;">浏览量</th>
+          <th style="text-align:right;">互动量</th>
+          <th style="text-align:right;">转化率</th>
+          <th>状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in mock_results %}
+        <tr>
+          <td class="rw-cell-name">{{ item.name }}</td>
+          <td class="rw-cell-muted">{{ item.date }}</td>
+          <td class="rw-cell-num">{{ "{:,}".format(item.views) }}</td>
+          <td class="rw-cell-num">{{ "{:,}".format(item.interactions) }}</td>
+          <td class="rw-cell-num">{{ item.conversion }}</td>
+          <td>
+            {% if item.status == 'excellent' %}
+              <span class="rw-badge rw-badge-green">优秀</span>
+            {% elif item.status == 'good' %}
+              <span class="rw-badge rw-badge-blue">良好</span>
+            {% elif item.status == 'average' %}
+              <span class="rw-badge rw-badge-amber">一般</span>
+            {% else %}
+              <span class="rw-badge rw-badge-red">待优化</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="rw-empty">暂无已发布资产</div>
+  {% endif %}
+</div>
+
+{# ═══ 区块 2：模板与策略效果 ═══ #}
+<div class="rw-section">
+  <div class="rw-section-head">
+    <h2>模板与策略效果</h2>
+    <p>不同模板和策略的效果对比</p>
+  </div>
+
+  {# TODO: 后续对接 API，将 mock 指标替换为后端变量 #}
+  <div class="rw-metrics">
+    <div class="rw-metric-card">
+      <div class="rw-metric-value">12</div>
+      <div class="rw-metric-label">总发布数</div>
+    </div>
+    <div class="rw-metric-card">
+      <div class="rw-metric-value">4.2%</div>
+      <div class="rw-metric-label">平均互动率</div>
+    </div>
+    <div class="rw-metric-card">
+      <div class="rw-metric-value" style="font-size:18px;">种草清单模板</div>
+      <div class="rw-metric-label">最佳模板</div>
+    </div>
+    <div class="rw-metric-card">
+      <div class="rw-metric-value">78%</div>
+      <div class="rw-metric-label">策略采用率</div>
+    </div>
+  </div>
+
+  <div class="rw-coming-soon">
+    📊 即将推出策略效果对比图表 — 可视化对比不同模板与策略的互动表现
+  </div>
+</div>
+
+{# ═══ 区块 3：复盘建议 ═══ #}
+<div class="rw-section">
+  <div class="rw-section-head">
+    <h2>复盘建议</h2>
+    <p>系统基于历史数据生成的改进建议</p>
+  </div>
+
+  <div class="rw-suggestions">
+    {# ── 左列：建议强化 ── #}
+    <div>
+      <div class="rw-suggest-col-title">
+        <span class="rw-suggest-icon rw-suggest-icon-up">▲</span>
+        建议强化
+      </div>
+
+      <div class="rw-suggest-card">
+        <div class="rw-suggest-bar rw-suggest-bar-green"></div>
+        <div class="rw-suggest-body">
+          <p class="rw-suggest-label">视觉风格偏暖色系的内容互动率更高，建议后续统一暖色调视觉规范</p>
+        </div>
+      </div>
+      <div class="rw-suggest-card">
+        <div class="rw-suggest-bar rw-suggest-bar-green"></div>
+        <div class="rw-suggest-body">
+          <p class="rw-suggest-label">清单类模板表现稳定，建议继续使用并扩展至更多品类</p>
+        </div>
+      </div>
+      <div class="rw-suggest-card">
+        <div class="rw-suggest-bar rw-suggest-bar-green"></div>
+        <div class="rw-suggest-body">
+          <p class="rw-suggest-label">发布时间集中在早 8 点 - 9 点的内容浏览量高出 23%，建议保持此发布节奏</p>
+        </div>
+      </div>
+      <div class="rw-suggest-card">
+        <div class="rw-suggest-bar rw-suggest-bar-green"></div>
+        <div class="rw-suggest-body">
+          <p class="rw-suggest-label">含价格对比信息的种草内容转化率明显优于纯推荐类内容</p>
+        </div>
+      </div>
+    </div>
+
+    {# ── 右列：建议沉淀为资产 ── #}
+    <div>
+      <div class="rw-suggest-col-title">
+        <span class="rw-suggest-icon rw-suggest-icon-down">⬇</span>
+        建议沉淀为资产
+      </div>
+
+      <div class="rw-suggest-card">
+        <div class="rw-suggest-bar rw-suggest-bar-blue"></div>
+        <div class="rw-suggest-body">
+          <p class="rw-suggest-label">「种草清单」模板已验证，建议纳入品牌标准模板库</p>
+        </div>
+      </div>
+      <div class="rw-suggest-card">
+        <div class="rw-suggest-bar rw-suggest-bar-blue"></div>
+        <div class="rw-suggest-body">
+          <p class="rw-suggest-label">「成分解析 + 横评」内容框架复用率高，建议沉淀为可复用策略卡</p>
+        </div>
+      </div>
+      <div class="rw-suggest-card">
+        <div class="rw-suggest-bar rw-suggest-bar-blue"></div>
+        <div class="rw-suggest-body">
+          <p class="rw-suggest-label">暖色系封面设计规范已沉淀为视觉指南，建议同步至设计资产库</p>
+        </div>
+      </div>
+      <div class="rw-suggest-card">
+        <div class="rw-suggest-bar rw-suggest-bar-blue"></div>
+        <div class="rw-suggest-body">
+          <p class="rw-suggest-label">「办公室场景」系列选题持续高互动，建议固化为月度常规选题池</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ═══ 底部链接 ═══ #}
+<div class="rw-footer">
+  <a href="/opportunity-workspace">← 返回机会台</a>
+</div>
+{% endblock %}

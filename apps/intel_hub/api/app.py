@@ -1213,6 +1213,155 @@ def create_app(
             return response
         return {"bundle": bundle_dict}
 
+    # ── 四工作台极简化路由 ──────────────────────────────────
+
+    @app.get("/planning/{opportunity_id}")
+    async def planning_workspace_page(request: Request, opportunity_id: str) -> Any:
+        """策划台聚合 API：汇总机会卡 + brief + 策略 + 笔记计划 + 资产包。"""
+        t0 = time.perf_counter()
+        card = review_store.get_card(opportunity_id)
+        if card is None:
+            raise HTTPException(status_code=404, detail="机会卡未找到")
+        card_dict = card.model_dump(mode="json") if hasattr(card, "model_dump") else card
+
+        source_notes = _cp_adapter.get_source_notes(card.source_note_ids) if card.source_note_ids else []
+        source_ctx = []
+        for sn in source_notes[:1]:
+            ctx = {"note_context": sn} if isinstance(sn, dict) else {"note_context": {}}
+            source_ctx.append(ctx)
+
+        review_summary = _cp_adapter.get_review_summary(opportunity_id)
+
+        refresh_requested = _refresh_requested(request)
+        if refresh_requested:
+            try:
+                _cp_flow.build_note_plan(opportunity_id, with_generation=True)
+            except Exception:
+                pass
+
+        session_data = _cp_flow.get_session_data(opportunity_id)
+        brief_dict = session_data.get("brief", {})
+        match_result = session_data.get("match_result", {})
+        strategy = session_data.get("strategy", {})
+        note_plan = session_data.get("note_plan", {})
+        generated = {
+            "titles": session_data.get("titles", {}),
+            "body": session_data.get("body", {}),
+            "image_briefs": session_data.get("image_briefs", {}),
+        }
+        stale_flags = session_data.get("stale_flags", {})
+        pipeline_run_id = session_data.get("pipeline_run_id", "")
+        needs_build = not bool(brief_dict)
+
+        try:
+            bundle = _cp_flow.assemble_asset_bundle(opportunity_id)
+            bundle_dict = bundle.model_dump(mode="json") if hasattr(bundle, "model_dump") else {}
+        except Exception:
+            bundle_dict = {}
+
+        from apps.content_planning.viewmodels.planning_workspace_vm import build_workspace_vm
+        vm = build_workspace_vm(card_dict, brief_dict, match_result, strategy, note_plan, generated)
+
+        ctx = {
+            "request": request,
+            "opportunity_id": opportunity_id,
+            "card": card_dict,
+            "brief": brief_dict,
+            "match_result": match_result,
+            "strategy": strategy,
+            "note_plan": note_plan,
+            "generated": generated,
+            "stale_flags": stale_flags,
+            "pipeline_run_id": pipeline_run_id,
+            "needs_build": needs_build,
+            "source_notes": source_ctx,
+            "review_summary": review_summary or {},
+            "bundle": bundle_dict,
+            "refresh_url": f"/planning/{opportunity_id}?refresh=1",
+            "vm": vm,
+        }
+
+        if _wants_html(request):
+            response = _render("planning_workspace.html", ctx)
+            response.headers["X-Render-Timing-Ms"] = str(int((time.perf_counter() - t0) * 1000))
+            return response
+        return {k: v for k, v in ctx.items() if k not in ("request", "vm")}
+
+    @app.get("/opportunity-workspace")
+    async def opportunity_workspace_page(
+        request: Request,
+        type: str | None = None,
+        status: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
+        selected: str | None = None,
+    ) -> Any:
+        """机会台聚合 API：机会列表 + 可选的卡片详情侧边栏。"""
+        t0 = time.perf_counter()
+        review_store.sync_cards_from_json(_xhs_cards_json)
+
+        result = review_store.list_cards(
+            opportunity_type=type,
+            opportunity_status=status,
+            page=page,
+            page_size=page_size,
+        )
+        page_cards = [c.model_dump(mode="json") for c in result["items"]]
+        total = result["total"]
+        total_pages = max(1, (total + page_size - 1) // page_size)
+
+        tc = review_store.type_counts()
+        all_types = sorted(tc.keys())
+
+        details_path = resolve_repo_path("data/output/xhs_opportunities/pipeline_details.json")
+        total_notes = 0
+        if details_path.exists():
+            try:
+                total_notes = len(json.loads(details_path.read_text(encoding="utf-8")))
+            except Exception:
+                pass
+
+        stats = {
+            "total_notes": total_notes,
+            "total_cards": review_store.card_count(),
+            "type_counts": tc,
+        }
+
+        selected_card = None
+        selected_notes: list[dict[str, Any]] = []
+        selected_review_summary: dict[str, Any] = {}
+        if selected:
+            sel_card = review_store.get_card(selected)
+            if sel_card is not None:
+                selected_card = sel_card.model_dump(mode="json") if hasattr(sel_card, "model_dump") else sel_card
+                selected_notes = _cp_adapter.get_source_notes(sel_card.source_note_ids) if sel_card.source_note_ids else []
+                selected_review_summary = _cp_adapter.get_review_summary(selected) or {}
+
+        ctx = {
+            "request": request,
+            "cards": page_cards,
+            "stats": stats,
+            "type_labels": _xhs_type_labels,
+            "type_colors": _xhs_type_colors,
+            "type_bg": _xhs_type_bg,
+            "status_labels": _xhs_status_labels,
+            "status_colors": _xhs_status_colors,
+            "all_types": all_types,
+            "filters": {"type": type, "status": status},
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "selected_card": selected_card,
+            "selected_notes": selected_notes,
+            "selected_review_summary": selected_review_summary,
+        }
+
+        if _wants_html(request):
+            response = _render("opportunity_workspace.html", ctx)
+            response.headers["X-Render-Timing-Ms"] = str(int((time.perf_counter() - t0) * 1000))
+            return response
+        return {k: v for k, v in ctx.items() if k != "request"}
+
     # ── 新增页面路由（全链路体验升级） ─────────────────────────
     @app.get("/workspace", response_class=HTMLResponse)
     async def workspace_home(request: Request) -> HTMLResponse:

@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div style="background:linear-gradient(135deg,#fff3cd,#ffeeba);border:1px solid #ffc107;border-radius:12px;padding:12px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;font-size:13px;">
+  <span>此页面已迁移到新<strong>策划工作台</strong>，建议使用新版获得更好体验。</span>
+  <a href="/planning/{{ opportunity_id }}" style="background:var(--accent);color:#fff;padding:6px 16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:12px;">前往新策划台 →</a>
+</div>
 <style>
   body .shell { max-width: 1600px; }
   .cw-shell { max-width: 1600px; margin: 0 auto; }
@@ -77,8 +81,6 @@
   {# ═══ 全链路进度条 ═══ #}
   {% set lifecycle_statuses = {"brief": (brief.get("lifecycle_status","") if brief else ""), "strategy": (strategy.get("lifecycle_status","") if strategy else ""), "plan": (note_plan.get("lifecycle_status","") if note_plan else ""), "assets": ""} %}
   {% with current_stage="plan" %}{% include "_progress_bar.html" %}{% endwith %}
-  {% set is_promoted = true %}
-  {% include "_agent_pipeline_panel.html" %}
   {% set _brand_id = (brief.brand_id | default("", true)) if brief is defined and brief else "" %}
   {% set _gw = (brief.guardrail_warnings | default([], true)) if brief is defined and brief else [] %}
   {% with brand_id=_brand_id, brand_name=_brand_id, guardrail_warnings=_gw %}{% include "_brand_context_bar.html" %}{% endwith %}

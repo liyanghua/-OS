@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div style="background:linear-gradient(135deg,#fff3cd,#ffeeba);border:1px solid #ffc107;border-radius:12px;padding:12px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;font-size:13px;">
+  <span>此页面已迁移到新<strong>策划工作台</strong>，建议使用新版获得更好体验。</span>
+  <a href="/planning/{{ opportunity_id }}" style="background:var(--accent);color:#fff;padding:6px 16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:12px;">前往新策划台 →</a>
+</div>
 <style>
   .ws-shell { max-width: 1520px; margin: 0 auto; }
   .ws-anchor {

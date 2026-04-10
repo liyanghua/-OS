@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  body .shell { max-width: 1560px; }
+
+  .ow-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .ow-header h2 { margin: 0; font-size: 20px; font-weight: 800; color: var(--ink); }
+  .ow-header-stats { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+  .ow-toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 8px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .ow-toolbar-label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.3px; margin-right: 2px; }
+  .ow-toolbar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 8px; }
+
+  .ow-chip { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; text-decoration: none; color: var(--accent); background: var(--surface); border: 1px solid var(--border); transition: all .15s; cursor: pointer; }
+  .ow-chip:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .ow-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .ow-row { display: flex; gap: 20px; align-items: flex-start; }
+
+  .ow-left { width: 380px; flex-shrink: 0; position: sticky; top: 20px; align-self: flex-start; max-height: calc(100vh - 140px); overflow-y: auto; display: flex; flex-direction: column; }
+  .ow-left::-webkit-scrollbar { width: 4px; }
+  .ow-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .ow-list { flex: 1; min-height: 0; }
+
+  .ow-card-item { display: flex; text-decoration: none; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 0; margin-bottom: 10px; box-shadow: 0 4px 16px rgba(92,66,39,0.05); transition: box-shadow .15s, border-color .15s, background .15s; cursor: pointer; overflow: hidden; }
+  .ow-card-item:hover { box-shadow: 0 8px 28px rgba(92,66,39,0.12); border-color: rgba(138,75,47,0.35); }
+  .ow-card-item.selected { border-color: var(--accent); background: var(--accent-soft); }
+
+  .ow-card-stripe { width: 4px; flex-shrink: 0; border-radius: 18px 0 0 18px; }
+  .ow-card-body { flex: 1; min-width: 0; padding: 12px 14px; }
+
+  .ow-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; gap: 6px; }
+  .ow-type-pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; line-height: 1.4; white-space: nowrap; }
+  .ow-conf { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+
+  .ow-card-title { font-size: 14px; font-weight: 700; line-height: 1.45; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ow-card-insight { font-size: 12px; color: var(--muted); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .ow-card-bottom { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .ow-promoted-pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #166534; }
+
+  .ow-pagination { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 12px 0 4px; flex-shrink: 0; }
+  .ow-pagination a { text-decoration: none; }
+  .ow-page-info { font-size: 12px; color: var(--muted); }
+
+  .ow-right { flex: 1; min-width: 0; }
+
+  .ow-detail-header { margin-bottom: 16px; }
+  .ow-detail-title { font-size: 20px; font-weight: 800; line-height: 1.35; margin: 0 0 8px; color: var(--ink); }
+  .ow-detail-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }
+  .ow-status-pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .ow-id-label { font-size: 11px; color: var(--muted); font-family: monospace; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .ow-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+
+  .ow-detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: 0 4px 16px rgba(92,66,39,0.05); }
+  .ow-detail-card h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 6px; }
+  .ow-detail-card h3 .ow-icon { font-size: 15px; opacity: 0.7; }
+
+  .ow-evidence-item { padding: 8px 0; border-bottom: 1px solid rgba(215,206,191,0.5); font-size: 13px; line-height: 1.55; }
+  .ow-evidence-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .ow-evidence-kind { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); margin-right: 4px; }
+  .ow-evidence-conf { font-size: 11px; color: var(--muted); margin-left: 6px; }
+
+  .ow-risk-chip { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #fee2e2; color: #991b1b; margin: 0 6px 6px 0; }
+
+  .ow-next-step { font-size: 14px; line-height: 1.6; color: var(--ink); }
+  .ow-next-step li { margin-bottom: 4px; }
+
+  .ow-notes-section { margin-bottom: 16px; }
+  .ow-notes-summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent); padding: 10px 0; }
+  .ow-note-preview { display: flex; gap: 12px; padding: 12px 0; }
+  .ow-note-thumb { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: #f5f3f0; }
+  .ow-note-text { flex: 1; min-width: 0; }
+  .ow-note-title { font-size: 14px; font-weight: 700; line-height: 1.4; margin-bottom: 4px; }
+  .ow-note-body { font-size: 12px; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .ow-actions { display: flex; gap: 10px; flex-wrap: wrap; padding-top: 8px; }
+  .ow-btn { display: inline-block; box-sizing: border-box; border: none; border-radius: 14px; padding: 11px 22px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; text-align: center; text-decoration: none; transition: opacity .15s; }
+  .ow-btn:hover { opacity: 0.88; }
+  .ow-btn-primary { background: var(--accent); color: #fff; }
+  .ow-btn-secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--accent); }
+
+  .ow-empty-guide { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 480px; text-align: center; color: var(--muted); }
+  .ow-empty-icon { font-size: 56px; opacity: 0.18; margin-bottom: 16px; }
+  .ow-empty-text { font-size: 17px; font-weight: 600; }
+  .ow-empty-hint { font-size: 13px; margin-top: 6px; opacity: 0.7; }
+
+  .ow-list-empty { padding: 32px 16px; text-align: center; color: var(--muted); font-size: 13px; border: 1px dashed var(--border); border-radius: 16px; background: rgba(255,255,255,0.5); }
+
+  @media (max-width: 1100px) {
+    .ow-row { flex-direction: column; }
+    .ow-left { width: 100%; position: relative; top: 0; max-height: none; }
+    .ow-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+{# ═══ 顶部标题 + 统计 ═══ #}
+<div class="ow-header">
+  <h2>机会工作台</h2>
+  <span class="ow-header-stats">
+    共 {{ stats.total_cards if stats else 0 }} 张机会卡 · 本页 {{ cards|length if cards else 0 }} 张
+  </span>
+</div>
+
+{% set type_filter = filters.type if filters else None %}
+{% set status_filter = filters.status if filters else None %}
+
+{# ═══ 工具栏：类型 + 状态筛选 ═══ #}
+<div class="ow-toolbar">
+  <span class="ow-toolbar-label">类型</span>
+  <a href="/opportunity-workspace?{% if status_filter %}status={{ status_filter }}&{% endif %}page=1"
+     class="ow-chip {% if not type_filter %}active{% endif %}">全部</a>
+  {% for t in all_types or [] %}
+  <a href="/opportunity-workspace?type={{ t }}{% if status_filter %}&status={{ status_filter }}{% endif %}&page=1"
+     class="ow-chip {% if type_filter == t %}active{% endif %}"
+     {% if type_colors and type_colors.get(t) %}style="{% if type_filter == t %}background:{{ type_colors[t] }};color:#fff;border-color:{{ type_colors[t] }}{% endif %}"{% endif %}>
+    {{ type_labels.get(t, t) if type_labels else t }}
+  </a>
+  {% endfor %}
+
+  <span class="ow-toolbar-sep"></span>
+
+  <span class="ow-toolbar-label">状态</span>
+  <a href="/opportunity-workspace?{% if type_filter %}type={{ type_filter }}&{% endif %}page=1"
+     class="ow-chip {% if not status_filter %}active{% endif %}">全部</a>
+  {% for s in status_labels or {} %}
+  <a href="/opportunity-workspace?status={{ s }}{% if type_filter %}&type={{ type_filter }}{% endif %}&page=1"
+     class="ow-chip {% if status_filter == s %}active{% endif %}"
+     {% if status_colors and status_colors.get(s) %}style="{% if status_filter == s %}background:{{ status_colors[s] }};color:#fff;border-color:{{ status_colors[s] }}{% endif %}"{% endif %}>
+    {{ status_labels[s] }}
+  </a>
+  {% endfor %}
+</div>
+
+<div class="ow-row">
+
+  {# ═══════════════════════ 左栏：卡片列表 ═══════════════════════ #}
+  <aside class="ow-left">
+    <div class="ow-list">
+      {% if cards %}
+      {% for card in cards %}
+      {% set is_selected = selected_card and selected_card.opportunity_id == card.opportunity_id %}
+      {% set t = card.opportunity_type or 'unknown' %}
+      <a href="/opportunity-workspace?selected={{ card.opportunity_id }}&type={{ type_filter or '' }}&status={{ status_filter or '' }}&page={{ page or 1 }}"
+         class="ow-card-item {% if is_selected %}selected{% endif %}">
+        <div class="ow-card-stripe"
+             style="background: {{ type_colors.get(t, '#8a4b2f') if type_colors else '#8a4b2f' }};"></div>
+        <div class="ow-card-body">
+          <div class="ow-card-top">
+            <span class="ow-type-pill"
+                  style="background: {{ type_bg.get(t, 'var(--accent-soft)') if type_bg else 'var(--accent-soft)' }};
+                         color: {{ type_colors.get(t, 'var(--accent)') if type_colors else 'var(--accent)' }};">
+              {{ type_labels.get(t, t) if type_labels else t }}
+            </span>
+            <span class="ow-conf">{{ '%.0f'|format((card.confidence or 0) * 100) }}%</span>
+          </div>
+          <div class="ow-card-title">{{ card.title or '—' }}</div>
+          {% if card.insight_statement %}
+          <div class="ow-card-insight">{{ card.insight_statement }}</div>
+          {% endif %}
+          {% if card.opportunity_status == 'promoted' %}
+          <div class="ow-card-bottom">
+            <span class="ow-promoted-pill">已升级</span>
+          </div>
+          {% endif %}
+        </div>
+      </a>
+      {% endfor %}
+      {% else %}
+      <div class="ow-list-empty">
+        暂无机会卡数据。<br>请先通过情报采集生成机会洞察。
+      </div>
+      {% endif %}
+    </div>
+
+    {# ── 分页 ── #}
+    {% if total_pages and total_pages > 1 %}
+    <div class="ow-pagination">
+      {% if page and page > 1 %}
+      <a href="/opportunity-workspace?page={{ page - 1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if selected_card %}&selected={{ selected_card.opportunity_id }}{% endif %}"
+         class="ow-chip">‹ 上一页</a>
+      {% endif %}
+      <span class="ow-page-info">{{ page or 1 }} / {{ total_pages }}</span>
+      {% if page and page < total_pages %}
+      <a href="/opportunity-workspace?page={{ page + 1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if selected_card %}&selected={{ selected_card.opportunity_id }}{% endif %}"
+         class="ow-chip">下一页 ›</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </aside>
+
+  {# ═══════════════════════ 右栏：详情 ═══════════════════════ #}
+  <main class="ow-right">
+    {% if selected_card %}
+    {% set sc = selected_card %}
+    {% set sc_type = sc.opportunity_type or 'unknown' %}
+
+    {# ── 顶部 Meta ── #}
+    <div class="ow-detail-header">
+      <div class="ow-detail-title">{{ sc.title or '—' }}</div>
+      <div class="ow-detail-meta">
+        <span class="ow-type-pill"
+              style="background: {{ type_bg.get(sc_type, 'var(--accent-soft)') if type_bg else 'var(--accent-soft)' }};
+                     color: {{ type_colors.get(sc_type, 'var(--accent)') if type_colors else 'var(--accent)' }};">
+          {{ type_labels.get(sc_type, sc_type) if type_labels else sc_type }}
+        </span>
+        <span style="font-weight:700; color:var(--accent);">{{ '%.0f'|format((sc.confidence or 0) * 100) }}%</span>
+        {% if sc.opportunity_status %}
+        <span class="ow-status-pill"
+              style="background: {{ status_colors.get(sc.opportunity_status, 'var(--accent-soft)') if status_colors else 'var(--accent-soft)' }};
+                     color: {% if sc.opportunity_status == 'promoted' %}#166534{% else %}var(--accent){% endif %};">
+          {{ status_labels.get(sc.opportunity_status, sc.opportunity_status) if status_labels else sc.opportunity_status }}
+        </span>
+        {% endif %}
+        <span class="ow-id-label" title="{{ sc.opportunity_id }}">{{ sc.opportunity_id[:12] }}…</span>
+      </div>
+    </div>
+
+    {# ── 2×2 四宫格 ── #}
+    <div class="ow-grid">
+
+      {# 1. 核心洞察 #}
+      <div class="ow-detail-card">
+        <h3><span class="ow-icon">💡</span> 核心洞察</h3>
+        {% if sc.insight_statement %}
+        <div style="font-size:14px; line-height:1.6; font-weight:600; margin-bottom:8px;">{{ sc.insight_statement }}</div>
+        {% endif %}
+        {% if sc.engagement_insight %}
+        <div style="font-size:13px; line-height:1.55; color:var(--muted); margin-bottom:6px;">
+          <strong style="color:var(--ink);">互动洞察：</strong>{{ sc.engagement_insight }}
+        </div>
+        {% endif %}
+        {% if sc.cross_modal_verdict %}
+        <div style="font-size:13px; line-height:1.55; color:var(--muted);">
+          <strong style="color:var(--ink);">跨模态判断：</strong>{{ sc.cross_modal_verdict }}
+        </div>
+        {% endif %}
+        {% if not sc.insight_statement and not sc.engagement_insight and not sc.cross_modal_verdict %}
+        <div style="font-size:13px; color:var(--muted);">暂无洞察数据</div>
+        {% endif %}
+      </div>
+
+      {# 2. 关键证据 #}
+      <div class="ow-detail-card">
+        <h3><span class="ow-icon">📎</span> 关键证据</h3>
+        {% if sc.evidence_refs %}
+        {% for ref in sc.evidence_refs[:5] %}
+        <div class="ow-evidence-item">
+          {% if ref is mapping %}
+          {% if ref.source_kind %}<span class="ow-evidence-kind">{{ ref.source_kind }}</span>{% endif %}
+          <span>{{ ref.snippet[:80] if ref.snippet else '—' }}{% if ref.snippet and ref.snippet|length > 80 %}…{% endif %}</span>
+          {% if ref.confidence %}<span class="ow-evidence-conf">{{ '%.0f'|format((ref.confidence or 0) * 100) }}%</span>{% endif %}
+          {% else %}
+          <span>{{ ref }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% if sc.evidence_refs|length > 5 %}
+        <div style="font-size:12px; color:var(--muted); padding-top:6px;">还有 {{ sc.evidence_refs|length - 5 }} 条证据…</div>
+        {% endif %}
+        {% else %}
+        <div style="font-size:13px; color:var(--muted);">暂无证据引用</div>
+        {% endif %}
+      </div>
+
+      {# 3. 风险提醒 #}
+      <div class="ow-detail-card">
+        <h3><span class="ow-icon">⚠️</span> 风险提醒</h3>
+        {% if sc.risk_refs %}
+        <div style="display:flex; flex-wrap:wrap; gap:0;">
+          {% for risk in sc.risk_refs %}
+          <span class="ow-risk-chip">{{ risk }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="font-size:13px; color:var(--muted);">暂无风险标记</div>
+        {% endif %}
+      </div>
+
+      {# 4. 推荐动作 #}
+      <div class="ow-detail-card">
+        <h3><span class="ow-icon">🎯</span> 推荐动作</h3>
+        {% if sc.suggested_next_step %}
+          {% if sc.suggested_next_step is string %}
+          <div class="ow-next-step">{{ sc.suggested_next_step }}</div>
+          {% elif sc.suggested_next_step is iterable %}
+          <ol class="ow-next-step" style="margin:0; padding-left:18px;">
+            {% for step in sc.suggested_next_step %}
+            <li>{{ step }}</li>
+            {% endfor %}
+          </ol>
+          {% endif %}
+        {% else %}
+        <div style="font-size:13px; color:var(--muted);">暂无推荐动作</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── 原始笔记预览 (折叠) ── #}
+    {% if selected_notes %}
+    <details class="ow-notes-section">
+      <summary class="ow-notes-summary">原始笔记预览（{{ selected_notes|length }} 条）</summary>
+      {% set note = selected_notes[0] %}
+      {% set ctx = note.note_context if note.note_context is defined and note.note_context else note %}
+      <div class="ow-detail-card" style="margin-top:8px;">
+        <div class="ow-note-preview">
+          {% if ctx.cover_image %}
+          <img src="{{ ctx.cover_image }}" alt="封面" class="ow-note-thumb" loading="lazy"
+               onerror="this.style.display='none'">
+          {% endif %}
+          <div class="ow-note-text">
+            <div class="ow-note-title">{{ ctx.title or '（无标题）' }}</div>
+            {% set body = ctx.desc or ctx.body or ctx.content or '' %}
+            <div class="ow-note-body">{{ body[:200] }}{% if body|length > 200 %}…{% endif %}</div>
+          </div>
+        </div>
+      </div>
+    </details>
+    {% endif %}
+
+    {# ── 底部操作区 ── #}
+    <div class="ow-actions">
+      {% if sc.opportunity_status != 'promoted' %}
+      <button type="button" class="ow-btn ow-btn-primary" id="ow-btn-promote">升级为候选</button>
+      {% else %}
+      <a href="/planning/{{ sc.opportunity_id }}" class="ow-btn ow-btn-primary">进入策划台 →</a>
+      {% endif %}
+    </div>
+
+    {% else %}
+
+    {# ═══ 未选中状态 ═══ #}
+    <div class="ow-empty-guide">
+      <div class="ow-empty-icon">←</div>
+      <div class="ow-empty-text">选择一个机会卡查看详情</div>
+      <div class="ow-empty-hint">从左侧列表中点选感兴趣的机会进行深入分析</div>
+    </div>
+
+    {% endif %}
+  </main>
+</div>
+
+<script>
+(function () {
+  var promoteBtn = document.getElementById('ow-btn-promote');
+  if (!promoteBtn) return;
+
+  promoteBtn.addEventListener('click', async function () {
+    if (promoteBtn.disabled) return;
+    promoteBtn.disabled = true;
+    promoteBtn.textContent = '升级中…';
+
+    try {
+      var selectedId = {{ selected_card.opportunity_id | tojson if selected_card else 'null' }};
+      if (!selectedId) { promoteBtn.textContent = '升级为候选'; promoteBtn.disabled = false; return; }
+
+      var res = await fetch('/xhs-opportunities/' + encodeURIComponent(selectedId) + '/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({})
+      });
+
+      if (res.ok) {
+        location.reload();
+      } else {
+        var data = {};
+        try { data = await res.json(); } catch (e) {}
+        alert('升级失败：' + (data.detail || res.statusText));
+        promoteBtn.textContent = '升级为候选';
+        promoteBtn.disabled = false;
+      }
+    } catch (err) {
+      alert('网络错误：' + err.message);
+      promoteBtn.textContent = '升级为候选';
+      promoteBtn.disabled = false;
+    }
+  });
+})();
+</script>
+{% endblock %}

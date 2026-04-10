@@ -1,0 +1,705 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set _mr = match_result if match_result is not none else {} %}
+{% set _brief = brief if brief is not none else {} %}
+{% set _strategy = strategy if strategy is not none else {} %}
+{% set _card = card if card is not none else {} %}
+{% set _np = note_plan if note_plan is not none else {} %}
+{% set _gen = generated if generated is not none else {} %}
+{% set _vm = vm if vm is defined and vm else {} %}
+{% set _ctx = _vm.context if _vm and _vm.context else {} %}
+{% set _bs = _vm.brief_summary if _vm and _vm.brief_summary else {} %}
+{% set _tc = _vm.template_candidates if _vm and _vm.template_candidates else {} %}
+{% set _ss = _vm.strategy_summary if _vm and _vm.strategy_summary else {} %}
+{% set _pb = _vm.plan_board if _vm and _vm.plan_board else {} %}
+
+<style>
+  body .shell { max-width: 1560px; }
+  .pw-shell { max-width: 1560px; margin: 0 auto; }
+
+  /* ── 顶部状态条 ── */
+  .pw-status-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px; margin-bottom: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+  .pw-status-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .pw-status-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .pw-status-badge-warn { background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; }
+  .pw-status-badge-stale { background: #fef9c4; color: #92400e; border: 1px solid #fde68a; }
+  .pw-status-badge-ok { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+  .pw-status-id { font-size: 11px; color: var(--muted); margin-left: auto; font-family: monospace; }
+
+  /* ── 三栏布局 ── */
+  .pw-row { display: flex; gap: 20px; align-items: flex-start; }
+  .pw-left { width: 300px; flex-shrink: 0; position: sticky; top: 20px; align-self: flex-start; max-height: calc(100vh - 40px); overflow-y: auto; }
+  .pw-mid { flex: 1; min-width: 0; }
+  .pw-right { width: 350px; flex-shrink: 0; }
+
+  /* ── 卡片 ── */
+  .pw-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 14px; box-shadow: 0 8px 22px rgba(92,66,39,0.06); }
+  .pw-card h3 { margin: 0 0 10px; font-size: 14px; color: var(--accent); font-weight: 700; }
+
+  /* ── 区块 ── */
+  .pw-section { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; margin-bottom: 16px; box-shadow: 0 8px 22px rgba(92,66,39,0.06); }
+  .pw-section-title { display: flex; justify-content: space-between; align-items: center; margin: 0 0 14px; }
+  .pw-section-title h3 { margin: 0; font-size: 15px; color: var(--accent); font-weight: 700; }
+
+  /* ── Brief 2x2 Grid ── */
+  .pw-mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pw-mini-card { background: rgba(255,253,248,0.85); border: 1px solid rgba(138,75,47,0.12); border-radius: 14px; padding: 12px; }
+  .pw-mini-card-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; margin: 0 0 6px; }
+  .pw-mini-card-value { font-size: 13px; line-height: 1.55; color: var(--ink); }
+  .pw-mini-card-value li { margin-bottom: 2px; }
+
+  /* ── 模板卡 ── */
+  .pw-template-card { border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; background: rgba(255,255,255,0.65); }
+  .pw-template-primary { border-color: var(--accent); background: linear-gradient(135deg, rgba(138,75,47,0.04), rgba(255,253,248,0.9)); }
+  .pw-template-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .pw-template-alts { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pw-template-alt { flex: 1; min-width: 140px; border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: rgba(255,255,255,0.5); }
+  .pw-progress-track { height: 6px; border-radius: 999px; background: rgba(138,75,47,0.12); overflow: hidden; margin-top: 6px; }
+  .pw-progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), #c46a45); }
+
+  /* ── 策略 Block ── */
+  .pw-strategy-block { border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .pw-strategy-block-content { flex: 1; min-width: 0; }
+  .pw-strategy-label { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  .pw-strategy-items { font-size: 13px; line-height: 1.55; color: var(--ink); }
+  .pw-strategy-items li { margin-bottom: 3px; }
+
+  /* ── Plan Board ── */
+  .pw-plan-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .pw-plan-col-title { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+  .pw-plan-slot { border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; background: #f9f7f4; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+  .pw-plan-slot-idx { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* ── Badge ── */
+  .pw-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+
+  /* ── 按钮三级 ── */
+  .pw-btn { display: block; width: 100%; box-sizing: border-box; border: none; border-radius: 14px; padding: 11px 16px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; text-align: center; text-decoration: none; margin-bottom: 10px; transition: opacity 0.15s; }
+  .pw-btn:hover { opacity: 0.88; }
+  .pw-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .pw-btn-primary { background: var(--accent); color: #fff; }
+  .pw-btn-secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--accent); }
+  .pw-btn-tertiary { background: transparent; color: var(--accent); border: none; padding: 6px 12px; font-size: 12px; font-weight: 600; }
+  .pw-btn-tertiary:hover { background: var(--accent-soft); border-radius: 8px; }
+  .pw-btn-inline { display: inline-block; width: auto; margin: 0; padding: 6px 14px; font-size: 12px; }
+
+  /* ── 右栏 ── */
+  .pw-action-group { margin-bottom: 14px; }
+  .pw-agent-board { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border: 1px solid #c4b5fd; border-radius: 16px; padding: 14px; margin-bottom: 14px; }
+  .pw-agent-title { font-size: 12px; font-weight: 700; color: #6d28d9; margin-bottom: 8px; }
+  .pw-agent-text { font-size: 13px; line-height: 1.6; color: #4c1d95; }
+  .pw-ops-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+  /* ── 置信度条 ── */
+  .pw-conf-bar { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .pw-conf-track { flex: 1; height: 6px; border-radius: 999px; background: rgba(138,75,47,0.12); overflow: hidden; }
+  .pw-conf-fill { height: 100%; border-radius: 999px; }
+  .pw-conf-label { font-size: 12px; font-weight: 700; min-width: 38px; text-align: right; }
+
+  /* ── Stale Row ── */
+  .pw-stale-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .pw-stale { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+
+  /* ── 空状态 ── */
+  .pw-empty { text-align: center; padding: 24px 16px; color: var(--muted); font-size: 13px; border: 1px dashed var(--border); border-radius: 14px; background: rgba(255,255,255,0.5); }
+  .pw-empty-btn { display: inline-block; margin-top: 10px; padding: 8px 20px; background: var(--accent); color: #fff; border-radius: 12px; text-decoration: none; font-size: 13px; font-weight: 600; }
+
+  /* ── 定位和钩子展示 ── */
+  .pw-highlight { padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, rgba(138,75,47,0.06), rgba(255,253,248,0.95)); border: 1px solid rgba(138,75,47,0.15); margin-bottom: 10px; }
+  .pw-highlight-label { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+  .pw-highlight-value { font-size: 14px; font-weight: 600; line-height: 1.55; color: var(--ink); }
+
+  /* ── 抽屉 ── */
+  .pw-drawer-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 998; }
+  .pw-drawer-overlay.pw-drawer-open { display: block; }
+  .pw-drawer { position: fixed; right: 0; top: 0; width: 480px; max-width: 92vw; height: 100vh; background: var(--surface); border-left: 1px solid var(--border); z-index: 999; transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); display: flex; flex-direction: column; box-shadow: -8px 0 30px rgba(92,66,39,0.1); }
+  .pw-drawer.pw-drawer-open { transform: translateX(0); }
+  .pw-drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .pw-drawer-header h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
+  .pw-drawer-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 8px; }
+  .pw-drawer-close:hover { background: var(--accent-soft); }
+  .pw-drawer-body { flex: 1; overflow-y: auto; padding: 20px; }
+  .pw-form-field { margin-bottom: 16px; }
+  .pw-form-label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+  .pw-form-textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 13px; color: var(--ink); background: #fff; resize: vertical; min-height: 60px; }
+  .pw-form-textarea:focus { outline: none; border-color: var(--accent); }
+
+  /* ── Responsive ── */
+  @media (max-width: 1100px) {
+    .pw-row { flex-direction: column; }
+    .pw-left, .pw-right { width: 100%; position: relative; top: 0; max-height: none; }
+    .pw-plan-grid { grid-template-columns: 1fr; }
+    .pw-mini-grid { grid-template-columns: 1fr; }
+    .pw-drawer { width: 100%; max-width: 100vw; }
+  }
+</style>
+
+<div class="pw-shell">
+
+  {# ═══ 全链路进度条 ═══ #}
+  {% set lifecycle_statuses = {
+    "brief": (_brief.get("lifecycle_status","") if _brief else ""),
+    "strategy": (_strategy.get("lifecycle_status","") if _strategy else ""),
+    "plan": (_np.get("lifecycle_status","") if _np else ""),
+    "assets": ""
+  } %}
+  {% with current_stage="plan" %}{% include "_progress_bar.html" %}{% endwith %}
+
+  {# ═══ 对象状态条 ═══ #}
+  <div class="pw-status-bar">
+    <span class="pw-status-title">{{ _ctx.title or (_card.title if _card else '') or '策划台' }}</span>
+    {% if needs_build %}
+    <span class="pw-status-badge pw-status-badge-warn">需要构建</span>
+    {% elif stale_flags %}
+    {% set any_stale = stale_flags.values()|select|list|length > 0 if stale_flags else false %}
+    {% if any_stale %}
+    <span class="pw-status-badge pw-status-badge-stale">部分过期</span>
+    {% else %}
+    <span class="pw-status-badge pw-status-badge-ok">就绪</span>
+    {% endif %}
+    {% else %}
+    <span class="pw-status-badge pw-status-badge-ok">就绪</span>
+    {% endif %}
+    <span class="pw-status-id">{{ (opportunity_id|string)[:12] }}…</span>
+  </div>
+
+  {% if stale_flags %}
+  <div class="pw-stale-row">
+    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs','asset_bundle'] %}
+    {% set is_stale = stale_flags.get(key, false) %}
+    <span class="pw-stale" style="background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">{{ key }} {{ '⟳' if is_stale else '✓' }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if needs_build %}
+  <div style="margin-bottom: 14px; padding: 12px 14px; border-radius: 14px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; font-size: 13px; line-height: 1.6;">
+    当前 Session 尚未生成策略快照。
+    <a href="{{ refresh_url }}" style="color: #c2410c; font-weight: 700; text-decoration: none;">点击此处显式生成 →</a>
+  </div>
+  {% endif %}
+
+  <div class="pw-row">
+    {# ═══════════════════ 左栏 ═══════════════════ #}
+    <aside class="pw-left">
+
+      {# ── 机会摘要 ── #}
+      <div class="pw-card">
+        <h3>机会摘要</h3>
+        {% if _ctx.title or _card.title %}
+        <div style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">{{ _ctx.title or _card.title or '—' }}</div>
+        {% if _ctx.opportunity_type %}
+        <span class="pw-badge">{{ _ctx.opportunity_type }}</span>
+        {% endif %}
+        {% set conf_val = (_ctx.confidence or 0) %}
+        {% set conf_pct = (conf_val * 100) if conf_val <= 1 else conf_val %}
+        {% set conf_pct = [0, [conf_pct, 100]|min]|max %}
+        <div class="pw-conf-bar">
+          <div class="pw-conf-track">
+            <div class="pw-conf-fill" style="width: {{ '%.0f'|format(conf_pct) }}%; background: {{ '#2e7d32' if conf_pct >= 70 else '#f57f17' if conf_pct >= 40 else '#c62828' }};"></div>
+          </div>
+          <span class="pw-conf-label" style="color: {{ '#2e7d32' if conf_pct >= 70 else '#f57f17' if conf_pct >= 40 else '#c62828' }};">{{ '%.0f'|format(conf_pct) }}%</span>
+        </div>
+        {% if _ctx.insight_statement %}
+        <div style="margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: #fff8e1; border: 1px solid #ffe082;">
+          <div style="font-size: 13px; font-weight: 600; color: #e65100; line-height: 1.5;">{{ _ctx.insight_statement }}</div>
+        </div>
+        {% endif %}
+        {% else %}
+        <p style="margin: 0; font-size: 12px; color: var(--muted);">机会卡数据加载中…</p>
+        {% endif %}
+      </div>
+
+      {# ── 品牌上下文 ── #}
+      {% set _brand_id = (_brief.brand_id | default("", true)) if _brief else "" %}
+      {% if _brand_id %}
+      <div class="pw-card">
+        <h3>品牌上下文</h3>
+        {% set _gw = (_brief.guardrail_warnings | default([], true)) if _brief else [] %}
+        {% with brand_id=_brand_id, brand_name=_brand_id, guardrail_warnings=_gw %}{% include "_brand_context_bar.html" %}{% endwith %}
+      </div>
+      {% else %}
+      <div class="pw-card">
+        <h3>品牌上下文</h3>
+        <p style="margin: 0; font-size: 12px; color: var(--muted);">未绑定品牌</p>
+      </div>
+      {% endif %}
+
+      {# ── 审批状态 ── #}
+      <details style="margin-top: 4px;">
+        <summary style="cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 0;">审批状态</summary>
+        <div class="pw-card" style="margin-top: 6px;">
+          <p style="margin: 0; font-size: 12px; color: var(--muted);">暂无审批记录</p>
+        </div>
+      </details>
+
+      {# ── 来源笔记 ── #}
+      {% if source_notes %}
+      <details style="margin-top: 4px;">
+        <summary style="cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 0;">来源笔记 ({{ source_notes|length }})</summary>
+        <div class="pw-card" style="margin-top: 6px;">
+          {% for sn in source_notes[:5] %}
+          <div style="padding: 6px 0; border-bottom: 1px solid rgba(138,75,47,0.08); font-size: 12px; color: var(--ink);">{{ sn.title or sn.note_id[:12] ~ '…' }}</div>
+          {% endfor %}
+          {% if source_notes|length > 5 %}
+          <p style="margin: 6px 0 0; font-size: 11px; color: var(--muted);">还有 {{ source_notes|length - 5 }} 条…</p>
+          {% endif %}
+        </div>
+      </details>
+      {% endif %}
+
+    </aside>
+
+    {# ═══════════════════ 中栏 ═══════════════════ #}
+    <main class="pw-mid">
+
+      {# ── 区块 A: Brief 方向 ── #}
+      <div class="pw-section">
+        <div class="pw-section-title">
+          <h3>Brief 方向</h3>
+          {% if _brief %}
+          <button type="button" class="pw-btn pw-btn-secondary pw-btn-inline" onclick="openDrawer('编辑 Brief', document.getElementById('pw-brief-form-tpl').innerHTML)">编辑 Brief</button>
+          {% endif %}
+        </div>
+        {% if _bs %}
+        <div class="pw-mini-grid">
+          {% for key in ['what', 'why', 'direction', 'avoid'] %}
+          {% set slot = _bs[key] if _bs and key in _bs else none %}
+          {% if slot %}
+          <div class="pw-mini-card">
+            <div class="pw-mini-card-label">{{ slot.label }}</div>
+            <div class="pw-mini-card-value">
+              {% set slot_items = slot['items'] if 'items' in slot else [] %}
+              {% set real_items = slot_items|select|list if slot_items else [] %}
+              {% if real_items %}
+              <ul style="margin: 0; padding-left: 14px; list-style: disc;">
+                {% for item in real_items %}
+                {% if item and item|string|trim %}
+                <li>{{ item }}</li>
+                {% endif %}
+                {% endfor %}
+              </ul>
+              {% else %}
+              <span style="color: var(--muted);">—</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="pw-empty">
+          尚未生成 Brief
+          {% if refresh_url %}
+          <br><a class="pw-empty-btn" href="{{ refresh_url }}">生成 Brief</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {# ── 区块 B: 模板候选 ── #}
+      <div class="pw-section">
+        <div class="pw-section-title">
+          <h3>模板候选</h3>
+        </div>
+        {% set primary_tpl = _tc.primary if _tc else none %}
+        {% set secondary_tpls = _tc.secondaries if _tc else [] %}
+        {% if primary_tpl and primary_tpl.name %}
+        <div class="pw-template-card pw-template-primary">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span class="pw-template-name">{{ primary_tpl.name }}</span>
+            <span class="pw-badge" style="background: #e8f5e9; color: #2e7d32;">推荐</span>
+          </div>
+          {% set s_val = primary_tpl.score or 0 %}
+          {% set s_pct = (s_val * 100) if s_val <= 1 else s_val %}
+          {% set s_pct = [0, [s_pct, 100]|min]|max %}
+          <div class="pw-conf-bar">
+            <div class="pw-conf-track">
+              <div class="pw-conf-fill" style="width: {{ '%.0f'|format(s_pct) }}%; background: {{ '#2e7d32' if s_pct >= 70 else '#f57f17' if s_pct >= 40 else '#c62828' }};"></div>
+            </div>
+            <span class="pw-conf-label" style="color: {{ '#2e7d32' if s_pct >= 70 else '#f57f17' if s_pct >= 40 else '#c62828' }};">{{ '%.0f'|format(s_pct) }}分</span>
+          </div>
+          {% if primary_tpl.reason %}
+          <p style="margin: 8px 0 0; font-size: 13px; line-height: 1.55; color: var(--muted);">{{ primary_tpl.reason }}</p>
+          {% endif %}
+        </div>
+        {% if secondary_tpls %}
+        <div class="pw-template-alts">
+          {% for alt in secondary_tpls %}
+          <div class="pw-template-alt">
+            <div style="font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">{{ alt.name or '—' }}</div>
+            {% set a_val = alt.score or 0 %}
+            {% set a_pct = (a_val * 100) if a_val <= 1 else a_val %}
+            {% set a_pct = [0, [a_pct, 100]|min]|max %}
+            <div class="pw-conf-bar">
+              <div class="pw-conf-track">
+                <div class="pw-conf-fill" style="width: {{ '%.0f'|format(a_pct) }}%; background: var(--accent);"></div>
+              </div>
+              <span style="font-size: 11px; color: var(--muted); min-width: 30px; text-align: right;">{{ '%.0f'|format(a_pct) }}分</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="pw-empty">尚未匹配模板</div>
+        {% endif %}
+      </div>
+
+      {# ── 区块 C: 策略摘要 ── #}
+      <div class="pw-section">
+        <div class="pw-section-title">
+          <h3>策略摘要</h3>
+        </div>
+        {% if _strategy %}
+
+        {% if _strategy.positioning_statement %}
+        <div class="pw-highlight">
+          <div class="pw-highlight-label">定位陈述</div>
+          <div class="pw-highlight-value">{{ _strategy.positioning_statement }}</div>
+        </div>
+        {% endif %}
+        {% if _strategy.new_hook %}
+        <div class="pw-highlight">
+          <div class="pw-highlight-label">新钩子</div>
+          <div class="pw-highlight-value">{{ _strategy.new_hook }}</div>
+        </div>
+        {% endif %}
+
+        {% for key in ['title_strategy', 'body_strategy', 'image_strategy', 'tone_and_risk'] %}
+        {% set block = _ss[key] if _ss and key in _ss else none %}
+        {% if block %}
+        <div class="pw-strategy-block">
+          <div class="pw-strategy-block-content">
+            <div class="pw-strategy-label">{{ block.label }}</div>
+            <div class="pw-strategy-items">
+              {% set blk_items = block['items'] if 'items' in block else [] %}
+              {% set real_items = blk_items|select|list if blk_items else [] %}
+              {% if real_items %}
+              <ul style="margin: 0; padding-left: 16px;">
+                {% for item in real_items %}
+                {% if item and item|string|trim %}
+                <li>{{ item }}</li>
+                {% endif %}
+                {% endfor %}
+              </ul>
+              {% else %}
+              <span style="color: var(--muted);">—</span>
+              {% endif %}
+            </div>
+          </div>
+          <button type="button" class="pw-btn-tertiary" style="flex-shrink: 0;">重写</button>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        <div class="pw-empty">尚未生成策略</div>
+        {% endif %}
+      </div>
+
+      {# ── 区块 D: Plan Board ── #}
+      <div class="pw-section">
+        <div class="pw-section-title">
+          <h3>Plan Board</h3>
+        </div>
+        {% if _np %}
+        <div class="pw-plan-grid">
+
+          {# 标题候选 #}
+          <div>
+            <div class="pw-plan-col-title">标题候选</div>
+            {% set titles = _pb.titles if _pb else [] %}
+            {% if titles %}
+            {% for t in titles %}
+            <div class="pw-plan-slot">
+              <span class="pw-plan-slot-idx">{{ loop.index }}</span>
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 13px; font-weight: 600; line-height: 1.4;">{{ t.title_text or '—' }}</div>
+                {% if t.axis %}<span class="pw-badge" style="margin-top: 4px; font-size: 10px;">{{ t.axis }}</span>{% endif %}
+              </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div style="font-size: 12px; color: var(--muted); padding: 8px 0;">暂无标题</div>
+            {% endif %}
+          </div>
+
+          {# 正文摘要 #}
+          <div>
+            <div class="pw-plan-col-title">正文摘要</div>
+            {% set bs = _pb.body_summary if _pb else {} %}
+            {% if bs %}
+            {% if bs.opening_hook %}
+            <div style="margin-bottom: 8px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 3px;">开场钩子</div>
+              <div style="font-size: 13px; line-height: 1.55; color: var(--ink);">{{ bs.opening_hook }}</div>
+            </div>
+            {% endif %}
+            {% if bs.body_outline %}
+            <div style="margin-bottom: 8px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 3px;">提纲</div>
+              <div style="font-size: 12px; line-height: 1.55; color: var(--ink);">{{ bs.body_outline }}</div>
+            </div>
+            {% endif %}
+            {% if bs.cta_direction %}
+            <div>
+              <div style="font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 3px;">CTA 方向</div>
+              <div style="font-size: 12px; line-height: 1.55; color: var(--ink);">{{ bs.cta_direction }}</div>
+            </div>
+            {% endif %}
+            {% else %}
+            <div style="font-size: 12px; color: var(--muted); padding: 8px 0;">—</div>
+            {% endif %}
+          </div>
+
+          {# 图位概览 #}
+          <div>
+            <div class="pw-plan-col-title">图位概览</div>
+            {% set slots = _pb.image_slots if _pb else [] %}
+            {% if slots %}
+            {% for slot in slots %}
+            <div class="pw-plan-slot">
+              <span class="pw-plan-slot-idx">{{ slot.slot_index + 1 if slot.slot_index is defined else loop.index }}</span>
+              <div style="flex: 1; min-width: 0;">
+                {% if slot.role %}<div style="font-size: 11px; font-weight: 600; color: var(--accent);">{{ slot.role }}</div>{% endif %}
+                {% if slot.subject %}<div style="font-size: 12px; color: var(--ink); line-height: 1.4;">{{ slot.subject }}</div>{% endif %}
+              </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            {% for i in range(5) %}
+            <div class="pw-plan-slot">
+              <span class="pw-plan-slot-idx">{{ i + 1 }}</span>
+              <div style="font-size: 11px; color: var(--muted);">待定</div>
+            </div>
+            {% endfor %}
+            {% endif %}
+          </div>
+        </div>
+
+        {# 发布建议 #}
+        {% set pn = _pb.publish_notes if _pb else [] %}
+        {% if pn %}
+        <div style="margin-top: 14px; padding: 10px 14px; border-radius: 12px; background: rgba(138,75,47,0.04); border: 1px solid rgba(138,75,47,0.1);">
+          <div style="font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px;">发布建议</div>
+          <ul style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.55; color: var(--ink);">
+            {% for note in pn %}
+            <li>{{ note }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="pw-empty">
+          尚未生成内容计划
+          {% if refresh_url %}
+          <br><a class="pw-empty-btn" href="{{ refresh_url }}">生成计划</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+    </main>
+
+    {# ═══════════════════ 右栏 ═══════════════════ #}
+    <aside class="pw-right">
+
+      {# ── 主按钮区 ── #}
+      <div class="pw-action-group">
+        <button type="button" class="pw-btn pw-btn-primary" id="pw-btn-analyze">快速分析</button>
+        <button type="button" class="pw-btn pw-btn-secondary" id="pw-btn-council">发起委员会</button>
+        <button type="button" class="pw-btn pw-btn-secondary" id="pw-btn-variant">生成变体</button>
+      </div>
+
+      {# ── Agent Board ── #}
+      <div class="pw-agent-board">
+        <div class="pw-agent-title">Agent 状态</div>
+        <div class="pw-agent-text" id="pw-agent-status">
+          {% if pipeline_run_id %}
+          管线已运行 <code style="font-size: 11px; background: rgba(109,40,213,0.08); padding: 1px 6px; border-radius: 4px;">{{ (pipeline_run_id|string)[:10] }}…</code>
+          {% else %}
+          待命
+          {% endif %}
+        </div>
+        {% set is_promoted = true %}{% include "_agent_pipeline_panel.html" %}
+      </div>
+
+      {# ── 继续追问 ── #}
+      <details style="margin-bottom: 14px;">
+        <summary style="cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; padding: 4px 0;">继续追问</summary>
+        <div style="margin-top: 8px;">
+          <textarea id="pw-followup-input" rows="3" style="width: 100%; box-sizing: border-box; resize: vertical; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); font-family: inherit; font-size: 13px; background: var(--surface);" placeholder="输入追问内容…"></textarea>
+          <button type="button" class="pw-btn pw-btn-primary" style="margin-top: 8px;" id="pw-btn-followup">发送</button>
+        </div>
+      </details>
+
+      {# ── 操作区 ── #}
+      <div class="pw-ops-row">
+        <button type="button" class="pw-btn-tertiary" id="pw-btn-lock">锁定</button>
+        <button type="button" class="pw-btn-tertiary" id="pw-btn-approve">批准</button>
+      </div>
+      <a class="pw-btn pw-btn-primary" href="/content-planning/assets/{{ opportunity_id }}" style="text-decoration: none; margin-top: 10px;">查看资产包 →</a>
+
+      {# ── Review 摘要 ── #}
+      {% if review_summary %}
+      <div class="pw-card" style="margin-top: 14px;">
+        <h3>Review 摘要</h3>
+        <div style="font-size: 13px; line-height: 1.55; color: var(--ink);">{{ review_summary }}</div>
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+
+{# ═══════════════════ 抽屉 ═══════════════════ #}
+<div class="pw-drawer-overlay" id="pw-drawer-overlay" onclick="closeDrawer()"></div>
+<div class="pw-drawer" id="pw-drawer">
+  <div class="pw-drawer-header">
+    <h3 id="pw-drawer-title">抽屉</h3>
+    <button type="button" class="pw-drawer-close" onclick="closeDrawer()">&times;</button>
+  </div>
+  <div class="pw-drawer-body" id="pw-drawer-body"></div>
+</div>
+
+{# ── Brief 编辑表单模板（隐藏） ── #}
+<template id="pw-brief-form-tpl">
+  <form id="pw-brief-edit-form" onsubmit="return false;">
+    <div class="pw-form-field">
+      <label class="pw-form-label">机会标题</label>
+      <textarea class="pw-form-textarea" name="opportunity_title" rows="2">{{ _brief.get('opportunity_title', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">机会概述</label>
+      <textarea class="pw-form-textarea" name="opportunity_summary" rows="3">{{ _brief.get('opportunity_summary', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">目标用户</label>
+      <textarea class="pw-form-textarea" name="target_user" rows="2">{{ (_brief.get('target_user', [])|join('、')) if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">目标场景</label>
+      <textarea class="pw-form-textarea" name="target_scene" rows="2">{{ (_brief.get('target_scene', [])|join('、')) if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">内容目标</label>
+      <textarea class="pw-form-textarea" name="content_goal" rows="2">{{ _brief.get('content_goal', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">核心价值</label>
+      <textarea class="pw-form-textarea" name="primary_value" rows="2">{{ _brief.get('primary_value', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">推荐方向</label>
+      <textarea class="pw-form-textarea" name="suggested_direction" rows="2">{{ _brief.get('suggested_direction', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">规避方向</label>
+      <textarea class="pw-form-textarea" name="avoid_directions" rows="2">{{ (_brief.get('avoid_directions', [])|join('、')) if _brief else '' }}</textarea>
+    </div>
+    <div style="padding-top: 10px; border-top: 1px solid var(--border);">
+      <button type="button" class="pw-btn pw-btn-primary" onclick="alert('Brief 保存功能即将上线')">保存 Brief</button>
+    </div>
+  </form>
+</template>
+
+<script>
+(function () {
+  /* ── 抽屉逻辑 ── */
+  window.openDrawer = function(title, html) {
+    var drawer = document.getElementById('pw-drawer');
+    var overlay = document.getElementById('pw-drawer-overlay');
+    var titleEl = document.getElementById('pw-drawer-title');
+    var bodyEl = document.getElementById('pw-drawer-body');
+    if (titleEl) titleEl.textContent = title || '';
+    if (bodyEl) bodyEl.innerHTML = html || '';
+    if (drawer) drawer.classList.add('pw-drawer-open');
+    if (overlay) overlay.classList.add('pw-drawer-open');
+    document.body.style.overflow = 'hidden';
+  };
+
+  window.closeDrawer = function() {
+    var drawer = document.getElementById('pw-drawer');
+    var overlay = document.getElementById('pw-drawer-overlay');
+    if (drawer) drawer.classList.remove('pw-drawer-open');
+    if (overlay) overlay.classList.remove('pw-drawer-open');
+    document.body.style.overflow = '';
+  };
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeDrawer();
+  });
+
+  /* ── Agent & 操作占位 ── */
+  var opportunityId = {{ opportunity_id | tojson }};
+  var base = "/content-planning/xhs-opportunities/" + encodeURIComponent(opportunityId);
+
+  function postAndReload(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "Accept": "application/json"},
+      body: JSON.stringify(body || {})
+    });
+  }
+
+  var analyzeBtn = document.getElementById('pw-btn-analyze');
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener('click', function () {
+      var statusEl = document.getElementById('pw-agent-status');
+      if (statusEl) statusEl.textContent = 'Agent 分析中…';
+      analyzeBtn.disabled = true;
+      fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({agent_role: 'strategy_director', mode: 'fast'})
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        analyzeBtn.disabled = false;
+        if (statusEl) {
+          statusEl.innerHTML = '<strong>' + (data.agent_name || 'Agent') + '</strong>' +
+            ' <span style="color:var(--muted)">(' + Math.round((data.confidence || 0) * 100) + '%)</span>' +
+            '<div style="margin-top:6px;line-height:1.6;font-size:12px;">' + (data.explanation || '').replace(/\n/g, '<br>') + '</div>';
+        }
+      })
+      .catch(function() {
+        analyzeBtn.disabled = false;
+        if (statusEl) statusEl.textContent = '分析失败';
+      });
+    });
+  }
+
+  var councilBtn = document.getElementById('pw-btn-council');
+  if (councilBtn) {
+    councilBtn.addEventListener('click', function () {
+      openDrawer('发起策略委员会', '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">委员会功能即将上线</div>');
+    });
+  }
+
+  var variantBtn = document.getElementById('pw-btn-variant');
+  if (variantBtn) {
+    variantBtn.addEventListener('click', function () {
+      variantBtn.disabled = true;
+      fetch('/content-planning/asset-bundle/' + encodeURIComponent(opportunityId) + '/generate-variant', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({axis: 'tone', label: '语气变体'})
+      })
+      .then(function(r) { return r.json(); })
+      .then(function() { variantBtn.disabled = false; alert('变体已生成'); })
+      .catch(function() { variantBtn.disabled = false; alert('生成变体失败'); });
+    });
+  }
+
+  var lockBtn = document.getElementById('pw-btn-lock');
+  if (lockBtn) {
+    lockBtn.addEventListener('click', function () { alert('锁定功能即将上线'); });
+  }
+  var approveBtn = document.getElementById('pw-btn-approve');
+  if (approveBtn) {
+    approveBtn.addEventListener('click', function () { alert('批准功能即将上线'); });
+  }
+})();
+</script>
+{% endblock %}
