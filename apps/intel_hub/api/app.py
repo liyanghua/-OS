@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
 
@@ -140,6 +141,10 @@ def create_app(
     _note_ctx_index: dict[str, dict[str, Any]] = _load_note_context_index()
 
     app = FastAPI(title="Ontology Intel Hub")
+
+    _intel_hub_static = Path(__file__).resolve().parent / "static"
+    if _intel_hub_static.is_dir():
+        app.mount("/static", StaticFiles(directory=str(_intel_hub_static)), name="intel_hub_static")
 
     def list_payload(
         table_name: str,

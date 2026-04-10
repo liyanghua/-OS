@@ -26,6 +26,7 @@
 | 4 | 可观测卡片（参与者降级/耗时）、契约见 **D-017**；`test_stage_workflow_api` 断言 `session`/`observability` 与事件历史中含 `council_proposal_ready`、`council_session_completed` |
 | 跨页复用 | Strategy/Plan/Asset 的 Council 页可复用同一 HTTP/SSE 契约；`target_sub_object_type` 已在请求体预留 |
 | Brief 右栏统一对话 | `content_brief.html`：`#ws-unified-thread` 承载 Chat + Council SSE；`council_phase` 仅更新状态条、不与 v2 事件重复刷行；HTTP 结束后以折叠块追加完整记录；`StageDiscussionRequest.include_chat_context` 默认 true，将 `AgentThread.context_summary()` 拼入 Council 问题（链式） |
+| Strategy / Note Plan 右栏对齐 Brief | `content_strategy.html`（`#pw-unified-thread`）、`content_plan.html`（`#cw-unified-thread`）与 Brief 同模式：共享 `static/js/council_right_rail.js`（`CouncilRightRail.init`）、不订阅 `chat_response` SSE、Council `POST` 带 `include_chat_context: true`、HTTP 后折叠「服务端完整讨论记录」；Plan 页 API 前缀沿用模板 `cpApi`/`api_prefix` |
 
 ### Phase 0：基础修复 **已完成**
 

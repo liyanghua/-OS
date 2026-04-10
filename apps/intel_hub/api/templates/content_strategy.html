@@ -234,6 +234,19 @@
       </div>
 
       <div class="pw-card">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">右栏对话</h3>
+        <div id="pw-unified-thread" style="max-height: 320px; overflow-y: auto; font-size: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--bg-subtle, #fafafa); margin-bottom: 10px;">
+          <div style="color: var(--muted);">在此查看 Chat、Agent 与 Council 的同一滚动区…</div>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+          <input id="pw-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
+          <button id="pw-chat-send" type="button" style="padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 13px;">发送</button>
+          <button type="button" id="pw-chat-to-council" class="pw-btn pw-btn-ghost" style="padding: 6px 10px; font-size: 12px; width: auto; margin: 0;">预填 Council</button>
+        </div>
+        <div id="pw-chat-status" style="font-size: 11px; margin-top: 4px; color: var(--muted);"></div>
+      </div>
+
+      <div class="pw-card">
         <h3 style="font-size: 16px; color: var(--ink);">Ask the Council</h3>
         {% if stale_flags.get('brief') %}
         <div style="margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: #fff7ed; border: 1px solid #fdba74; font-size: 12px; line-height: 1.6; color: #9a3412;">
@@ -247,6 +260,12 @@
           <button type="button" class="pw-btn pw-btn-ghost" id="pw-btn-scorecard" style="margin-bottom:0;">刷新 Strategy 评分</button>
         </div>
         <div id="pw-council-status" style="font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--muted);"></div>
+        <div id="pw-council-phase" style="font-size:11px;color:var(--muted);margin-top:6px;min-height:16px;"></div>
+        <div id="pw-council-fsm" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+        <div id="pw-council-session-panel" style="display:none;font-size:11px;margin-top:6px;"></div>
+        <div id="pw-council-participants" style="font-size:11px;margin-top:6px;"></div>
+        <div id="pw-council-consensus" style="display:none;margin-top:8px;font-size:12px;"></div>
+        <div id="pw-council-disagreements" style="display:none;margin-top:8px;font-size:12px;"></div>
 
         <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
           <div class="pw-field-label" style="margin-top: 0;">Discussion Summary</div>
@@ -293,26 +312,11 @@
         <h3>策略版本历史</h3>
         <div id="pw-versions-list"></div>
       </div>
-
-      <div class="pw-card" style="margin-top: 12px;">
-        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">协同时间线</h3>
-        <div id="pw-timeline" style="max-height: 260px; overflow-y: auto; font-size: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--bg-subtle, #fafafa);">
-          <div style="color: var(--muted);">等待 Agent 事件...</div>
-        </div>
-      </div>
-
-      <div class="pw-card" style="margin-top: 12px;">
-        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">对话</h3>
-        <div style="display: flex; gap: 6px;">
-          <input id="pw-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
-          <button id="pw-chat-send" type="button" style="padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 13px;">发送</button>
-        </div>
-        <div id="pw-chat-status" style="font-size: 11px; margin-top: 4px; color: var(--muted);"></div>
-      </div>
     </aside>
   </div>
 </div>
 
+<script src="/static/js/council_right_rail.js"></script>
 <script>
 (function () {
   var opportunityId = {{ opportunity_id | tojson }};
@@ -512,27 +516,48 @@
     });
   });
 
-  var councilBtn = document.getElementById('pw-btn-council');
-  if (councilBtn) {
-    councilBtn.addEventListener('click', function() {
-      var question = (document.getElementById('pw-council-question').value || '').trim();
-      if (!question) { setCouncilStatus('请先输入问题', true); return; }
-      setCouncilStatus('Strategy Council 讨论中…', false);
-      fetch('/content-planning/stages/strategy/' + encodeURIComponent(opportunityId) + '/discussions', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({question: question})
-      })
-      .then(function(r){ return r.json(); })
-      .then(function(data){
+  if (typeof CouncilRightRail !== 'undefined') {
+    CouncilRightRail.init({
+      opportunityId: opportunityId,
+      apiPrefix: '/content-planning',
+      stage: 'strategy',
+      chatCurrentStage: 'strategy',
+      idPrefix: 'pw',
+      ids: {
+        thread: 'pw-unified-thread',
+        councilQuestion: 'pw-council-question',
+        councilStatus: 'pw-council-status',
+        councilPhase: 'pw-council-phase',
+        councilFsm: 'pw-council-fsm',
+        sessionPanel: 'pw-council-session-panel',
+        participants: 'pw-council-participants',
+        consensus: 'pw-council-consensus',
+        disagreements: 'pw-council-disagreements',
+        finalTranscript: 'pw-council-final-transcript',
+        chatInput: 'pw-chat-input',
+        chatSend: 'pw-chat-send',
+        chatStatus: 'pw-chat-status',
+        chatToCouncil: 'pw-chat-to-council',
+        councilBtn: 'pw-btn-council'
+      },
+      labels: {
+        threadEmptyHint: '在此查看 Chat、Agent 与 Council 的同一滚动区',
+        beginCouncilBanner: '── Strategy Council 进行中 ──',
+        userCouncilTitle: '你 · Council',
+        userChatTitle: '你',
+        councilRunningStatus: 'Strategy Council 讨论中…'
+      },
+      onCouncilHttpComplete: function (data) {
         if (data.proposal) {
           renderProposal(data.proposal);
           setCouncilStatus('已生成 proposal', false);
         } else {
           setCouncilStatus('未生成 proposal', true);
         }
-      })
-      .catch(function(){ setCouncilStatus('讨论失败', true); });
+      },
+      onCouncilHttpError: function () {
+        setCouncilStatus('讨论失败', true);
+      }
     });
   }
 
@@ -607,51 +632,6 @@
       .catch(function(){ list.innerHTML = '<div style="color:#c62828;font-size:12px;">加载失败</div>'; });
   });
 
-  // ── Agent Timeline via SSE（延后连接） ──
-  var timelineEl = document.getElementById('pw-timeline');
-  var evtSource = null;
-  scheduleDeferred(function() {
-    try {
-      evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
-      evtSource.addEventListener('agent_result', function(e) {
-        var data = JSON.parse(e.data);
-        appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-      });
-      evtSource.addEventListener('chat_response', function(e) {
-        var data = JSON.parse(e.data);
-        appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-      });
-      evtSource.addEventListener('object_updated', function(e) {
-        var data = JSON.parse(e.data);
-        appendTimeline('系统', data.object_type + ' 已更新', null);
-      });
-      evtSource.onerror = function() {
-        if (timelineEl) {
-          var div = document.createElement('div');
-          div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
-          div.textContent = '连接中断，刷新页面重连';
-          timelineEl.appendChild(div);
-        }
-      };
-    } catch(err) {}
-  }, 40);
-
-  function appendTimeline(name, text, confidence) {
-    if (!timelineEl) return;
-    if (timelineEl.querySelector(':scope > div:first-child') && timelineEl.children.length === 1 && timelineEl.children[0].textContent.indexOf('等待') >= 0) {
-      timelineEl.innerHTML = '';
-    }
-    var item = document.createElement('div');
-    item.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);';
-    var header = '<strong style="color:var(--accent)">' + (name || 'Agent') + '</strong>';
-    if (confidence != null) header += ' <span style="color:var(--muted)">(' + Math.round(confidence * 100) + '%)</span>';
-    var time = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
-    header += ' <span style="float:right;color:var(--muted);font-size:11px">' + time + '</span>';
-    item.innerHTML = header + '<div style="margin-top:4px;line-height:1.5;color:var(--ink)">' + (text || '').substring(0, 200) + '</div>';
-    timelineEl.appendChild(item);
-    timelineEl.scrollTop = timelineEl.scrollHeight;
-  }
-
   // ── Strategy Comparison ──
   var compareBtn = document.getElementById('pw-compare-btn');
   if (compareBtn) {
@@ -683,39 +663,6 @@
           zone.innerHTML = html;
         })
         .catch(function(){ zone.innerHTML = '<div style="color:#b71c1c;font-size:12px">加载失败</div>'; });
-    });
-  }
-
-  // ── Chat Input ──
-  var chatInput = document.getElementById('pw-chat-input');
-  var chatSend = document.getElementById('pw-chat-send');
-  var chatStatus = document.getElementById('pw-chat-status');
-  if (chatSend) {
-    chatSend.addEventListener('click', sendChat);
-  }
-  if (chatInput) {
-    chatInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
-    });
-  }
-  function sendChat() {
-    var msg = chatInput ? chatInput.value.trim() : '';
-    if (!msg) return;
-    appendTimeline('你', msg, null);
-    if (chatInput) chatInput.value = '';
-    if (chatStatus) chatStatus.textContent = 'Agent 思考中…';
-    fetch('/content-planning/chat/' + encodeURIComponent(opportunityId), {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: msg, role: 'human', current_stage: 'strategy', mode: 'fast'})
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (chatStatus) chatStatus.textContent = '';
-      appendTimeline(data.agent_name || 'Agent', data.explanation || '无回复', data.confidence);
-    })
-    .catch(function(err) {
-      if (chatStatus) chatStatus.textContent = '发送失败';
     });
   }
 

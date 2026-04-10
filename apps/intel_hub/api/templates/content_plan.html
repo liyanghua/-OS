@@ -207,6 +207,19 @@
       <div class="cw-agent-box"><div class="cw-agent-title">Agent 分析结果</div><div class="cw-agent-text" id="cw-agent-explanation">点击下方 AI Chips 获取 Agent 建议。</div></div>
 
       <div class="cw-card cp-card">
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">右栏对话</h3>
+        <div id="cw-unified-thread" style="max-height: 320px; overflow-y: auto; font-size: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--bg-subtle, #fafafa); margin-bottom: 10px;">
+          <div style="color: var(--muted);">在此查看 Chat、Agent 与 Council 的同一滚动区…</div>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+          <input id="cw-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
+          <button id="cw-chat-send" type="button" style="padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 13px;">发送</button>
+          <button type="button" id="cw-chat-to-council" class="cw-btn secondary" style="padding: 6px 10px; font-size: 12px; margin: 0;">预填 Council</button>
+        </div>
+        <div id="cw-chat-status" style="font-size: 11px; margin-top: 4px; color: var(--muted);"></div>
+      </div>
+
+      <div class="cw-card cp-card">
         <h3 style="font-size: 16px; color: var(--ink);">Ask the Council</h3>
         {% if stale_flags.get('strategy') %}
         <div style="margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: #fff7ed; border: 1px solid #fdba74; font-size: 12px; line-height: 1.6; color: #9a3412;">
@@ -220,6 +233,12 @@
           <button type="button" class="cw-btn secondary" id="cw-btn-scorecard" style="margin-bottom:0;">刷新 Plan 评分</button>
         </div>
         <div id="cw-council-status" style="font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--muted);"></div>
+        <div id="cw-council-phase" style="font-size:11px;color:var(--muted);margin-top:6px;min-height:16px;"></div>
+        <div id="cw-council-fsm" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+        <div id="cw-council-session-panel" style="display:none;font-size:11px;margin-top:6px;"></div>
+        <div id="cw-council-participants" style="font-size:11px;margin-top:6px;"></div>
+        <div id="cw-council-consensus" style="display:none;margin-top:8px;font-size:12px;"></div>
+        <div id="cw-council-disagreements" style="display:none;margin-top:8px;font-size:12px;"></div>
 
         <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
           <div class="cw-meta" style="font-weight:700;margin:0 0 6px;">Discussion Summary</div>
@@ -314,22 +333,6 @@
         <button id="cw-load-collab" type="button" style="margin-top: 8px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; cursor: pointer; font-size: 12px; color: var(--accent);">刷新协同状态</button>
         <p style="margin:6px 0 0;font-size:11px;color:var(--muted);">进入页面时不自动拉取流水线与参与者；需要时点击上方按钮。</p>
       </div>
-
-      <div class="cw-card" style="margin-top: 12px;">
-        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">协同时间线</h3>
-        <div id="cw-timeline" style="max-height: 260px; overflow-y: auto; font-size: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--bg-subtle, #fafafa);">
-          <div style="color: var(--muted);">等待 Agent 事件...</div>
-        </div>
-      </div>
-
-      <div class="cw-card" style="margin-top: 12px;">
-        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">对话</h3>
-        <div style="display: flex; gap: 6px;">
-          <input id="cw-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
-          <button id="cw-chat-send" type="button" style="padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 13px;">发送</button>
-        </div>
-        <div id="cw-chat-status" style="font-size: 11px; margin-top: 4px; color: var(--muted);"></div>
-      </div>
     </aside>
   </div>
 </div>
@@ -345,6 +348,7 @@
 } | tojson }}
 </script>
 
+<script src="/static/js/council_right_rail.js"></script>
 <script>
 (function () {
   var apiPrefix = {{ (api_prefix | default('/content-planning')) | tojson }};
@@ -611,27 +615,49 @@
     postRegenerate('/generate-image-briefs', this);
   });
 
-  var councilBtn = document.getElementById('cw-btn-council');
-  if (councilBtn) {
-    councilBtn.addEventListener('click', function() {
-      var question = (document.getElementById('cw-council-question').value || '').trim();
-      if (!question) { setCouncilStatus('请先输入问题', true); return; }
-      setCouncilStatus('Plan Council 讨论中…', false);
-      fetch(cpApi + '/stages/plan/' + encodeURIComponent(opportunityId) + '/discussions', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({question: question})
-      })
-      .then(function(r){ return r.json(); })
-      .then(function(data){
+  if (typeof CouncilRightRail !== 'undefined') {
+    CouncilRightRail.init({
+      opportunityId: opportunityId,
+      apiPrefix: cpApi,
+      stage: 'plan',
+      chatCurrentStage: 'plan',
+      idPrefix: 'cw',
+      sseStreamPath: cpApi + '/stream/' + encodeURIComponent(opportunityId),
+      ids: {
+        thread: 'cw-unified-thread',
+        councilQuestion: 'cw-council-question',
+        councilStatus: 'cw-council-status',
+        councilPhase: 'cw-council-phase',
+        councilFsm: 'cw-council-fsm',
+        sessionPanel: 'cw-council-session-panel',
+        participants: 'cw-council-participants',
+        consensus: 'cw-council-consensus',
+        disagreements: 'cw-council-disagreements',
+        finalTranscript: 'cw-council-final-transcript',
+        chatInput: 'cw-chat-input',
+        chatSend: 'cw-chat-send',
+        chatStatus: 'cw-chat-status',
+        chatToCouncil: 'cw-chat-to-council',
+        councilBtn: 'cw-btn-council'
+      },
+      labels: {
+        threadEmptyHint: '在此查看 Chat、Agent 与 Council 的同一滚动区',
+        beginCouncilBanner: '── Plan Council 进行中 ──',
+        userCouncilTitle: '你 · Council',
+        userChatTitle: '你',
+        councilRunningStatus: 'Plan Council 讨论中…'
+      },
+      onCouncilHttpComplete: function (data) {
         if (data.proposal) {
           renderProposal(data.proposal);
           setCouncilStatus('已生成 proposal', false);
         } else {
           setCouncilStatus('未生成 proposal', true);
         }
-      })
-      .catch(function(){ setCouncilStatus('讨论失败', true); });
+      },
+      onCouncilHttpError: function () {
+        setCouncilStatus('讨论失败', true);
+      }
     });
   }
 
@@ -864,83 +890,6 @@
       }).catch(function(){});
   }
 
-  // ── Agent Timeline via SSE（延后连接） ──
-  var timelineEl = document.getElementById('cw-timeline');
-  var evtSource = null;
-  scheduleDeferred(function() {
-  try {
-    evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
-    evtSource.addEventListener('agent_result', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-    });
-    evtSource.addEventListener('chat_response', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-    });
-    evtSource.addEventListener('object_updated', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline('系统', data.object_type + ' 已更新', null);
-    });
-    evtSource.onerror = function() {
-      if (timelineEl) {
-        var div = document.createElement('div');
-        div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
-        div.textContent = '连接中断，刷新页面重连';
-        timelineEl.appendChild(div);
-      }
-    };
-  } catch(err) {}
-  }, 40);
-
-  function appendTimeline(name, text, confidence) {
-    if (!timelineEl) return;
-    if (timelineEl.querySelector(':scope > div:first-child') && timelineEl.children.length === 1 && timelineEl.children[0].textContent.indexOf('等待') >= 0) {
-      timelineEl.innerHTML = '';
-    }
-    var item = document.createElement('div');
-    item.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);';
-    var header = '<strong style="color:var(--accent)">' + (name || 'Agent') + '</strong>';
-    if (confidence != null) header += ' <span style="color:var(--muted)">(' + Math.round(confidence * 100) + '%)</span>';
-    var time = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
-    header += ' <span style="float:right;color:var(--muted);font-size:11px">' + time + '</span>';
-    item.innerHTML = header + '<div style="margin-top:4px;line-height:1.5;color:var(--ink)">' + (text || '').substring(0, 200) + '</div>';
-    timelineEl.appendChild(item);
-    timelineEl.scrollTop = timelineEl.scrollHeight;
-  }
-
-  // ── Chat Input ──
-  var chatInput = document.getElementById('cw-chat-input');
-  var chatSend = document.getElementById('cw-chat-send');
-  var chatStatus = document.getElementById('cw-chat-status');
-  if (chatSend) {
-    chatSend.addEventListener('click', sendChat);
-  }
-  if (chatInput) {
-    chatInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
-    });
-  }
-  function sendChat() {
-    var msg = chatInput ? chatInput.value.trim() : '';
-    if (!msg) return;
-    appendTimeline('你', msg, null);
-    if (chatInput) chatInput.value = '';
-    if (chatStatus) chatStatus.textContent = 'Agent 思考中…';
-    fetch('/content-planning/chat/' + encodeURIComponent(opportunityId), {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: msg, role: 'human', current_stage: 'plan', mode: 'fast'})
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (chatStatus) chatStatus.textContent = '';
-      appendTimeline(data.agent_name || 'Agent', data.explanation || '无回复', data.confidence);
-    })
-    .catch(function(err) {
-      if (chatStatus) chatStatus.textContent = '发送失败';
-    });
-  }
 })();
 </script>
 {% endblock %}
