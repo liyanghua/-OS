@@ -150,6 +150,8 @@ def test_stage_discussion_creates_persisted_brief_proposal(stage_client: TestCli
     assert payload["proposal_id"]
     assert payload["proposal"]["base_version"] == 1
     assert payload["proposal"]["proposed_updates"]["primary_value"].startswith("防水好打理")
+    assert payload.get("session", {}).get("session_id")
+    assert payload.get("observability", {}).get("trace_id")
 
     discussion_detail = stage_client.get(f"/content-planning/discussions/{payload['discussion_id']}")
     assert discussion_detail.status_code == 200
@@ -159,6 +161,12 @@ def test_stage_discussion_creates_persisted_brief_proposal(stage_client: TestCli
     assert proposal_detail.status_code == 200
     assert proposal_detail.json()["stage"] == "brief"
     assert proposal_detail.json()["base_version"] == 1
+
+    from apps.content_planning.gateway.event_bus import event_bus
+
+    hist_types = {e.event_type for e in event_bus.get_history("opp_stage_001")}
+    assert "council_proposal_ready" in hist_types
+    assert "council_session_completed" in hist_types
 
 
 def test_apply_brief_proposal_respects_locks_and_marks_downstream_stale(

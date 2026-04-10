@@ -465,3 +465,14 @@
   - 当 MediaCrawler 有真实 output 后，验证字段映射准确性
   - 当需要增量加载时，补充 mtime/日期过滤逻辑
   - 当新增平台（抖音/快手等）时，扩展 `mediacrawler_loader` 或新增 loader
+
+## D-017 Council v2：HTTP 四段结构 + 标准化 SSE + 向后兼容
+
+- **决策内容**：
+  - **HTTP**：`POST .../discussions` 顶层同时返回 `session`（`CouncilSession`）、`discussion`、`proposal`、`observability`（`CouncilObservability`），与 `docs/council_upgrade_v2.md` 对齐。
+  - **SSE**：标准 10 类事件名 `council_session_started` … `council_session_failed`，payload 中带 `event_version: 2`；短期内保留 `council_phase`、`discussion_message` 等旧事件名，避免一次性打断已有订阅端。
+  - **编排**：`DiscussionOrchestrator.discuss` 支持 `on_council_event` + `council_session_id`；专家并行前后发 participant / synthesis 粒度事件；路由层在持久化后发 `council_proposal_ready`、`council_session_completed`，异常发 `council_session_failed`。
+- **原因**：管理端需要「可观察、可判断、可继续流转」的 Council 对象，而不是仅依赖整轮 HTTP 结束后的单次渲染。
+- **替代方案**：只扩 JSON 不扩 SSE（主区仍无法增量感知）；或只发 SSE 不固化 HTTP 形状（契约不清晰）。
+- **当前影响**：Brief 页 `content_brief.html` 使用显式 FSM + SSE 增量行 + HTTP 落盘渲染；Strategy/Plan/Asset 等页可复用同一 `session`/`observability` 契约接线。
+- **后续重审**：当接入分布式 tracing 时，将 `trace_id` 与外部 APM 对齐；旧 SSE 事件废弃时间表单独公告。

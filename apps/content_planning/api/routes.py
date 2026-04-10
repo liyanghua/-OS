@@ -9,13 +9,16 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from apps.content_planning.agents.base import AgentContext, AgentMessage, AgentResult, AgentThread, RequestContextBundle
+from apps.content_planning.adapters.llm_router import llm_router
 from apps.content_planning.agents.discussion import (
+    AGENT_DISPLAY_NAMES,
     DiscussionOrchestrator,
     DiscussionRound,
     compute_applyability,
@@ -39,6 +42,15 @@ from apps.content_planning.schemas.agent_workflow import (
     ProposalFieldChange,
     StageProposal,
     StageScorecard,
+)
+from apps.content_planning.schemas.council_v2 import (
+    CouncilAgentObs,
+    CouncilModelSummary,
+    CouncilObservability,
+    CouncilParticipantSpec,
+    CouncilSession,
+    CouncilSynthesisObs,
+    new_alternative_id,
 )
 from apps.content_planning.schemas.evaluation import PipelineEvaluation, StageEvaluation
 from apps.content_planning.services.opportunity_to_plan_flow import OpportunityToPlanFlow
@@ -273,6 +285,7 @@ class StageDiscussionRequest(BaseModel):
     run_mode: Literal["agent_assisted_single", "agent_assisted_council"] = "agent_assisted_council"
     parent_discussion_id: str = ""
     target_sub_object_type: str = ""
+    include_chat_context: bool = True
 
 
 class ApplyProposalRequest(BaseModel):
@@ -1150,6 +1163,105 @@ def _build_agent_context(
     )
 
 
+def _proposal_diff_from_rows(diff_rows: list[dict[str, Any]]) -> ProposalDiff:
+    return ProposalDiff(
+        changes=[
+            ProposalFieldChange(
+                field=r["field"],
+                before=r["before"],
+                after=r["after"],
+                blocked=r["blocked"],
+                change_type="modify",
+                confidence=0.0,
+                reason="",
+            )
+            for r in diff_rows
+        ]
+    )
+
+
+def _enrich_alternatives(alts: list[dict[str, str]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for a in alts:
+        out.append(
+            {
+                "alternative_id": new_alternative_id(),
+                "label": str(a.get("label") or ""),
+                "summary": str(a.get("summary") or ""),
+                "description": str(a.get("summary") or ""),
+            }
+        )
+    return out
+
+
+def _build_fallback_action_payload(
+    council_dt: str,
+    applyability: str,
+    consensus: str,
+) -> dict[str, Any]:
+    if council_dt == "applyable" and applyability == "direct":
+        return {}
+    return {
+        "type": "apply_as_draft",
+        "target_field": "competitive_angle",
+        "content": (consensus or "")[:2000],
+    }
+
+
+def _build_council_observability(run_id: str, round_data: DiscussionRound) -> CouncilObservability:
+    agents: list[CouncilAgentObs] = []
+    for msg in round_data.messages:
+        if msg.role != "agent":
+            continue
+        m = msg.metadata or {}
+        if m.get("status") == "failed":
+            agents.append(
+                CouncilAgentObs(
+                    agent_id=msg.agent_role,
+                    used_llm=bool(m.get("used_llm", False)),
+                    degraded=True,
+                    model="",
+                    timing_ms=int(m.get("timing_ms") or 0),
+                )
+            )
+            continue
+        agents.append(
+            CouncilAgentObs(
+                agent_id=msg.agent_role,
+                used_llm=bool(m.get("used_llm", False)),
+                degraded=bool(m.get("degraded", False)),
+                model=str(m.get("model") or ""),
+                timing_ms=int(m.get("timing_ms") or 0),
+            )
+        )
+    return CouncilObservability(
+        trace_id=run_id,
+        session_id=run_id,
+        model_summary=CouncilModelSummary(
+            llm_available=llm_router.is_any_available(),
+        ),
+        agents=agents,
+        synthesis=CouncilSynthesisObs(
+            used_llm=round_data.synthesis_used_llm,
+            degraded=round_data.synthesis_degraded,
+            timing_ms=round_data.synthesis_timing_ms,
+        ),
+    )
+
+
+def _format_chat_context_for_council(opportunity_id: str, *, max_chars: int = 2400) -> str:
+    """将同 opportunity 的 Conversation 线程摘要拼入 Council 问题前（链式上下文）。"""
+    thread: AgentThread | None = _agent_threads.get(opportunity_id)
+    if not thread or not thread.messages:
+        return ""
+    summary = thread.context_summary()
+    if not summary.strip():
+        return ""
+    if len(summary) > max_chars:
+        summary = summary[-max_chars:]
+    return f"[Conversation 前序]\n{summary}\n\n"
+
+
 async def _run_stage_discussion(
     opportunity_id: str,
     stage: str,
@@ -1158,6 +1270,7 @@ async def _run_stage_discussion(
     *,
     parent_discussion_id: str = "",
     target_sub_object_type: str = "",
+    include_chat_context: bool = True,
 ) -> dict[str, Any]:
     total_t0 = time.perf_counter()
     context_t0 = time.perf_counter()
@@ -1177,6 +1290,10 @@ async def _run_stage_discussion(
             discussion_question = (
                 f"[Follow-up · 前置讨论 {parent_discussion_id}]\n前置摘要：{summ}\n\n用户追问：{question}"
             )
+    elif include_chat_context:
+        prefix = _format_chat_context_for_council(opportunity_id)
+        if prefix:
+            discussion_question = prefix + f"[Council 当前问题]\n{question}"
 
     task = AgentTask(
         opportunity_id=opportunity_id,
@@ -1232,7 +1349,21 @@ async def _run_stage_discussion(
             payload={"phase": phase, **payload},
         ))
 
+    def _on_council_event(event_name: str, data: dict[str, Any]) -> None:
+        event_bus.publish_sync(
+            ObjectEvent(
+                event_type=event_name,
+                opportunity_id=opportunity_id,
+                object_type="discussion",
+                object_id=run.run_id,
+                agent_role="council",
+                agent_name="",
+                payload={"event_version": 2, **data},
+            )
+        )
+
     try:
+        council_started_at = datetime.now(UTC)
         discussion_t0 = time.perf_counter()
         discussion_mode = "fast" if run_mode == "agent_assisted_single" else "deep"
         round_data = orchestrator.discuss(
@@ -1247,17 +1378,26 @@ async def _run_stage_discussion(
             ),
             on_message=_on_message,
             on_phase=_on_phase,
+            on_council_event=_on_council_event,
+            council_session_id=run.run_id,
             mode=cast(Literal["fast", "deep"], discussion_mode),
         )
         discussion_ms = int((time.perf_counter() - discussion_t0) * 1000)
+        specialists_ms = sum(round_data.specialist_timings_ms.values())
+        synthesis_ms = round_data.synthesis_timing_ms
         diff_rows, blocked_fields = flow.build_stage_diff(opportunity_id, normalized_stage, round_data.proposed_updates)
         council_dt = reconcile_council_decision_type(
             diff_rows=diff_rows,
             disagreements=round_data.disagreements,
             open_questions=round_data.open_questions,
             model_decision_hint=round_data.model_decision_hint,
+            disagreements_structured=round_data.disagreements_structured,
         )
         applyability = compute_applyability(diff_rows)
+        consensus_body = round_data.consensus or ""
+        exec_summary = round_data.executive_summary or consensus_body[:160]
+        alts_enriched = _enrich_alternatives(round_data.alternatives)
+        fb_action = _build_fallback_action_payload(str(council_dt), str(applyability), consensus_body)
         proposal = StageProposal(
             opportunity_id=opportunity_id,
             stage=normalized_stage,
@@ -1265,9 +1405,9 @@ async def _run_stage_discussion(
             target_object_id=snapshot["object_id"],
             base_version=snapshot["version"],
             run_mode=cast(Literal["baseline_compiler", "agent_assisted_single", "agent_assisted_council"], run_mode),
-            summary=round_data.consensus or "",
+            summary=exec_summary,
             proposed_updates=round_data.proposed_updates,
-            diff=ProposalDiff(changes=[ProposalFieldChange(**row) for row in diff_rows]),
+            diff=_proposal_diff_from_rows(diff_rows),
             blocked_fields=blocked_fields,
             requires_human_confirmation=True,
             confidence=round_data.overall_score,
@@ -1279,10 +1419,13 @@ async def _run_stage_discussion(
             disagreements=round_data.disagreements,
             open_questions=round_data.open_questions,
             recommended_next_steps=round_data.recommended_next_steps,
-            alternatives=round_data.alternatives,
+            alternatives=alts_enriched,
             model_decision_hint=round_data.model_decision_hint,
             follow_up_of_discussion_id=parent_discussion_id,
             target_sub_object_type=target_sub_object_type,
+            session_id=run.run_id,
+            consensus_text=consensus_body,
+            fallback_action=fb_action,
         )
         record = AgentDiscussionRecord(
             discussion_id=round_data.round_id,
@@ -1291,7 +1434,7 @@ async def _run_stage_discussion(
             question=question,
             participants=round_data.participants,
             messages=[m.model_dump(mode="json") for m in round_data.messages],
-            summary=round_data.consensus or "",
+            summary=exec_summary,
             proposal_id=proposal.proposal_id,
             run_id=run.run_id,
             base_version=snapshot["version"],
@@ -1301,9 +1444,14 @@ async def _run_stage_discussion(
             disagreements=round_data.disagreements,
             open_questions=round_data.open_questions,
             recommended_next_steps=round_data.recommended_next_steps,
-            alternatives=round_data.alternatives,
+            alternatives=alts_enriched,
             follow_up_of_discussion_id=parent_discussion_id,
             target_sub_object_type=target_sub_object_type,
+            consensus=consensus_body,
+            executive_summary=exec_summary,
+            disagreements_structured=round_data.disagreements_structured,
+            recommended_next_steps_items=round_data.recommended_steps_structured,
+            confidence=round_data.overall_score,
         )
         run.status = "completed"
         run.participant_roles = round_data.participants
@@ -1318,25 +1466,119 @@ async def _run_stage_discussion(
         flow._store.save_agent_run(run.run_id, task.task_id, opportunity_id, normalized_stage, run_mode, run.status, run.model_dump(mode="json"))
         flow._store.save_proposal(proposal.proposal_id, opportunity_id, normalized_stage, proposal.status, proposal.model_dump(mode="json"))
         flow._store.save_discussion(record.discussion_id, opportunity_id, normalized_stage, proposal.proposal_id, run.run_id, record.model_dump(mode="json"))
+        event_bus.publish_sync(
+            ObjectEvent(
+                event_type="council_proposal_ready",
+                opportunity_id=opportunity_id,
+                object_type="discussion",
+                object_id=run.run_id,
+                agent_role="council",
+                agent_name="",
+                payload={
+                    "event_version": 2,
+                    "session_id": run.run_id,
+                    "proposal_id": proposal.proposal_id,
+                    "discussion_id": record.discussion_id,
+                    "council_decision_type": council_dt,
+                    "applyability": applyability,
+                },
+            )
+        )
         persist_ms = int((time.perf_counter() - persist_t0) * 1000)
+        finished_at = datetime.now(UTC)
+        observability = _build_council_observability(run.run_id, round_data)
+        timing_total = int((time.perf_counter() - total_t0) * 1000)
+        council_session = CouncilSession(
+            session_id=run.run_id,
+            stage_type=normalized_stage,
+            target_object_type=_STAGE_OBJECT_TYPES[normalized_stage],
+            target_object_id=snapshot["object_id"],
+            target_object_version=snapshot["version"],
+            opportunity_id=opportunity_id,
+            question=question,
+            run_mode=run_mode,
+            participants=[
+                CouncilParticipantSpec(
+                    agent_id=role,
+                    display_name=AGENT_DISPLAY_NAMES.get(role, role),
+                    role_type="specialist",
+                )
+                for role in round_data.participants
+            ],
+            status="completed",
+            decision_type=str(council_dt),
+            applyability=str(applyability),
+            started_at=council_started_at,
+            finished_at=finished_at,
+            timing_ms=timing_total,
+            timing_breakdown={
+                "context_ms": context_ms,
+                "specialists_ms": specialists_ms,
+                "synthesis_ms": synthesis_ms,
+                "discussion_ms": discussion_ms,
+                "persist_ms": persist_ms,
+            },
+        )
+        event_bus.publish_sync(
+            ObjectEvent(
+                event_type="council_session_completed",
+                opportunity_id=opportunity_id,
+                object_type="discussion",
+                object_id=run.run_id,
+                agent_role="council",
+                agent_name="",
+                payload={
+                    "event_version": 2,
+                    "session_id": run.run_id,
+                    "proposal_id": proposal.proposal_id,
+                    "discussion_id": record.discussion_id,
+                    "timing_ms": timing_total,
+                },
+            )
+        )
         return {
             "stage": normalized_stage,
             "task_id": task.task_id,
             "discussion_id": record.discussion_id,
             "proposal_id": proposal.proposal_id,
             "run_id": run.run_id,
+            "session": council_session.model_dump(mode="json"),
             "discussion": record.model_dump(mode="json"),
             "proposal": proposal.model_dump(mode="json"),
+            "observability": observability.model_dump(mode="json"),
             "council": {
                 "decision_type": council_dt,
                 "applyability": applyability,
             },
-            **_timing_payload(total_t0, context_ms=context_ms, discussion_ms=discussion_ms, persist_ms=persist_ms),
+            **_timing_payload(
+                total_t0,
+                context_ms=context_ms,
+                specialists_ms=specialists_ms,
+                synthesis_ms=synthesis_ms,
+                discussion_ms=discussion_ms,
+                persist_ms=persist_ms,
+            ),
         }
     except Exception as exc:
         run.status = "failed"
         run.error = str(exc)
         flow._store.save_agent_run(run.run_id, task.task_id, opportunity_id, normalized_stage, run_mode, run.status, run.model_dump(mode="json"))
+        event_bus.publish_sync(
+            ObjectEvent(
+                event_type="council_session_failed",
+                opportunity_id=opportunity_id,
+                object_type="discussion",
+                object_id=run.run_id,
+                agent_role="council",
+                agent_name="",
+                payload={
+                    "event_version": 2,
+                    "session_id": run.run_id,
+                    "failed_phase": "discussion_orchestration",
+                    "error_message": str(exc)[:2000],
+                },
+            )
+        )
         raise
 
 
@@ -1357,6 +1599,7 @@ async def start_stage_discussion(stage: str, opportunity_id: str, body: StageDis
         body.run_mode,
         parent_discussion_id=body.parent_discussion_id,
         target_sub_object_type=body.target_sub_object_type,
+        include_chat_context=body.include_chat_context,
     )
 
 

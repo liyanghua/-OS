@@ -16,6 +16,17 @@
 | SSE | 讨论流程发布 `council_phase`（collecting_opinions / synthesizing_consensus / session_ready） |
 | 前端 Brief 页 | `content_brief.html`：Insight/Council/Conversation 文案、`renderDiscussion`、决策徽章、Apply as Draft / Escalate、对话「转为 Council 问题」、SSE 订阅 `council_phase` |
 
+### Council v2（HTTP + SSE + Brief UI）**已完成** (2026-04-10)
+
+| 批次 | 内容 |
+|---|---|
+| 1 | Schema：`CouncilSession` / `CouncilObservability`（`schemas/council_v2.py`）；`StageProposal`/`AgentDiscussionRecord` 扩展；`_run_stage_discussion` 四段返回；编排器 specialist/synthesis 计时与 degraded |
+| 2 | SSE：`council_*` 10 类事件经 `event_bus`；`routes` 内 `_on_council_event`；持久化后 `council_proposal_ready` + `council_session_completed`；异常 `council_session_failed`；与 `council_phase` 双发兼容 |
+| 3 | 前端：`content_brief.html` 状态机（FSM 文案）、SSE 增量行、`renderCouncilPanelsFromHttp`（session/可观测/共识/分歧）、CTA 按 `decision_type`×`applyability`、`转为 Variant` → `POST .../asset-bundle/.../generate-variant` |
+| 4 | 可观测卡片（参与者降级/耗时）、契约见 **D-017**；`test_stage_workflow_api` 断言 `session`/`observability` 与事件历史中含 `council_proposal_ready`、`council_session_completed` |
+| 跨页复用 | Strategy/Plan/Asset 的 Council 页可复用同一 HTTP/SSE 契约；`target_sub_object_type` 已在请求体预留 |
+| Brief 右栏统一对话 | `content_brief.html`：`#ws-unified-thread` 承载 Chat + Council SSE；`council_phase` 仅更新状态条、不与 v2 事件重复刷行；HTTP 结束后以折叠块追加完整记录；`StageDiscussionRequest.include_chat_context` 默认 true，将 `AgentThread.context_summary()` 拼入 Council 问题（链式） |
+
 ### Phase 0：基础修复 **已完成**
 
 | 项 | 状态 | 说明 |
@@ -1973,7 +1984,7 @@ Agent 层是 service 的包装层，不改变现有 service 逻辑。
 
 ### 本轮完成
 
-- `LLMRouter.chat`：统一 `ThreadPoolExecutor` 超时；`LLM_TIMEOUT_SECONDS` / `LLM_FAST_MODE_TIMEOUT_SECONDS`；超时或空响应返回 `degraded` + `degraded_reason`。
+- `LLMRouter.chat`：统一 `ThreadPoolExecutor` 超时；`LLM_TIMEOUT_SECONDS`（默认 **90s**，可覆盖）/ `LLM_FAST_MODE_TIMEOUT_SECONDS`（默认 2s）；`call_text_llm` 与之一致；超时或空响应返回 `degraded` + `degraded_reason`。
 - `call_text_llm` / VLM：DashScope 调用包在 `_run_with_timeout` 内，与路由层超时策略一致。
 - `stage_evaluator`：`_llm_evaluate` 单次 `chat` 解析 JSON；`degraded` 或异常时回退规则评分（`evaluator: rule`）。
 - 测试：`test_llm_timeout_returns_degraded_response_quickly`、`test_evaluation_falls_back_to_rule_when_llm_degraded`。

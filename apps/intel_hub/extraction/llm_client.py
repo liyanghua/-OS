@@ -46,7 +46,8 @@ def _timeout_seconds(*, timeout_seconds: float | None = None, fast_mode: bool = 
     if timeout_seconds is not None:
         return max(float(timeout_seconds), 0.01)
     env_name = "LLM_FAST_MODE_TIMEOUT_SECONDS" if fast_mode else "LLM_TIMEOUT_SECONDS"
-    default = "2.0" if fast_mode else "8.0"
+    # 与 apps/content_planning/adapters/llm_router.py 默认保持一致；DashScope 慢时 8s 易全量超时
+    default = "2.0" if fast_mode else "90.0"
     try:
         return max(float(os.environ.get(env_name, default)), 0.01)
     except (TypeError, ValueError):

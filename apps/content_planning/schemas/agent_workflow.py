@@ -62,6 +62,9 @@ class ProposalFieldChange(BaseModel):
     before: Any = None
     after: Any = None
     blocked: bool = False
+    change_type: str = "modify"
+    confidence: float = 0.0
+    reason: str = ""
 
 
 class ProposalDiff(BaseModel):
@@ -98,6 +101,9 @@ class StageProposal(BaseModel):
     model_decision_hint: str = ""
     target_sub_object_type: str = ""  # brief | strategy | plan | asset，预留跨子对象 Council
     follow_up_of_discussion_id: str = ""
+    session_id: str = ""
+    consensus_text: str = ""
+    fallback_action: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProposalDecision(BaseModel):
@@ -133,6 +139,11 @@ class AgentDiscussionRecord(BaseModel):
     alternatives: list[dict[str, Any]] = Field(default_factory=list)
     follow_up_of_discussion_id: str = ""
     target_sub_object_type: str = ""
+    consensus: str = ""
+    executive_summary: str = ""
+    disagreements_structured: list[dict[str, Any]] = Field(default_factory=list)
+    recommended_next_steps_items: list[dict[str, Any]] = Field(default_factory=list)
+    confidence: float = 0.0
 
 
 class StageScorecard(BaseModel):
