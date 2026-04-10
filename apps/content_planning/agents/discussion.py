@@ -1,8 +1,8 @@
 """DiscussionOrchestrator：多 Agent 阶段讨论协调器。
 
 用户在某阶段提问时，自动唤起多个相关 Agent 讨论，
-每个 Agent 看到用户问题 + 当前对象 + 前面 Agent 发言，
-最终由总调度综合结论。
+每个 Agent 看到用户问题 + 当前对象 + Brief 快照（可写字段白名单），
+最终由总调度综合结论，并产出结构化 Advisory Session 字段。
 """
 from __future__ import annotations
 
@@ -10,8 +10,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal, cast
+from typing import Any, Callable, Literal, cast
 
 from pydantic import BaseModel, Field
 
@@ -41,7 +42,41 @@ AGENT_DISPLAY_NAMES: dict[str, str] = {
     "asset_producer": "资产制作人",
 }
 
+# 与 apply_stage_updates 可编辑 brief 字段对齐；synthesis 仅允许这些 key
+BRIEF_PROPOSED_UPDATE_KEYS: frozenset[str] = frozenset(
+    {
+        "target_user",
+        "target_scene",
+        "content_goal",
+        "primary_value",
+        "visual_style_direction",
+        "avoid_directions",
+        "template_hints",
+        "core_motive",
+        "price_positioning",
+        "target_audience",
+        "why_worth_doing",
+        "competitive_angle",
+    }
+)
+
 _TREND_HINT_TERMS = ("趋势", "热点", "时机", "最近", "平台变化", "为什么现在")
+
+CouncilDecisionType = Literal["advisory", "conflicted", "insufficient_context", "applyable"]
+
+
+@dataclass
+class CouncilSynthesisBundle:
+    """结构化合成结果（Advisory Session 核心字段）。"""
+
+    consensus: str
+    proposed_updates: dict[str, Any]
+    agreements: list[str]
+    disagreements: list[str]
+    open_questions: list[str]
+    recommended_next_steps: list[str]
+    alternatives: list[dict[str, str]]
+    model_decision_hint: str = ""  # applyable | advisory | exploratory
 
 
 class DiscussionRound(BaseModel):
@@ -58,6 +93,56 @@ class DiscussionRound(BaseModel):
     overall_score: float = 0.0
     status: Literal["discussing", "concluded", "cancelled"] = "discussing"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # Advisory Session 扩展
+    council_decision_type: str = ""  # advisory | conflicted | insufficient_context | applyable
+    agreements: list[str] = Field(default_factory=list)
+    disagreements: list[str] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
+    recommended_next_steps: list[str] = Field(default_factory=list)
+    alternatives: list[dict[str, str]] = Field(default_factory=list)
+    model_decision_hint: str = ""
+
+
+def filter_brief_proposed_updates(raw: dict[str, Any]) -> dict[str, Any]:
+    """仅保留 Brief 可应用字段，避免模型幻觉 key。"""
+    return {k: v for k, v in raw.items() if k in BRIEF_PROPOSED_UPDATE_KEYS}
+
+
+def reconcile_council_decision_type(
+    *,
+    diff_rows: list[dict[str, Any]],
+    disagreements: list[str],
+    open_questions: list[str],
+    model_decision_hint: str = "",
+) -> CouncilDecisionType:
+    """结合字段 diff 与结构化产出，得到 UI 三态 + applyable。"""
+    has_material = False
+    for r in diff_rows:
+        if r.get("blocked"):
+            continue
+        if r.get("before") != r.get("after"):
+            has_material = True
+    if has_material:
+        return "applyable"
+    if open_questions:
+        return "insufficient_context"
+    if disagreements:
+        return "conflicted"
+    if model_decision_hint == "exploratory":
+        return "advisory"
+    return "advisory"
+
+
+def compute_applyability(diff_rows: list[dict[str, Any]]) -> Literal["direct", "partial", "none"]:
+    if not diff_rows:
+        return "none"
+    any_unblocked = any(not r.get("blocked") for r in diff_rows)
+    any_blocked = any(r.get("blocked") for r in diff_rows)
+    if not any_unblocked:
+        return "none"
+    if any_blocked and any(not r.get("blocked") for r in diff_rows):
+        return "partial"
+    return "direct"
 
 
 class DiscussionOrchestrator:
@@ -66,19 +151,17 @@ class DiscussionOrchestrator:
     def __init__(self):
         self._memory = AgentMemory()
 
-    def discuss(self, opportunity_id: str, stage: str, user_question: str,
-                context: AgentContext | None = None,
-                on_message: Any = None,
-                mode: Literal["fast", "deep"] = "deep") -> DiscussionRound:
-        """Run a multi-agent discussion round.
-
-        Args:
-            opportunity_id: The opportunity being discussed
-            stage: Current pipeline stage (card/brief/match/strategy/content)
-            user_question: The user's question
-            context: Optional agent context with current objects
-            on_message: Optional callback(AgentMessage) for real-time streaming
-        """
+    def discuss(
+        self,
+        opportunity_id: str,
+        stage: str,
+        user_question: str,
+        context: AgentContext | None = None,
+        on_message: Any = None,
+        on_phase: Callable[[str, dict[str, Any]], None] | None = None,
+        mode: Literal["fast", "deep"] = "deep",
+    ) -> DiscussionRound:
+        """Run a multi-agent discussion round."""
         participants = self._resolve_participants(stage, user_question, context, mode=mode)
 
         discussion = DiscussionRound(
@@ -97,6 +180,9 @@ class DiscussionOrchestrator:
         if on_message:
             on_message(user_msg)
 
+        if on_phase:
+            on_phase("collecting_opinions", {"label_zh": "收集专家观点"})
+
         object_context = self._resolve_object_context(stage, context)
         memory_context = self._resolve_memory_context(opportunity_id, context)
 
@@ -114,11 +200,14 @@ class DiscussionOrchestrator:
             agent_name = str(result["agent_name"])
             if result["status"] == "ok":
                 agent_response = str(result["response"])
+                meta = dict(result.get("metadata") or {})
+                meta.setdefault("agent_name", agent_name)
+                meta.setdefault("stage", stage)
                 msg = AgentMessage(
                     role="agent",
                     content=agent_response,
                     agent_role=agent_role,
-                    metadata={"agent_name": agent_name, "stage": stage},
+                    metadata=meta,
                 )
                 discussion.messages.append(msg)
                 prior_statements.append(f"[{agent_name}]: {agent_response}")
@@ -139,13 +228,36 @@ class DiscussionOrchestrator:
             if on_message:
                 on_message(msg)
 
+        if on_phase:
+            on_phase("synthesizing_consensus", {"label_zh": "综合共识与可应用提案"})
+
         if prior_statements:
-            consensus, proposed_updates = self._synthesize_consensus(
-                user_question, stage, prior_statements, object_context
-            )
+            bundle = self._synthesize_consensus(user_question, stage, prior_statements, object_context)
+            consensus = bundle.consensus
+            proposed_updates = bundle.proposed_updates
+            if stage == "brief":
+                proposed_updates = filter_brief_proposed_updates(proposed_updates)
+            discussion.agreements = bundle.agreements
+            discussion.disagreements = bundle.disagreements
+            discussion.open_questions = bundle.open_questions
+            discussion.recommended_next_steps = bundle.recommended_next_steps
+            discussion.alternatives = bundle.alternatives
+            discussion.model_decision_hint = bundle.model_decision_hint
         else:
             consensus = "本轮讨论暂未拿到有效专家观点，建议稍后重试。"
             proposed_updates = {}
+            bundle = CouncilSynthesisBundle(
+                consensus=consensus,
+                proposed_updates={},
+                agreements=[],
+                disagreements=[],
+                open_questions=["是否提供更具体的业务目标或场景？"],
+                recommended_next_steps=["补充问题细节后再次发起 Council"],
+                alternatives=[],
+            )
+            discussion.open_questions = bundle.open_questions
+            discussion.recommended_next_steps = bundle.recommended_next_steps
+
         discussion.consensus = consensus
         discussion.proposed_updates = proposed_updates
         discussion.status = "concluded"
@@ -154,7 +266,15 @@ class DiscussionOrchestrator:
             role="system",
             content=f"[共识] {consensus}",
             agent_role="lead_agent",
-            metadata={"type": "consensus", "proposed_updates": proposed_updates},
+            metadata={
+                "type": "consensus",
+                "proposed_updates": proposed_updates,
+                "agreements": discussion.agreements,
+                "disagreements": discussion.disagreements,
+                "open_questions": discussion.open_questions,
+                "recommended_next_steps": discussion.recommended_next_steps,
+                "alternatives": discussion.alternatives,
+            },
         )
         discussion.messages.append(consensus_msg)
         if on_message:
@@ -170,6 +290,9 @@ class DiscussionOrchestrator:
                 tags=[stage, "discussion", "partial" if discussion.failed_participants else "full"],
             )
         )
+
+        if on_phase:
+            on_phase("session_ready", {"label_zh": "会话产出已就绪"})
 
         return discussion
 
@@ -187,7 +310,7 @@ class DiscussionOrchestrator:
 
         def _run_one(agent_role: str, agent_name: str) -> dict[str, Any]:
             try:
-                response = self._get_agent_opinion(
+                response, meta = self._get_agent_opinion_structured(
                     agent_role=agent_role,
                     agent_name=agent_name,
                     user_question=user_question,
@@ -201,6 +324,7 @@ class DiscussionOrchestrator:
                     "agent_name": agent_name,
                     "status": "ok",
                     "response": response,
+                    "metadata": meta,
                 }
             except Exception as exc:
                 logger.warning("discussion specialist failed: %s", agent_role, exc_info=True)
@@ -210,6 +334,7 @@ class DiscussionOrchestrator:
                     "status": "failed",
                     "error": str(exc),
                     "response": "",
+                    "metadata": {},
                 }
 
         results: list[dict[str, Any] | None] = [None] * len(participants)
@@ -257,40 +382,82 @@ class DiscussionOrchestrator:
             participants.append("trend_analyst")
         return participants
 
-    def _get_agent_opinion(self, *, agent_role: str, agent_name: str,
-                           user_question: str, stage: str,
-                           object_context: str, memory_context: str,
-                           prior_statements: list[str]) -> str:
-        """Get a single agent's opinion on the topic."""
+    def _get_agent_opinion_structured(
+        self,
+        *,
+        agent_role: str,
+        agent_name: str,
+        user_question: str,
+        stage: str,
+        object_context: str,
+        memory_context: str,
+        prior_statements: list[str],
+    ) -> tuple[str, dict[str, Any]]:
+        """返回 (展示正文, metadata：stance/claim/...)。"""
         if not llm_router.is_any_available():
-            return self._rule_based_opinion(agent_role, user_question, stage)
+            text = self._rule_based_opinion(agent_role, user_question, stage)
+            return text, {
+                "stance": "neutral",
+                "claim": text[:80],
+                "agent_name": agent_name,
+                "stage": stage,
+            }
 
         prior_text = "\n".join(prior_statements) if prior_statements else "你是第一个发言的。"
 
-        system = f"""你是「{agent_name}」，一个专业的内容策划 Agent。
-当前讨论阶段：{stage}
-你的职责是基于你的专业视角（{agent_role}），针对用户的问题给出有建设性的观点。
-请参考前面 Agent 的发言，避免重复，补充新角度。回答要简洁专业（3-5句话）。"""
+        system = f"""你是「{agent_name}」，专业内容策划 Agent。
+当前阶段：{stage}。请基于当前 Brief 快照与用户问题给出观点。
+必须先输出 JSON，格式严格如下（不要 Markdown）：
+{{"stance":"support|neutral|oppose|supplement","claim":"一句话立场","detail":"3-5句专业展开"}}
+stance 含义：support 赞同主方向 / oppose 反对或风险 / supplement 补充条件 / neutral 中立。"""
 
         user_msg = f"""用户问题：{user_question}
 
-当前对象状态：
+【对象与 Brief 上下文】
 {object_context}
 
 相关记忆：
 {memory_context}
 
-前面 Agent 发言：
+其他专家发言摘要：
 {prior_text}
 
-请给出你的专业观点："""
+仅输出 JSON。"""
 
-        resp = llm_router.chat([
-            LLMMessage(role="system", content=system),
-            LLMMessage(role="user", content=user_msg),
-        ], temperature=0.4, max_tokens=600)
+        try:
+            resp = llm_router.chat_json(
+                [
+                    LLMMessage(role="system", content=system),
+                    LLMMessage(role="user", content=user_msg),
+                ],
+                temperature=0.35,
+                max_tokens=700,
+            )
+        except Exception:
+            logger.warning("agent opinion chat_json failed for %s", agent_role, exc_info=True)
+            text = self._rule_based_opinion(agent_role, user_question, stage)
+            return text, {
+                "stance": "neutral",
+                "claim": text[:80],
+                "agent_name": agent_name,
+                "stage": stage,
+            }
 
-        return resp.content if resp.content else self._rule_based_opinion(agent_role, user_question, stage)
+        stance = str(resp.get("stance") or "neutral")
+        claim = str(resp.get("claim") or "").strip()
+        detail = str(resp.get("detail") or "").strip()
+        if not detail:
+            detail = self._rule_based_opinion(agent_role, user_question, stage)
+        if not claim:
+            claim = detail[:80]
+        display = detail
+        meta = {
+            "stance": stance,
+            "claim": claim,
+            "agent_name": agent_name,
+            "stage": stage,
+        }
+        return display, meta
 
     def _rule_based_opinion(self, agent_role: str, question: str, stage: str) -> str:
         """Fallback rule-based opinion when LLM is unavailable."""
@@ -304,28 +471,100 @@ class DiscussionOrchestrator:
         }
         return opinions.get(agent_role, f"作为 {agent_role}，我建议从专业角度审视此问题。")
 
-    def _synthesize_consensus(self, question: str, stage: str,
-                              statements: list[str], object_context: str) -> tuple[str, dict]:
-        """Synthesize a consensus from all agent statements."""
+    def _synthesize_consensus(
+        self, question: str, stage: str, statements: list[str], object_context: str
+    ) -> CouncilSynthesisBundle:
+        """综合共识 + 结构化产出 + 白名单字段更新建议。"""
         if not llm_router.is_any_available():
             summary = "综合各方意见：" + "；".join(s.split("]: ", 1)[-1][:50] for s in statements)
-            return summary, {}
+            return CouncilSynthesisBundle(
+                consensus=summary,
+                proposed_updates={},
+                agreements=[summary[:120]],
+                disagreements=[],
+                open_questions=[],
+                recommended_next_steps=["在模型可用时重新发起以生成可应用字段建议"],
+                alternatives=[],
+                model_decision_hint="advisory",
+            )
 
         all_text = "\n".join(statements)
-        resp = llm_router.chat_json([
-            LLMMessage(role="system", content="""你是内容策划总调度。请综合所有 Agent 观点，给出：
-1. 共识结论（consensus）
-2. 建议更新的字段（proposed_updates，dict 格式，key 为字段名，value 为建议值）
+        whitelist_note = ""
+        if stage == "brief":
+            whitelist_note = (
+                f"proposed_updates 的 key 必须来自：{', '.join(sorted(BRIEF_PROPOSED_UPDATE_KEYS))}。"
+            )
+        sys = f"""你是内容策划总调度（Advisory Session）。请综合所有 Agent 观点，输出 JSON：
+- consensus: 共识段落（中文）
+- proposed_updates: 对象，仅含可落地字段的改写建议；若无把握则 {{}}
+- agreements: 字符串数组，共识要点
+- disagreements: 字符串数组，分歧点（无则 []）
+- open_questions: 仍需用户补充的信息（无则 []）
+- recommended_next_steps: 下一步建议（2-4 条）
+- alternatives: [{{"label":"方向名","summary":"说明"}}] 可选多方向
+- decision_type: 之一：applyable | advisory | exploratory
+  （applyable 表示预期可直接改字段；advisory 有共识但偏策略不宜直接落字段；exploratory 信息不足）
+{whitelist_note}"""
 
-返回 JSON：{"consensus": "...", "proposed_updates": {"field": "value", ...}}"""),
-            LLMMessage(role="user", content=f"阶段：{stage}\n问题：{question}\n对象状态：{object_context}\n\n各 Agent 观点：\n{all_text}"),
-        ], temperature=0.3, max_tokens=800)
+        try:
+            resp = llm_router.chat_json(
+                [
+                    LLMMessage(role="system", content=sys),
+                    LLMMessage(
+                        role="user",
+                        content=f"阶段：{stage}\n问题：{question}\n对象与快照：\n{object_context}\n\n各 Agent 观点：\n{all_text}",
+                    ),
+                ],
+                temperature=0.3,
+                max_tokens=1200,
+            )
+        except Exception:
+            logger.warning("council synthesis chat_json failed, using fallback", exc_info=True)
+            summary = "综合各方意见：" + "；".join(s.split("]: ", 1)[-1][:80] for s in statements)
+            return CouncilSynthesisBundle(
+                consensus=summary,
+                proposed_updates={},
+                agreements=[summary[:120]],
+                disagreements=[],
+                open_questions=[],
+                recommended_next_steps=["请重试或检查模型配置"],
+                alternatives=[],
+                model_decision_hint="advisory",
+            )
 
-        consensus = resp.get("consensus", "综合各方意见后，建议进一步细化方向。")
+        consensus = str(resp.get("consensus") or "综合各方意见后，建议进一步细化方向。")
         updates = resp.get("proposed_updates", {})
         if not isinstance(updates, dict):
             updates = {}
-        return consensus, updates
+
+        def _str_list(key: str) -> list[str]:
+            raw = resp.get(key) or []
+            if not isinstance(raw, list):
+                return []
+            return [str(x) for x in raw if str(x).strip()]
+
+        alts_raw = resp.get("alternatives") or []
+        alternatives: list[dict[str, str]] = []
+        if isinstance(alts_raw, list):
+            for item in alts_raw:
+                if isinstance(item, dict):
+                    alternatives.append(
+                        {
+                            "label": str(item.get("label") or "")[:80],
+                            "summary": str(item.get("summary") or "")[:500],
+                        }
+                    )
+
+        return CouncilSynthesisBundle(
+            consensus=consensus,
+            proposed_updates=updates,
+            agreements=_str_list("agreements") or ([consensus[:160]] if consensus else []),
+            disagreements=_str_list("disagreements"),
+            open_questions=_str_list("open_questions"),
+            recommended_next_steps=_str_list("recommended_next_steps"),
+            alternatives=alternatives,
+            model_decision_hint=str(resp.get("decision_type") or "advisory"),
+        )
 
     def _build_object_context(self, stage: str, context: AgentContext | None) -> str:
         """Build a text summary of current objects for discussion context."""
@@ -334,7 +573,9 @@ class DiscussionOrchestrator:
         parts = []
         if context.brief:
             b = context.brief
-            title = getattr(b, 'opportunity_title', '') if hasattr(b, 'opportunity_title') else (b.get('opportunity_title', '') if isinstance(b, dict) else '')
+            title = getattr(b, "opportunity_title", "") if hasattr(b, "opportunity_title") else (
+                b.get("opportunity_title", "") if isinstance(b, dict) else ""
+            )
             if title:
                 parts.append(f"Brief标题: {title}")
         if context.strategy:
@@ -362,9 +603,21 @@ class DiscussionOrchestrator:
 
     def _resolve_object_context(self, stage: str, context: AgentContext | None) -> str:
         bundle = self._request_context_bundle(context)
+        base = ""
         if bundle is not None and bundle.object_summary:
-            return bundle.object_summary
-        return self._build_object_context(stage, context)
+            base = bundle.object_summary
+        else:
+            base = self._build_object_context(stage, context)
+
+        extras: list[str] = []
+        if bundle is not None:
+            if bundle.council_brief_snapshot:
+                extras.append("【Brief 可写字段快照 JSON】\n" + bundle.council_brief_snapshot)
+            if bundle.council_locked_fields_hint:
+                extras.append(bundle.council_locked_fields_hint)
+        if extras:
+            return base + "\n\n" + "\n\n".join(extras)
+        return base
 
     def _get_memory_context(self, opportunity_id: str) -> str:
         """Retrieve relevant memories for discussion context."""

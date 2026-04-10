@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any, Literal, cast
 
@@ -14,7 +15,12 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from apps.content_planning.agents.base import AgentContext, AgentMessage, AgentResult, AgentThread, RequestContextBundle
-from apps.content_planning.agents.discussion import DiscussionOrchestrator, DiscussionRound
+from apps.content_planning.agents.discussion import (
+    DiscussionOrchestrator,
+    DiscussionRound,
+    compute_applyability,
+    reconcile_council_decision_type,
+)
 from apps.content_planning.agents.memory import AgentMemory, MemoryEntry
 from apps.content_planning.agents.plan_graph import PlanGraph, build_default_graph
 from apps.content_planning.agents.skill_registry import SkillDefinition, skill_registry
@@ -124,6 +130,41 @@ def _build_object_summary(session: Any, card: Any | None) -> str:
     return "；".join(parts) if parts else "暂无对象"
 
 
+BRIEF_COUNCIL_FIELD_WHITELIST: tuple[str, ...] = (
+    "target_user",
+    "target_scene",
+    "content_goal",
+    "primary_value",
+    "visual_style_direction",
+    "avoid_directions",
+    "template_hints",
+    "core_motive",
+    "price_positioning",
+    "target_audience",
+    "why_worth_doing",
+    "competitive_angle",
+)
+
+
+def _format_brief_snapshot_for_council(session: Any) -> tuple[str, str]:
+    """返回 (可写字段 JSON 快照, 锁定字段说明)。"""
+    brief = getattr(session, "brief", None)
+    if brief is None:
+        return "", ""
+    data = brief.model_dump(mode="json") if hasattr(brief, "model_dump") else {}
+    snap = {k: data.get(k) for k in BRIEF_COUNCIL_FIELD_WHITELIST if k in data}
+    try:
+        snap_json = json.dumps(snap, ensure_ascii=False, default=str)
+    except Exception:
+        snap_json = str(snap)
+    locks = getattr(brief, "locks", None)
+    locked_names: list[str] = []
+    if locks is not None and hasattr(locks, "locked_field_names"):
+        locked_names = list(locks.locked_field_names())
+    locked_hint = "；".join(locked_names) if locked_names else "（无锁定字段）"
+    return snap_json, f"以下字段已锁定，勿在 proposed_updates 中覆盖：{locked_hint}"
+
+
 def _build_request_context_bundle(
     flow: OpportunityToPlanFlow,
     opportunity_id: str,
@@ -139,6 +180,7 @@ def _build_request_context_bundle(
     memory_context = ""
     if include_deep_context:
         memory_context = AgentMemory().inject_context(opportunity_id, limit=5)
+    brief_snap, locked_hint = _format_brief_snapshot_for_council(session)
     return RequestContextBundle(
         card=card,
         source_notes=source_notes,
@@ -146,6 +188,8 @@ def _build_request_context_bundle(
         template=template,
         memory_context=memory_context,
         object_summary=_build_object_summary(session, card),
+        council_brief_snapshot=brief_snap,
+        council_locked_fields_hint=locked_hint,
     )
 
 
@@ -227,6 +271,8 @@ class ChatMessageRequest(BaseModel):
 class StageDiscussionRequest(BaseModel):
     question: str
     run_mode: Literal["agent_assisted_single", "agent_assisted_council"] = "agent_assisted_council"
+    parent_discussion_id: str = ""
+    target_sub_object_type: str = ""
 
 
 class ApplyProposalRequest(BaseModel):
@@ -301,7 +347,16 @@ def _maybe_bind_workspace_context(flow: OpportunityToPlanFlow, request: Request,
 async def generate_brief(opportunity_id: str, request: Request) -> dict[str, Any]:
     flow = _get_flow()
     _maybe_bind_workspace_context(flow, request, opportunity_id)
-    return flow.build_brief(opportunity_id).model_dump(mode="json")
+    notes: str | None = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            raw = body.get("council_escalation_notes") or body.get("council_notes")
+            if raw:
+                notes = str(raw).strip() or None
+    except Exception:
+        notes = None
+    return flow.build_brief(opportunity_id, council_escalation_notes=notes).model_dump(mode="json")
 
 
 @router.post("/xhs-opportunities/{opportunity_id}/generate-note-plan")
@@ -990,7 +1045,16 @@ async def list_skills_catalog() -> dict[str, Any]:
 async def generate_brief_alias(opportunity_id: str, request: Request) -> dict[str, Any]:
     flow = _get_flow()
     _maybe_bind_workspace_context(flow, request, opportunity_id)
-    return flow.build_brief(opportunity_id).model_dump(mode="json")
+    notes: str | None = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            raw = body.get("council_escalation_notes") or body.get("council_notes")
+            if raw:
+                notes = str(raw).strip() or None
+    except Exception:
+        notes = None
+    return flow.build_brief(opportunity_id, council_escalation_notes=notes).model_dump(mode="json")
 
 
 @router_alias.post("/xhs-opportunities/{opportunity_id}/generate-note-plan")
@@ -1086,7 +1150,15 @@ def _build_agent_context(
     )
 
 
-async def _run_stage_discussion(opportunity_id: str, stage: str, question: str, run_mode: str = "agent_assisted_council") -> dict[str, Any]:
+async def _run_stage_discussion(
+    opportunity_id: str,
+    stage: str,
+    question: str,
+    run_mode: str = "agent_assisted_council",
+    *,
+    parent_discussion_id: str = "",
+    target_sub_object_type: str = "",
+) -> dict[str, Any]:
     total_t0 = time.perf_counter()
     context_t0 = time.perf_counter()
     flow = _get_flow()
@@ -1096,6 +1168,16 @@ async def _run_stage_discussion(opportunity_id: str, stage: str, question: str, 
     normalized_stage = _normalize_stage(stage)
     snapshot = flow.get_stage_snapshot(opportunity_id, normalized_stage)
     session = flow._get_session(opportunity_id)
+
+    discussion_question = question
+    if parent_discussion_id:
+        parent = flow._store.load_discussion(parent_discussion_id)
+        if parent:
+            summ = (parent.get("summary") or "")[:500]
+            discussion_question = (
+                f"[Follow-up · 前置讨论 {parent_discussion_id}]\n前置摘要：{summ}\n\n用户追问：{question}"
+            )
+
     task = AgentTask(
         opportunity_id=opportunity_id,
         stage=normalized_stage,
@@ -1107,7 +1189,12 @@ async def _run_stage_discussion(opportunity_id: str, stage: str, question: str, 
             brand_id=session.brand_id,
             campaign_id=session.campaign_id,
         ),
-        payload={"question": question, "base_version": snapshot["version"]},
+        payload={
+            "question": question,
+            "base_version": snapshot["version"],
+            "parent_discussion_id": parent_discussion_id,
+            "target_sub_object_type": target_sub_object_type,
+        },
     )
     flow._store.save_agent_task(task.task_id, opportunity_id, normalized_stage, run_mode, "queued", task.model_dump(mode="json"))
 
@@ -1134,13 +1221,24 @@ async def _run_stage_discussion(opportunity_id: str, stage: str, question: str, 
             payload={"role": msg.role, "content": msg.content, "stage": normalized_stage},
         ))
 
+    def _on_phase(phase: str, payload: dict[str, Any]) -> None:
+        event_bus.publish_sync(ObjectEvent(
+            event_type="council_phase",
+            opportunity_id=opportunity_id,
+            object_type="discussion",
+            object_id=run.run_id,
+            agent_role="council",
+            agent_name=str(payload.get("label_zh") or ""),
+            payload={"phase": phase, **payload},
+        ))
+
     try:
         discussion_t0 = time.perf_counter()
         discussion_mode = "fast" if run_mode == "agent_assisted_single" else "deep"
         round_data = orchestrator.discuss(
             opportunity_id=opportunity_id,
             stage=normalized_stage,
-            user_question=question,
+            user_question=discussion_question,
             context=_build_agent_context(
                 flow,
                 opportunity_id,
@@ -1148,10 +1246,18 @@ async def _run_stage_discussion(opportunity_id: str, stage: str, question: str, 
                 include_deep_context=discussion_mode == "deep",
             ),
             on_message=_on_message,
+            on_phase=_on_phase,
             mode=cast(Literal["fast", "deep"], discussion_mode),
         )
         discussion_ms = int((time.perf_counter() - discussion_t0) * 1000)
         diff_rows, blocked_fields = flow.build_stage_diff(opportunity_id, normalized_stage, round_data.proposed_updates)
+        council_dt = reconcile_council_decision_type(
+            diff_rows=diff_rows,
+            disagreements=round_data.disagreements,
+            open_questions=round_data.open_questions,
+            model_decision_hint=round_data.model_decision_hint,
+        )
+        applyability = compute_applyability(diff_rows)
         proposal = StageProposal(
             opportunity_id=opportunity_id,
             stage=normalized_stage,
@@ -1167,6 +1273,16 @@ async def _run_stage_discussion(opportunity_id: str, stage: str, question: str, 
             confidence=round_data.overall_score,
             source_run_id=run.run_id,
             source_discussion_id=round_data.round_id,
+            council_decision_type=council_dt,
+            applyability=applyability,
+            agreements=round_data.agreements,
+            disagreements=round_data.disagreements,
+            open_questions=round_data.open_questions,
+            recommended_next_steps=round_data.recommended_next_steps,
+            alternatives=round_data.alternatives,
+            model_decision_hint=round_data.model_decision_hint,
+            follow_up_of_discussion_id=parent_discussion_id,
+            target_sub_object_type=target_sub_object_type,
         )
         record = AgentDiscussionRecord(
             discussion_id=round_data.round_id,
@@ -1180,6 +1296,14 @@ async def _run_stage_discussion(opportunity_id: str, stage: str, question: str, 
             run_id=run.run_id,
             base_version=snapshot["version"],
             status="completed",
+            council_decision_type=council_dt,
+            agreements=round_data.agreements,
+            disagreements=round_data.disagreements,
+            open_questions=round_data.open_questions,
+            recommended_next_steps=round_data.recommended_next_steps,
+            alternatives=round_data.alternatives,
+            follow_up_of_discussion_id=parent_discussion_id,
+            target_sub_object_type=target_sub_object_type,
         )
         run.status = "completed"
         run.participant_roles = round_data.participants
@@ -1188,6 +1312,7 @@ async def _run_stage_discussion(opportunity_id: str, stage: str, question: str, 
             "participants": round_data.participants,
             "question": question,
             "proposal_id": proposal.proposal_id,
+            "council_decision_type": council_dt,
         }
         persist_t0 = time.perf_counter()
         flow._store.save_agent_run(run.run_id, task.task_id, opportunity_id, normalized_stage, run_mode, run.status, run.model_dump(mode="json"))
@@ -1202,6 +1327,10 @@ async def _run_stage_discussion(opportunity_id: str, stage: str, question: str, 
             "run_id": run.run_id,
             "discussion": record.model_dump(mode="json"),
             "proposal": proposal.model_dump(mode="json"),
+            "council": {
+                "decision_type": council_dt,
+                "applyability": applyability,
+            },
             **_timing_payload(total_t0, context_ms=context_ms, discussion_ms=discussion_ms, persist_ms=persist_ms),
         }
     except Exception as exc:
@@ -1221,7 +1350,14 @@ async def start_discussion(opportunity_id: str, body: DiscussionRequest) -> dict
 @router.post("/stages/{stage}/{opportunity_id}/discussions")
 @_handle_flow_error
 async def start_stage_discussion(stage: str, opportunity_id: str, body: StageDiscussionRequest) -> dict[str, Any]:
-    return await _run_stage_discussion(opportunity_id, stage, body.question, body.run_mode)
+    return await _run_stage_discussion(
+        opportunity_id,
+        stage,
+        body.question,
+        body.run_mode,
+        parent_discussion_id=body.parent_discussion_id,
+        target_sub_object_type=body.target_sub_object_type,
+    )
 
 
 @router.get("/discussions/{discussion_id}")
@@ -1246,6 +1382,51 @@ async def get_proposal_detail(proposal_id: str) -> dict[str, Any]:
     if proposal is None:
         raise HTTPException(status_code=404, detail="Proposal not found")
     return proposal
+
+
+def _proposal_to_escalation_notes(proposal: dict[str, Any]) -> str:
+    lines: list[str] = []
+    if proposal.get("summary"):
+        lines.append("共识：" + str(proposal["summary"]))
+    for d in proposal.get("disagreements") or []:
+        lines.append("分歧：" + str(d))
+    for a in proposal.get("alternatives") or []:
+        if isinstance(a, dict) and a.get("label"):
+            lines.append(f"备选 {a.get('label')}：{a.get('summary', '')}")
+    for q in proposal.get("open_questions") or []:
+        lines.append("待补全：" + str(q))
+    return "\n".join(lines)
+
+
+@router.post("/proposals/{proposal_id}/apply-as-draft")
+@_handle_flow_error
+async def apply_proposal_as_draft(proposal_id: str) -> dict[str, Any]:
+    flow = _get_flow()
+    if flow._store is None:
+        raise HTTPException(status_code=500, detail="Store not available")
+    proposal = flow._store.load_proposal(proposal_id)
+    if proposal is None:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    if proposal.get("stage") != "brief":
+        raise HTTPException(status_code=409, detail="仅 brief 阶段支持 Council 草稿采纳")
+    return flow.apply_council_advisory_draft(proposal["opportunity_id"], proposal)
+
+
+@router.post("/proposals/{proposal_id}/escalate-rewrite-brief")
+@_handle_flow_error
+async def escalate_rewrite_brief(proposal_id: str) -> dict[str, Any]:
+    """按 Council 共识触发 Brief 规则重编译，并注入共识摘要到 why_worth_doing。"""
+    flow = _get_flow()
+    if flow._store is None:
+        raise HTTPException(status_code=500, detail="Store not available")
+    proposal = flow._store.load_proposal(proposal_id)
+    if proposal is None:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    if proposal.get("stage") != "brief":
+        raise HTTPException(status_code=409, detail="仅 brief 阶段支持按共识重编 Brief")
+    oid = str(proposal["opportunity_id"])
+    notes = _proposal_to_escalation_notes(proposal)
+    return flow.build_brief(oid, council_escalation_notes=notes).model_dump(mode="json")
 
 
 @router.get("/agent-runs/{run_id}")

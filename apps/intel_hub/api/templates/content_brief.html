@@ -315,7 +315,8 @@
     {# ═══ 右栏 ═══ #}
     <aside class="ws-right">
       <div class="ws-agent-box">
-        <div class="ws-agent-title">AI 分析建议</div>
+        <div class="ws-agent-title">Insight 模式 · AI 分析建议</div>
+        <div style="font-size:11px;color:var(--muted);margin:-4px 0 8px;">快速解读机会与下一步；不写回 Brief，不生成 Council 提案。</div>
         <div class="ws-agent-text" id="ws-agent-explanation">
           {% if card.action_recommendation %}{{ card.action_recommendation }}{% else %}点击「重新生成 Brief」后，AI 将提供编译分析。{% endif %}
         </div>
@@ -325,12 +326,20 @@
       </div>
 
       <div class="ws-card">
-        <h3 style="font-size: 16px; color: var(--ink);">Ask the Council</h3>
+        <h3 style="font-size: 16px; color: var(--ink); margin-bottom: 4px;">Council 模式 · Ask the Council</h3>
+        <div style="font-size: 11px; color: var(--muted); margin-bottom: 10px;">多角色围绕当前 Brief 做决策型咨询：先共识与分歧，再决定是否应用字段。</div>
+        <div style="font-size: 11px; color: #5b21b6; margin-bottom: 8px;">Conversation 模式：右侧「对话」为澄清与探索；可用「转为 Council 问题」把一条结论升级为正式咨询。</div>
         <label class="ws-form-label" for="ws-council-question">围绕当前 Brief 提问</label>
         <textarea class="ws-form-input" id="ws-council-question" rows="3" style="resize: vertical;" placeholder="例如：请围绕早餐场景，把这个 brief 调整得更适合高收藏种草。"></textarea>
         <button type="button" class="ws-btn ws-btn-secondary" id="ws-btn-council">发起 Brief Council</button>
         <button type="button" class="ws-btn ws-btn-ghost" id="ws-btn-scorecard">刷新 Brief 评分</button>
         <div id="ws-council-status" style="font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--muted);"></div>
+        <div id="ws-council-phase" style="font-size: 11px; color: var(--accent); margin-top: 4px; min-height: 16px;"></div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="ws-field-label" style="margin-top: 0;">讨论过程</div>
+          <div id="ws-discussion-render" style="font-size: 12px; max-height: 220px; overflow-y: auto;">暂无讨论过程</div>
+        </div>
 
         <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
           <div class="ws-field-label" style="margin-top: 0;">Discussion Summary</div>
@@ -339,8 +348,12 @@
 
         <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
           <div class="ws-field-label" style="margin-top: 0;">Proposal Diff</div>
+          <div id="ws-council-decision-badge" style="display:none;font-size:12px;margin-bottom:8px;"></div>
           <div id="ws-proposal-diff" style="font-size: 12px; color: var(--muted);">暂无 proposal</div>
-          <button type="button" class="ws-btn ws-btn-primary" id="ws-btn-apply-proposal" style="display: none; margin-top: 10px;">Apply Selected Changes</button>
+          <div id="ws-proposal-alternatives" style="font-size: 12px; margin-top: 8px;"></div>
+          <button type="button" class="ws-btn ws-btn-primary" id="ws-btn-apply-proposal" style="display: none; margin-top: 10px;">应用选中字段变更</button>
+          <button type="button" class="ws-btn ws-btn-secondary" id="ws-btn-apply-draft" style="display: none; margin-top: 8px;">Apply as Draft（写入差异化切入草稿）</button>
+          <button type="button" class="ws-btn ws-btn-ghost" id="ws-btn-escalate-rewrite" style="display: none; margin-top: 8px;">按共识重编 Brief（Escalate）</button>
         </div>
 
         <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
@@ -412,11 +425,13 @@
       </div>
 
       <div class="ws-card" style="margin-top: 12px;">
-        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">对话</h3>
+        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 4px;">Conversation 模式</h3>
+        <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">澄清与探索；默认不自动生成可 Apply 的 proposal。</div>
         <div style="display: flex; gap: 6px;">
           <input id="ws-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
           <button id="ws-chat-send" type="button" style="padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 13px;">发送</button>
         </div>
+        <button type="button" id="ws-chat-to-council" style="margin-top:8px;font-size:12px;padding:4px 10px;border:1px dashed var(--border);border-radius:8px;background:transparent;cursor:pointer;color:var(--accent);width:100%;">转为 Council 问题（预填至上方咨询框）</button>
         <div id="ws-chat-status" style="font-size: 11px; margin-top: 4px; color: var(--muted);"></div>
       </div>
     </aside>
@@ -437,7 +452,12 @@
 (function () {
   var opportunityId = {{ opportunity_id | tojson }};
   var currentProposalId = '';
+  var lastDiscussionId = '';
   function splitTags(s) { if (!s || typeof s !== 'string') return []; return s.split(',').map(function(x){ return x.trim(); }).filter(Boolean); }
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
   function strOrNull(el) { var v = (el && el.value) ? el.value.trim() : ''; return v.length ? v : null; }
   var statusEl = document.getElementById('ws-save-status');
   function setStatus(msg, isError) {
@@ -484,21 +504,83 @@
     el.innerHTML = html;
   }
 
+  function renderDiscussion(discussion) {
+    var el = document.getElementById('ws-discussion-render');
+    if (!el) return;
+    if (!discussion || !discussion.messages || !discussion.messages.length) {
+      el.innerHTML = '<span style="color:var(--muted)">暂无讨论过程</span>';
+      return;
+    }
+    var html = '';
+    (discussion.messages || []).forEach(function(m) {
+      if (m.role === 'user') {
+        html += '<div style="margin-bottom:8px;"><strong style="color:var(--ink)">你</strong><div style="font-size:12px;line-height:1.5;">' + escapeHtml(m.content || '') + '</div></div>';
+        return;
+      }
+      if (m.role === 'agent') {
+        var meta = m.metadata || {};
+        if (meta.status === 'failed') {
+          html += '<div style="color:#b71c1c;font-size:12px;margin-bottom:8px;">' + escapeHtml(meta.agent_name || m.agent_role || 'Agent') + '：' + escapeHtml(m.content || '') + '</div>';
+          return;
+        }
+        var stance = meta.stance || '';
+        var map = {support:'支持', oppose:'反对', neutral:'中立', supplement:'补充'};
+        var stanceZh = map[stance] || stance;
+        var claim = meta.claim || '';
+        html += '<div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;font-size:12px;">';
+        html += '<div style="display:flex;justify-content:space-between;gap:8px;"><strong>' + escapeHtml(meta.agent_name || m.agent_role || 'Agent') + '</strong>';
+        if (stance) html += '<span style="color:var(--accent);white-space:nowrap;">' + escapeHtml(stanceZh) + '</span>';
+        html += '</div>';
+        if (claim) html += '<div style="color:var(--muted);margin-top:4px;">' + escapeHtml(claim) + '</div>';
+        html += '<details style="margin-top:6px;"><summary style="cursor:pointer">全文</summary><div style="margin-top:6px;line-height:1.5;">' + escapeHtml(m.content || '') + '</div></details>';
+        html += '</div>';
+        return;
+      }
+      if (m.role === 'system' || (m.metadata && m.metadata.type === 'consensus')) {
+        html += '<div style="background:var(--bg-subtle,#f5f5f5);padding:8px;border-radius:8px;font-size:12px;margin-top:4px;"><strong>共识</strong><div style="margin-top:4px;line-height:1.5;">' + escapeHtml(m.content || '') + '</div></div>';
+      }
+    });
+    el.innerHTML = html || '<span style="color:var(--muted)">暂无</span>';
+  }
+
   function renderProposal(proposal) {
     var diffEl = document.getElementById('ws-proposal-diff');
     var applyBtn = document.getElementById('ws-btn-apply-proposal');
+    var draftBtn = document.getElementById('ws-btn-apply-draft');
+    var escBtn = document.getElementById('ws-btn-escalate-rewrite');
+    var badgeEl = document.getElementById('ws-council-decision-badge');
+    var altEl = document.getElementById('ws-proposal-alternatives');
     if (!diffEl || !applyBtn) return;
     if (!proposal) {
       diffEl.innerHTML = '<span style="color:var(--muted)">暂无 proposal</span>';
       applyBtn.style.display = 'none';
+      if (draftBtn) draftBtn.style.display = 'none';
+      if (escBtn) escBtn.style.display = 'none';
+      if (badgeEl) { badgeEl.style.display = 'none'; badgeEl.textContent = ''; }
+      if (altEl) altEl.innerHTML = '';
       return;
     }
     currentProposalId = proposal.proposal_id || '';
-    var html = '';
-    if (proposal.summary) {
-      document.getElementById('ws-discussion-summary').textContent = proposal.summary;
+    var dt = proposal.council_decision_type || '';
+    var labels = { advisory:'咨询型（有共识但未必落字段）', conflicted:'存在分歧', insufficient_context:'信息不足', applyable:'可应用字段变更' };
+    if (badgeEl) {
+      if (dt) {
+        badgeEl.style.display = 'block';
+        badgeEl.innerHTML = '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:var(--bg-subtle,#eef);color:#4527a0;font-weight:600;">' + escapeHtml(labels[dt] || dt) + '</span> · 可应用性 ' + escapeHtml(proposal.applyability || 'none');
+      } else {
+        badgeEl.style.display = 'none';
+        badgeEl.innerHTML = '';
+      }
     }
-    (proposal.diff && proposal.diff.changes ? proposal.diff.changes : []).forEach(function(change) {
+    if (proposal.summary) {
+      var sumEl = document.getElementById('ws-discussion-summary');
+      if (sumEl) sumEl.textContent = proposal.summary;
+    }
+    var html = '';
+    var changes = (proposal.diff && proposal.diff.changes) ? proposal.diff.changes : [];
+    changes.forEach(function(change) {
+      var hasMaterial = JSON.stringify(change.before) !== JSON.stringify(change.after);
+      if (!hasMaterial) return;
       var checked = change.blocked ? '' : ' checked';
       var disabled = change.blocked ? ' disabled' : '';
       html += '<label class="ws-proposal-change" style="display:block;">';
@@ -510,8 +592,33 @@
       html += '<div style="color:#2e7d32;">+ ' + JSON.stringify(change.after) + '</div>';
       html += '</div></div></label>';
     });
-    diffEl.innerHTML = html || '<span style="color:var(--muted)">proposal 没有字段变化</span>';
-    applyBtn.style.display = currentProposalId ? 'block' : 'none';
+    if (!html) {
+      var emptyMsg = '当前无字段级 diff';
+      if (dt === 'insufficient_context' && (proposal.open_questions || []).length) {
+        emptyMsg += ' · 请先补全：' + (proposal.open_questions || []).slice(0, 3).join('；');
+      } else if (dt === 'conflicted' && (proposal.disagreements || []).length) {
+        emptyMsg += ' · 分歧：' + (proposal.disagreements || []).slice(0, 2).join('；');
+      } else if (dt === 'advisory') {
+        emptyMsg += ' · 可将共识写入草稿或发起重编';
+      }
+      diffEl.innerHTML = '<span style="color:var(--muted);line-height:1.5;">' + escapeHtml(emptyMsg) + '</span>';
+    } else {
+      diffEl.innerHTML = html;
+    }
+    applyBtn.style.display = (currentProposalId && html) ? 'block' : 'none';
+    if (draftBtn) draftBtn.style.display = currentProposalId ? 'block' : 'none';
+    if (escBtn) escBtn.style.display = currentProposalId ? 'block' : 'none';
+    if (altEl) {
+      var alts = proposal.alternatives || [];
+      if (!alts.length) { altEl.innerHTML = ''; }
+      else {
+        var ah = '<div style="font-weight:600;margin-bottom:4px;">备选方向</div>';
+        alts.forEach(function(a) {
+          if (a && a.label) ah += '<div style="margin-bottom:6px;"><strong>' + escapeHtml(a.label) + '</strong> · ' + escapeHtml(a.summary || '') + '</div>';
+        });
+        altEl.innerHTML = ah;
+      }
+    }
   }
 
   function loadLatestScorecard() {
@@ -642,12 +749,16 @@
       })
       .then(function(r){ return r.json(); })
       .then(function(data){
+        lastDiscussionId = data.discussion_id || '';
+        if (data.discussion) renderDiscussion(data.discussion);
         if (data.proposal) {
           renderProposal(data.proposal);
           setCouncilStatus('已生成 proposal', false);
         } else {
           setCouncilStatus('未生成 proposal', true);
         }
+        var ph = document.getElementById('ws-council-phase');
+        if (ph) ph.textContent = '';
       })
       .catch(function(err){ setCouncilStatus('讨论失败', true); });
     });
@@ -684,6 +795,54 @@
         window.location.reload();
       })
       .catch(function(){ setCouncilStatus('应用失败', true); });
+    });
+  }
+
+  var applyDraftBtn = document.getElementById('ws-btn-apply-draft');
+  if (applyDraftBtn) {
+    applyDraftBtn.addEventListener('click', function() {
+      if (!currentProposalId) return;
+      setCouncilStatus('写入草稿中…', false);
+      fetch('/content-planning/proposals/' + encodeURIComponent(currentProposalId) + '/apply-as-draft', { method: 'POST' })
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          setCouncilStatus('已写入差异化切入草稿', false);
+          window.location.reload();
+        })
+        .catch(function(){ setCouncilStatus('草稿写入失败', true); });
+    });
+  }
+
+  var escBtn = document.getElementById('ws-btn-escalate-rewrite');
+  if (escBtn) {
+    escBtn.addEventListener('click', function() {
+      if (!currentProposalId) return;
+      setCouncilStatus('按共识重编 Brief 中…', false);
+      fetch('/content-planning/proposals/' + encodeURIComponent(currentProposalId) + '/escalate-rewrite-brief', { method: 'POST' })
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          setCouncilStatus('已重编 Brief', false);
+          window.location.reload();
+        })
+        .catch(function(){ setCouncilStatus('重编失败', true); });
+    });
+  }
+
+  var chatToCouncil = document.getElementById('ws-chat-to-council');
+  if (chatToCouncil) {
+    chatToCouncil.addEventListener('click', function() {
+      var tl = document.getElementById('ws-timeline');
+      var lastLine = '';
+      if (tl && tl.lastElementChild) {
+        lastLine = tl.lastElementChild.innerText || '';
+      }
+      var ta = document.getElementById('ws-council-question');
+      if (ta) {
+        var hint = '请将上一句对话结论转为可决策问题：';
+        ta.value = (lastLine ? hint + '\n' + lastLine : '请基于当前 Brief 帮我做决策：');
+        ta.focus();
+      }
+      setCouncilStatus('已预填 Council 问题，可编辑后发起', false);
     });
   }
 
@@ -755,6 +914,24 @@
       evtSource.addEventListener('object_updated', function(e) {
         var data = JSON.parse(e.data);
         appendTimeline('系统', data.object_type + ' 已更新', null);
+      });
+      evtSource.addEventListener('council_phase', function(e) {
+        try {
+          var data = JSON.parse(e.data);
+          var pl = data.payload || {};
+          var ph = document.getElementById('ws-council-phase');
+          if (ph) ph.textContent = pl.label_zh || pl.phase || '';
+          appendTimeline('Council', pl.label_zh || pl.phase || '阶段更新', null);
+        } catch (err) {}
+      });
+      evtSource.addEventListener('discussion_message', function(e) {
+        try {
+          var data = JSON.parse(e.data);
+          var pl = data.payload || {};
+          if (pl.role === 'agent' && pl.content) {
+            appendTimeline(data.agent_name || 'Council', (pl.content || '').substring(0, 120), null);
+          }
+        } catch (err) {}
       });
       evtSource.onerror = function() {
         if (timelineEl) {

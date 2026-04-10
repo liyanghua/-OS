@@ -8,6 +8,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+Applyability = Literal["direct", "partial", "none"]
+CouncilUiDecision = Literal["advisory", "conflicted", "insufficient_context", "applyable"]
+
 from apps.content_planning.schemas.evaluation import DimensionScore
 
 WorkflowStage = Literal["brief", "strategy", "plan", "asset"]
@@ -84,6 +87,17 @@ class StageProposal(BaseModel):
     status: ProposalStatus = "proposed"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # Council Advisory Session 扩展
+    council_decision_type: CouncilUiDecision | str = ""
+    applyability: Applyability | str = "none"
+    agreements: list[str] = Field(default_factory=list)
+    disagreements: list[str] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
+    recommended_next_steps: list[str] = Field(default_factory=list)
+    alternatives: list[dict[str, Any]] = Field(default_factory=list)
+    model_decision_hint: str = ""
+    target_sub_object_type: str = ""  # brief | strategy | plan | asset，预留跨子对象 Council
+    follow_up_of_discussion_id: str = ""
 
 
 class ProposalDecision(BaseModel):
@@ -111,6 +125,14 @@ class AgentDiscussionRecord(BaseModel):
     status: RunStatus = "completed"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    council_decision_type: str = ""
+    agreements: list[str] = Field(default_factory=list)
+    disagreements: list[str] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
+    recommended_next_steps: list[str] = Field(default_factory=list)
+    alternatives: list[dict[str, Any]] = Field(default_factory=list)
+    follow_up_of_discussion_id: str = ""
+    target_sub_object_type: str = ""
 
 
 class StageScorecard(BaseModel):

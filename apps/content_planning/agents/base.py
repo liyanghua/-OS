@@ -45,6 +45,9 @@ class RequestContextBundle(BaseModel):
     template: Any | None = None
     memory_context: str = ""
     object_summary: str = ""
+    # Council：Brief 可写字段快照 + 锁定提示，供 specialist / synthesis 注入
+    council_brief_snapshot: str = ""
+    council_locked_fields_hint: str = ""
 
 
 class AgentResult(BaseModel):

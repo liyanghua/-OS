@@ -5,6 +5,17 @@
 
 ## V0.9 进展 — AI-native 协同架构升级 (2026-04-09)
 
+### Brief 三入口与 Council 合并升级 **已完成** (2026-04-10)
+
+| 项 | 说明 |
+|---|---|
+| Advisory Session 结构化产出 | `discussion.py`：`CouncilSynthesisBundle`、立场 JSON（stance/claim）、共识与 agreements/disagreements/open_questions/recommended_next_steps/alternatives；Brief 字段 `proposed_updates` 白名单过滤 |
+| 决策分型与可应用性 | `reconcile_council_decision_type`（advisory/conflicted/insufficient_context/applyable）+ `compute_applyability`（direct/partial/none），写入 `StageProposal` / `AgentDiscussionRecord` |
+| Brief 快照注入 | `RequestContextBundle.council_brief_snapshot` + `council_locked_fields_hint`，routes 侧 `_format_brief_snapshot_for_council` |
+| API | `POST /content-planning/proposals/{id}/apply-as-draft`、`POST .../escalate-rewrite-brief`；`generate-brief` 可传 `council_escalation_notes`；`StageDiscussionRequest` 支持 `parent_discussion_id` / `target_sub_object_type`（Follow-up / 子对象预留） |
+| SSE | 讨论流程发布 `council_phase`（collecting_opinions / synthesizing_consensus / session_ready） |
+| 前端 Brief 页 | `content_brief.html`：Insight/Council/Conversation 文案、`renderDiscussion`、决策徽章、Apply as Draft / Escalate、对话「转为 Council 问题」、SSE 订阅 `council_phase` |
+
 ### Phase 0：基础修复 **已完成**
 
 | 项 | 状态 | 说明 |

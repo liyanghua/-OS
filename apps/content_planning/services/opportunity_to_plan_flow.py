@@ -428,7 +428,12 @@ class OpportunityToPlanFlow:
 
     # ── 原子操作 ──────────────────────────────────────────────
 
-    def build_brief(self, opportunity_id: str) -> OpportunityBrief:
+    def build_brief(
+        self,
+        opportunity_id: str,
+        *,
+        council_escalation_notes: str | None = None,
+    ) -> OpportunityBrief:
         card = self._adapter.get_card(opportunity_id)
         if card is None:
             raise ValueError(f"机会卡 {opportunity_id} 未找到")
@@ -450,6 +455,10 @@ class OpportunityToPlanFlow:
         brief = self._apply_context(session, brief, previous=session.brief)
 
         brief = self._apply_locks(brief, session.brief)
+        if council_escalation_notes and council_escalation_notes.strip():
+            extra = "\n\n【Council 结构化重写输入】\n" + council_escalation_notes.strip()
+            base = (brief.why_worth_doing or "").strip()
+            brief.why_worth_doing = base + extra if base else extra.strip()
         session.brief = brief
         self._snapshot_version(session, "brief", brief)
         session.invalidate_downstream("match")
@@ -756,6 +765,54 @@ class OpportunityToPlanFlow:
             }
 
         raise ValueError(f"Stage apply is not enabled yet for {stage}")
+
+    def apply_council_advisory_draft(
+        self,
+        opportunity_id: str,
+        proposal: dict[str, Any],
+        *,
+        actor_user_id: str = "",
+    ) -> dict[str, Any]:
+        """将 Council 共识/下一步/备选方向写入差异化切入（无严格字段 diff 时的草稿通道）。"""
+        session = self._get_session(opportunity_id)
+        if session.brief is None:
+            session.brief = self.build_brief(opportunity_id)
+        brief = session.brief
+        assert brief is not None
+        base_ver = proposal.get("base_version")
+        if base_ver is not None and brief.version != int(base_ver):
+            raise StageApplyConflictError(
+                f"Brief version changed from {base_ver} to {brief.version}",
+                stage="brief",
+                stale_flags=dict(session.stale_flags),
+            )
+
+        parts: list[str] = []
+        if proposal.get("summary"):
+            parts.append("【共识】\n" + str(proposal["summary"]))
+        for a in proposal.get("agreements") or []:
+            parts.append("· " + str(a))
+        for step in proposal.get("recommended_next_steps") or []:
+            parts.append("→ " + str(step))
+        for alt in proposal.get("alternatives") or []:
+            if isinstance(alt, dict) and alt.get("label"):
+                parts.append(f"[{alt['label']}] {alt.get('summary', '')}")
+        draft_body = "\n\n".join([p for p in parts if p])
+        if not draft_body.strip():
+            draft_body = str(proposal.get("summary") or "（Council 草稿）")
+
+        base = (brief.competitive_angle or "").strip()
+        block = "\n\n——\n【Council 草稿采纳】\n" + draft_body
+        new_angle = (base + block) if base else block.strip()
+
+        return self.apply_stage_updates(
+            opportunity_id,
+            "brief",
+            {"competitive_angle": new_angle},
+            selected_fields=["competitive_angle"],
+            actor_user_id=actor_user_id,
+            base_version=brief.version,
+        )
 
     def match_templates(
         self,
