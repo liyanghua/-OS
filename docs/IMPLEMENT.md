@@ -2422,3 +2422,30 @@ git commit -m "docs: capture agent performance optimization architecture and met
 |------|------|
 | `agents/graph_executor.py` | 改 — `_build_output_summary` + 丰富回调 |
 | `api/templates/_agent_pipeline_panel.html` | 改 — 可展开预览卡片 + 分角色渲染 |
+
+---
+
+## 一键策划管线 Debug — 时序修复 + 结构化日志 (2026-04-10)
+
+### 根因
+
+1. `trigger()` 在 POST 返回前就发了 `pipeline_started` SSE 事件，但浏览器在 POST 返回后才建立 EventSource
+2. 所有 Agent 的 LLM 增强因 `is_any_available()=false` 被跳过，pipeline 在 ~300ms 内全部跑完
+3. SSE 连接建立时 pipeline 已完成，历史回放批量推送但前端 DOM 未就绪
+4. Python logger 默认级别为 WARNING，所有 `logger.info` 不输出，管线执行完全是黑盒
+
+### 修复
+
+1. **时序修复**：`pipeline_started` 移到 `_execute()` 内部，在首个节点执行前 `await asyncio.sleep(0.3)` 给 SSE 连接建立时间
+2. **结构化日志**：`agent_pipeline_runner.py` 和 `graph_executor.py` 在所有关键节点添加 `logger.info("[Pipeline/Executor] ...")`，配置 logger 级别为 DEBUG
+3. **异常兜底**：新增 `_execute_safe` 包装器确保后台 task 异常永远被 log
+4. **前端历史回放兼容**：`ensureNodeDOM()` 防御性重建缺失的节点卡片；`fallbackLoadStatus()` 在 pipeline_completed 时 totalNodes=0 时调 status API 回填
+5. **前端调试日志**：所有 SSE handler 添加 `console.log('[AP]')` 输出
+
+### 文件变更
+
+| 文件 | 操作 |
+|------|------|
+| `services/agent_pipeline_runner.py` | 改 — 结构化日志 + 时序修复 + _execute_safe |
+| `agents/graph_executor.py` | 改 — ROUND/NODE_START/NODE_DONE 日志 |
+| `api/templates/_agent_pipeline_panel.html` | 改 — ensureNodeDOM + fallback + console.log |

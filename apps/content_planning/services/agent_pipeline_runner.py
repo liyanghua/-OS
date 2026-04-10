@@ -20,6 +20,9 @@ from apps.content_planning.agents.plan_graph import PlanGraph, build_agent_pipel
 from apps.content_planning.gateway.event_bus import ObjectEvent, event_bus
 
 logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+logger.setLevel(logging.DEBUG)
 
 _ROLE_LABELS: dict[str, str] = {
     "trend_analyst": "趋势分析",
@@ -114,17 +117,18 @@ class AgentPipelineRunner:
         )
         self._runs[opportunity_id] = run
 
-        await self._emit(opportunity_id, "agent_pipeline_started", {
-            "run_id": run_id,
-            "graph_id": graph.graph_id,
-            "nodes": [
-                {"node_id": n.node_id, "agent_role": n.agent_role, "label": _ROLE_LABELS.get(n.agent_role, n.agent_role)}
-                for n in graph.nodes.values()
-            ],
-        })
+        logger.info("[Pipeline] TRIGGERED run=%s opp=%s nodes=%d",
+                     run_id, opportunity_id, len(graph.nodes))
 
-        run._task = asyncio.create_task(self._execute(run))
+        run._task = asyncio.create_task(self._execute_safe(run))
         return run
+
+    async def _execute_safe(self, run: PipelineRun) -> None:
+        """Wrapper to guarantee exceptions are always logged."""
+        try:
+            await self._execute(run)
+        except Exception:
+            logger.exception("[Pipeline] UNHANDLED_EXCEPTION in _execute for run=%s", run.run_id)
 
     async def get_status(self, opportunity_id: str) -> dict[str, Any] | None:
         run = self._runs.get(opportunity_id)
@@ -191,6 +195,17 @@ class AgentPipelineRunner:
     async def _execute(self, run: PipelineRun) -> None:
         run.status = PipelineStatus.RUNNING
         run.started_at = time.time()
+        logger.info("[Pipeline] EXECUTE_START run=%s opp=%s", run.run_id, run.opportunity_id)
+
+        await self._emit(run.opportunity_id, "agent_pipeline_started", {
+            "run_id": run.run_id,
+            "graph_id": run.graph_id,
+            "nodes": [
+                {"node_id": n.node_id, "agent_role": n.agent_role, "label": _ROLE_LABELS.get(n.agent_role, n.agent_role)}
+                for n in run.graph.nodes.values()
+            ],
+        })
+        await asyncio.sleep(0.3)
 
         try:
             results = await self._executor.execute(
@@ -211,24 +226,31 @@ class AgentPipelineRunner:
 
             self._persist_to_session(run)
 
+            elapsed_ms = int((time.time() - run.started_at) * 1000)
+            gs = run.graph.summary() if run.graph else {}
+            logger.info("[Pipeline] EXECUTE_DONE run=%s status=%s elapsed=%dms completed=%d failed=%d",
+                         run.run_id, run.status.value, elapsed_ms,
+                         gs.get("completed", 0), gs.get("failed", 0))
+
             asset_bundle_id = ""
             if run.context and run.context.asset_bundle:
                 asset_bundle_id = getattr(run.context.asset_bundle, "bundle_id", "")
 
             await self._emit(run.opportunity_id, "agent_pipeline_completed", {
                 "run_id": run.run_id,
-                "graph_summary": run.graph.summary() if run.graph else {},
+                "graph_summary": gs,
                 "asset_bundle_id": asset_bundle_id,
                 "status": run.status.value,
             })
 
         except asyncio.CancelledError:
             run.status = PipelineStatus.CANCELLED
-            logger.info("Pipeline cancelled for %s", run.opportunity_id)
+            logger.info("[Pipeline] CANCELLED run=%s opp=%s", run.run_id, run.opportunity_id)
         except Exception as exc:
             run.status = PipelineStatus.FAILED
             run.error = str(exc)
-            logger.error("Pipeline failed for %s: %s", run.opportunity_id, exc, exc_info=True)
+            logger.error("[Pipeline] EXECUTE_FAIL run=%s opp=%s error=%s",
+                          run.run_id, run.opportunity_id, exc, exc_info=True)
             await self._emit(run.opportunity_id, "agent_pipeline_failed", {
                 "run_id": run.run_id,
                 "error": str(exc),
@@ -237,6 +259,10 @@ class AgentPipelineRunner:
             run.finished_at = time.time()
 
     async def _on_node_complete(self, run: PipelineRun, node_id: str, agent_role: str, data: dict[str, Any]) -> None:
+        logger.info("[Pipeline] NODE_DONE run=%s node=%s role=%s dur=%dms conf=%.2f expl=%.60s",
+                     run.run_id, node_id, agent_role,
+                     data.get("duration_ms", 0), data.get("confidence", 0),
+                     data.get("explanation", "")[:60])
         self._update_lifecycle(run, agent_role)
         self._persist_stage(run, agent_role)
 

@@ -13,6 +13,9 @@ from apps.content_planning.agents.base import AgentContext, AgentResult, BaseAge
 from apps.content_planning.agents.plan_graph import GraphEdge, GraphNode, NodeStatus, PlanGraph
 
 logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+logger.setLevel(logging.DEBUG)
 
 NodeCallback = Callable[[str, str, dict[str, Any]], Awaitable[None] | None]
 
@@ -129,10 +132,13 @@ class GraphExecutor:
         results: dict[str, AgentResult] = {}
         max_iterations = len(graph.nodes) + 2
 
-        for _ in range(max_iterations):
+        for round_i in range(max_iterations):
             if graph.is_complete():
                 break
             ready = graph.ready_nodes()
+            completed_count = sum(1 for n in graph.nodes.values() if n.status in (NodeStatus.COMPLETED, NodeStatus.SKIPPED))
+            logger.info("[Executor] ROUND=%d ready=%d completed=%d total=%d",
+                         round_i, len(ready), completed_count, len(graph.nodes))
             if not ready:
                 remaining = [n for n in graph.nodes.values() if n.status == NodeStatus.PENDING]
                 if remaining:
@@ -251,6 +257,7 @@ class GraphExecutor:
     ) -> AgentResult:
         """Run a single graph node with lifecycle callbacks and optional middleware."""
         graph.mark_running(node.node_id)
+        logger.info("[Executor] NODE_START node=%s role=%s", node.node_id, node.agent_role)
         await self._fire(on_node_start, node.node_id, node.agent_role, {"task": node.task_description})
 
         agent_cls = self._agent_factory.get(node.agent_role)
@@ -266,6 +273,8 @@ class GraphExecutor:
             result = agent.run(context)
 
         duration_ms = int((time.perf_counter() - t0) * 1000)
+        logger.info("[Executor] NODE_DONE node=%s role=%s dur=%dms conf=%.2f",
+                     node.node_id, node.agent_role, duration_ms, result.confidence)
 
         await self._fire(on_node_complete, node.node_id, node.agent_role, {
             "duration_ms": duration_ms,

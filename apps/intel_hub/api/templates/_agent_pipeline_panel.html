@@ -116,11 +116,20 @@
     '</div>';
   }
 
+  function ensureNodeDOM(nodeId, role, label) {
+    if (document.getElementById('ap-node-'+nodeId)) return;
+    var grid = document.getElementById('ap-nodes-grid');
+    if (!grid) return;
+    console.log('[AP] ensureNodeDOM: creating missing card for', nodeId, role);
+    grid.insertAdjacentHTML('beforeend', nodeCardHTML(nodeId, role, label || role));
+    if (!nodeMap[nodeId]) nodeMap[nodeId] = label || role;
+    if (!totalNodes) totalNodes++;
+  }
+
   window.apToggle = function(nodeId) {
     const body = document.getElementById('ap-body-'+nodeId);
     const tog = document.getElementById('ap-tog-'+nodeId);
     if (!body) return;
-    const isOpen = body.classList.contains('open');
     body.classList.toggle('open');
     if (tog) tog.classList.toggle('open');
   };
@@ -203,8 +212,13 @@
   function esc(s) { if(!s) return ''; var d=document.createElement('div'); d.textContent=String(s); return d.innerHTML; }
 
   function updateNodeUI(nodeId, status, meta) {
-    const el = document.getElementById('ap-node-'+nodeId);
-    if (!el) return;
+    var el = document.getElementById('ap-node-'+nodeId);
+    if (!el) {
+      console.log('[AP] updateNodeUI: DOM missing for', nodeId, '- rebuilding');
+      ensureNodeDOM(nodeId, (meta && meta.agent_role) || '', (meta && meta.label) || nodeId);
+      el = document.getElementById('ap-node-'+nodeId);
+      if (!el) return;
+    }
     const c = STATUS.colors[status]||'#9e9e9e';
     const icon = STATUS.icons[status]||'○';
     el.style.borderLeftColor = c;
@@ -224,7 +238,7 @@
       if (durEl) { durEl.textContent = (meta.duration_ms/1000).toFixed(1)+'s'; durEl.style.color = '#2e7d32'; }
       if (confEl && meta.confidence !== undefined) { confEl.style.background = confColor(meta.confidence); confEl.title = '置信度: '+(meta.confidence*100).toFixed(0)+'%'; }
 
-      var role = nodeRoles[nodeId] || '';
+      var role = nodeRoles[nodeId] || (meta && meta.agent_role) || '';
       var summaryHTML = renderSummary(role, meta.output_summary, meta.explanation, meta.confidence, meta.suggestions);
       if (bodyEl && summaryHTML) {
         bodyEl.innerHTML = summaryHTML;
@@ -257,14 +271,46 @@
     if (el) { el.style.display='block'; el.textContent='已耗时 '+s+'s'; }
   }
 
+  async function fallbackLoadStatus() {
+    console.log('[AP] fallbackLoadStatus: fetching final state from API');
+    try {
+      const r = await fetch('/content-planning/'+oppId+'/agent-pipeline/status');
+      if (!r.ok) { console.log('[AP] fallbackLoadStatus: HTTP', r.status); return; }
+      const d = await r.json();
+      console.log('[AP] fallbackLoadStatus: response', d);
+      const gs = d.graph_summary || {};
+      const nodes = d.nodes || {};
+      if (totalNodes === 0 && Object.keys(nodes).length > 0) {
+        totalNodes = Object.keys(nodes).length;
+        const grid = document.getElementById('ap-nodes-grid');
+        if (grid) {
+          grid.innerHTML = Object.entries(nodes).map(function(entry) {
+            var nid = entry[0], n = entry[1];
+            nodeMap[nid] = n.label || n.agent_role;
+            return nodeCardHTML(nid, n.agent_role, n.label || n.agent_role);
+          }).join('');
+        }
+      }
+      completedNodes = gs.completed || 0;
+      updateProgress();
+      var statusText = d.status || 'unknown';
+      var elapsed = d.elapsed_ms ? (d.elapsed_ms / 1000).toFixed(1) : '?';
+      document.getElementById('ap-done-detail').textContent = '总耗时 '+elapsed+'s · 状态: '+statusText;
+    } catch(err) {
+      console.log('[AP] fallbackLoadStatus: error', err);
+    }
+  }
+
   window.apTrigger = async function() {
     const btn = document.getElementById('ap-start-btn');
     if (btn) { btn.disabled=true; btn.textContent='启动中…'; btn.style.opacity='0.7'; }
+    console.log('[AP] apTrigger: posting to /agent-pipeline for', oppId);
     try {
       const resp = await fetch('/content-planning/'+oppId+'/agent-pipeline', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({execution_mode:'deep'})
       });
+      console.log('[AP] apTrigger: POST response', resp.status);
       if (!resp.ok) throw new Error('触发失败: '+resp.status);
       document.getElementById('ap-trigger-area').style.display='none';
       document.getElementById('ap-progress').style.display='block';
@@ -272,6 +318,7 @@
       elapsedTimer = setInterval(updateElapsed, 1000);
       connectSSE();
     } catch(err) {
+      console.log('[AP] apTrigger: error', err);
       if (btn) { btn.disabled=false; btn.textContent='开始 Agent 全链路策划'; btn.style.opacity='1'; }
       document.getElementById('ap-error').style.display='block';
       document.getElementById('ap-error-msg').textContent = err.message;
@@ -279,13 +326,22 @@
   };
 
   function connectSSE() {
+    console.log('[AP] connectSSE: opening EventSource for', oppId);
     evtSource = new EventSource('/content-planning/stream/'+oppId);
+
+    evtSource.onopen = function() {
+      console.log('[AP] SSE connected');
+    };
 
     evtSource.addEventListener('agent_pipeline_started', function(e) {
       const d = JSON.parse(e.data);
       const nodes = d.payload?.nodes || [];
+      console.log('[AP] pipeline_started: nodes=', nodes.length, nodes);
       totalNodes = nodes.length;
       completedNodes = 0;
+      document.getElementById('ap-trigger-area').style.display='none';
+      document.getElementById('ap-progress').style.display='block';
+      if (!startTime) { startTime = Date.now(); elapsedTimer = setInterval(updateElapsed, 1000); }
       const grid = document.getElementById('ap-nodes-grid');
       if (grid) {
         grid.innerHTML = nodes.map(function(n) {
@@ -299,12 +355,16 @@
     evtSource.addEventListener('agent_node_started', function(e) {
       const d = JSON.parse(e.data);
       const p = d.payload||d;
+      console.log('[AP] node_started:', p.node_id, p.agent_role);
+      ensureNodeDOM(p.node_id, p.agent_role, p.label);
       updateNodeUI(p.node_id, 'running', p);
     });
 
     evtSource.addEventListener('agent_node_completed', function(e) {
       const d = JSON.parse(e.data);
       const p = d.payload||d;
+      console.log('[AP] node_completed:', p.node_id, p.agent_role, 'dur='+p.duration_ms+'ms', 'conf='+p.confidence);
+      ensureNodeDOM(p.node_id, p.agent_role, p.label);
       completedNodes++;
       updateNodeUI(p.node_id, 'completed', p);
       updateProgress();
@@ -313,6 +373,8 @@
     evtSource.addEventListener('agent_node_failed', function(e) {
       const d = JSON.parse(e.data);
       const p = d.payload||d;
+      console.log('[AP] node_failed:', p.node_id, p.agent_role, p.error);
+      ensureNodeDOM(p.node_id, p.agent_role, p.label);
       completedNodes++;
       updateNodeUI(p.node_id, 'failed', p);
       updateProgress();
@@ -321,18 +383,21 @@
     evtSource.addEventListener('agent_pipeline_completed', function(e) {
       const d = JSON.parse(e.data);
       const p = d.payload||d;
+      console.log('[AP] pipeline_completed:', p);
       if (elapsedTimer) clearInterval(elapsedTimer);
       evtSource.close();
-      const elapsed = startTime ? ((Date.now()-startTime)/1000).toFixed(1) : '?';
       document.getElementById('ap-done').style.display='block';
+      const elapsed = startTime ? ((Date.now()-startTime)/1000).toFixed(1) : '?';
       document.getElementById('ap-done-detail').textContent = '总耗时 '+elapsed+'s · 状态: '+(p.status||'completed');
       const link = document.getElementById('ap-asset-link');
       if (link) link.href = '/content-planning/assets/'+oppId;
+      if (totalNodes === 0) fallbackLoadStatus();
     });
 
     evtSource.addEventListener('agent_pipeline_failed', function(e) {
       const d = JSON.parse(e.data);
       const p = d.payload||d;
+      console.log('[AP] pipeline_failed:', p);
       if (elapsedTimer) clearInterval(elapsedTimer);
       evtSource.close();
       document.getElementById('ap-error').style.display='block';
@@ -340,13 +405,16 @@
     });
 
     evtSource.addEventListener('agent_pipeline_cancelled', function(e) {
+      console.log('[AP] pipeline_cancelled');
       if (elapsedTimer) clearInterval(elapsedTimer);
       evtSource.close();
       document.getElementById('ap-error').style.display='block';
       document.getElementById('ap-error-msg').textContent = '管线已取消';
     });
 
-    evtSource.onerror = function() {};
+    evtSource.onerror = function(e) {
+      console.log('[AP] SSE error:', e);
+    };
   }
 })();
 </script>
