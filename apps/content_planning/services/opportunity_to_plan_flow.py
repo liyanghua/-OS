@@ -13,8 +13,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
+from apps.content_planning.exceptions import OpportunityNotPromotedError, StageApplyConflictError
 from apps.content_planning.gateway.event_bus import emit_object_updated
-from apps.content_planning.exceptions import OpportunityNotPromotedError
 from apps.content_planning.schemas.asset_bundle import AssetBundle
 from apps.content_planning.schemas.content_generation import (
     BodyGenerationResult,
@@ -40,7 +40,7 @@ from apps.template_extraction.agent import TemplateMatcher, TemplateRetriever
 logger = logging.getLogger(__name__)
 
 _STAGE_ORDER = ["brief", "match", "strategy", "plan", "generation"]
-_STALE_KEYS = ("brief", "match", "strategy", "plan", "titles", "body", "image_briefs")
+_STALE_KEYS = ("brief", "match", "strategy", "plan", "titles", "body", "image_briefs", "asset_bundle")
 
 
 class _SessionState:
@@ -97,6 +97,7 @@ class _SessionState:
             self.stale_flags["titles"] = True
             self.stale_flags["body"] = True
             self.stale_flags["image_briefs"] = True
+            self.stale_flags["asset_bundle"] = True
         self.updated_at = datetime.now(UTC)
 
     def _mark_fresh(self, key: str) -> None:
@@ -294,6 +295,102 @@ class OpportunityToPlanFlow:
             new_obj.locks = old_obj.locks
         return new_obj
 
+    def _get_stage_object(self, session: _SessionState, stage: str) -> tuple[Any | None, str, str]:
+        if stage == "brief":
+            return session.brief, "brief", "version"
+        if stage == "strategy":
+            return session.strategy, "strategy", "strategy_version"
+        if stage == "plan":
+            return session.note_plan, "plan", "version"
+        if stage == "asset":
+            return session.asset_bundle, "asset_bundle", "version"
+        raise ValueError(f"Unsupported stage: {stage}")
+
+    def _get_field_value(self, obj: Any, field_path: str) -> Any:
+        current = obj
+        for part in field_path.split("."):
+            if current is None:
+                return None
+            if isinstance(current, dict):
+                current = current.get(part)
+            else:
+                current = getattr(current, part, None)
+        return current
+
+    def _set_field_value(self, obj: Any, field_path: str, value: Any) -> bool:
+        parts = field_path.split(".")
+        current = obj
+        for part in parts[:-1]:
+            if current is None:
+                return False
+            if isinstance(current, dict):
+                current = current.get(part)
+            else:
+                current = getattr(current, part, None)
+        if current is None:
+            return False
+        final = parts[-1]
+        if isinstance(current, dict):
+            current[final] = value
+            return True
+        if not hasattr(current, final):
+            return False
+        setattr(current, final, value)
+        return True
+
+    def ensure_stage_object(self, opportunity_id: str, stage: str) -> Any:
+        session = self._get_session(opportunity_id)
+        obj, _, _ = self._get_stage_object(session, stage)
+        if obj is not None:
+            return obj
+        if stage == "brief":
+            return self.build_brief(opportunity_id)
+        if stage == "strategy":
+            return self.build_strategy(opportunity_id)
+        if stage == "plan":
+            return self.build_plan(opportunity_id)
+        if stage == "asset":
+            return self.assemble_asset_bundle(opportunity_id)
+        raise ValueError(f"Unsupported stage: {stage}")
+
+    def get_stage_snapshot(self, opportunity_id: str, stage: str) -> dict[str, Any]:
+        obj = self.ensure_stage_object(opportunity_id, stage)
+        session = self._get_session(opportunity_id)
+        _, object_type, version_attr = self._get_stage_object(session, stage)
+        object_id_attr = {
+            "brief": "brief_id",
+            "strategy": "strategy_id",
+            "plan": "plan_id",
+            "asset": "asset_bundle_id",
+        }[stage]
+        return {
+            "stage": stage,
+            "object_type": object_type,
+            "object_id": getattr(obj, object_id_attr, ""),
+            "version": getattr(obj, version_attr, 1),
+            "payload": obj.model_dump(mode="json") if hasattr(obj, "model_dump") else obj,
+        }
+
+    def build_stage_diff(self, opportunity_id: str, stage: str, proposed_updates: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+        session = self._get_session(opportunity_id)
+        obj = self.ensure_stage_object(opportunity_id, stage)
+        locked_fields = obj.locks.locked_field_names() if getattr(obj, "locks", None) else []
+        changes: list[dict[str, Any]] = []
+        blocked: list[str] = []
+        for field, value in proposed_updates.items():
+            is_blocked = field in locked_fields
+            if is_blocked:
+                blocked.append(field)
+            changes.append(
+                {
+                    "field": field,
+                    "before": self._get_field_value(obj, field),
+                    "after": value,
+                    "blocked": is_blocked,
+                }
+            )
+        return changes, blocked
+
     def bind_workspace_context(
         self,
         *,
@@ -386,6 +483,279 @@ class OpportunityToPlanFlow:
         self._persist(session, status="generated")
         emit_object_updated(opportunity_id, "brief", session.brief.brief_id, agent_name="人工编辑")
         return session.brief
+
+    def apply_stage_updates(
+        self,
+        opportunity_id: str,
+        stage: str,
+        proposed_updates: dict[str, Any],
+        *,
+        selected_fields: list[str] | None = None,
+        actor_user_id: str = "",
+        base_version: int | None = None,
+    ) -> dict[str, Any]:
+        session = self._get_session(opportunity_id)
+        selected = set(selected_fields or proposed_updates.keys())
+        applied_fields: list[str] = []
+        skipped_fields: list[str] = []
+
+        if stage == "brief":
+            if session.brief is None:
+                session.brief = self.build_brief(opportunity_id)
+
+            brief = session.brief
+            assert brief is not None
+            if base_version is not None and brief.version != base_version:
+                raise StageApplyConflictError(
+                    f"Brief version changed from {base_version} to {brief.version}",
+                    stage="brief",
+                    stale_flags=dict(session.stale_flags),
+                )
+
+            editable = {
+                "target_user", "target_scene", "content_goal", "primary_value",
+                "visual_style_direction", "avoid_directions", "template_hints",
+                "core_motive", "price_positioning", "target_audience",
+                "why_worth_doing", "competitive_angle",
+            }
+
+            for field, value in proposed_updates.items():
+                if field not in selected:
+                    continue
+                if field not in editable:
+                    skipped_fields.append(field)
+                    continue
+                if brief.locks and brief.locks.is_locked(field):
+                    skipped_fields.append(field)
+                    continue
+                if hasattr(brief, field):
+                    setattr(brief, field, value)
+                    applied_fields.append(field)
+
+            brief.brief_status = "reviewed"
+            brief.updated_at = datetime.now(UTC)
+            brief.updated_by = actor_user_id or session.updated_by or session.created_by
+            brief.version = self._next_version(brief)
+            session.brief = brief
+            self._snapshot_version(session, "brief", brief)
+            session.invalidate_downstream("match")
+            session._mark_fresh("brief")
+            self._persist(session, status="generated")
+            emit_object_updated(opportunity_id, "brief", brief.brief_id, agent_name="Agent Proposal")
+            return {
+                "brief": brief.model_dump(mode="json"),
+                "payload": brief.model_dump(mode="json"),
+                "applied_fields": applied_fields,
+                "skipped_fields": skipped_fields,
+                "stale_flags": dict(session.stale_flags),
+            }
+
+        if stage == "strategy":
+            if session.brief is None:
+                session.brief = self.build_brief(opportunity_id)
+            if session.stale_flags.get("brief"):
+                raise StageApplyConflictError(
+                    "Brief is stale. Refresh Brief before applying a Strategy proposal.",
+                    stage="strategy",
+                    stale_flags=dict(session.stale_flags),
+                )
+            if session.strategy is None:
+                session.strategy = self.build_strategy(opportunity_id)
+
+            strategy = session.strategy
+            assert strategy is not None
+            if base_version is not None and strategy.strategy_version != base_version:
+                raise StageApplyConflictError(
+                    f"Strategy version changed from {base_version} to {strategy.strategy_version}",
+                    stage="strategy",
+                    stale_flags=dict(session.stale_flags),
+                )
+
+            editable = {
+                "positioning_statement",
+                "new_hook",
+                "new_angle",
+                "tone_of_voice",
+                "hook_strategy",
+                "cta_strategy",
+                "scene_emphasis",
+                "rationale",
+                "keep_elements",
+                "replace_elements",
+                "enhance_elements",
+                "avoid_elements",
+                "title_strategy",
+                "body_strategy",
+                "image_strategy",
+                "differentiation_axis",
+                "risk_notes",
+                "comparison_note",
+            }
+
+            for field, value in proposed_updates.items():
+                if field not in selected:
+                    continue
+                if field not in editable:
+                    skipped_fields.append(field)
+                    continue
+                if strategy.locks and strategy.locks.is_locked(field):
+                    skipped_fields.append(field)
+                    continue
+                if hasattr(strategy, field):
+                    setattr(strategy, field, value)
+                    applied_fields.append(field)
+
+            strategy.strategy_status = "reviewed"
+            strategy.updated_at = datetime.now(UTC)
+            strategy.updated_by = actor_user_id or session.updated_by or session.created_by
+            strategy.strategy_version = self._next_version(strategy)
+            session.strategy = strategy
+            self._snapshot_version(session, "strategy", strategy)
+            session.invalidate_downstream("plan")
+            session._mark_fresh("strategy")
+            self._persist(session, status="generated")
+            emit_object_updated(opportunity_id, "strategy", strategy.strategy_id, agent_name="Agent Proposal")
+            return {
+                "strategy": strategy.model_dump(mode="json"),
+                "payload": strategy.model_dump(mode="json"),
+                "applied_fields": applied_fields,
+                "skipped_fields": skipped_fields,
+                "stale_flags": dict(session.stale_flags),
+            }
+
+        if stage == "plan":
+            if session.strategy is None:
+                session.strategy = self.build_strategy(opportunity_id)
+            if session.stale_flags.get("strategy"):
+                raise StageApplyConflictError(
+                    "Strategy is stale. Refresh Strategy before applying a Plan proposal.",
+                    stage="plan",
+                    stale_flags=dict(session.stale_flags),
+                )
+            if session.note_plan is None:
+                session.note_plan = self.build_plan(opportunity_id)
+
+            note_plan = session.note_plan
+            assert note_plan is not None
+            if base_version is not None and note_plan.version != base_version:
+                raise StageApplyConflictError(
+                    f"Plan version changed from {base_version} to {note_plan.version}",
+                    stage="plan",
+                    stale_flags=dict(session.stale_flags),
+                )
+
+            editable = {
+                "note_goal",
+                "target_user",
+                "target_scene",
+                "core_selling_point",
+                "theme",
+                "tone_of_voice",
+                "title_plan.title_axes",
+                "title_plan.candidate_titles",
+                "title_plan.do_not_use_phrases",
+                "body_plan.opening_hook",
+                "body_plan.body_outline",
+                "body_plan.cta_direction",
+                "body_plan.tone_notes",
+                "image_plan.priority_axis",
+                "image_plan.global_notes",
+                "image_plan.image_slots",
+                "publish_notes",
+            }
+
+            for field, value in proposed_updates.items():
+                if field not in selected:
+                    continue
+                if field not in editable:
+                    skipped_fields.append(field)
+                    continue
+                if note_plan.locks and note_plan.locks.is_locked(field):
+                    skipped_fields.append(field)
+                    continue
+                if self._set_field_value(note_plan, field, value):
+                    applied_fields.append(field)
+                else:
+                    skipped_fields.append(field)
+
+            note_plan.plan_status = "reviewed"
+            note_plan.updated_at = datetime.now(UTC)
+            note_plan.updated_by = actor_user_id or session.updated_by or session.created_by
+            note_plan.version = self._next_version(note_plan)
+            session.note_plan = note_plan
+            self._snapshot_version(session, "plan", note_plan)
+            session.invalidate_downstream("generation")
+            session._mark_fresh("plan")
+            self._persist(session, status="generated")
+            emit_object_updated(opportunity_id, "plan", note_plan.plan_id, agent_name="Agent Proposal")
+            return {
+                "plan": note_plan.model_dump(mode="json"),
+                "payload": note_plan.model_dump(mode="json"),
+                "applied_fields": applied_fields,
+                "skipped_fields": skipped_fields,
+                "stale_flags": dict(session.stale_flags),
+            }
+
+        if stage == "asset":
+            blocking_keys = ("plan", "titles", "body", "image_briefs")
+            if any(session.stale_flags.get(key) for key in blocking_keys):
+                raise StageApplyConflictError(
+                    "Asset inputs are stale. Refresh Plan / generation objects before applying an Asset proposal.",
+                    stage="asset",
+                    stale_flags=dict(session.stale_flags),
+                )
+            if session.asset_bundle is None:
+                session.asset_bundle = self.assemble_asset_bundle(opportunity_id)
+
+            bundle = session.asset_bundle
+            assert bundle is not None
+            if base_version is not None and bundle.version != base_version:
+                raise StageApplyConflictError(
+                    f"Asset version changed from {base_version} to {bundle.version}",
+                    stage="asset",
+                    stale_flags=dict(session.stale_flags),
+                )
+
+            editable = {
+                "title_candidates",
+                "body_outline",
+                "body_draft",
+                "image_execution_briefs",
+            }
+
+            for field, value in proposed_updates.items():
+                if field not in selected:
+                    continue
+                if field not in editable:
+                    skipped_fields.append(field)
+                    continue
+                if bundle.locks and bundle.locks.is_locked(field):
+                    skipped_fields.append(field)
+                    continue
+                if self._set_field_value(bundle, field, value):
+                    applied_fields.append(field)
+                else:
+                    skipped_fields.append(field)
+
+            bundle.updated_at = datetime.now(UTC)
+            bundle.updated_by = actor_user_id or session.updated_by or session.created_by
+            bundle.version = self._next_version(bundle)
+            bundle.export_status = "ready" if (bundle.title_candidates and bundle.body_draft) else "draft"
+            bundle.approval_status = "pending_review"
+            session.asset_bundle = bundle
+            self._snapshot_version(session, "asset_bundle", bundle)
+            session._mark_fresh("asset_bundle")
+            self._persist(session, status="generated")
+            emit_object_updated(opportunity_id, "asset_bundle", bundle.asset_bundle_id, agent_name="Agent Proposal")
+            return {
+                "asset_bundle": bundle.model_dump(mode="json"),
+                "payload": bundle.model_dump(mode="json"),
+                "applied_fields": applied_fields,
+                "skipped_fields": skipped_fields,
+                "stale_flags": dict(session.stale_flags),
+            }
+
+        raise ValueError(f"Stage apply is not enabled yet for {stage}")
 
     def match_templates(
         self,
@@ -724,6 +1094,10 @@ class OpportunityToPlanFlow:
         from apps.content_planning.services.asset_assembler import AssetAssembler
 
         session = self._get_session(opportunity_id)
+        if session.asset_bundle is not None and not any(
+            session.stale_flags.get(key) for key in ("titles", "body", "image_briefs", "asset_bundle")
+        ):
+            return session.asset_bundle
         if session.titles is None or session.body is None:
             self._run_generation(opportunity_id)
             session = self._get_session(opportunity_id)
@@ -746,6 +1120,8 @@ class OpportunityToPlanFlow:
             lineage=self._build_lineage(session),
         )
         session.asset_bundle = bundle
+        self._snapshot_version(session, "asset_bundle", bundle)
+        session._mark_fresh("asset_bundle")
         self._persist(session, status="generated")
         self._record_usage(session, event_type="asset_bundle_assembled", object_type="asset_bundle", object_id=bundle.asset_bundle_id)
         return bundle
@@ -766,6 +1142,24 @@ class OpportunityToPlanFlow:
     def mark_asset_bundle_exported(self, opportunity_id: str) -> AssetBundle:
         session = self._get_session(opportunity_id)
         bundle = session.asset_bundle or self.assemble_asset_bundle(opportunity_id)
+        if any(session.stale_flags.get(key) for key in ("plan", "titles", "body", "image_briefs")):
+            raise StageApplyConflictError(
+                "Asset bundle inputs are stale. Refresh upstream objects before export.",
+                stage="asset",
+                stale_flags=dict(session.stale_flags),
+            )
+        if bundle.export_status == "draft":
+            raise StageApplyConflictError(
+                "Asset bundle is not export-ready yet. Complete titles/body/assets before export.",
+                stage="asset",
+                stale_flags=dict(session.stale_flags),
+            )
+        if bundle.approval_status in {"changes_requested", "rejected"}:
+            raise StageApplyConflictError(
+                f"Asset bundle approval_status={bundle.approval_status} blocks export.",
+                stage="asset",
+                stale_flags=dict(session.stale_flags),
+            )
         bundle.export_status = "exported"
         bundle.updated_at = datetime.now(UTC)
         if session.updated_by:

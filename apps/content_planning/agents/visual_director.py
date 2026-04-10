@@ -23,6 +23,8 @@ class VisualDirectorAgent(BaseAgent):
 
     def run(self, context: AgentContext) -> AgentResult:
         base_result = self._run_core(context)
+        if self.is_fast_mode(context):
+            return base_result
         return self._enhance_with_llm(context, base_result)
 
     def _run_core(self, context: AgentContext) -> AgentResult:
@@ -65,7 +67,10 @@ class VisualDirectorAgent(BaseAgent):
             if not llm_router.is_any_available():
                 return base_result
 
-            memory_ctx = self._get_memory_context(context.opportunity_id)
+            memory_ctx = self.resolve_memory_context(
+                context,
+                fallback=lambda: self._get_memory_context(context.opportunity_id),
+            )
             conversation = context.extra.get("conversation_history", "")
 
             system = "你是视觉总监。请分析以下图位方案，给出视觉一致性、场景感、广告感控制方面的建议。"

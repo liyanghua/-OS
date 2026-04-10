@@ -4,4 +4,4 @@
 
 [submodule "third_party/hermes-agent"]
 	path = third_party/hermes-agent
-	url = https://github.com/Franklin-Zhou/hermes.git
+	url = https://github.com/NousResearch/hermes-agent.git

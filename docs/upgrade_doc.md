@@ -8,6 +8,36 @@
 
 ---
 
+# 2026-04-09 增量状态：Stage Workflow Substrate + Brief / Strategy / Plan / Asset
+
+本轮已完成：
+
+- `AgentTask / AgentRun / AgentDiscussionRecord / StageProposal / ProposalDecision / StageScorecard` 底座
+- `evaluations / agent_runs / stage_discussions / stage_proposals / proposal_decisions` 持久化
+- Brief 阶段 `discussion -> proposal -> partial apply` 闭环
+- Brief 工作台上的 `Ask the Council / Proposal Diff / Scorecard`
+- Strategy 阶段 `discussion -> proposal -> partial apply` 闭环
+- Strategy 工作台上的 `Ask the Council / Proposal Diff / Scorecard`
+- `Strategy` 评分切到 `strategy_v2` 五维，并对旧四维历史 comparison 做隔离
+- Plan 阶段 `discussion -> proposal -> partial apply` 闭环
+- Plan 工作台上的 `Ask the Council / Proposal Diff / Scorecard`
+- `Plan` 评分从共享 `content` 口径拆出，升级为独立 `plan_v1`
+- Asset 阶段 `discussion -> proposal -> partial apply` 闭环
+- Asset 工作台上的 `Ask the Council / Proposal Diff / Scorecard`
+- `Asset` 评分从共享 `content` 口径拆出，升级为独立 `asset_v1`
+- Asset apply 只修改 `asset_bundle` 本体，不反向污染上游 `brief / strategy / plan`
+- Asset export 新增 gate：
+  - 上游生成输入不能 stale
+  - `export_status` 必须先达到 `ready`
+  - `approval_status` 不能处于退回态
+
+当前尚未完成：
+
+- `graph_executor.py` 正式接入 brief council graph
+- experiment dashboard / delta dashboard
+
+---
+
 # 2026-04-08 增量状态：B2B Pilot Foundation 已落一层平台骨架
 
 本轮新增的不是另一套算法链，而是商业化交付地基：

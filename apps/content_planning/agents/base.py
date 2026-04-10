@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import BaseModel, Field
 
@@ -34,6 +34,17 @@ class AgentContext(BaseModel):
     source_notes: list[Any] = Field(default_factory=list)
     review_summary: dict[str, Any] = Field(default_factory=dict)
     extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class RequestContextBundle(BaseModel):
+    """Per-request shared context assembled once in routes and reused downstream."""
+
+    card: Any | None = None
+    source_notes: list[Any] = Field(default_factory=list)
+    review_summary: dict[str, Any] = Field(default_factory=dict)
+    template: Any | None = None
+    memory_context: str = ""
+    object_summary: str = ""
 
 
 class AgentResult(BaseModel):
@@ -120,6 +131,55 @@ class BaseAgent(ABC):
         context.extra["conversation_history"] = thread.context_summary()
         context.extra["turn_count"] = len([m for m in thread.messages if m.role == "user"])
         return self.run(context)
+
+    def execution_mode(self, context: AgentContext) -> str:
+        return str(
+            context.extra.get("mode")
+            or context.extra.get("execution_mode")
+            or "deep"
+        ).strip().lower()
+
+    def is_fast_mode(self, context: AgentContext) -> bool:
+        return self.execution_mode(context) == "fast"
+
+    def request_context_bundle(self, context: AgentContext) -> RequestContextBundle | None:
+        raw = context.extra.get("request_context_bundle")
+        if raw is None:
+            return None
+        if isinstance(raw, RequestContextBundle):
+            return raw
+        if isinstance(raw, dict):
+            try:
+                return RequestContextBundle.model_validate(raw)
+            except Exception:
+                return None
+        return None
+
+    def resolve_memory_context(
+        self,
+        context: AgentContext,
+        *,
+        fallback: Callable[[], str] | None = None,
+    ) -> str:
+        bundle = self.request_context_bundle(context)
+        if bundle is not None and bundle.memory_context:
+            return bundle.memory_context
+        if fallback is not None:
+            return fallback()
+        return ""
+
+    def resolve_object_summary(
+        self,
+        context: AgentContext,
+        *,
+        fallback: Callable[[], str] | None = None,
+    ) -> str:
+        bundle = self.request_context_bundle(context)
+        if bundle is not None and bundle.object_summary:
+            return bundle.object_summary
+        if fallback is not None:
+            return fallback()
+        return ""
 
     def _make_result(self, **kwargs: Any) -> AgentResult:
         return AgentResult(

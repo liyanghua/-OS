@@ -6,15 +6,17 @@
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field
 
 from apps.content_planning.adapters.llm_router import LLMMessage, llm_router
-from apps.content_planning.agents.base import AgentContext, AgentMessage, AgentResult
+from apps.content_planning.agents.base import AgentContext, AgentMessage, AgentResult, RequestContextBundle
 from apps.content_planning.agents.memory import AgentMemory, MemoryEntry
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,8 @@ STAGE_DISCUSSION_ROLES: dict[str, list[str]] = {
     "match": ["template_planner", "strategy_director", "visual_director"],
     "strategy": ["strategy_director", "visual_director", "brief_synthesizer"],
     "content": ["visual_director", "asset_producer", "strategy_director"],
+    "plan": ["strategy_director", "visual_director", "asset_producer"],
+    "asset": ["asset_producer", "visual_director", "strategy_director"],
 }
 
 AGENT_DISPLAY_NAMES: dict[str, str] = {
@@ -37,6 +41,8 @@ AGENT_DISPLAY_NAMES: dict[str, str] = {
     "asset_producer": "资产制作人",
 }
 
+_TREND_HINT_TERMS = ("趋势", "热点", "时机", "最近", "平台变化", "为什么现在")
+
 
 class DiscussionRound(BaseModel):
     """多 Agent 讨论记录。"""
@@ -46,6 +52,7 @@ class DiscussionRound(BaseModel):
     topic: str = ""
     participants: list[str] = Field(default_factory=list)
     messages: list[AgentMessage] = Field(default_factory=list)
+    failed_participants: list[str] = Field(default_factory=list)
     consensus: str | None = None
     proposed_updates: dict[str, Any] = Field(default_factory=dict)
     overall_score: float = 0.0
@@ -61,7 +68,8 @@ class DiscussionOrchestrator:
 
     def discuss(self, opportunity_id: str, stage: str, user_question: str,
                 context: AgentContext | None = None,
-                on_message: Any = None) -> DiscussionRound:
+                on_message: Any = None,
+                mode: Literal["fast", "deep"] = "deep") -> DiscussionRound:
         """Run a multi-agent discussion round.
 
         Args:
@@ -71,7 +79,7 @@ class DiscussionOrchestrator:
             context: Optional agent context with current objects
             on_message: Optional callback(AgentMessage) for real-time streaming
         """
-        participants = STAGE_DISCUSSION_ROLES.get(stage, ["trend_analyst", "brief_synthesizer"])
+        participants = self._resolve_participants(stage, user_question, context, mode=mode)
 
         discussion = DiscussionRound(
             opportunity_id=opportunity_id,
@@ -89,38 +97,55 @@ class DiscussionOrchestrator:
         if on_message:
             on_message(user_msg)
 
-        object_context = self._build_object_context(stage, context)
-        memory_context = self._get_memory_context(opportunity_id)
+        object_context = self._resolve_object_context(stage, context)
+        memory_context = self._resolve_memory_context(opportunity_id, context)
+
+        opinion_results = self._collect_agent_opinions(
+            participants=participants,
+            user_question=user_question,
+            stage=stage,
+            object_context=object_context,
+            memory_context=memory_context,
+        )
 
         prior_statements: list[str] = []
-
-        for agent_role in participants:
-            agent_name = AGENT_DISPLAY_NAMES.get(agent_role, agent_role)
-
-            agent_response = self._get_agent_opinion(
-                agent_role=agent_role,
-                agent_name=agent_name,
-                user_question=user_question,
-                stage=stage,
-                object_context=object_context,
-                memory_context=memory_context,
-                prior_statements=prior_statements,
-            )
-
-            msg = AgentMessage(
-                role="agent",
-                content=agent_response,
-                agent_role=agent_role,
-                metadata={"agent_name": agent_name, "stage": stage},
-            )
-            discussion.messages.append(msg)
-            prior_statements.append(f"[{agent_name}]: {agent_response}")
+        for result in opinion_results:
+            agent_role = str(result["agent_role"])
+            agent_name = str(result["agent_name"])
+            if result["status"] == "ok":
+                agent_response = str(result["response"])
+                msg = AgentMessage(
+                    role="agent",
+                    content=agent_response,
+                    agent_role=agent_role,
+                    metadata={"agent_name": agent_name, "stage": stage},
+                )
+                discussion.messages.append(msg)
+                prior_statements.append(f"[{agent_name}]: {agent_response}")
+            else:
+                discussion.failed_participants.append(agent_role)
+                msg = AgentMessage(
+                    role="agent",
+                    content="（未成功获取该 Agent 观点，已跳过）",
+                    agent_role=agent_role,
+                    metadata={
+                        "agent_name": agent_name,
+                        "stage": stage,
+                        "status": "failed",
+                        "error": str(result.get("error", "")),
+                    },
+                )
+                discussion.messages.append(msg)
             if on_message:
                 on_message(msg)
 
-        consensus, proposed_updates = self._synthesize_consensus(
-            user_question, stage, prior_statements, object_context
-        )
+        if prior_statements:
+            consensus, proposed_updates = self._synthesize_consensus(
+                user_question, stage, prior_statements, object_context
+            )
+        else:
+            consensus = "本轮讨论暂未拿到有效专家观点，建议稍后重试。"
+            proposed_updates = {}
         discussion.consensus = consensus
         discussion.proposed_updates = proposed_updates
         discussion.status = "concluded"
@@ -142,11 +167,95 @@ class DiscussionOrchestrator:
                 content=f"[{stage}] Q: {user_question[:100]} → {consensus[:200]}",
                 source_agent="discussion_orchestrator",
                 relevance_score=0.8,
-                tags=[stage, "discussion"],
+                tags=[stage, "discussion", "partial" if discussion.failed_participants else "full"],
             )
         )
 
         return discussion
+
+    def _collect_agent_opinions(
+        self,
+        *,
+        participants: list[str],
+        user_question: str,
+        stage: str,
+        object_context: str,
+        memory_context: str,
+    ) -> list[dict[str, Any]]:
+        if not participants:
+            return []
+
+        def _run_one(agent_role: str, agent_name: str) -> dict[str, Any]:
+            try:
+                response = self._get_agent_opinion(
+                    agent_role=agent_role,
+                    agent_name=agent_name,
+                    user_question=user_question,
+                    stage=stage,
+                    object_context=object_context,
+                    memory_context=memory_context,
+                    prior_statements=[],
+                )
+                return {
+                    "agent_role": agent_role,
+                    "agent_name": agent_name,
+                    "status": "ok",
+                    "response": response,
+                }
+            except Exception as exc:
+                logger.warning("discussion specialist failed: %s", agent_role, exc_info=True)
+                return {
+                    "agent_role": agent_role,
+                    "agent_name": agent_name,
+                    "status": "failed",
+                    "error": str(exc),
+                    "response": "",
+                }
+
+        results: list[dict[str, Any] | None] = [None] * len(participants)
+        max_workers = min(max(len(participants), 1), 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_map = {
+                executor.submit(
+                    _run_one,
+                    agent_role,
+                    AGENT_DISPLAY_NAMES.get(agent_role, agent_role),
+                ): index
+                for index, agent_role in enumerate(participants)
+            }
+            for future in as_completed(future_map):
+                index = future_map[future]
+                results[index] = future.result()
+        return [cast(dict[str, Any], result) for result in results if result is not None]
+
+    def _resolve_participants(
+        self,
+        stage: str,
+        user_question: str,
+        context: AgentContext | None,
+        *,
+        mode: Literal["fast", "deep"] = "deep",
+    ) -> list[str]:
+        participants = list(STAGE_DISCUSSION_ROLES.get(stage, ["trend_analyst", "brief_synthesizer"]))
+        if mode == "fast":
+            return participants[:1]
+        if stage != "strategy":
+            return participants
+
+        wants_trend = any(term in user_question for term in _TREND_HINT_TERMS)
+        if not wants_trend and context and context.extra:
+            card = context.extra.get("card")
+            if card is not None:
+                if hasattr(card, "model_dump"):
+                    card = card.model_dump(mode="json")
+                try:
+                    card_text = json.dumps(card, ensure_ascii=False, default=str)
+                except Exception:
+                    card_text = str(card)
+                wants_trend = any(term in card_text for term in _TREND_HINT_TERMS)
+        if wants_trend and "trend_analyst" not in participants:
+            participants.append("trend_analyst")
+        return participants
 
     def _get_agent_opinion(self, *, agent_role: str, agent_name: str,
                            user_question: str, stage: str,
@@ -236,9 +345,36 @@ class DiscussionOrchestrator:
             parts.append("模板匹配: 已完成")
         return "\n".join(parts) if parts else "暂无对象"
 
+    def _request_context_bundle(self, context: AgentContext | None) -> RequestContextBundle | None:
+        if context is None:
+            return None
+        raw = context.extra.get("request_context_bundle")
+        if raw is None:
+            return None
+        if isinstance(raw, RequestContextBundle):
+            return raw
+        if isinstance(raw, dict):
+            try:
+                return RequestContextBundle.model_validate(raw)
+            except Exception:
+                return None
+        return None
+
+    def _resolve_object_context(self, stage: str, context: AgentContext | None) -> str:
+        bundle = self._request_context_bundle(context)
+        if bundle is not None and bundle.object_summary:
+            return bundle.object_summary
+        return self._build_object_context(stage, context)
+
     def _get_memory_context(self, opportunity_id: str) -> str:
         """Retrieve relevant memories for discussion context."""
         entries = self._memory.recall(opportunity_id=opportunity_id, limit=5)
         if not entries:
             return "无历史记忆"
         return "\n".join(f"- [{e.category}] {e.content[:80]}" for e in entries)
+
+    def _resolve_memory_context(self, opportunity_id: str, context: AgentContext | None) -> str:
+        bundle = self._request_context_bundle(context)
+        if bundle is not None and bundle.memory_context:
+            return bundle.memory_context
+        return self._get_memory_context(opportunity_id)

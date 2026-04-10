@@ -16,6 +16,8 @@ class TrendAnalystAgent(BaseAgent):
 
     def run(self, context: AgentContext) -> AgentResult:
         base_result = self._run_core(context)
+        if self.is_fast_mode(context):
+            return base_result
         return self._enhance_with_llm(context, base_result)
 
     def _run_core(self, context: AgentContext) -> AgentResult:
@@ -63,7 +65,10 @@ class TrendAnalystAgent(BaseAgent):
             if not llm_router.is_any_available():
                 return base_result
 
-            memory_ctx = self._get_memory_context(context.opportunity_id)
+            memory_ctx = self.resolve_memory_context(
+                context,
+                fallback=lambda: self._get_memory_context(context.opportunity_id),
+            )
             conversation = context.extra.get("conversation_history", "")
 
             card = context.extra.get("card")

@@ -36,6 +36,28 @@ def _get_stage_config(stage: str) -> dict[str, Any]:
     return cfg.get("evaluation", {}).get(stage, {})
 
 
+def _rubric_version(stage: str) -> str:
+    if stage == "strategy":
+        return "strategy_v2"
+    if stage == "plan":
+        return "plan_v1"
+    if stage == "asset":
+        return "asset_v1"
+    return ""
+
+
+def _parse_llm_json_payload(raw_text: str) -> dict[str, Any]:
+    text = raw_text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        end_idx = len(lines) - 1 if lines[-1].strip().startswith("```") else len(lines)
+        text = "\n".join(lines[1:end_idx])
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+
+
 # ---------------------------------------------------------------------------
 # Base
 # ---------------------------------------------------------------------------
@@ -65,15 +87,17 @@ class BaseStageEvaluator(ABC):
         if llm_router.is_any_available():
             try:
                 evaluation = self._llm_evaluate(opportunity_id, context, stage_cfg, dim_cfgs)
-                evaluation.evaluator = "llm_judge"
-                evaluation.compute_overall()
-                return evaluation
+                if evaluation.evaluator == "llm_judge":
+                    evaluation.rubric_version = _rubric_version(self.stage)
+                    evaluation.compute_overall()
+                    return evaluation
             except Exception:
                 logger.warning("LLM evaluation failed for %s/%s, falling back to rules",
                                self.stage, opportunity_id, exc_info=True)
 
         evaluation.dimensions = self._rule_based_scores(opportunity_id, context)
         evaluation.evaluator = "rule"
+        evaluation.rubric_version = _rubric_version(self.stage)
         evaluation.compute_overall()
         return evaluation
 
@@ -102,10 +126,19 @@ class BaseStageEvaluator(ABC):
             LLMMessage(role="system", content=system_prompt),
             LLMMessage(role="user", content=full_user),
         ]
-        result = llm_router.chat_json(messages, temperature=0.2, max_tokens=1500)
+        response = llm_router.chat(messages, temperature=0.2, max_tokens=1500)
+        if response.degraded or not response.content.strip():
+            raise RuntimeError(f"llm_degraded:{response.degraded_reason or 'empty'}")
+        result = _parse_llm_json_payload(response.content)
+        if not result:
+            raise RuntimeError("llm_invalid_json")
 
         scores_raw: dict[str, float] = result.get("scores", {})
         explanations: dict[str, str] = result.get("explanations", {})
+        if not isinstance(scores_raw, dict) or not scores_raw:
+            raise RuntimeError("llm_missing_scores")
+        if not isinstance(explanations, dict):
+            explanations = {}
 
         dim_map = {d["name"]: d for d in dim_cfgs}
         dimensions: list[DimensionScore] = []
@@ -118,14 +151,13 @@ class BaseStageEvaluator(ABC):
                 explanation=explanations.get(name, ""),
             ))
 
-        resp = llm_router.chat(messages, temperature=0.2, max_tokens=1500)
-        model_used = resp.model
-
         return StageEvaluation(
             opportunity_id=opportunity_id,
             stage=self.stage,  # type: ignore[arg-type]
             dimensions=dimensions,
-            model_used=model_used,
+            model_used=response.model,
+            evaluator="llm_judge",
+            rubric_version=_rubric_version(self.stage),
         )
 
 
@@ -322,25 +354,51 @@ class StrategyEvaluator(BaseStageEvaluator):
         if hasattr(strategy, "model_dump"):
             strategy = strategy.model_dump()
 
-        has_hook = bool(strategy.get("new_hook"))
         has_positioning = bool(strategy.get("positioning_statement"))
-        has_title_strat = bool(strategy.get("title_strategy"))
-        has_body_strat = bool(strategy.get("body_strategy"))
-        filled = sum([has_hook, has_positioning, has_title_strat, has_body_strat])
+        has_new_angle = bool(strategy.get("new_angle"))
+        has_title = bool(strategy.get("title_strategy"))
+        has_body = bool(strategy.get("body_strategy"))
+        has_image = bool(strategy.get("image_strategy"))
+        has_cta = bool(strategy.get("cta_strategy"))
+        has_risk = bool(strategy.get("risk_notes"))
+        filled = sum([has_positioning, has_new_angle, has_title, has_body, has_image, has_cta])
 
         return [
-            DimensionScore(name="differentiation", name_zh="差异化程度",
-                           score=0.6 if has_hook else 0.2, weight=0.30,
-                           explanation="new_hook 已填写" if has_hook else "new_hook 为空"),
-            DimensionScore(name="executability", name_zh="可执行性",
-                           score=min(filled / 4, 1.0), weight=0.25,
-                           explanation=f"策略 {filled}/4 核心字段已填写"),
-            DimensionScore(name="brief_alignment", name_zh="Brief对齐度",
-                           score=0.5, weight=0.25,
-                           explanation="规则模式下固定中等分"),
-            DimensionScore(name="creativity", name_zh="创意新颖度",
-                           score=0.4, weight=0.20,
-                           explanation="规则模式下固定中等分"),
+            DimensionScore(
+                name="strategic_coherence",
+                name_zh="策略一致性",
+                score=min(sum([has_positioning, has_new_angle, has_cta]) / 3, 1.0),
+                weight=0.24,
+                explanation="定位、新角度、CTA 越完整，一致性越高",
+            ),
+            DimensionScore(
+                name="differentiation",
+                name_zh="差异化程度",
+                score=0.8 if has_new_angle else 0.3,
+                weight=0.22,
+                explanation="new_angle 已填写" if has_new_angle else "new_angle 为空",
+            ),
+            DimensionScore(
+                name="platform_nativeness",
+                name_zh="平台原生度",
+                score=min(sum([has_title, has_body, has_image]) / 3, 1.0),
+                weight=0.18,
+                explanation="标题/正文/图片策略越完整，越接近平台原生表达",
+            ),
+            DimensionScore(
+                name="conversion_relevance",
+                name_zh="转化相关性",
+                score=min(sum([has_cta, has_title, has_body]) / 3, 1.0),
+                weight=0.18,
+                explanation="CTA 与文案执行策略越完整，转化相关性越高",
+            ),
+            DimensionScore(
+                name="brand_guardrail_fit",
+                name_zh="品牌守护栏适配",
+                score=0.75 if has_risk else 0.45,
+                weight=0.18,
+                explanation="risk_notes 已填写" if has_risk else "risk_notes 为空，规则模式保守给分",
+            ),
         ]
 
 
@@ -418,6 +476,256 @@ class ContentEvaluator(BaseStageEvaluator):
 
 
 # ---------------------------------------------------------------------------
+# AssetEvaluator
+# ---------------------------------------------------------------------------
+
+class AssetEvaluator(BaseStageEvaluator):
+    """AssetBundle 质量评估。"""
+
+    stage = "asset"
+
+    def _build_user_prompt(self, opportunity_id: str, context: dict[str, Any]) -> str:
+        strategy = context.get("strategy", {})
+        if hasattr(strategy, "model_dump"):
+            strategy = strategy.model_dump()
+        asset_bundle = context.get("asset_bundle", {})
+        if hasattr(asset_bundle, "model_dump"):
+            asset_bundle = asset_bundle.model_dump()
+
+        parts = [
+            "## Strategy 摘要",
+            json.dumps(strategy, ensure_ascii=False, default=str)[:1200],
+            "",
+            "## AssetBundle",
+            json.dumps(asset_bundle, ensure_ascii=False, default=str)[:2600],
+        ]
+        return "\n".join(parts)
+
+    def _rule_based_scores(self, opportunity_id: str, context: dict[str, Any]) -> list[DimensionScore]:
+        asset_bundle = context.get("asset_bundle", {})
+        if hasattr(asset_bundle, "model_dump"):
+            asset_bundle = asset_bundle.model_dump()
+
+        title_candidates = asset_bundle.get("title_candidates") or []
+        body_outline = asset_bundle.get("body_outline") or []
+        body_draft = asset_bundle.get("body_draft") or ""
+        image_execution_briefs = asset_bundle.get("image_execution_briefs") or []
+        export_status = asset_bundle.get("export_status") or "draft"
+        approval_status = asset_bundle.get("approval_status") or "pending_review"
+
+        title_score = min(
+            sum(
+                [
+                    bool(title_candidates),
+                    any(bool(item.get("axis")) for item in title_candidates if isinstance(item, dict)),
+                    any(bool(item.get("rationale")) for item in title_candidates if isinstance(item, dict)),
+                ]
+            ) / 3,
+            1.0,
+        )
+        body_score = min(
+            sum([bool(body_outline), bool(body_draft), len(str(body_draft)) >= 80]) / 3,
+            1.0,
+        )
+        visual_score = min(
+            sum(
+                [
+                    bool(image_execution_briefs),
+                    any(bool(item.get("subject")) for item in image_execution_briefs if isinstance(item, dict)),
+                    any(bool(item.get("composition")) for item in image_execution_briefs if isinstance(item, dict)),
+                ]
+            ) / 3,
+            1.0,
+        )
+        brand_score = min(
+            sum(
+                [
+                    approval_status in {"pending_review", "approved"},
+                    bool(title_candidates) and bool(body_draft),
+                    export_status in {"ready", "exported"},
+                ]
+            ) / 3,
+            1.0,
+        )
+        readiness_score = min(
+            sum(
+                [
+                    bool(title_candidates),
+                    bool(body_draft),
+                    bool(image_execution_briefs),
+                    export_status in {"ready", "exported"},
+                    approval_status != "rejected",
+                ]
+            ) / 5,
+            1.0,
+        )
+
+        return [
+            DimensionScore(
+                name="headline_quality",
+                name_zh="标题质量",
+                score=title_score,
+                weight=0.20,
+                explanation="标题候选越完整、角度与 rationale 越明确，标题质量越高",
+            ),
+            DimensionScore(
+                name="body_persuasiveness",
+                name_zh="正文说服力",
+                score=body_score,
+                weight=0.20,
+                explanation="正文提纲和正文草稿越完整，越具备说服力",
+            ),
+            DimensionScore(
+                name="visual_instruction_specificity",
+                name_zh="视觉指令具体度",
+                score=visual_score,
+                weight=0.20,
+                explanation="图位 brief 越具体，越利于设计/拍摄执行",
+            ),
+            DimensionScore(
+                name="brand_compliance",
+                name_zh="品牌合规度",
+                score=brand_score,
+                weight=0.20,
+                explanation="审批状态、导出状态与资产完整性共同反映品牌合规度",
+            ),
+            DimensionScore(
+                name="production_readiness",
+                name_zh="生产就绪度",
+                score=readiness_score,
+                weight=0.20,
+                explanation="标题、正文、图位和导出准备越完整，越接近 production-ready",
+            ),
+        ]
+
+
+# ---------------------------------------------------------------------------
+# PlanEvaluator
+# ---------------------------------------------------------------------------
+
+class PlanEvaluator(BaseStageEvaluator):
+    """NotePlan 质量评估。"""
+
+    stage = "plan"
+
+    def _build_user_prompt(self, opportunity_id: str, context: dict[str, Any]) -> str:
+        brief = context.get("brief", {})
+        if hasattr(brief, "model_dump"):
+            brief = brief.model_dump()
+        strategy = context.get("strategy", {})
+        if hasattr(strategy, "model_dump"):
+            strategy = strategy.model_dump()
+        plan = context.get("plan", {})
+        if hasattr(plan, "model_dump"):
+            plan = plan.model_dump()
+
+        parts = [
+            "## Brief 摘要",
+            json.dumps(brief, ensure_ascii=False, default=str)[:1200],
+            "",
+            "## Strategy 摘要",
+            json.dumps(strategy, ensure_ascii=False, default=str)[:1400],
+            "",
+            "## NotePlan",
+            json.dumps(plan, ensure_ascii=False, default=str)[:2200],
+        ]
+        return "\n".join(parts)
+
+    def _rule_based_scores(self, opportunity_id: str, context: dict[str, Any]) -> list[DimensionScore]:
+        plan = context.get("plan", {})
+        if hasattr(plan, "model_dump"):
+            plan = plan.model_dump()
+
+        title_plan = plan.get("title_plan") or {}
+        body_plan = plan.get("body_plan") or {}
+        image_plan = plan.get("image_plan") or {}
+
+        title_axes = title_plan.get("title_axes") or []
+        candidate_titles = title_plan.get("candidate_titles") or []
+        body_outline = body_plan.get("body_outline") or []
+        tone_notes = body_plan.get("tone_notes") or []
+        image_slots = image_plan.get("image_slots") or []
+        publish_notes = plan.get("publish_notes") or []
+
+        structure_score = min(
+            sum(
+                [
+                    bool(plan.get("note_goal")),
+                    bool(plan.get("core_selling_point")),
+                    bool(title_axes or candidate_titles),
+                    bool(body_outline),
+                    bool(image_slots),
+                ]
+            )
+            / 5,
+            1.0,
+        )
+        title_body_score = min(
+            sum([bool(candidate_titles), bool(body_plan.get("opening_hook")), bool(body_outline), bool(body_plan.get("cta_direction"))]) / 4,
+            1.0,
+        )
+        image_alignment_score = min(
+            sum([bool(image_slots), bool(image_plan.get("global_notes")), bool(image_plan.get("priority_axis"))]) / 3,
+            1.0,
+        )
+        readiness_score = min(
+            sum(
+                [
+                    bool(plan.get("theme")),
+                    bool(plan.get("tone_of_voice")),
+                    bool(candidate_titles),
+                    bool(body_outline),
+                    bool(image_slots),
+                ]
+            )
+            / 5,
+            1.0,
+        )
+        handoff_score = min(
+            sum([bool(publish_notes), bool(tone_notes), bool(image_plan.get("global_notes"))]) / 3,
+            1.0,
+        )
+
+        return [
+            DimensionScore(
+                name="structural_completeness",
+                name_zh="结构完整性",
+                score=structure_score,
+                weight=0.22,
+                explanation="标题/正文/图位结构越完整，Plan 越可执行",
+            ),
+            DimensionScore(
+                name="title_body_alignment",
+                name_zh="标题正文对齐",
+                score=title_body_score,
+                weight=0.20,
+                explanation="标题组、开篇钩子、正文提纲与 CTA 越一致，分数越高",
+            ),
+            DimensionScore(
+                name="image_slot_alignment",
+                name_zh="图位对齐",
+                score=image_alignment_score,
+                weight=0.20,
+                explanation="图位数量、全局视觉说明和优先轴越完整，图位对齐越高",
+            ),
+            DimensionScore(
+                name="execution_readiness",
+                name_zh="执行就绪度",
+                score=readiness_score,
+                weight=0.20,
+                explanation="主题、语气和三路执行结构越完整，越适合进入生成",
+            ),
+            DimensionScore(
+                name="human_handoff_readiness",
+                name_zh="交接就绪度",
+                score=handoff_score,
+                weight=0.18,
+                explanation="发布备注、语气说明和图片全局说明越完整，越利于人工接手",
+            ),
+        ]
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -426,6 +734,8 @@ STAGE_EVALUATORS: dict[str, BaseStageEvaluator] = {
     "brief": BriefEvaluator(),
     "match": MatchEvaluator(),
     "strategy": StrategyEvaluator(),
+    "plan": PlanEvaluator(),
+    "asset": AssetEvaluator(),
     "content": ContentEvaluator(),
 }
 

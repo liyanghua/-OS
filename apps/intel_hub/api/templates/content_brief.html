@@ -61,6 +61,8 @@
   .ws-versions-panel { display: none; max-height: 300px; overflow-y: auto; }
   .ws-versions-panel.open { display: block; }
   .ws-version-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .ws-proposal-change { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .ws-score-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; margin-bottom: 6px; }
 </style>
 
 <div class="ws-shell">
@@ -105,12 +107,19 @@
   {# ═══ Stale Flags ═══ #}
   {% if stale_flags %}
   <div class="ws-stale-row">
-    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs'] %}
+    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs','asset_bundle'] %}
     {% set is_stale = stale_flags.get(key, false) %}
     <span class="ws-stale" style="background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">
       {{ key }} {{ '⟳' if is_stale else '✓' }}
     </span>
     {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if needs_build %}
+  <div style="margin-bottom: 14px; padding: 12px 14px; border-radius: 14px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; font-size: 13px; line-height: 1.6;">
+    当前 session 中还没有 Brief 快照。页面不会在加载时自动重编译。
+    <a href="{{ refresh_url }}" style="color: #c2410c; font-weight: 700; text-decoration: none;">点击这里显式生成 Brief</a>
   </div>
   {% endif %}
 
@@ -315,6 +324,31 @@
         {% endif %}
       </div>
 
+      <div class="ws-card">
+        <h3 style="font-size: 16px; color: var(--ink);">Ask the Council</h3>
+        <label class="ws-form-label" for="ws-council-question">围绕当前 Brief 提问</label>
+        <textarea class="ws-form-input" id="ws-council-question" rows="3" style="resize: vertical;" placeholder="例如：请围绕早餐场景，把这个 brief 调整得更适合高收藏种草。"></textarea>
+        <button type="button" class="ws-btn ws-btn-secondary" id="ws-btn-council">发起 Brief Council</button>
+        <button type="button" class="ws-btn ws-btn-ghost" id="ws-btn-scorecard">刷新 Brief 评分</button>
+        <div id="ws-council-status" style="font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--muted);"></div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="ws-field-label" style="margin-top: 0;">Discussion Summary</div>
+          <div id="ws-discussion-summary" style="font-size: 13px; line-height: 1.6; color: var(--ink);">暂无讨论记录</div>
+        </div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="ws-field-label" style="margin-top: 0;">Proposal Diff</div>
+          <div id="ws-proposal-diff" style="font-size: 12px; color: var(--muted);">暂无 proposal</div>
+          <button type="button" class="ws-btn ws-btn-primary" id="ws-btn-apply-proposal" style="display: none; margin-top: 10px;">Apply Selected Changes</button>
+        </div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="ws-field-label" style="margin-top: 0;">Baseline vs Current Scorecard</div>
+          <div id="ws-scorecard" style="font-size: 12px; color: var(--muted);">暂无评分</div>
+        </div>
+      </div>
+
       {% set _raw_locks = (brief.get('locks') or {}) if brief else {} %}
       {% set brief_locks = _raw_locks.get('locked_fields', {}) if _raw_locks is mapping else {} %}
       <div class="ws-card">
@@ -402,6 +436,7 @@
 <script>
 (function () {
   var opportunityId = {{ opportunity_id | tojson }};
+  var currentProposalId = '';
   function splitTags(s) { if (!s || typeof s !== 'string') return []; return s.split(',').map(function(x){ return x.trim(); }).filter(Boolean); }
   function strOrNull(el) { var v = (el && el.value) ? el.value.trim() : ''; return v.length ? v : null; }
   var statusEl = document.getElementById('ws-save-status');
@@ -409,6 +444,87 @@
     if (!statusEl) return;
     statusEl.textContent = msg || '';
     statusEl.style.color = isError ? '#b71c1c' : (msg ? 'var(--accent)' : 'var(--muted)');
+  }
+
+  function setCouncilStatus(msg, isError) {
+    var el = document.getElementById('ws-council-status');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = isError ? '#b71c1c' : (msg ? 'var(--accent)' : 'var(--muted)');
+  }
+
+  /** 非首屏请求延后到浏览器空闲，减轻首屏与主交互争抢（性能 Chunk 7） */
+  function scheduleDeferred(fn, delayMs) {
+    delayMs = delayMs || 0;
+    function run() {
+      try { fn(); } catch (e) {}
+    }
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(function() { setTimeout(run, delayMs); }, { timeout: 3000 });
+    } else {
+      setTimeout(run, Math.max(delayMs, 16));
+    }
+  }
+
+  function renderScorecard(item) {
+    var el = document.getElementById('ws-scorecard');
+    if (!el) return;
+    if (!item || !item.payload) {
+      el.innerHTML = '<span style="color:var(--muted)">暂无评分</span>';
+      return;
+    }
+    var payload = item.payload;
+    var html = '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px;">当前分数 ' + Math.round((payload.overall_score || 0) * 100) + '/100</div>';
+    (payload.dimensions || []).forEach(function(dim) {
+      html += '<div class="ws-score-row"><span>' + (dim.name_zh || dim.name) + '</span><strong>' + Math.round((dim.score || 0) * 100) + '</strong></div>';
+    });
+    if (payload.explanation) {
+      html += '<div style="margin-top:8px;color:var(--muted);line-height:1.5;">' + payload.explanation + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  function renderProposal(proposal) {
+    var diffEl = document.getElementById('ws-proposal-diff');
+    var applyBtn = document.getElementById('ws-btn-apply-proposal');
+    if (!diffEl || !applyBtn) return;
+    if (!proposal) {
+      diffEl.innerHTML = '<span style="color:var(--muted)">暂无 proposal</span>';
+      applyBtn.style.display = 'none';
+      return;
+    }
+    currentProposalId = proposal.proposal_id || '';
+    var html = '';
+    if (proposal.summary) {
+      document.getElementById('ws-discussion-summary').textContent = proposal.summary;
+    }
+    (proposal.diff && proposal.diff.changes ? proposal.diff.changes : []).forEach(function(change) {
+      var checked = change.blocked ? '' : ' checked';
+      var disabled = change.blocked ? ' disabled' : '';
+      html += '<label class="ws-proposal-change" style="display:block;">';
+      html += '<div style="display:flex;gap:8px;align-items:flex-start;">';
+      html += '<input type="checkbox" class="js-proposal-field" value="' + change.field + '"' + checked + disabled + '>';
+      html += '<div style="flex:1;">';
+      html += '<div style="font-weight:600;color:var(--ink);">' + change.field + (change.blocked ? ' <span style="color:#b71c1c;">(locked)</span>' : '') + '</div>';
+      html += '<div style="color:#b71c1c;text-decoration:line-through;">- ' + JSON.stringify(change.before) + '</div>';
+      html += '<div style="color:#2e7d32;">+ ' + JSON.stringify(change.after) + '</div>';
+      html += '</div></div></label>';
+    });
+    diffEl.innerHTML = html || '<span style="color:var(--muted)">proposal 没有字段变化</span>';
+    applyBtn.style.display = currentProposalId ? 'block' : 'none';
+  }
+
+  function loadLatestScorecard() {
+    fetch('/content-planning/evaluations/' + encodeURIComponent(opportunityId))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var items = data.items || [];
+        var latest = items.find(function(item){
+          return item.eval_type === 'stage_run' && item.payload && item.payload.stage === 'brief';
+        });
+        renderScorecard(latest || null);
+      })
+      .catch(function(){ renderScorecard(null); });
   }
 
   document.getElementById('ws-btn-save').addEventListener('click', function () {
@@ -513,6 +629,64 @@
     });
   });
 
+  var councilBtn = document.getElementById('ws-btn-council');
+  if (councilBtn) {
+    councilBtn.addEventListener('click', function() {
+      var question = (document.getElementById('ws-council-question').value || '').trim();
+      if (!question) { setCouncilStatus('请先输入问题', true); return; }
+      setCouncilStatus('Council 讨论中…', false);
+      fetch('/content-planning/stages/brief/' + encodeURIComponent(opportunityId) + '/discussions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: question})
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.proposal) {
+          renderProposal(data.proposal);
+          setCouncilStatus('已生成 proposal', false);
+        } else {
+          setCouncilStatus('未生成 proposal', true);
+        }
+      })
+      .catch(function(err){ setCouncilStatus('讨论失败', true); });
+    });
+  }
+
+  var scoreBtn = document.getElementById('ws-btn-scorecard');
+  if (scoreBtn) {
+    scoreBtn.addEventListener('click', function() {
+      setCouncilStatus('评分中…', false);
+      fetch('/content-planning/evaluations/brief/' + encodeURIComponent(opportunityId) + '/run', {method: 'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          renderScorecard({payload: data});
+          setCouncilStatus('评分已更新', false);
+        })
+        .catch(function(){ setCouncilStatus('评分失败', true); });
+    });
+  }
+
+  var applyProposalBtn = document.getElementById('ws-btn-apply-proposal');
+  if (applyProposalBtn) {
+    applyProposalBtn.addEventListener('click', function() {
+      if (!currentProposalId) return;
+      var selectedFields = Array.from(document.querySelectorAll('.js-proposal-field:checked')).map(function(el){ return el.value; });
+      setCouncilStatus('应用 proposal 中…', false);
+      fetch('/content-planning/proposals/' + encodeURIComponent(currentProposalId) + '/apply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({selected_fields: selectedFields})
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        setCouncilStatus('已应用：' + (data.applied_fields || []).join(', '), false);
+        window.location.reload();
+      })
+      .catch(function(){ setCouncilStatus('应用失败', true); });
+    });
+  }
+
   async function runAgent(role, extra) {
     var el = document.getElementById('ws-agent-explanation');
     if (el) el.innerHTML = '<span style="color:var(--text-muted)">Agent 思考中...</span>';
@@ -520,7 +694,7 @@
       var res = await fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({agent_role: role, extra: extra || {}})
+        body: JSON.stringify({agent_role: role, mode: 'fast', extra: extra || {}})
       });
       if (!res.ok) throw new Error('Agent 调用失败: ' + res.status);
       var data = await res.json();
@@ -564,32 +738,34 @@
     });
   });
 
-  // ── Agent Timeline via SSE ──
+  // ── Agent Timeline via SSE（延后连接，避免阻塞首屏） ──
   var timelineEl = document.getElementById('ws-timeline');
   var evtSource = null;
-  try {
-    evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
-    evtSource.addEventListener('agent_result', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-    });
-    evtSource.addEventListener('chat_response', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-    });
-    evtSource.addEventListener('object_updated', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline('系统', data.object_type + ' 已更新', null);
-    });
-    evtSource.onerror = function() {
-      if (timelineEl) {
-        var div = document.createElement('div');
-        div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
-        div.textContent = '连接中断，刷新页面重连';
-        timelineEl.appendChild(div);
-      }
-    };
-  } catch(err) {}
+  scheduleDeferred(function() {
+    try {
+      evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
+      evtSource.addEventListener('agent_result', function(e) {
+        var data = JSON.parse(e.data);
+        appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+      });
+      evtSource.addEventListener('chat_response', function(e) {
+        var data = JSON.parse(e.data);
+        appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+      });
+      evtSource.addEventListener('object_updated', function(e) {
+        var data = JSON.parse(e.data);
+        appendTimeline('系统', data.object_type + ' 已更新', null);
+      });
+      evtSource.onerror = function() {
+        if (timelineEl) {
+          var div = document.createElement('div');
+          div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
+          div.textContent = '连接中断，刷新页面重连';
+          timelineEl.appendChild(div);
+        }
+      };
+    } catch(err) {}
+  }, 40);
 
   function appendTimeline(name, text, confidence) {
     if (!timelineEl) return;
@@ -628,7 +804,7 @@
     fetch('/content-planning/chat/' + encodeURIComponent(opportunityId), {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: msg, role: 'human', current_stage: 'brief'})
+      body: JSON.stringify({message: msg, role: 'human', current_stage: 'brief', mode: 'fast'})
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -639,6 +815,8 @@
       if (chatStatus) chatStatus.textContent = '发送失败';
     });
   }
+
+  scheduleDeferred(loadLatestScorecard);
 })();
 </script>
 {% endblock %}

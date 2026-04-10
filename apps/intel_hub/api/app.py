@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -906,15 +907,10 @@ def create_app(
     @app.get("/content-planning/brief/{opportunity_id}")
     async def content_brief_page(request: Request, opportunity_id: str) -> Any:
         """Brief 确认页 / 机会工作台。"""
+        t0 = time.perf_counter()
         card = review_store.get_card(opportunity_id)
         if card is None:
             raise HTTPException(status_code=404, detail="机会卡未找到")
-
-        try:
-            brief = _cp_flow.build_brief(opportunity_id)
-            brief_dict = brief.model_dump(mode="json")
-        except Exception:
-            brief_dict = {}
 
         source_notes = _cp_adapter.get_source_notes(card.source_note_ids) if card.source_note_ids else []
         source_ctx = []
@@ -926,10 +922,21 @@ def create_app(
         session_data = _cp_flow.get_session_data(opportunity_id)
         stale_flags = session_data.get("stale_flags", {})
         pipeline_run_id = session_data.get("pipeline_run_id", "")
+        refresh_requested = _refresh_requested(request)
+
+        if refresh_requested:
+            try:
+                brief = _cp_flow.build_brief(opportunity_id)
+                brief_dict = brief.model_dump(mode="json")
+            except Exception:
+                brief_dict = session_data.get("brief", {})
+        else:
+            brief_dict = session_data.get("brief", {})
+        needs_build = not bool(brief_dict)
 
         card_dict = card.model_dump(mode="json") if hasattr(card, "model_dump") else card
         if _wants_html(request):
-            return _render("content_brief.html", {
+            response = _render("content_brief.html", {
                 "request": request,
                 "opportunity_id": opportunity_id,
                 "card": card_dict,
@@ -938,26 +945,45 @@ def create_app(
                 "review_summary": review_summary or {},
                 "stale_flags": stale_flags,
                 "pipeline_run_id": pipeline_run_id,
+                "needs_build": needs_build,
+                "refresh_url": f"/content-planning/brief/{opportunity_id}?refresh=1",
             })
+            response.headers["X-Render-Timing-Ms"] = str(int((time.perf_counter() - t0) * 1000))
+            return response
         return {"card": card_dict, "brief": brief_dict}
 
     @app.get("/content-planning/strategy/{opportunity_id}")
     async def content_strategy_page(request: Request, opportunity_id: str) -> Any:
         """模板与策略页 / 策划工作台。"""
+        t0 = time.perf_counter()
         card = review_store.get_card(opportunity_id)
         if card is None:
             raise HTTPException(status_code=404, detail="机会卡未找到")
 
-        try:
-            data = _cp_flow.build_note_plan(opportunity_id, with_generation=False)
-        except Exception as exc:
-            data = {"brief": {}, "match_result": {}, "strategy": {}, "error": str(exc)}
-
         session_data = _cp_flow.get_session_data(opportunity_id)
         stale_flags = session_data.get("stale_flags", {})
+        refresh_requested = _refresh_requested(request)
+
+        if refresh_requested:
+            try:
+                data = _cp_flow.build_note_plan(opportunity_id, with_generation=False)
+            except Exception as exc:
+                data = {
+                    "brief": session_data.get("brief", {}),
+                    "match_result": session_data.get("match_result", {}),
+                    "strategy": session_data.get("strategy", {}),
+                    "error": str(exc),
+                }
+        else:
+            data = {
+                "brief": session_data.get("brief", {}),
+                "match_result": session_data.get("match_result", {}),
+                "strategy": session_data.get("strategy", {}),
+            }
+        needs_build = not bool(data.get("strategy"))
 
         if _wants_html(request):
-            return _render("content_strategy.html", {
+            response = _render("content_strategy.html", {
                 "request": request,
                 "opportunity_id": opportunity_id,
                 "card": card.model_dump(mode="json"),
@@ -965,26 +991,57 @@ def create_app(
                 "match_result": data.get("match_result", {}),
                 "strategy": data.get("strategy", {}),
                 "stale_flags": stale_flags,
+                "needs_build": needs_build,
+                "refresh_url": f"/content-planning/strategy/{opportunity_id}?refresh=1",
             })
+            response.headers["X-Render-Timing-Ms"] = str(int((time.perf_counter() - t0) * 1000))
+            return response
         return data
 
     @app.get("/content-planning/plan/{opportunity_id}")
     async def content_plan_page(request: Request, opportunity_id: str) -> Any:
         """内容策划页 / 资产工作台。"""
+        t0 = time.perf_counter()
         card = review_store.get_card(opportunity_id)
         if card is None:
             raise HTTPException(status_code=404, detail="机会卡未找到")
 
-        try:
-            data = _cp_flow.build_note_plan(opportunity_id, with_generation=True)
-        except Exception as exc:
-            data = {"brief": {}, "match_result": {}, "strategy": {}, "note_plan": {}, "error": str(exc)}
-
         session_data = _cp_flow.get_session_data(opportunity_id)
         stale_flags = session_data.get("stale_flags", {})
+        refresh_requested = _refresh_requested(request)
+
+        if refresh_requested:
+            try:
+                data = _cp_flow.build_note_plan(opportunity_id, with_generation=True)
+            except Exception as exc:
+                data = {
+                    "brief": session_data.get("brief", {}),
+                    "match_result": session_data.get("match_result", {}),
+                    "strategy": session_data.get("strategy", {}),
+                    "note_plan": session_data.get("note_plan", {}),
+                    "generated": {
+                        "titles": session_data.get("titles", {}),
+                        "body": session_data.get("body", {}),
+                        "image_briefs": session_data.get("image_briefs", {}),
+                    },
+                    "error": str(exc),
+                }
+        else:
+            data = {
+                "brief": session_data.get("brief", {}),
+                "match_result": session_data.get("match_result", {}),
+                "strategy": session_data.get("strategy", {}),
+                "note_plan": session_data.get("note_plan", {}),
+                "generated": {
+                    "titles": session_data.get("titles", {}),
+                    "body": session_data.get("body", {}),
+                    "image_briefs": session_data.get("image_briefs", {}),
+                },
+            }
+        needs_build = not bool(data.get("note_plan"))
 
         if _wants_html(request):
-            return _render("content_plan.html", {
+            response = _render("content_plan.html", {
                 "request": request,
                 "opportunity_id": opportunity_id,
                 "brief": data.get("brief", {}),
@@ -993,12 +1050,17 @@ def create_app(
                 "note_plan": data.get("note_plan", {}),
                 "generated": data.get("generated"),
                 "stale_flags": stale_flags,
+                "needs_build": needs_build,
+                "refresh_url": f"/content-planning/plan/{opportunity_id}?refresh=1",
             })
+            response.headers["X-Render-Timing-Ms"] = str(int((time.perf_counter() - t0) * 1000))
+            return response
         return data
 
     @app.get("/content-planning/assets/{opportunity_id}")
     async def content_assets_page(request: Request, opportunity_id: str) -> Any:
         """资产工作台。"""
+        t0 = time.perf_counter()
         card = review_store.get_card(opportunity_id)
         if card is None:
             raise HTTPException(status_code=404, detail="机会卡未找到")
@@ -1008,26 +1070,26 @@ def create_app(
             bundle_dict = bundle.model_dump(mode="json") if hasattr(bundle, "model_dump") else {}
         except Exception:
             bundle_dict = {}
-
-        try:
-            data = _cp_flow.build_note_plan(opportunity_id, with_generation=True)
-        except Exception:
-            data = {}
-
         session_data = _cp_flow.get_session_data(opportunity_id)
 
         if _wants_html(request):
-            return _render("content_assets.html", {
+            response = _render("content_assets.html", {
                 "request": request,
                 "opportunity_id": opportunity_id,
                 "bundle": bundle_dict,
-                "brief": data.get("brief", {}),
-                "strategy": data.get("strategy", {}),
-                "match_result": data.get("match_result", {}),
-                "generated": data.get("generated"),
+                "brief": session_data.get("brief", {}),
+                "strategy": session_data.get("strategy", {}),
+                "match_result": session_data.get("match_result", {}),
+                "generated": {
+                    "titles": session_data.get("titles", {}),
+                    "body": session_data.get("body", {}),
+                    "image_briefs": session_data.get("image_briefs", {}),
+                },
                 "lineage": bundle_dict.get("lineage", {}),
                 "stale_flags": session_data.get("stale_flags", {}),
             })
+            response.headers["X-Render-Timing-Ms"] = str(int((time.perf_counter() - t0) * 1000))
+            return response
         return {"bundle": bundle_dict}
 
     @app.get("/watchlists")
@@ -1076,6 +1138,11 @@ def _render(template_name: str, context: dict[str, Any]) -> HTMLResponse:
 def _wants_html(request: Request) -> bool:
     accept = request.headers.get("accept", "")
     return "text/html" in accept and "application/json" not in accept
+
+
+def _refresh_requested(request: Request) -> bool:
+    value = (request.query_params.get("refresh", "") or "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 app = create_app()

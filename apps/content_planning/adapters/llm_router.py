@@ -5,6 +5,7 @@ Each provider is optional -- import errors are caught and the provider is skippe
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import json
 import logging
 import os
@@ -28,6 +29,8 @@ class LLMResponse(BaseModel):
     provider: str = ""
     usage: dict[str, int] = Field(default_factory=dict)
     elapsed_ms: int = 0
+    degraded: bool = False
+    degraded_reason: str = ""
     raw: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -183,6 +186,44 @@ _init_providers()
 _DEFAULT_PROVIDER = os.environ.get("LLM_PROVIDER", "dashscope")
 
 
+def _timeout_seconds(*, timeout_seconds: float | None = None, fast_mode: bool = False) -> float:
+    if timeout_seconds is not None:
+        return max(float(timeout_seconds), 0.01)
+    env_name = "LLM_FAST_MODE_TIMEOUT_SECONDS" if fast_mode else "LLM_TIMEOUT_SECONDS"
+    default = "2.0" if fast_mode else "8.0"
+    try:
+        return max(float(os.environ.get(env_name, default)), 0.01)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _strip_code_fences(text: str) -> str:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.split("\n")
+        end_idx = len(lines) - 1 if lines[-1].strip().startswith("```") else len(lines)
+        stripped = "\n".join(lines[1:end_idx])
+    return stripped
+
+
+def _degraded_response(
+    *,
+    provider: str,
+    model: str | None,
+    reason: str,
+    elapsed_ms: int,
+) -> LLMResponse:
+    return LLMResponse(
+        content="",
+        model=model or "",
+        provider=provider,
+        elapsed_ms=elapsed_ms,
+        degraded=True,
+        degraded_reason=reason,
+        raw={"degraded": True, "reason": reason},
+    )
+
+
 class LLMRouter:
     """Unified LLM call entry point supporting multiple providers."""
 
@@ -193,34 +234,85 @@ class LLMRouter:
     def available_providers(self) -> list[str]:
         return [name for name, p in _PROVIDERS.items() if p.is_available()]
 
-    def chat(self, messages: list[LLMMessage], *, model: str | None = None,
-             provider: str | None = None, temperature: float = 0.3,
-             max_tokens: int = 2000) -> LLMResponse:
+    def _resolve_provider(self, provider: str | None = None) -> tuple[str, BaseLLMProvider | None]:
         prov_name = provider or self._default
         prov = _PROVIDERS.get(prov_name)
         if prov is None or not prov.is_available():
             for fallback_name in ("dashscope", "openai", "anthropic"):
                 fb = _PROVIDERS.get(fallback_name)
                 if fb and fb.is_available():
-                    prov = fb
-                    break
+                    return fallback_name, fb
+            return prov_name, None
+        return prov_name, prov
+
+    def _call_with_timeout(
+        self,
+        fn: Any,
+        *,
+        provider: str,
+        model: str | None,
+        timeout_seconds: float,
+    ) -> LLMResponse:
+        started = time.perf_counter()
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(fn)
+        try:
+            return future.result(timeout=timeout_seconds)
+        except FuturesTimeoutError:
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            logger.warning("LLM provider timed out provider=%s timeout=%.2fs", provider, timeout_seconds)
+            return _degraded_response(
+                provider=provider,
+                model=model,
+                reason="timeout",
+                elapsed_ms=elapsed_ms,
+            )
+        except Exception as exc:
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            logger.warning("LLM provider failed provider=%s: %s", provider, exc, exc_info=True)
+            return _degraded_response(
+                provider=provider,
+                model=model,
+                reason="provider_error",
+                elapsed_ms=elapsed_ms,
+            )
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+    def chat(self, messages: list[LLMMessage], *, model: str | None = None,
+             provider: str | None = None, temperature: float = 0.3,
+             max_tokens: int = 2000, timeout_seconds: float | None = None,
+             fast_mode: bool = False) -> LLMResponse:
+        prov_name, prov = self._resolve_provider(provider)
         if prov is None or not prov.is_available():
             logger.warning("No LLM provider available")
-            return LLMResponse(content="", provider="none")
-        return prov.chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
+            return _degraded_response(
+                provider="none",
+                model=model,
+                reason="no_provider",
+                elapsed_ms=0,
+            )
+        response = self._call_with_timeout(
+            lambda: prov.chat(messages, model=model, temperature=temperature, max_tokens=max_tokens),
+            provider=prov_name,
+            model=model,
+            timeout_seconds=_timeout_seconds(timeout_seconds=timeout_seconds, fast_mode=fast_mode),
+        )
+        if not response.degraded and not response.content.strip():
+            response.degraded = True
+            response.degraded_reason = "empty_response"
+            response.raw.setdefault("degraded", True)
+            response.raw.setdefault("reason", "empty_response")
+        return response
 
     def chat_json(self, messages: list[LLMMessage], **kwargs: Any) -> dict[str, Any]:
-        prov_name = kwargs.pop("provider", None) or self._default
-        prov = _PROVIDERS.get(prov_name)
-        if prov is None or not prov.is_available():
-            for fb_name in ("dashscope", "openai", "anthropic"):
-                fb = _PROVIDERS.get(fb_name)
-                if fb and fb.is_available():
-                    prov = fb
-                    break
-        if prov is None or not prov.is_available():
+        response = self.chat(messages, **kwargs)
+        if response.degraded or not response.content.strip():
             return {}
-        return prov.chat_json(messages, **kwargs)
+        try:
+            return json.loads(_strip_code_fences(response.content))
+        except json.JSONDecodeError:
+            return {}
 
     def is_any_available(self) -> bool:
         return any(p.is_available() for p in _PROVIDERS.values())

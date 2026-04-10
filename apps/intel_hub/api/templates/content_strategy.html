@@ -36,6 +36,7 @@
   .pw-kv .lbl { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
   .pw-ol { margin: 8px 0 0; padding-left: 20px; color: var(--ink); font-size: 14px; line-height: 1.55; }
   .pw-ol li { margin-bottom: 6px; }
+  .pw-proposal-change { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
   .pw-btn { display: block; width: 100%; box-sizing: border-box; border: none; border-radius: 14px; padding: 11px 16px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; text-align: center; text-decoration: none; margin-bottom: 10px; }
   .pw-btn-primary { background: var(--accent); color: #fff; }
   .pw-btn-secondary { background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(138,75,47,0.25); }
@@ -49,6 +50,9 @@
   .pw-lock-btn { display: inline-flex; align-items: center; font-size: 11px; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; color: var(--muted); }
   .pw-lock-btn.locked { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
   .pw-section-h { font-size: 14px; font-weight: 700; color: var(--accent); margin: 0 0 12px; }
+  .pw-score-row { display:flex; justify-content:space-between; gap:12px; padding:5px 0; font-size:12px; border-bottom:1px solid rgba(138,75,47,0.08); }
+  .pw-form-label { display:block; font-size:12px; font-weight:700; color:var(--muted); margin-bottom:6px; }
+  .pw-form-input { width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:12px; padding:10px 12px; font:inherit; font-size:13px; color:var(--ink); background:#fff; }
 </style>
 
 <div class="pw-shell">
@@ -69,10 +73,17 @@
 
   {% if stale_flags %}
   <div class="pw-stale-row">
-    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs'] %}
+    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs','asset_bundle'] %}
     {% set is_stale = stale_flags.get(key, false) %}
     <span class="pw-stale" style="background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">{{ key }} {{ '⟳' if is_stale else '✓' }}</span>
     {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if needs_build %}
+  <div style="margin-bottom: 14px; padding: 12px 14px; border-radius: 14px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; font-size: 13px; line-height: 1.6;">
+    当前 session 中还没有 Strategy 快照。页面不会在加载时自动重编译。
+    <a href="{{ refresh_url }}" style="color: #c2410c; font-weight: 700; text-decoration: none;">点击这里显式生成 Strategy</a>
   </div>
   {% endif %}
 
@@ -222,6 +233,38 @@
         {% endif %}
       </div>
 
+      <div class="pw-card">
+        <h3 style="font-size: 16px; color: var(--ink);">Ask the Council</h3>
+        {% if stale_flags.get('brief') %}
+        <div style="margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: #fff7ed; border: 1px solid #fdba74; font-size: 12px; line-height: 1.6; color: #9a3412;">
+          当前 Brief 已 stale。你仍然可以发起 Strategy Council 获取建议，但在 Brief 修复前不会开放 apply。
+        </div>
+        {% endif %}
+        <label class="pw-form-label" for="pw-council-question">围绕当前 Strategy 提问</label>
+        <textarea class="pw-form-input" id="pw-council-question" rows="3" style="resize: vertical;" placeholder="例如：请把当前策略调成更适合早餐场景高收藏种草，而不是强转化。"></textarea>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button type="button" class="pw-btn pw-btn-secondary" id="pw-btn-council" style="margin-bottom:0;">发起 Strategy Council</button>
+          <button type="button" class="pw-btn pw-btn-ghost" id="pw-btn-scorecard" style="margin-bottom:0;">刷新 Strategy 评分</button>
+        </div>
+        <div id="pw-council-status" style="font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--muted);"></div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="pw-field-label" style="margin-top: 0;">Discussion Summary</div>
+          <div id="pw-discussion-summary" style="font-size: 13px; line-height: 1.6; color: var(--ink);">暂无讨论记录</div>
+        </div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="pw-field-label" style="margin-top: 0;">Proposal Diff</div>
+          <div id="pw-proposal-diff" style="font-size: 12px; color: var(--muted);">暂无 proposal</div>
+          <button type="button" class="pw-btn pw-btn-primary" id="pw-btn-apply-proposal" style="display: none; margin-top: 10px;">Apply Selected Changes</button>
+        </div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="pw-field-label" style="margin-top: 0;">Baseline vs Current Scorecard</div>
+          <div id="pw-scorecard" style="font-size: 12px; color: var(--muted);">暂无评分</div>
+        </div>
+      </div>
+
       <div class="ws-card" style="margin-top: 12px;">
         <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">多策略对比</h3>
         <button id="pw-compare-btn" type="button" style="padding: 6px 12px; border: 1px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); cursor: pointer; font-size: 12px; width: 100%;">获取策略版本对比</button>
@@ -273,10 +316,133 @@
 <script>
 (function () {
   var opportunityId = {{ opportunity_id | tojson }};
+  var briefIsStale = {{ stale_flags.get('brief', false) | tojson }};
+  var currentProposalId = '';
   var base = "/content-planning/xhs-opportunities/" + encodeURIComponent(opportunityId);
+  var proposalGroups = {
+    '叙事定位': ['positioning_statement', 'new_hook', 'new_angle', 'tone_of_voice'],
+    '转化与场景': ['hook_strategy', 'cta_strategy', 'scene_emphasis', 'rationale'],
+    '元素取舍': ['keep_elements', 'replace_elements', 'enhance_elements', 'avoid_elements'],
+    '执行导向': ['title_strategy', 'body_strategy', 'image_strategy', 'differentiation_axis', 'risk_notes', 'comparison_note']
+  };
 
   function postAndReload(url, body) {
     return fetch(url, { method: "POST", headers: {"Content-Type":"application/json","Accept":"application/json"}, body: JSON.stringify(body || {}) });
+  }
+
+  function setCouncilStatus(msg, isError) {
+    var el = document.getElementById('pw-council-status');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = isError ? '#b71c1c' : (msg ? 'var(--accent)' : 'var(--muted)');
+  }
+
+  function scheduleDeferred(fn, delayMs) {
+    delayMs = delayMs || 0;
+    function run() {
+      try { fn(); } catch (e) {}
+    }
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(function() { setTimeout(run, delayMs); }, { timeout: 3000 });
+    } else {
+      setTimeout(run, Math.max(delayMs, 16));
+    }
+  }
+
+  function groupForField(field) {
+    for (var groupName in proposalGroups) {
+      if (proposalGroups[groupName].indexOf(field) >= 0) return groupName;
+    }
+    return '其他字段';
+  }
+
+  function renderProposal(proposal) {
+    var diffEl = document.getElementById('pw-proposal-diff');
+    var applyBtn = document.getElementById('pw-btn-apply-proposal');
+    if (!diffEl || !applyBtn) return;
+    if (!proposal) {
+      diffEl.innerHTML = '<span style="color:var(--muted)">暂无 proposal</span>';
+      applyBtn.style.display = 'none';
+      return;
+    }
+    currentProposalId = proposal.proposal_id || '';
+    if (proposal.summary) {
+      document.getElementById('pw-discussion-summary').textContent = proposal.summary;
+    }
+    var grouped = {};
+    (proposal.diff && proposal.diff.changes ? proposal.diff.changes : []).forEach(function(change) {
+      var groupName = groupForField(change.field);
+      grouped[groupName] = grouped[groupName] || [];
+      grouped[groupName].push(change);
+    });
+    var html = '';
+    Object.keys(grouped).forEach(function(groupName) {
+      html += '<div style="margin-bottom:10px;">';
+      html += '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;">' + groupName + '</div>';
+      grouped[groupName].forEach(function(change) {
+        var checked = change.blocked || briefIsStale ? '' : ' checked';
+        var disabled = change.blocked || briefIsStale ? ' disabled' : '';
+        html += '<label class="pw-proposal-change" style="display:block;">';
+        html += '<div style="display:flex;gap:8px;align-items:flex-start;">';
+        html += '<input type="checkbox" class="js-proposal-field" value="' + change.field + '"' + checked + disabled + '>';
+        html += '<div style="flex:1;">';
+        html += '<div style="font-weight:600;color:var(--ink);">' + change.field;
+        if (change.blocked) html += ' <span style="color:#b71c1c;">(locked)</span>';
+        if (briefIsStale) html += ' <span style="color:#b45309;">(brief stale)</span>';
+        html += '</div>';
+        html += '<div style="color:#b71c1c;text-decoration:line-through;">- ' + JSON.stringify(change.before) + '</div>';
+        html += '<div style="color:#2e7d32;">+ ' + JSON.stringify(change.after) + '</div>';
+        html += '</div></div></label>';
+      });
+      html += '</div>';
+    });
+    diffEl.innerHTML = html || '<span style="color:var(--muted)">proposal 没有字段变化</span>';
+    applyBtn.style.display = currentProposalId && !briefIsStale ? 'block' : 'none';
+  }
+
+  function renderScorecard(currentItem, baselineEval) {
+    var el = document.getElementById('pw-scorecard');
+    if (!el) return;
+    if (!currentItem || !currentItem.payload) {
+      el.innerHTML = '<span style="color:var(--muted)">暂无评分</span>';
+      return;
+    }
+    var payload = currentItem.payload;
+    var html = '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px;">当前分数 ' + Math.round((payload.overall_score || 0) * 100) + '/100</div>';
+    if (baselineEval && baselineEval.rubric_version === payload.rubric_version) {
+      var delta = (payload.overall_score || 0) - (baselineEval.overall_score || 0);
+      var deltaColor = delta >= 0 ? '#166534' : '#b91c1c';
+      html += '<div style="margin-bottom:8px;font-size:12px;color:' + deltaColor + ';">';
+      html += 'Baseline ' + Math.round((baselineEval.overall_score || 0) * 100) + '/100 · Δ ' + (delta >= 0 ? '+' : '') + Math.round(delta * 100) + '</div>';
+    } else {
+      html += '<div style="margin-bottom:8px;font-size:12px;color:#9a3412;">暂无兼容的 strategy_v2 baseline；旧四维口径不参与当前对比。</div>';
+    }
+    (payload.dimensions || []).forEach(function(dim) {
+      html += '<div class="pw-score-row"><span>' + (dim.name_zh || dim.name) + '</span><strong>' + Math.round((dim.score || 0) * 100) + '</strong></div>';
+    });
+    if (payload.explanation) {
+      html += '<div style="margin-top:8px;color:var(--muted);line-height:1.5;">' + payload.explanation + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  function loadLatestScorecard() {
+    fetch('/content-planning/evaluations/' + encodeURIComponent(opportunityId))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var items = data.items || [];
+        var latest = items.find(function(item){
+          return item.eval_type === 'stage_run' && item.payload && item.payload.stage === 'strategy';
+        });
+        var latestBaseline = null;
+        items.some(function(item){
+          if (item.eval_type !== 'baseline' || !item.payload || !item.payload.stage_scores || !item.payload.stage_scores.strategy) return false;
+          latestBaseline = item.payload.stage_scores.strategy;
+          return true;
+        });
+        renderScorecard(latest || null, latestBaseline);
+      })
+      .catch(function(){ renderScorecard(null, null); });
   }
 
   document.querySelectorAll(".js-select-template").forEach(function(btn) {
@@ -311,7 +477,7 @@
       var res = await fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({agent_role: role, extra: extra || {}})
+        body: JSON.stringify({agent_role: role, mode: 'fast', extra: extra || {}})
       });
       if (!res.ok) throw new Error('Agent 调用失败: ' + res.status);
       var data = await res.json();
@@ -346,6 +512,79 @@
     });
   });
 
+  var councilBtn = document.getElementById('pw-btn-council');
+  if (councilBtn) {
+    councilBtn.addEventListener('click', function() {
+      var question = (document.getElementById('pw-council-question').value || '').trim();
+      if (!question) { setCouncilStatus('请先输入问题', true); return; }
+      setCouncilStatus('Strategy Council 讨论中…', false);
+      fetch('/content-planning/stages/strategy/' + encodeURIComponent(opportunityId) + '/discussions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: question})
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.proposal) {
+          renderProposal(data.proposal);
+          setCouncilStatus('已生成 proposal', false);
+        } else {
+          setCouncilStatus('未生成 proposal', true);
+        }
+      })
+      .catch(function(){ setCouncilStatus('讨论失败', true); });
+    });
+  }
+
+  var scoreBtn = document.getElementById('pw-btn-scorecard');
+  if (scoreBtn) {
+    scoreBtn.addEventListener('click', function() {
+      setCouncilStatus('评分中…', false);
+      fetch('/content-planning/evaluations/strategy/' + encodeURIComponent(opportunityId) + '/run', {method: 'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          loadLatestScorecard();
+          setCouncilStatus('评分已更新', false);
+        })
+        .catch(function(){ setCouncilStatus('评分失败', true); });
+    });
+  }
+
+  var applyProposalBtn = document.getElementById('pw-btn-apply-proposal');
+  if (applyProposalBtn) {
+    applyProposalBtn.addEventListener('click', function() {
+      if (!currentProposalId || briefIsStale) {
+        setCouncilStatus('当前 Brief 已 stale，请先返回 Brief Workspace 修复。', true);
+        return;
+      }
+      var selectedFields = Array.from(document.querySelectorAll('.js-proposal-field:checked')).map(function(el){ return el.value; });
+      setCouncilStatus('应用 proposal 中…', false);
+      fetch('/content-planning/proposals/' + encodeURIComponent(currentProposalId) + '/apply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({selected_fields: selectedFields})
+      })
+      .then(function(r){
+        return r.text().then(function(text){
+          var data = {};
+          try { data = text ? JSON.parse(text) : {}; } catch(e) {}
+          return {ok: r.ok, data: data};
+        });
+      })
+      .then(function(resp){
+        if (!resp.ok) {
+          var detail = resp.data && resp.data.detail ? resp.data.detail : {};
+          var message = typeof detail === 'string' ? detail : (detail.message || '应用失败');
+          setCouncilStatus(message, true);
+          return;
+        }
+        setCouncilStatus('已应用：' + (resp.data.applied_fields || []).join(', '), false);
+        window.location.reload();
+      })
+      .catch(function(){ setCouncilStatus('应用失败', true); });
+    });
+  }
+
   document.getElementById("pw-btn-versions").addEventListener("click", function() {
     var container = document.getElementById("pw-versions-container");
     if (container.style.display !== "none") { container.style.display = "none"; return; }
@@ -368,32 +607,34 @@
       .catch(function(){ list.innerHTML = '<div style="color:#c62828;font-size:12px;">加载失败</div>'; });
   });
 
-  // ── Agent Timeline via SSE ──
+  // ── Agent Timeline via SSE（延后连接） ──
   var timelineEl = document.getElementById('pw-timeline');
   var evtSource = null;
-  try {
-    evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
-    evtSource.addEventListener('agent_result', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-    });
-    evtSource.addEventListener('chat_response', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-    });
-    evtSource.addEventListener('object_updated', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline('系统', data.object_type + ' 已更新', null);
-    });
-    evtSource.onerror = function() {
-      if (timelineEl) {
-        var div = document.createElement('div');
-        div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
-        div.textContent = '连接中断，刷新页面重连';
-        timelineEl.appendChild(div);
-      }
-    };
-  } catch(err) {}
+  scheduleDeferred(function() {
+    try {
+      evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
+      evtSource.addEventListener('agent_result', function(e) {
+        var data = JSON.parse(e.data);
+        appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+      });
+      evtSource.addEventListener('chat_response', function(e) {
+        var data = JSON.parse(e.data);
+        appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+      });
+      evtSource.addEventListener('object_updated', function(e) {
+        var data = JSON.parse(e.data);
+        appendTimeline('系统', data.object_type + ' 已更新', null);
+      });
+      evtSource.onerror = function() {
+        if (timelineEl) {
+          var div = document.createElement('div');
+          div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
+          div.textContent = '连接中断，刷新页面重连';
+          timelineEl.appendChild(div);
+        }
+      };
+    } catch(err) {}
+  }, 40);
 
   function appendTimeline(name, text, confidence) {
     if (!timelineEl) return;
@@ -431,11 +672,11 @@
           var prev = v[v.length - 2];
           var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">';
           html += '<div style="padding:10px;background:var(--bg-subtle,#f5f5f5);border-radius:8px;"><strong>版本 ' + (prev.strategy_version || v.length - 1) + '</strong>';
-          html += '<div style="margin-top:6px;">调性: ' + (prev.tone_and_voice || '—') + '</div>';
+          html += '<div style="margin-top:6px;">调性: ' + (prev.tone_of_voice || '—') + '</div>';
           html += '<div>钩子: ' + (prev.hook_strategy || '—') + '</div>';
           html += '<div>CTA: ' + (prev.cta_strategy || '—') + '</div></div>';
           html += '<div style="padding:10px;background:var(--bg-subtle,#f5f5f5);border-radius:8px;border-left:3px solid var(--accent);"><strong>版本 ' + (latest.strategy_version || v.length) + ' (当前)</strong>';
-          html += '<div style="margin-top:6px;">调性: ' + (latest.tone_and_voice || '—') + '</div>';
+          html += '<div style="margin-top:6px;">调性: ' + (latest.tone_of_voice || '—') + '</div>';
           html += '<div>钩子: ' + (latest.hook_strategy || '—') + '</div>';
           html += '<div>CTA: ' + (latest.cta_strategy || '—') + '</div></div>';
           html += '</div>';
@@ -466,7 +707,7 @@
     fetch('/content-planning/chat/' + encodeURIComponent(opportunityId), {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: msg, role: 'human', current_stage: 'strategy'})
+      body: JSON.stringify({message: msg, role: 'human', current_stage: 'strategy', mode: 'fast'})
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -476,6 +717,11 @@
     .catch(function(err) {
       if (chatStatus) chatStatus.textContent = '发送失败';
     });
+  }
+
+  scheduleDeferred(loadLatestScorecard);
+  if (briefIsStale) {
+    setCouncilStatus('Brief 当前已 stale，proposal 可讨论但不会开放 apply。', true);
   }
 })();
 </script>

@@ -56,17 +56,26 @@ class ComparisonReport(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
-_baseline_store: dict[str, PipelineEvaluation] = {}
+def _set_run_mode(evaluation: StageEvaluation, run_mode: str) -> StageEvaluation:
+    evaluation.run_mode = run_mode  # type: ignore[assignment]
+    if evaluation.stage == "strategy" and not evaluation.rubric_version:
+        evaluation.rubric_version = "strategy_v2"
+    if evaluation.stage == "plan" and not evaluation.rubric_version:
+        evaluation.rubric_version = "plan_v1"
+    if evaluation.stage == "asset" and not evaluation.rubric_version:
+        evaluation.rubric_version = "asset_v1"
+    return evaluation
 
 
 def collect_baseline(opportunity_id: str, context: dict[str, Any]) -> PipelineEvaluation:
     """Collect baseline evaluation scores before any upgrades."""
-    stages = ["card", "brief", "match", "strategy", "content"]
+    stages = ["card", "brief", "match", "strategy", "plan", "asset"]
     stage_scores: dict[str, StageEvaluation] = {}
 
     for stage in stages:
         try:
             score = evaluate_stage(stage, opportunity_id, context)
+            score = _set_run_mode(score, "baseline_compiler")
             stage_scores[stage] = score
         except Exception:
             logger.debug("Baseline eval failed for %s/%s", stage, opportunity_id)
@@ -80,7 +89,6 @@ def collect_baseline(opportunity_id: str, context: dict[str, Any]) -> PipelineEv
     )
     baseline.compute_pipeline_score()
 
-    _baseline_store[opportunity_id] = baseline
     logger.info(
         "Baseline collected for %s: pipeline_score=%.3f stages=%d",
         opportunity_id, baseline.pipeline_score, len(stage_scores),
@@ -90,12 +98,13 @@ def collect_baseline(opportunity_id: str, context: dict[str, Any]) -> PipelineEv
 
 def collect_upgrade_evaluation(opportunity_id: str, context: dict[str, Any]) -> PipelineEvaluation:
     """Collect evaluation scores after upgrade."""
-    stages = ["card", "brief", "match", "strategy", "content"]
+    stages = ["card", "brief", "match", "strategy", "plan", "asset"]
     stage_scores: dict[str, StageEvaluation] = {}
 
     for stage in stages:
         try:
             score = evaluate_stage(stage, opportunity_id, context)
+            score = _set_run_mode(score, "agent_assisted_council")
             stage_scores[stage] = score
         except Exception:
             logger.debug("Upgrade eval failed for %s/%s", stage, opportunity_id)
@@ -119,10 +128,6 @@ def compare(
 ) -> ComparisonReport:
     """Generate a before/after comparison report."""
     if baseline is None:
-        baseline = _baseline_store.get(opportunity_id)
-    if baseline is None and context:
-        baseline = collect_baseline(opportunity_id, context)
-    if baseline is None:
         baseline = PipelineEvaluation(opportunity_id=opportunity_id)
 
     if upgrade is None and context:
@@ -134,19 +139,22 @@ def compare(
         opportunity_id=opportunity_id,
         baseline_id=baseline.evaluation_id,
         upgrade_id=upgrade.evaluation_id,
-        baseline_pipeline_score=baseline.pipeline_score,
-        upgrade_pipeline_score=upgrade.pipeline_score,
-        pipeline_delta=upgrade.pipeline_score - baseline.pipeline_score,
     )
 
     all_stages = set(list(baseline.stage_scores.keys()) + list(upgrade.stage_scores.keys()))
+    skipped_stages: list[str] = []
+    compatible_stage_scores: list[tuple[float, float]] = []
 
     for stage in all_stages:
         before_eval = baseline.stage_scores.get(stage)
         after_eval = upgrade.stage_scores.get(stage)
+        if not _evaluations_compatible(stage, before_eval, after_eval):
+            skipped_stages.append(stage)
+            continue
 
         before_score = before_eval.overall_score if before_eval else 0.0
         after_score = after_eval.overall_score if after_eval else 0.0
+        compatible_stage_scores.append((before_score, after_score))
 
         dim_deltas = _compute_dimension_deltas(before_eval, after_eval)
 
@@ -160,6 +168,11 @@ def compare(
             dimension_deltas=dim_deltas,
             improved=after_score > before_score,
         )
+
+    if compatible_stage_scores:
+        report.baseline_pipeline_score = sum(before for before, _ in compatible_stage_scores) / len(compatible_stage_scores)
+        report.upgrade_pipeline_score = sum(after for _, after in compatible_stage_scores) / len(compatible_stage_scores)
+        report.pipeline_delta = report.upgrade_pipeline_score - report.baseline_pipeline_score
 
     improved = [s for s, d in report.stage_deltas.items() if d.improved]
     regressed = [s for s, d in report.stage_deltas.items() if d.delta < -0.05]
@@ -176,6 +189,8 @@ def compare(
         summary_parts.append(f"提升环节: {', '.join(improved)}")
     if regressed:
         summary_parts.append(f"下降环节: {', '.join(regressed)}")
+    if skipped_stages:
+        summary_parts.append(f"已跳过不兼容口径: {', '.join(sorted(skipped_stages))}")
 
     report.summary = "；".join(summary_parts)
     return report
@@ -232,3 +247,17 @@ def _compute_dimension_deltas(
             "delta": (ad.score if ad else 0.0) - (bd.score if bd else 0.0),
         })
     return deltas
+
+
+def _evaluations_compatible(
+    stage: str,
+    before: StageEvaluation | None,
+    after: StageEvaluation | None,
+) -> bool:
+    if before is None or after is None:
+        return False
+    before_rubric = before.rubric_version or ""
+    after_rubric = after.rubric_version or ""
+    if stage in {"strategy", "plan", "asset"} or before_rubric or after_rubric:
+        return before_rubric == after_rubric and before_rubric != ""
+    return True

@@ -57,6 +57,7 @@
   .cw-stale-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
   .cw-stale { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
   .cw-lock-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .cw-score-row { display:flex; justify-content:space-between; gap:12px; padding:5px 0; font-size:12px; border-bottom:1px solid rgba(138,75,47,0.08); }
   .cw-lock-toggle { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,253,248,0.9); cursor: pointer; font-family: inherit; }
   .cw-lock-toggle.locked { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
   .cw-lock-toggle.unlocked { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
@@ -89,10 +90,17 @@
 
   {% if stale_flags %}
   <div class="cw-stale-row">
-    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs'] %}
+    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs','asset_bundle'] %}
     {% set is_stale = stale_flags.get(key, false) %}
     <span class="cw-stale" style="background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">{{ key }} {{ '⟳' if is_stale else '✓' }}</span>
     {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if needs_build %}
+  <div style="margin-bottom: 14px; padding: 12px 14px; border-radius: 14px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; font-size: 13px; line-height: 1.6;">
+    当前 session 中还没有 NotePlan 快照。页面不会在加载时自动重编译。
+    <a href="{{ refresh_url }}" style="color: #c2410c; font-weight: 700; text-decoration: none;">点击这里显式生成 NotePlan</a>
   </div>
   {% endif %}
 
@@ -199,6 +207,38 @@
       <div class="cw-agent-box"><div class="cw-agent-title">Agent 分析结果</div><div class="cw-agent-text" id="cw-agent-explanation">点击下方 AI Chips 获取 Agent 建议。</div></div>
 
       <div class="cw-card cp-card">
+        <h3 style="font-size: 16px; color: var(--ink);">Ask the Council</h3>
+        {% if stale_flags.get('strategy') %}
+        <div style="margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: #fff7ed; border: 1px solid #fdba74; font-size: 12px; line-height: 1.6; color: #9a3412;">
+          当前 Strategy 已 stale。你仍然可以发起 Plan Council 获取建议，但在 Strategy 修复前不会开放 apply。
+        </div>
+        {% endif %}
+        <label class="cw-meta" for="cw-council-question" style="display:block;font-weight:700;margin:0 0 6px;">围绕当前 NotePlan 提问</label>
+        <textarea id="cw-council-question" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:inherit;font-size:13px;color:var(--ink);background:#fff;resize:vertical;" rows="3" placeholder="例如：请把当前 note plan 调成更适合早餐桌景收藏种草，而不是纯转化脚本。"></textarea>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button type="button" class="cw-btn secondary" id="cw-btn-council" style="margin-bottom:0;">发起 Plan Council</button>
+          <button type="button" class="cw-btn secondary" id="cw-btn-scorecard" style="margin-bottom:0;">刷新 Plan 评分</button>
+        </div>
+        <div id="cw-council-status" style="font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--muted);"></div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="cw-meta" style="font-weight:700;margin:0 0 6px;">Discussion Summary</div>
+          <div id="cw-discussion-summary" style="font-size: 13px; line-height: 1.6; color: var(--ink);">暂无讨论记录</div>
+        </div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="cw-meta" style="font-weight:700;margin:0 0 6px;">Proposal Diff</div>
+          <div id="cw-proposal-diff" style="font-size: 12px; color: var(--muted);">暂无 proposal</div>
+          <button type="button" class="cw-btn" id="cw-btn-apply-proposal" style="display:none; margin-top:10px;">Apply Selected Changes</button>
+        </div>
+
+        <div style="border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px;">
+          <div class="cw-meta" style="font-weight:700;margin:0 0 6px;">Baseline vs Current Scorecard</div>
+          <div id="cw-scorecard" style="font-size: 12px; color: var(--muted);">暂无评分</div>
+        </div>
+      </div>
+
+      <div class="cw-card cp-card">
         <h3>局部编辑区</h3>
         <p class="cw-meta" style="margin:0 0 10px;">按对象切换操作；Stale 见页顶条。</p>
         <div class="cp-tabs cw-tabs" role="tablist" id="cw-op-tabs">
@@ -272,6 +312,7 @@
           <div id="cw-graph-status" style="padding: 8px; background: var(--bg-subtle,#f5f5f5); border-radius: 8px;"></div>
         </div>
         <button id="cw-load-collab" type="button" style="margin-top: 8px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; cursor: pointer; font-size: 12px; color: var(--accent);">刷新协同状态</button>
+        <p style="margin:6px 0 0;font-size:11px;color:var(--muted);">进入页面时不自动拉取流水线与参与者；需要时点击上方按钮。</p>
       </div>
 
       <div class="cw-card" style="margin-top: 12px;">
@@ -308,8 +349,16 @@
 (function () {
   var apiPrefix = {{ (api_prefix | default('/content-planning')) | tojson }};
   var opportunityId = {{ opportunity_id | tojson }};
+  var strategyIsStale = {{ stale_flags.get('strategy', false) | tojson }};
   var base = apiPrefix.replace(/\/$/, '') + '/xhs-opportunities/' + encodeURIComponent(opportunityId);
   var cpApi = apiPrefix.replace(/\/$/, '');
+  var currentProposalId = '';
+  var proposalGroups = {
+    '策划框架': ['note_goal', 'target_user', 'target_scene', 'core_selling_point', 'theme', 'tone_of_voice'],
+    '标题组': ['title_plan.title_axes', 'title_plan.candidate_titles', 'title_plan.do_not_use_phrases'],
+    '正文结构': ['body_plan.opening_hook', 'body_plan.body_outline', 'body_plan.cta_direction', 'body_plan.tone_notes'],
+    '图位结构': ['image_plan.priority_axis', 'image_plan.global_notes', 'image_plan.image_slots', 'publish_notes']
+  };
 
   function switchCwOpTab(panelId) {
     document.querySelectorAll('.cw-tab-op').forEach(function (btn) {
@@ -335,6 +384,121 @@
     if (el) el.textContent = refineLines.slice(-12).join('\n');
   }
 
+  function setCouncilStatus(msg, isError) {
+    var el = document.getElementById('cw-council-status');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = isError ? '#b71c1c' : (msg ? 'var(--accent)' : 'var(--muted)');
+  }
+
+  function scheduleDeferred(fn, delayMs) {
+    delayMs = delayMs || 0;
+    function run() {
+      try { fn(); } catch (e) {}
+    }
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(function() { setTimeout(run, delayMs); }, { timeout: 3000 });
+    } else {
+      setTimeout(run, Math.max(delayMs, 16));
+    }
+  }
+
+  function groupForField(field) {
+    for (var groupName in proposalGroups) {
+      if (proposalGroups[groupName].indexOf(field) >= 0) return groupName;
+    }
+    return '其他字段';
+  }
+
+  function renderProposal(proposal) {
+    var diffEl = document.getElementById('cw-proposal-diff');
+    var applyBtn = document.getElementById('cw-btn-apply-proposal');
+    if (!diffEl || !applyBtn) return;
+    if (!proposal) {
+      diffEl.innerHTML = '<span style="color:var(--muted)">暂无 proposal</span>';
+      applyBtn.style.display = 'none';
+      return;
+    }
+    currentProposalId = proposal.proposal_id || '';
+    if (proposal.summary) {
+      document.getElementById('cw-discussion-summary').textContent = proposal.summary;
+    }
+    var grouped = {};
+    (proposal.diff && proposal.diff.changes ? proposal.diff.changes : []).forEach(function(change) {
+      var groupName = groupForField(change.field);
+      grouped[groupName] = grouped[groupName] || [];
+      grouped[groupName].push(change);
+    });
+    var html = '';
+    Object.keys(grouped).forEach(function(groupName) {
+      html += '<div style="margin-bottom:10px;">';
+      html += '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;">' + groupName + '</div>';
+      grouped[groupName].forEach(function(change) {
+        var checked = change.blocked || strategyIsStale ? '' : ' checked';
+        var disabled = change.blocked || strategyIsStale ? ' disabled' : '';
+        html += '<label style="display:block;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">';
+        html += '<div style="display:flex;gap:8px;align-items:flex-start;">';
+        html += '<input type="checkbox" class="js-proposal-field" value="' + change.field + '"' + checked + disabled + '>';
+        html += '<div style="flex:1;">';
+        html += '<div style="font-weight:600;color:var(--ink);">' + change.field;
+        if (change.blocked) html += ' <span style="color:#b71c1c;">(locked)</span>';
+        if (strategyIsStale) html += ' <span style="color:#b45309;">(strategy stale)</span>';
+        html += '</div>';
+        html += '<div style="color:#b71c1c;text-decoration:line-through;">- ' + JSON.stringify(change.before) + '</div>';
+        html += '<div style="color:#2e7d32;">+ ' + JSON.stringify(change.after) + '</div>';
+        html += '</div></div></label>';
+      });
+      html += '</div>';
+    });
+    diffEl.innerHTML = html || '<span style="color:var(--muted)">proposal 没有字段变化</span>';
+    applyBtn.style.display = currentProposalId && !strategyIsStale ? 'block' : 'none';
+  }
+
+  function renderScorecard(currentItem, baselineEval) {
+    var el = document.getElementById('cw-scorecard');
+    if (!el) return;
+    if (!currentItem || !currentItem.payload) {
+      el.innerHTML = '<span style="color:var(--muted)">暂无评分</span>';
+      return;
+    }
+    var payload = currentItem.payload;
+    var html = '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px;">当前分数 ' + Math.round((payload.overall_score || 0) * 100) + '/100</div>';
+    if (baselineEval && baselineEval.rubric_version === payload.rubric_version) {
+      var delta = (payload.overall_score || 0) - (baselineEval.overall_score || 0);
+      var deltaColor = delta >= 0 ? '#166534' : '#b91c1c';
+      html += '<div style="margin-bottom:8px;font-size:12px;color:' + deltaColor + ';">';
+      html += 'Baseline ' + Math.round((baselineEval.overall_score || 0) * 100) + '/100 · Δ ' + (delta >= 0 ? '+' : '') + Math.round(delta * 100) + '</div>';
+    } else {
+      html += '<div style="margin-bottom:8px;font-size:12px;color:#9a3412;">暂无兼容的 plan_v1 baseline；旧口径不参与当前对比。</div>';
+    }
+    (payload.dimensions || []).forEach(function(dim) {
+      html += '<div class="cw-score-row"><span>' + (dim.name_zh || dim.name) + '</span><strong>' + Math.round((dim.score || 0) * 100) + '</strong></div>';
+    });
+    if (payload.explanation) {
+      html += '<div style="margin-top:8px;color:var(--muted);line-height:1.5;">' + payload.explanation + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  function loadLatestScorecard() {
+    fetch(cpApi + '/evaluations/' + encodeURIComponent(opportunityId))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var items = data.items || [];
+        var latest = items.find(function(item){
+          return item.eval_type === 'stage_run' && item.payload && item.payload.stage === 'plan';
+        });
+        var latestBaseline = null;
+        items.some(function(item){
+          if (item.eval_type !== 'baseline' || !item.payload || !item.payload.stage_scores || !item.payload.stage_scores.plan) return false;
+          latestBaseline = item.payload.stage_scores.plan;
+          return true;
+        });
+        renderScorecard(latest || null, latestBaseline);
+      })
+      .catch(function(){ renderScorecard(null, null); });
+  }
+
   async function runAgent(role, extra) {
     var el = document.getElementById('cw-agent-explanation');
     if (el) el.innerHTML = '<span style="color:var(--muted)">Agent 思考中...</span>';
@@ -342,7 +506,7 @@
       var res = await fetch(cpApi + '/run-agent/' + encodeURIComponent(opportunityId), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({agent_role: role, extra: extra || {}})
+        body: JSON.stringify({agent_role: role, mode: 'fast', extra: extra || {}})
       });
       if (!res.ok) throw new Error('Agent 调用失败: ' + res.status);
       var data = await res.json();
@@ -446,6 +610,76 @@
   document.getElementById('btn-gen-images').addEventListener('click', function () {
     postRegenerate('/generate-image-briefs', this);
   });
+
+  var councilBtn = document.getElementById('cw-btn-council');
+  if (councilBtn) {
+    councilBtn.addEventListener('click', function() {
+      var question = (document.getElementById('cw-council-question').value || '').trim();
+      if (!question) { setCouncilStatus('请先输入问题', true); return; }
+      setCouncilStatus('Plan Council 讨论中…', false);
+      fetch(cpApi + '/stages/plan/' + encodeURIComponent(opportunityId) + '/discussions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: question})
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.proposal) {
+          renderProposal(data.proposal);
+          setCouncilStatus('已生成 proposal', false);
+        } else {
+          setCouncilStatus('未生成 proposal', true);
+        }
+      })
+      .catch(function(){ setCouncilStatus('讨论失败', true); });
+    });
+  }
+
+  var scoreBtn = document.getElementById('cw-btn-scorecard');
+  if (scoreBtn) {
+    scoreBtn.addEventListener('click', function() {
+      setCouncilStatus('正在刷新评分…', false);
+      fetch(cpApi + '/evaluations/plan/' + encodeURIComponent(opportunityId) + '/run', { method: 'POST' })
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          loadLatestScorecard();
+          setCouncilStatus('评分已刷新', false);
+        })
+        .catch(function(){ setCouncilStatus('评分刷新失败', true); });
+    });
+  }
+
+  var applyBtn = document.getElementById('cw-btn-apply-proposal');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', function() {
+      if (!currentProposalId) return;
+      var selected = Array.prototype.slice.call(document.querySelectorAll('.js-proposal-field:checked')).map(function(node){ return node.value; });
+      if (!selected.length) {
+        setCouncilStatus('请至少选择一个字段再应用', true);
+        return;
+      }
+      applyBtn.disabled = true;
+      setCouncilStatus('正在应用 proposal…', false);
+      fetch(cpApi + '/proposals/' + encodeURIComponent(currentProposalId) + '/apply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({selected_fields: selected})
+      })
+      .then(function(r){ return r.json().then(function(data){ return {ok: r.ok, data: data}; }); })
+      .then(function(result){
+        if (!result.ok) {
+          var message = result.data && result.data.detail && result.data.detail.message ? result.data.detail.message : 'proposal apply 失败';
+          throw new Error(message);
+        }
+        setCouncilStatus('proposal 已应用，正在刷新页面…', false);
+        window.location.reload();
+      })
+      .catch(function(err){
+        applyBtn.disabled = false;
+        setCouncilStatus(err && err.message ? err.message : 'proposal apply 失败', true);
+      });
+    });
+  }
 
   function readPlanData() {
     var el = document.getElementById('cp-plan-data');
@@ -589,12 +823,13 @@
     downloadBlob('content-plan-' + opportunityId + '.md', 'text/markdown;charset=utf-8', md);
   });
 
-  // ── Collaboration Panel ──
+  // ── Collaboration Panel（不在首屏自动拉 timeline/graph，避免多余请求；点击按钮加载） ──
   var collabBtn = document.getElementById('cw-load-collab');
   if (collabBtn) {
     collabBtn.addEventListener('click', loadCollab);
-    loadCollab();
   }
+
+  scheduleDeferred(loadLatestScorecard);
   function loadCollab() {
     fetch('/content-planning/timeline/' + encodeURIComponent(opportunityId))
       .then(function(r){ return r.json(); })
@@ -629,9 +864,10 @@
       }).catch(function(){});
   }
 
-  // ── Agent Timeline via SSE ──
+  // ── Agent Timeline via SSE（延后连接） ──
   var timelineEl = document.getElementById('cw-timeline');
   var evtSource = null;
+  scheduleDeferred(function() {
   try {
     evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
     evtSource.addEventListener('agent_result', function(e) {
@@ -655,6 +891,7 @@
       }
     };
   } catch(err) {}
+  }, 40);
 
   function appendTimeline(name, text, confidence) {
     if (!timelineEl) return;
@@ -693,7 +930,7 @@
     fetch('/content-planning/chat/' + encodeURIComponent(opportunityId), {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: msg, role: 'human', current_stage: 'plan'})
+      body: JSON.stringify({message: msg, role: 'human', current_stage: 'plan', mode: 'fast'})
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {

@@ -413,3 +413,132 @@ MediaCrawler XHS 笔记数据通过 `mediacrawler_loader.py` 映射为 raw signa
 - canonicalization 仍是规则匹配，不处理跨语言同义词扩展。
 - dedupe 依赖标题 token overlap，对非常短或非常长标题仍有限制。
 - 桌布 topic tags 目前是轻量规则，不是可学习分类器。
+
+## Stage Workflow Objects（2026-04-09）
+
+### AgentTask
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `task_id` | `str` | 任务 ID |
+| `opportunity_id` | `str` | 关联机会 |
+| `stage` | `brief \| strategy \| plan \| asset` | 当前阶段 |
+| `run_mode` | `baseline_compiler \| agent_assisted_single \| agent_assisted_council` | 运行模式 |
+| `status` | `queued \| running \| completed \| failed \| waiting_human` | 任务状态 |
+| `session_ref` | `AgentSessionRef?` | workspace / brand / campaign 上下文 |
+| `payload` | `dict` | 原始请求载荷 |
+
+### AgentRun
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `run_id` | `str` | 单次运行 ID |
+| `task_id` | `str` | 归属任务 |
+| `stage` | `str` | 当前阶段 |
+| `participant_roles` | `list[str]` | 参与 Agent 角色 |
+| `summary` | `str` | 本次运行摘要 |
+| `payload` | `dict` | 附加运行信息 |
+
+### AgentDiscussionRecord
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `discussion_id` | `str` | 讨论 ID |
+| `stage` | `str` | 当前阶段 |
+| `question` | `str` | 用户问题 |
+| `participants` | `list[str]` | 参与 Agent |
+| `messages` | `list[dict]` | 序列化后的对话消息 |
+| `summary` | `str` | 共识总结 |
+| `proposal_id` | `str` | 关联 proposal |
+| `base_version` | `int` | 讨论发生时对象版本 |
+
+### StageProposal / ProposalDiff / ProposalDecision
+
+| 对象 | 关键字段 |
+|---|---|
+| `StageProposal` | `proposal_id`, `stage`, `target_object_type`, `target_object_id`, `base_version`, `summary`, `proposed_updates`, `blocked_fields`, `requires_human_confirmation`, `confidence`, `status` |
+| `ProposalDiff` | `changes: list[{field, before, after, blocked}]` |
+| `ProposalDecision` | `decision_id`, `proposal_id`, `decision`, `selected_fields`, `skipped_fields`, `actor_user_id`, `notes` |
+
+### StageScorecard
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `scorecard_id` | `str` | scorecard id |
+| `opportunity_id` | `str` | 关联机会 |
+| `stage` | `brief \| strategy \| plan \| asset` | 评价阶段 |
+| `run_mode` | `str` | 与 run 对齐 |
+| `base_version` | `int` | 被评对象版本 |
+| `overall_score` | `float` | 总分 |
+| `dimensions` | `list[DimensionScore]` | 维度分 |
+| `rubric_version` | `str` | 当前评分口径版本；Strategy 固定为 `strategy_v2`，Plan 固定为 `plan_v1`，Asset 固定为 `asset_v1` |
+| `pipeline_run_id` | `str` | 原编译链 run id |
+
+### Brief / Strategy / Plan / Asset Apply 规则
+
+- 当前开放 `brief`、`strategy` 与 `plan` proposal apply
+- apply 时会跳过：
+  - locked field
+  - 非 editable field
+- `brief` apply 成功后会触发 downstream stale：
+  - `strategy`
+  - `plan`
+  - `titles`
+  - `body`
+  - `image_briefs`
+  - `asset_bundle`
+- `strategy` apply 额外规则：
+  - `brief` 处于 stale 时禁止 apply
+  - `base_version` 不一致时禁止 apply
+  - 成功后只标记 `plan / titles / body / image_briefs / asset_bundle` stale
+  - `strategy` 自身保持 fresh，`match` 不回退清空
+- `plan` apply 额外规则：
+  - `strategy` 处于 stale 时禁止 apply
+  - `base_version` 不一致时禁止 apply
+  - 支持 nested field 局部写入，例如：
+    - `title_plan.candidate_titles`
+    - `body_plan.body_outline`
+    - `image_plan.global_notes`
+  - 成功后 `plan` 自身保持 fresh
+  - 成功后只标记 `titles / body / image_briefs / asset_bundle` stale
+- `asset` apply 额外规则：
+  - 只允许写 `asset_bundle` 本身，不反向修改 `brief / strategy / plan`
+  - `plan / titles / body / image_briefs` 任一 stale 时禁止 apply
+  - `base_version` 不一致时禁止 apply
+  - 支持按资产块局部写入：
+    - `title_candidates`
+    - `body_outline`
+    - `body_draft`
+    - `image_execution_briefs`
+  - 成功后 `asset_bundle` 自身保持 fresh
+  - 成功后不再把上游对象标 stale，只更新 `asset_bundle.version`、`approval_status`、`export_status`
+
+### Strategy v2 评分口径
+
+- `strategic_coherence`
+- `differentiation`
+- `platform_nativeness`
+- `conversion_relevance`
+- `brand_guardrail_fit`
+
+旧四维 `differentiation / executability / brief_alignment / creativity` 作为历史记录保留，但不再参与当前 `strategy_v2` comparison。
+
+### Plan v1 评分口径
+
+- `structural_completeness`
+- `title_body_alignment`
+- `image_slot_alignment`
+- `execution_readiness`
+- `human_handoff_readiness`
+
+旧 `content` 口径历史记录仍保留，但不会参与当前 `plan_v1` comparison。
+
+### Asset v1 评分口径
+
+- `headline_quality`
+- `body_persuasiveness`
+- `visual_instruction_specificity`
+- `brand_compliance`
+- `production_readiness`
+
+旧 `content` 口径历史记录仍保留，但不会参与当前 `asset_v1` comparison。

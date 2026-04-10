@@ -24,6 +24,8 @@ class AssetProducerAgent(BaseAgent):
 
     def run(self, context: AgentContext) -> AgentResult:
         base_result = self._run_core(context)
+        if self.is_fast_mode(context):
+            return base_result
         return self._enhance_with_llm(context, base_result)
 
     def _run_core(self, context: AgentContext) -> AgentResult:
@@ -69,7 +71,10 @@ class AssetProducerAgent(BaseAgent):
             if not llm_router.is_any_available():
                 return base_result
 
-            memory_ctx = self._get_memory_context(context.opportunity_id)
+            memory_ctx = self.resolve_memory_context(
+                context,
+                fallback=lambda: self._get_memory_context(context.opportunity_id),
+            )
             conversation = context.extra.get("conversation_history", "")
 
             system = "你是资产制作人。请评估以下资产包产出，分析标题吸引力、正文结构完整性，并给出优化建议。"

@@ -7,6 +7,17 @@ from apps.content_planning.schemas.content_generation import (
     TitleCandidate,
     TitleGenerationResult,
 )
+from apps.content_planning.schemas.agent_workflow import (
+    AgentDiscussionRecord,
+    AgentRun,
+    AgentSessionRef,
+    AgentTask,
+    ProposalDecision,
+    ProposalDiff,
+    ProposalFieldChange,
+    StageProposal,
+    StageScorecard,
+)
 from apps.content_planning.schemas.evaluation import (
     DimensionScore,
     PipelineEvaluation,
@@ -42,4 +53,13 @@ __all__ = [
     "StageEvaluation",
     "PipelineMetrics",
     "PipelineEvaluation",
+    "AgentSessionRef",
+    "AgentTask",
+    "AgentRun",
+    "AgentDiscussionRecord",
+    "ProposalFieldChange",
+    "ProposalDiff",
+    "StageProposal",
+    "ProposalDecision",
+    "StageScorecard",
 ]

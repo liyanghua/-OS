@@ -112,6 +112,7 @@ class ContentPlanStore:
                     brief_versions_json TEXT,
                     strategy_versions_json TEXT,
                     plan_versions_json TEXT,
+                    asset_bundle_versions_json TEXT,
                     asset_bundle_json TEXT,
                     pipeline_run_id TEXT,
                     stale_flags_json TEXT,
@@ -129,7 +130,68 @@ class ContentPlanStore:
                     created_at TEXT NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS agent_tasks (
+                    task_id TEXT PRIMARY KEY,
+                    opportunity_id TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    run_mode TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS agent_runs (
+                    run_id TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    opportunity_id TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    run_mode TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS stage_discussions (
+                    discussion_id TEXT PRIMARY KEY,
+                    opportunity_id TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    proposal_id TEXT,
+                    run_id TEXT,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS stage_proposals (
+                    proposal_id TEXT PRIMARY KEY,
+                    opportunity_id TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS proposal_decisions (
+                    decision_id TEXT PRIMARY KEY,
+                    proposal_id TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+            """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_evaluations_opp ON evaluations(opportunity_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_tasks_opp ON agent_tasks(opportunity_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_runs_opp ON agent_runs(opportunity_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_discussions_opp ON stage_discussions(opportunity_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_proposals_opp ON stage_proposals(opportunity_id)")
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_planning_sessions_status
                 ON planning_sessions(session_status)
@@ -154,6 +216,7 @@ class ContentPlanStore:
                 "brief_versions_json": "TEXT",
                 "strategy_versions_json": "TEXT",
                 "plan_versions_json": "TEXT",
+                "asset_bundle_versions_json": "TEXT",
                 "agent_actions_json": "TEXT",
             }.items():
                 if column not in existing_columns:
@@ -303,7 +366,7 @@ class ContentPlanStore:
                        workspace_id, brand_id, campaign_id, created_by, updated_by, visibility, version,
                        brief_json, match_json, strategy_json, plan_json,
                        titles_json, body_json, image_briefs_json,
-                       brief_versions_json, strategy_versions_json, plan_versions_json,
+                       brief_versions_json, strategy_versions_json, plan_versions_json, asset_bundle_versions_json,
                        asset_bundle_json,
                        pipeline_run_id, stale_flags_json, agent_actions_json,
                        created_at, updated_at
@@ -335,6 +398,7 @@ class ContentPlanStore:
             "brief_versions": _deserialize(row["brief_versions_json"]),
             "strategy_versions": _deserialize(row["strategy_versions_json"]),
             "plan_versions": _deserialize(row["plan_versions_json"]),
+            "asset_bundle_versions": _deserialize(row["asset_bundle_versions_json"]),
             "asset_bundle": _deserialize(row["asset_bundle_json"]),
             "pipeline_run_id": row["pipeline_run_id"],
             "stale_flags": _deserialize(row["stale_flags_json"]),
@@ -382,7 +446,12 @@ class ContentPlanStore:
 
     def append_version(self, opportunity_id: str, object_type: str, version_data: Any) -> None:
         """Append a version snapshot to the versions list."""
-        col_map = {"brief": "brief_versions_json", "strategy": "strategy_versions_json", "plan": "plan_versions_json"}
+        col_map = {
+            "brief": "brief_versions_json",
+            "strategy": "strategy_versions_json",
+            "plan": "plan_versions_json",
+            "asset_bundle": "asset_bundle_versions_json",
+        }
         column = col_map.get(object_type)
         if column is None:
             raise ValueError(f"Unknown object_type: {object_type}")
@@ -580,3 +649,135 @@ class ContentPlanStore:
                 "created_at": row["created_at"],
             })
         return results
+
+    def save_agent_task(self, task_id: str, opportunity_id: str, stage: str, run_mode: str, status: str, payload: Any) -> None:
+        now = _utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO agent_tasks
+                   (task_id, opportunity_id, stage, run_mode, status, payload_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (task_id, opportunity_id, stage, run_mode, status, _serialize(payload), now, now),
+            )
+
+    def load_agent_task(self, task_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM agent_tasks WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "task_id": row["task_id"],
+            "opportunity_id": row["opportunity_id"],
+            "stage": row["stage"],
+            "run_mode": row["run_mode"],
+            "status": row["status"],
+            "payload": _deserialize(row["payload_json"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def save_agent_run(self, run_id: str, task_id: str, opportunity_id: str, stage: str, run_mode: str, status: str, payload: Any) -> None:
+        now = _utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO agent_runs
+                   (run_id, task_id, opportunity_id, stage, run_mode, status, payload_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (run_id, task_id, opportunity_id, stage, run_mode, status, _serialize(payload), now, now),
+            )
+
+    def load_agent_run(self, run_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM agent_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "run_id": row["run_id"],
+            "task_id": row["task_id"],
+            "opportunity_id": row["opportunity_id"],
+            "stage": row["stage"],
+            "run_mode": row["run_mode"],
+            "status": row["status"],
+            "payload": _deserialize(row["payload_json"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def save_discussion(self, discussion_id: str, opportunity_id: str, stage: str, proposal_id: str, run_id: str, payload: Any) -> None:
+        now = _utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO stage_discussions
+                   (discussion_id, opportunity_id, stage, proposal_id, run_id, payload_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (discussion_id, opportunity_id, stage, proposal_id, run_id, _serialize(payload), now, now),
+            )
+
+    def load_discussion(self, discussion_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM stage_discussions WHERE discussion_id = ?",
+                (discussion_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = _deserialize(row["payload_json"]) or {}
+        payload.update(
+            {
+                "discussion_id": row["discussion_id"],
+                "opportunity_id": row["opportunity_id"],
+                "stage": row["stage"],
+                "proposal_id": row["proposal_id"],
+                "run_id": row["run_id"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+        )
+        return payload
+
+    def save_proposal(self, proposal_id: str, opportunity_id: str, stage: str, status: str, payload: Any) -> None:
+        now = _utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO stage_proposals
+                   (proposal_id, opportunity_id, stage, status, payload_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (proposal_id, opportunity_id, stage, status, _serialize(payload), now, now),
+            )
+
+    def load_proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM stage_proposals WHERE proposal_id = ?",
+                (proposal_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = _deserialize(row["payload_json"]) or {}
+        payload.update(
+            {
+                "proposal_id": row["proposal_id"],
+                "opportunity_id": row["opportunity_id"],
+                "stage": row["stage"],
+                "status": row["status"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+        )
+        return payload
+
+    def save_proposal_decision(self, decision_id: str, proposal_id: str, decision: str, payload: Any) -> None:
+        now = _utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO proposal_decisions
+                   (decision_id, proposal_id, decision, payload_json, created_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (decision_id, proposal_id, decision, _serialize(payload), now),
+            )

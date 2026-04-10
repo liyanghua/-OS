@@ -55,8 +55,9 @@ class LeadAgent(BaseAgent):
         user_message = context.extra.get("user_message", "")
         current_stage = context.extra.get("current_stage", "")
         hint = context.extra.get("hint", "")
+        mode = self.execution_mode(context)
 
-        routing = self._route(user_message or hint, current_stage, context)
+        routing = self._route(user_message or hint, current_stage, context, mode=mode)
         target_role = routing["target"]
         extra_agents = routing.get("extra_agents", [])
 
@@ -77,14 +78,15 @@ class LeadAgent(BaseAgent):
 
         result = sub_agent.run(context)
 
-        try:
-            mem = AgentMemory()
-            mem.extract_from_result(
-                context.opportunity_id, target_role,
-                result.explanation, result.confidence,
-            )
-        except Exception:
-            pass
+        if mode != "fast":
+            try:
+                mem = AgentMemory()
+                mem.extract_from_result(
+                    context.opportunity_id, target_role,
+                    result.explanation, result.confidence,
+                )
+            except Exception:
+                pass
 
         suggestions = list(result.suggestions)
         for extra_role in extra_agents:
@@ -119,10 +121,16 @@ class LeadAgent(BaseAgent):
             if not llm_router.is_any_available():
                 return None
 
-            memory_ctx = self._deerflow.recall_relevant_memory(
-                context.opportunity_id, query=message,
+            memory_ctx = self.resolve_memory_context(
+                context,
+                fallback=lambda: self._deerflow.recall_relevant_memory(
+                    context.opportunity_id, query=message,
+                ),
             )
-            object_summary = self._deerflow.build_object_summary(context)
+            object_summary = self.resolve_object_summary(
+                context,
+                fallback=lambda: self._deerflow.build_object_summary(context),
+            )
 
             resp = self._deerflow.route_with_llm(
                 user_message=message,
@@ -182,13 +190,18 @@ class LeadAgent(BaseAgent):
             return "brief_synthesizer"
         return "trend_analyst"
 
-    def _route(self, message: str, stage: str, context: AgentContext) -> dict:
+    def _route(self, message: str, stage: str, context: AgentContext, *, mode: str = "deep") -> dict:
         """Route using LLM first, falling back to keyword matching."""
-        if message:
+        if mode != "fast" and message:
             llm_result = self._route_llm(message, stage, context)
             if llm_result:
                 logger.info("Routing via LLM → %s", llm_result["target"])
                 return llm_result
+
+        if mode == "fast" and stage and stage in _STAGE_AGENT_MAP:
+            target = _STAGE_AGENT_MAP[stage]
+            logger.info("Routing via fast stage map → %s", target)
+            return {"target": target, "extra_agents": [], "reasoning": "", "method": "fast_stage"}
 
         keyword_target = self._route_keyword(message, stage, context)
         logger.info("Routing via keywords → %s", keyword_target)

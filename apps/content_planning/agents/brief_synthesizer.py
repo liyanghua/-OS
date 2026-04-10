@@ -21,6 +21,8 @@ class BriefSynthesizerAgent(BaseAgent):
 
     def run(self, context: AgentContext) -> AgentResult:
         base_result = self._run_core(context)
+        if self.is_fast_mode(context):
+            return base_result
         return self._enhance_with_llm(context, base_result)
 
     def _run_core(self, context: AgentContext) -> AgentResult:
@@ -58,7 +60,10 @@ class BriefSynthesizerAgent(BaseAgent):
             if not llm_router.is_any_available():
                 return base_result
 
-            memory_ctx = self._get_memory_context(context.opportunity_id)
+            memory_ctx = self.resolve_memory_context(
+                context,
+                fallback=lambda: self._get_memory_context(context.opportunity_id),
+            )
             conversation = context.extra.get("conversation_history", "")
 
             system = "你是 Brief 编译师。请审核以下 Brief 编译结果，给出优化建议：用户定位是否精准、策划方向是否有差异化。"

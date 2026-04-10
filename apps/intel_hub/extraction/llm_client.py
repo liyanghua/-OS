@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import json
 import logging
 import os
@@ -41,6 +42,26 @@ _TEXT_MODEL = os.environ.get("DASHSCOPE_TEXT_MODEL", "qwen-max")
 _VLM_MODEL = os.environ.get("DASHSCOPE_VLM_MODEL", "qwen-vl-max")
 
 
+def _timeout_seconds(*, timeout_seconds: float | None = None, fast_mode: bool = False) -> float:
+    if timeout_seconds is not None:
+        return max(float(timeout_seconds), 0.01)
+    env_name = "LLM_FAST_MODE_TIMEOUT_SECONDS" if fast_mode else "LLM_TIMEOUT_SECONDS"
+    default = "2.0" if fast_mode else "8.0"
+    try:
+        return max(float(os.environ.get(env_name, default)), 0.01)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _run_with_timeout(fn: Any, *, timeout_seconds: float) -> Any:
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(fn)
+    try:
+        return future.result(timeout=timeout_seconds)
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
 def is_llm_available() -> bool:
     if not _DASHSCOPE_API_KEY:
         return False
@@ -62,6 +83,8 @@ def call_text_llm(
     model: str | None = None,
     temperature: float = 0.3,
     max_tokens: int = 2000,
+    timeout_seconds: float | None = None,
+    fast_mode: bool = False,
 ) -> str:
     """调用文本 LLM，返回原始响应文本。失败时返回空字符串。"""
     if not is_llm_available():
@@ -85,12 +108,17 @@ def call_text_llm(
             user_prompt[:800],
         )
 
-        response = Generation.call(
-            model=used_model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            result_format="message",
+        timeout_value = _timeout_seconds(timeout_seconds=timeout_seconds, fast_mode=fast_mode)
+
+        response = _run_with_timeout(
+            lambda: Generation.call(
+                model=used_model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                result_format="message",
+            ),
+            timeout_seconds=timeout_value,
         )
         elapsed = time.perf_counter() - t0
         if response.status_code != 200:
@@ -106,6 +134,10 @@ def call_text_llm(
             used_model, elapsed, usage, result[:500],
         )
         return result
+    except FuturesTimeoutError:
+        elapsed = time.perf_counter() - t0
+        logger.warning("[LLM-TIMEOUT] text model=%s timeout=%.2fs elapsed=%.1fs", used_model, _timeout_seconds(timeout_seconds=timeout_seconds, fast_mode=fast_mode), elapsed)
+        return ""
     except Exception:
         elapsed = time.perf_counter() - t0
         logger.warning("[LLM-EXC] text model=%s elapsed=%.1fs", used_model, elapsed, exc_info=True)
@@ -119,6 +151,8 @@ def call_vlm(
     *,
     model: str | None = None,
     max_images: int = 3,
+    timeout_seconds: float | None = None,
+    fast_mode: bool = False,
 ) -> str:
     """调用视觉 LLM，返回原始响应文本。失败时返回空字符串。"""
     if not is_vlm_available():
@@ -149,9 +183,13 @@ def call_vlm(
             system_prompt[:500], user_prompt[:800],
         )
 
-        response = MultiModalConversation.call(
-            model=used_model,
-            messages=messages,
+        timeout_value = _timeout_seconds(timeout_seconds=timeout_seconds, fast_mode=fast_mode)
+        response = _run_with_timeout(
+            lambda: MultiModalConversation.call(
+                model=used_model,
+                messages=messages,
+            ),
+            timeout_seconds=timeout_value,
         )
         elapsed = time.perf_counter() - t0
         if response.status_code != 200:
@@ -167,6 +205,10 @@ def call_vlm(
             used_model, elapsed, usage, result[:500],
         )
         return result
+    except FuturesTimeoutError:
+        elapsed = time.perf_counter() - t0
+        logger.warning("[VLM-TIMEOUT] model=%s timeout=%.2fs elapsed=%.1fs", used_model, _timeout_seconds(timeout_seconds=timeout_seconds, fast_mode=fast_mode), elapsed)
+        return ""
     except Exception:
         elapsed = time.perf_counter() - t0
         logger.warning("[VLM-EXC] model=%s elapsed=%.1fs", used_model, elapsed, exc_info=True)

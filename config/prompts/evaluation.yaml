@@ -67,21 +67,73 @@ evaluation:
   strategy:
     system: "你是内容策略质量评审专家。评估改写策略的质量。"
     dimensions:
+      - name: strategic_coherence
+        name_zh: 策略一致性
+        description: "定位、切角、CTA 与执行方向是否前后一致"
+        weight: 0.24
       - name: differentiation
         name_zh: 差异化程度
         description: "策略是否有别于原始笔记和常见同类内容"
-        weight: 0.30
-      - name: executability
-        name_zh: 可执行性
-        description: "策略是否具体到可以直接指导内容生成"
-        weight: 0.25
-      - name: brief_alignment
-        name_zh: Brief对齐度
-        description: "策略是否忠实反映了 Brief 中的核心方向"
-        weight: 0.25
-      - name: creativity
-        name_zh: 创意新颖度
-        description: "策略中的内容钩子和叙事方式是否有创意"
+        weight: 0.22
+      - name: platform_nativeness
+        name_zh: 平台原生度
+        description: "策略是否符合小红书的内容语境、表达方式与种草逻辑"
+        weight: 0.18
+      - name: conversion_relevance
+        name_zh: 转化相关性
+        description: "策略是否对收藏、互动或转化目标有清晰牵引"
+        weight: 0.18
+      - name: brand_guardrail_fit
+        name_zh: 品牌守护栏适配
+        description: "策略是否符合品牌调性、风险边界与表达约束"
+        weight: 0.18
+
+  plan:
+    system: "你是内容策划执行质量评审专家。评估 NotePlan 是否已经形成可进入生产的结构化方案。"
+    dimensions:
+      - name: structural_completeness
+        name_zh: 结构完整性
+        description: "标题组、正文结构、图位结构是否完整，并形成一条清晰的策划主线"
+        weight: 0.22
+      - name: title_body_alignment
+        name_zh: 标题正文对齐
+        description: "标题策划、正文开篇与正文提纲是否服务同一个叙事目标"
+        weight: 0.20
+      - name: image_slot_alignment
+        name_zh: 图位对齐
+        description: "图位角色、视觉 brief 与内容结构是否对齐"
+        weight: 0.20
+      - name: execution_readiness
+        name_zh: 执行就绪度
+        description: "该 Plan 是否已具备进入标题/正文/图片生成的可执行度"
+        weight: 0.20
+      - name: human_handoff_readiness
+        name_zh: 交接就绪度
+        description: "是否便于人工编辑、设计或运营同学直接接手执行"
+        weight: 0.18
+
+  asset:
+    system: "你是内容资产质量评审专家。评估 AssetBundle 是否已经达到 production-ready 的交付质量。"
+    dimensions:
+      - name: headline_quality
+        name_zh: 标题质量
+        description: "标题候选是否具备首页吸引力，并且与策略方向一致"
+        weight: 0.20
+      - name: body_persuasiveness
+        name_zh: 正文说服力
+        description: "正文草稿是否具备种草说服力、结构完整度与品牌表达稳定性"
+        weight: 0.20
+      - name: visual_instruction_specificity
+        name_zh: 视觉指令具体度
+        description: "图位执行 brief 是否足够具体，能够直接指导设计或拍摄"
+        weight: 0.20
+      - name: brand_compliance
+        name_zh: 品牌合规度
+        description: "标题、正文与图位表达是否符合品牌守护栏与审批要求"
+        weight: 0.20
+      - name: production_readiness
+        name_zh: 生产就绪度
+        description: "AssetBundle 是否已经达到可导出、可交付、可进入发布的状态"
         weight: 0.20
 
   content:

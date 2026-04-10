@@ -14,6 +14,7 @@
   .aw-right { width: 320px; flex-shrink: 0; }
   .aw-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 14px; box-shadow: 0 8px 22px rgba(92,66,39,0.06); }
   .aw-card h3 { margin: 0 0 10px; font-size: 14px; color: var(--accent); font-weight: 700; }
+  .aw-score-row { display:flex; justify-content:space-between; gap:10px; padding:4px 0; border-bottom:1px solid rgba(138,75,47,0.12); }
   .aw-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
   .aw-tab { border: 1px solid var(--border); background: rgba(255,253,248,0.8); color: var(--muted); border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
   .aw-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -156,6 +157,38 @@
       </div>
 
       <div class="aw-card">
+        <h3 style="font-size: 16px; color: var(--ink);">Ask the Council</h3>
+        {% if stale_flags.get('plan') or stale_flags.get('titles') or stale_flags.get('body') or stale_flags.get('image_briefs') %}
+        <div style="margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: #fff7ed; border: 1px solid #fdba74; font-size: 12px; line-height: 1.6; color: #9a3412;">
+          当前 Asset 上游输入已 stale。你仍然可以发起 Asset Council 获取建议，但在 Plan / 生成结果修复前不会开放 apply。
+        </div>
+        {% endif %}
+        <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;" for="aw-council-question">围绕当前 Asset 提问</label>
+        <textarea id="aw-council-question" rows="3" style="width:100%;box-sizing:border-box;resize:vertical;padding:10px 12px;border-radius:12px;border:1px solid var(--border);font-family:inherit;font-size:13px;" placeholder="例如：请把当前资产包调成更适合早餐桌景高收藏发布的版本。"></textarea>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button type="button" class="aw-btn secondary" id="aw-btn-council" style="margin-bottom:0;">发起 Asset Council</button>
+          <button type="button" class="aw-btn secondary" id="aw-btn-scorecard" style="margin-bottom:0;">刷新 Asset 评分</button>
+        </div>
+        <div id="aw-council-status" style="font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--muted);"></div>
+
+        <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Discussion Summary</div>
+          <div id="aw-discussion-summary" style="font-size:13px;line-height:1.6;color:var(--ink);">暂无讨论记录</div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Proposal Diff</div>
+          <div id="aw-proposal-diff" style="font-size:12px;color:var(--muted);">暂无 proposal</div>
+          <button type="button" class="aw-btn" id="aw-btn-apply-proposal" style="display:none;margin-top:10px;">Apply Selected Changes</button>
+        </div>
+
+        <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Baseline vs Current Scorecard</div>
+          <div id="aw-scorecard" style="font-size:12px;color:var(--muted);">暂无评分</div>
+        </div>
+      </div>
+
+      <div class="aw-card">
         <h3>导出与审核</h3>
         <button type="button" class="aw-btn" id="aw-btn-export-json">导出 JSON</button>
         <button type="button" class="aw-btn" id="aw-btn-export-md">导出 Markdown</button>
@@ -167,7 +200,7 @@
       <div class="aw-card">
         <h3>对象状态</h3>
         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-          {% for key in ['brief','match','strategy','plan','titles','body','image_briefs'] %}
+          {% for key in ['brief','match','strategy','plan','titles','body','image_briefs','asset_bundle'] %}
           {% set is_stale = stale_flags.get(key, false) %}
           <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">{{ key }} {{ '⟳' if is_stale else '✓' }}</span>
           {% endfor %}
@@ -203,6 +236,13 @@
 (function () {
   var opportunityId = {{ opportunity_id | tojson }};
   var bundleId = {{ (bundle.asset_bundle_id if bundle and bundle.asset_bundle_id else '') | tojson }};
+  var currentProposalId = '';
+  var assetInputsStale = {{ (stale_flags.get('plan', false) or stale_flags.get('titles', false) or stale_flags.get('body', false) or stale_flags.get('image_briefs', false)) | tojson }};
+  var proposalGroups = {
+    '标题资产': ['title_candidates'],
+    '正文资产': ['body_outline', 'body_draft'],
+    '图位资产': ['image_execution_briefs']
+  };
 
   document.querySelectorAll('.aw-tab').forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -255,6 +295,121 @@
     .catch(function(){ alert('操作失败'); });
   });
 
+  function setCouncilStatus(msg, isError) {
+    var el = document.getElementById('aw-council-status');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = isError ? '#b71c1c' : (msg ? 'var(--accent)' : 'var(--muted)');
+  }
+
+  function scheduleDeferred(fn, delayMs) {
+    delayMs = delayMs || 0;
+    function run() {
+      try { fn(); } catch (e) {}
+    }
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(function() { setTimeout(run, delayMs); }, { timeout: 3000 });
+    } else {
+      setTimeout(run, Math.max(delayMs, 16));
+    }
+  }
+
+  function groupForField(field) {
+    for (var groupName in proposalGroups) {
+      if (proposalGroups[groupName].indexOf(field) >= 0) return groupName;
+    }
+    return '其他字段';
+  }
+
+  function renderProposal(proposal) {
+    var diffEl = document.getElementById('aw-proposal-diff');
+    var applyBtn = document.getElementById('aw-btn-apply-proposal');
+    if (!diffEl || !applyBtn) return;
+    if (!proposal) {
+      diffEl.innerHTML = '<span style="color:var(--muted)">暂无 proposal</span>';
+      applyBtn.style.display = 'none';
+      return;
+    }
+    currentProposalId = proposal.proposal_id || '';
+    if (proposal.summary) {
+      document.getElementById('aw-discussion-summary').textContent = proposal.summary;
+    }
+    var grouped = {};
+    (proposal.diff && proposal.diff.changes ? proposal.diff.changes : []).forEach(function(change) {
+      var groupName = groupForField(change.field);
+      grouped[groupName] = grouped[groupName] || [];
+      grouped[groupName].push(change);
+    });
+    var html = '';
+    Object.keys(grouped).forEach(function(groupName) {
+      html += '<div style="margin-bottom:10px;">';
+      html += '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;">' + groupName + '</div>';
+      grouped[groupName].forEach(function(change) {
+        var checked = change.blocked || assetInputsStale ? '' : ' checked';
+        var disabled = change.blocked || assetInputsStale ? ' disabled' : '';
+        html += '<label style="display:block;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">';
+        html += '<div style="display:flex;gap:8px;align-items:flex-start;">';
+        html += '<input type="checkbox" class="js-proposal-field" value="' + change.field + '"' + checked + disabled + '>';
+        html += '<div style="flex:1;">';
+        html += '<div style="font-weight:600;color:var(--ink);">' + change.field;
+        if (change.blocked) html += ' <span style="color:#b71c1c;">(locked)</span>';
+        if (assetInputsStale) html += ' <span style="color:#b45309;">(upstream stale)</span>';
+        html += '</div>';
+        html += '<div style="color:#b71c1c;text-decoration:line-through;">- ' + JSON.stringify(change.before) + '</div>';
+        html += '<div style="color:#2e7d32;">+ ' + JSON.stringify(change.after) + '</div>';
+        html += '</div></div></label>';
+      });
+      html += '</div>';
+    });
+    diffEl.innerHTML = html || '<span style="color:var(--muted)">proposal 没有字段变化</span>';
+    applyBtn.style.display = currentProposalId && !assetInputsStale ? 'block' : 'none';
+  }
+
+  function renderScorecard(currentItem, baselineEval) {
+    var el = document.getElementById('aw-scorecard');
+    if (!el) return;
+    if (!currentItem || !currentItem.payload) {
+      el.innerHTML = '<span style="color:var(--muted)">暂无评分</span>';
+      return;
+    }
+    var payload = currentItem.payload;
+    var html = '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px;">当前分数 ' + Math.round((payload.overall_score || 0) * 100) + '/100</div>';
+    if (baselineEval && baselineEval.rubric_version === payload.rubric_version) {
+      var delta = (payload.overall_score || 0) - (baselineEval.overall_score || 0);
+      var deltaColor = delta >= 0 ? '#166534' : '#b91c1c';
+      html += '<div style="margin-bottom:8px;font-size:12px;color:' + deltaColor + ';">';
+      html += 'Baseline ' + Math.round((baselineEval.overall_score || 0) * 100) + '/100 · Δ ' + (delta >= 0 ? '+' : '') + Math.round(delta * 100) + '</div>';
+    } else {
+      html += '<div style="margin-bottom:8px;font-size:12px;color:#9a3412;">暂无兼容的 asset_v1 baseline；旧 content 口径不参与当前对比。</div>';
+    }
+    (payload.dimensions || []).forEach(function(dim) {
+      html += '<div class="aw-score-row"><span>' + (dim.name_zh || dim.name) + '</span><strong>' + Math.round((dim.score || 0) * 100) + '</strong></div>';
+    });
+    if (payload.explanation) {
+      html += '<div style="margin-top:8px;color:var(--muted);line-height:1.5;">' + payload.explanation + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  function loadLatestScorecard() {
+    fetch('/content-planning/evaluations/' + encodeURIComponent(opportunityId))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var items = data.items || [];
+        var latest = items.find(function(item){
+          return item.eval_type === 'stage_run' && item.payload && item.payload.stage === 'asset';
+        });
+        var latestBaseline = null;
+        items.some(function(item){
+          if (item.eval_type !== 'baseline' || !item.payload || !item.payload.stage_scores || !item.payload.stage_scores.asset) return false;
+          latestBaseline = item.payload.stage_scores.asset;
+          return true;
+        });
+        renderScorecard(latest || null, latestBaseline);
+      })
+      .catch(function(){ renderScorecard(null, null); });
+  }
+
   async function runAgent(role, extra) {
     var el = document.getElementById('aw-agent-explanation');
     if (el) el.innerHTML = '<span style="color:var(--muted)">Agent 思考中...</span>';
@@ -262,7 +417,7 @@
       var res = await fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({agent_role: role, extra: extra || {}})
+        body: JSON.stringify({agent_role: role, mode: 'fast', extra: extra || {}})
       });
       if (!res.ok) throw new Error('Agent 调用失败: ' + res.status);
       var data = await res.json();
@@ -294,52 +449,127 @@
     runAgent('asset_producer');
   });
 
-  // ── Skills Panel ──
-  fetch('/content-planning/skills')
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
-      var el = document.getElementById('aw-skills-list');
-      if (!el || !data.skills) return;
-      var html = '';
-      data.skills.forEach(function(s) {
-        html += '<div style="padding:8px 0;border-bottom:1px solid var(--border);">';
-        html += '<div style="font-weight:600;color:var(--ink)">' + s.skill_name + '</div>';
-        html += '<div style="color:var(--muted);margin-top:2px">' + s.description + '</div>';
-        html += '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">';
-        (s.trigger_keywords || []).forEach(function(kw) {
-          html += '<span style="padding:1px 6px;border-radius:8px;background:var(--accent-soft,#ede9fe);font-size:11px;color:var(--accent)">' + kw + '</span>';
-        });
-        html += '</div></div>';
-      });
-      el.innerHTML = html || '<div style="color:var(--muted)">暂无可用技能</div>';
-    }).catch(function(){});
+  var councilBtn = document.getElementById('aw-btn-council');
+  if (councilBtn) {
+    councilBtn.addEventListener('click', function() {
+      var question = (document.getElementById('aw-council-question').value || '').trim();
+      if (!question) { setCouncilStatus('请先输入问题', true); return; }
+      setCouncilStatus('Asset Council 讨论中…', false);
+      fetch('/content-planning/stages/asset/' + encodeURIComponent(opportunityId) + '/discussions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: question})
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.proposal) {
+          renderProposal(data.proposal);
+          setCouncilStatus('已生成 proposal', false);
+        } else {
+          setCouncilStatus('未生成 proposal', true);
+        }
+      })
+      .catch(function(){ setCouncilStatus('讨论失败', true); });
+    });
+  }
 
-  // ── Agent Timeline via SSE ──
+  var scoreBtn = document.getElementById('aw-btn-scorecard');
+  if (scoreBtn) {
+    scoreBtn.addEventListener('click', function() {
+      scoreBtn.disabled = true;
+      setCouncilStatus('正在刷新 Asset 评分…', false);
+      fetch('/content-planning/evaluations/asset/' + encodeURIComponent(opportunityId) + '/run', {method: 'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          loadLatestScorecard();
+          setCouncilStatus('Asset 评分已更新', false);
+        })
+        .catch(function(){ setCouncilStatus('评分失败', true); })
+        .finally(function(){ scoreBtn.disabled = false; });
+    });
+  }
+
+  var applyBtn = document.getElementById('aw-btn-apply-proposal');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', function() {
+      if (!currentProposalId) return;
+      var selected = Array.from(document.querySelectorAll('.js-proposal-field:checked')).map(function(el){ return el.value; });
+      if (!selected.length) {
+        setCouncilStatus('请至少选择一个字段', true);
+        return;
+      }
+      applyBtn.disabled = true;
+      setCouncilStatus('正在应用 proposal…', false);
+      fetch('/content-planning/proposals/' + encodeURIComponent(currentProposalId) + '/apply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({selected_fields: selected})
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.asset_bundle) {
+          setCouncilStatus('已应用 proposal，页面即将刷新。', false);
+          window.location.reload();
+        } else {
+          setCouncilStatus('proposal 应用失败', true);
+        }
+      })
+      .catch(function(){ setCouncilStatus('proposal 应用失败', true); })
+      .finally(function(){ applyBtn.disabled = false; });
+    });
+  }
+
+  // ── Skills Panel（延后加载，避免首屏争抢） ──
+  function loadSkillsPanel() {
+    fetch('/content-planning/skills')
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        var el = document.getElementById('aw-skills-list');
+        if (!el || !data.skills) return;
+        var html = '';
+        data.skills.forEach(function(s) {
+          html += '<div style="padding:8px 0;border-bottom:1px solid var(--border);">';
+          html += '<div style="font-weight:600;color:var(--ink)">' + s.skill_name + '</div>';
+          html += '<div style="color:var(--muted);margin-top:2px">' + s.description + '</div>';
+          html += '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">';
+          (s.trigger_keywords || []).forEach(function(kw) {
+            html += '<span style="padding:1px 6px;border-radius:8px;background:var(--accent-soft,#ede9fe);font-size:11px;color:var(--accent)">' + kw + '</span>';
+          });
+          html += '</div></div>';
+        });
+        el.innerHTML = html || '<div style="color:var(--muted)">暂无可用技能</div>';
+      }).catch(function(){});
+  }
+  scheduleDeferred(loadSkillsPanel);
+
+  // ── Agent Timeline via SSE（延后连接） ──
   var timelineEl = document.getElementById('aw-timeline');
   var evtSource = null;
-  try {
-    evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
-    evtSource.addEventListener('agent_result', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-    });
-    evtSource.addEventListener('chat_response', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
-    });
-    evtSource.addEventListener('object_updated', function(e) {
-      var data = JSON.parse(e.data);
-      appendTimeline('系统', data.object_type + ' 已更新', null);
-    });
-    evtSource.onerror = function() {
-      if (timelineEl) {
-        var div = document.createElement('div');
-        div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
-        div.textContent = '连接中断，刷新页面重连';
-        timelineEl.appendChild(div);
-      }
-    };
-  } catch(err) {}
+  scheduleDeferred(function() {
+    try {
+      evtSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
+      evtSource.addEventListener('agent_result', function(e) {
+        var data = JSON.parse(e.data);
+        appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+      });
+      evtSource.addEventListener('chat_response', function(e) {
+        var data = JSON.parse(e.data);
+        appendTimeline(data.agent_name || data.agent_role, data.payload.explanation || '', data.payload.confidence);
+      });
+      evtSource.addEventListener('object_updated', function(e) {
+        var data = JSON.parse(e.data);
+        appendTimeline('系统', data.object_type + ' 已更新', null);
+      });
+      evtSource.onerror = function() {
+        if (timelineEl) {
+          var div = document.createElement('div');
+          div.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0;';
+          div.textContent = '连接中断，刷新页面重连';
+          timelineEl.appendChild(div);
+        }
+      };
+    } catch(err) {}
+  }, 40);
 
   function appendTimeline(name, text, confidence) {
     if (!timelineEl) return;
@@ -378,7 +608,7 @@
     fetch('/content-planning/chat/' + encodeURIComponent(opportunityId), {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: msg, role: 'human', current_stage: 'asset'})
+      body: JSON.stringify({message: msg, role: 'human', current_stage: 'asset', mode: 'fast'})
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -389,6 +619,8 @@
       if (chatStatus) chatStatus.textContent = '发送失败';
     });
   }
+
+  scheduleDeferred(loadLatestScorecard);
 })();
 </script>
 {% endblock %}
