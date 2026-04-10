@@ -45,6 +45,9 @@ class NewNotePlan(BaseModel):
     created_by: str = ""
     updated_by: str = ""
     approval_status: Literal["pending_review", "approved", "changes_requested", "rejected"] = "pending_review"
+    lifecycle_status: Literal[
+        "new", "reviewed", "promoted", "in_planning", "ready", "approved", "exported", "published"
+    ] = "new"
     visibility: Literal["workspace", "brand", "private"] = "workspace"
     version: int = 1
     plan_status: Literal["draft", "generated", "reviewed", "approved", "exported"] = "draft"

@@ -28,6 +28,29 @@
 | Brief 右栏统一对话 | `content_brief.html`：`#ws-unified-thread` 承载 Chat + Council SSE；`council_phase` 仅更新状态条、不与 v2 事件重复刷行；HTTP 结束后以折叠块追加完整记录；`StageDiscussionRequest.include_chat_context` 默认 true，将 `AgentThread.context_summary()` 拼入 Council 问题（链式） |
 | Strategy / Note Plan 右栏对齐 Brief | `content_strategy.html`（`#pw-unified-thread`）、`content_plan.html`（`#cw-unified-thread`）与 Brief 同模式：共享 `static/js/council_right_rail.js`（`CouncilRightRail.init`）、不订阅 `chat_response` SSE、Council `POST` 带 `include_chat_context: true`、HTTP 后折叠「服务端完整讨论记录」；Plan 页 API 前缀沿用模板 `cpApi`/`api_prefix` |
 
+### Intel Hub：品牌配置只读页模板 (2026-04-10)
+
+| 项 | 说明 |
+|---|---|
+| `brand_config.html` | 继承 `base.html`；单列卡片（`body .shell` max-width 900px）；上下文变量 `workspace_id`、`brand`、`guardrails`、`voice`、`audiences`、`objectives`；护栏标签色：禁用表达红 / 必提要点绿 / 风险词琥珀 |
+
+### Intel Hub：Phase 3 工作区页面模板 (2026-04-10)
+
+| 模板 | 变量摘要 |
+|---|---|
+| `workspace_home.html` | `workspace_id`、`workspace_name`、`stats`（`total_opportunities` / `in_planning` / `pending_approval` / `published` / `total_feedback`）；导航链至 pipeline / approvals / feedback |
+| `opportunity_pipeline.html` | `workspace_id`、`stages[]`（`stage_name`、`stage_label`、`items[]`：`opportunity_id`、`title`、`status`、`updated_at`）；横向看板列 |
+| `review_approval.html` | `workspace_id`、`approval_requests[]`（`request_id`、`object_type`、`object_id`、`requested_by`、`status`、`requested_at`、`notes`）；状态徽章 pending/approved/rejected/withdrawn |
+
+### Phase 3 剩余：B2B 协同存储 + 生命周期状态 + 交付门控 API (2026-04-10)
+
+| 项 | 说明 |
+|---|---|
+| 统一 `lifecycle_status` | `OpportunityBrief` / `RewriteStrategy` / `NewNotePlan` / `AssetBundle` 增加 `lifecycle_status`（默认 `new`） |
+| B2B SQLite 表 | `object_assignments`、`object_comments`、`workspace_timeline`、`approval_requests`、`readiness_checklists`；`B2BPlatformStore` 对应 save/list/get |
+| Intel Hub 路由 | `POST /objects/{type}/{id}/assign`、`POST/GET .../comments`、`POST /approvals/{request_id}/decision`、`GET /b2b/workspaces/{id}/timeline`；交付门控 `GET|PUT /objects/{type}/{id}/readiness` |
+| `_plan_store` | `create_app` 内在 B2B 路由之前初始化 `_plan_store`，修复 `/b2b/.../feedback` 与 `/pipeline` 引用未定义变量问题 |
+
 ### Phase 0：基础修复 **已完成**
 
 | 项 | 状态 | 说明 |
@@ -2059,3 +2082,78 @@ export PYTHONPATH=$PWD
 git add docs/IMPLEMENT.md docs/ARCHITECTURE_V2.md docs/DECISIONS.md docs/README_PRODUCT.md
 git commit -m "docs: capture agent performance optimization architecture and metrics"
 ```
+
+---
+
+## 三阶段商业闭环升级（Phase 1-3）
+
+按 `upgrade_biz_product.md` 中三阶段路径渐进实施。
+
+### Phase 1：发布结果闭环
+
+**数据模型**
+- `PublishResult` 增强：新增 `opportunity_id`、`brief_version`、`strategy_version`、`plan_version`、`asset_bundle_version`
+- 新建 `FeedbackRecord` / `WinningPattern` / `FailedPattern`（`apps/content_planning/schemas/feedback.py`）
+
+**存储层**
+- `ContentPlanStore`：新增 `feedback_records`、`winning_patterns`、`failed_patterns` 三表 + CRUD
+- `B2BPlatformStore`：`publish_results` DDL 增加 `opportunity_id` 列；新增 `list_publish_results`
+
+**对比体系**
+- `ComparisonReport` 新增 `OutcomeDelta`：`approval_rounds_delta`、`edit_count_delta`、`time_delta`、`engagement_delta`
+
+**API 路由**
+- `POST /content-planning/asset-bundle/{id}/publish-result` — 录入发布结果
+- `GET /content-planning/opportunities/{id}/outcome-summary` — 聚合摘要
+- `GET /content-planning/comparison/{id}/outcome-delta` — 双层对比
+- 修复 `POST .../feedback` 路由：增加 SQLite 持久化
+- `GET /b2b/workspaces/{id}/feedback` + `GET /b2b/workspaces/{id}/pipeline`
+
+**前端**
+- `content_assets.html`：「标记已发布」→「发布结果录入」表单 + outcome summary 卡片
+- 新建 `content_feedback.html`：漏斗 / 返工轮次 / 表现对比三视图
+
+### Phase 2：品牌知识库与 Guardrails
+
+**数据模型**
+- 新增 `BrandGuardrail`、`BrandVoice`、`BrandProductLine`、`AudienceProfile`、`BrandObjective`（`apps/b2b_platform/schemas.py`）
+
+**主链接入**
+- `guardrail_checker.py`：`check_guardrails()` 检测 forbidden/must_mention/risk_words
+- `StageProposal` 增加 `guardrail_warnings` / `blocked_by_guardrail` / `brand_fit_score`
+- `evaluate_stage` 追加 `brand_fit` / `brand_guardrail_fit` / `campaign_fit` 三维度
+
+**前端**
+- 新建 `brand_config.html`：品牌信息 + 调性 + 护栏 + 目标人群 + Campaign 目标只读页
+
+### Phase 3：团队工作区 + 审批交付流
+
+**数据模型**
+- 新增 `ObjectAssignment`、`ObjectComment`、`WorkspaceTimelineEvent`、`ApprovalRequest`、`ReadinessChecklist`
+
+**统一状态机**
+- `OpportunityBrief`、`RewriteStrategy`、`NewNotePlan`、`AssetBundle` 各增加 `lifecycle_status` 字段
+- 全链路：`new → reviewed → promoted → in_planning → ready → approved → exported → published`
+
+**存储层**
+- `B2BPlatformStore`：新增 `object_assignments`、`object_comments`、`workspace_timeline`、`approval_requests`、`readiness_checklists` 五表 + CRUD
+
+**API 路由**
+- `POST /objects/{type}/{id}/assign` + `POST /objects/{type}/{id}/comments` + `GET .../comments`
+- `POST /approvals/{id}/decision`
+- `GET /b2b/workspaces/{id}/timeline`
+- `GET /objects/{type}/{id}/readiness` + `PUT /objects/{type}/{id}/readiness`
+
+**前端**
+- 新建 `workspace_home.html`：工作区首页统计 + 快捷入口
+- 新建 `opportunity_pipeline.html`：按 lifecycle_status 分列看板
+- 新建 `review_approval.html`：审批队列列表
+
+### 验证结果
+
+- 所有 Python 文件 `py_compile` 通过
+- 全部新模型实例化 + 字段断言通过
+- `ContentPlanStore` feedback/winning/failed 三表 CRUD 通过
+- `B2BPlatformStore` publish_results (增强) + assignments + comments + timeline + approvals + readiness 全量 CRUD 通过
+- `guardrail_checker.check_guardrails` 正反用例通过
+- 既有测试 `test_b2b_flow.py` 通过

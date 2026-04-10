@@ -32,6 +32,14 @@
   .aw-title-item:last-child { border-bottom: none; }
   .aw-slot-card { border: 1px solid var(--border); border-radius: 14px; padding: 12px; margin-bottom: 10px; background: rgba(255,255,255,0.65); }
   .aw-status-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
+  .aw-field { margin-bottom: 12px; }
+  .aw-field label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: var(--ink); }
+  .aw-field input[type="text"],
+  .aw-field input[type="number"],
+  .aw-field select,
+  .aw-field textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); font-family: inherit; font-size: 13px; background: var(--surface); color: var(--ink); }
+  .aw-field textarea { resize: vertical; min-height: 72px; }
+  .aw-metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (max-width: 1100px) { .aw-row { flex-direction: column; } .aw-left, .aw-right { width: 100%; position: relative; top: 0; } }
 </style>
 
@@ -193,7 +201,77 @@
         <button type="button" class="aw-btn" id="aw-btn-export-json">导出 JSON</button>
         <button type="button" class="aw-btn" id="aw-btn-export-md">导出 Markdown</button>
         <button type="button" class="aw-btn secondary" id="aw-btn-variant">生成变体</button>
-        <button type="button" class="aw-btn secondary" id="aw-btn-publish" {% if not bundle or not bundle.asset_bundle_id %}disabled{% endif %}>标记已发布</button>
+      </div>
+
+      <div class="aw-card">
+        <h3>发布结果录入</h3>
+        <p style="margin: 0 0 12px; font-size: 12px; color: var(--muted); line-height: 1.5;">将实际上线平台、外链与互动数据记入闭环，便于后续结果摘要与对比。</p>
+        <form id="aw-form-publish-result" novalidate>
+          <div class="aw-field">
+            <label for="aw-pub-platform">发布平台</label>
+            <select id="aw-pub-platform" name="platform" required>
+              <option value="xhs">小红书</option>
+              <option value="douyin">抖音</option>
+              <option value="wechat">微信</option>
+            </select>
+          </div>
+          <div class="aw-field">
+            <label for="aw-pub-external-ref">外链 / 笔记 ID</label>
+            <input type="text" id="aw-pub-external-ref" name="external_ref" placeholder="平台内链接或内容 ID" autocomplete="off">
+          </div>
+          <div class="aw-field">
+            <label style="margin-bottom:8px;">互动指标</label>
+            <div class="aw-metrics-grid">
+              <div>
+                <label for="aw-m-like" style="font-weight:600;font-size:11px;color:var(--muted);">点赞</label>
+                <input type="number" id="aw-m-like" name="like_count" min="0" step="1" value="0" inputmode="numeric">
+              </div>
+              <div>
+                <label for="aw-m-collect" style="font-weight:600;font-size:11px;color:var(--muted);">收藏</label>
+                <input type="number" id="aw-m-collect" name="collect_count" min="0" step="1" value="0" inputmode="numeric">
+              </div>
+              <div>
+                <label for="aw-m-comment" style="font-weight:600;font-size:11px;color:var(--muted);">评论</label>
+                <input type="number" id="aw-m-comment" name="comment_count" min="0" step="1" value="0" inputmode="numeric">
+              </div>
+              <div>
+                <label for="aw-m-share" style="font-weight:600;font-size:11px;color:var(--muted);">分享</label>
+                <input type="number" id="aw-m-share" name="share_count" min="0" step="1" value="0" inputmode="numeric">
+              </div>
+              <div style="grid-column: 1 / -1;">
+                <label for="aw-m-view" style="font-weight:600;font-size:11px;color:var(--muted);">播放 / 阅读</label>
+                <input type="number" id="aw-m-view" name="view_count" min="0" step="1" value="0" inputmode="numeric">
+              </div>
+            </div>
+          </div>
+          <div class="aw-field">
+            <label for="aw-pub-performance">效果标签</label>
+            <select id="aw-pub-performance" name="performance_label">
+              <option value="unknown">未知</option>
+              <option value="excellent">优秀</option>
+              <option value="good">良好</option>
+              <option value="average">一般</option>
+              <option value="poor">偏弱</option>
+            </select>
+          </div>
+          <div class="aw-field">
+            <label for="aw-pub-notes">备注说明</label>
+            <textarea id="aw-pub-notes" name="feedback_notes" rows="3" placeholder="投放时段、素材版本、运营动作等补充信息"></textarea>
+          </div>
+          <button type="submit" class="aw-btn" id="aw-btn-submit-publish" {% if not bundle %}disabled{% endif %}>提交发布结果</button>
+        </form>
+        <div id="aw-publish-result-status" style="font-size: 12px; margin-top: 10px; min-height: 18px; color: var(--muted);"></div>
+        {% if not bundle %}
+        <p style="margin: 8px 0 0; font-size: 11px; color: #b45309;">暂无资产包时无法提交；请先在 Creation Workspace 生成内容。</p>
+        {% endif %}
+      </div>
+
+      <div class="aw-card">
+        <h3>结果摘要</h3>
+        <div id="aw-outcome-summary" style="font-size: 13px; line-height: 1.55; color: var(--ink);">
+          <span style="color: var(--muted);">加载中…</span>
+        </div>
+        <button type="button" class="aw-btn secondary" id="aw-btn-refresh-outcome" style="margin-top: 12px; margin-bottom: 0;">刷新摘要</button>
       </div>
 
       {% if stale_flags %}
@@ -236,6 +314,7 @@
 (function () {
   var opportunityId = {{ opportunity_id | tojson }};
   var bundleId = {{ (bundle.asset_bundle_id if bundle and bundle.asset_bundle_id else '') | tojson }};
+  var hasBundleForPublish = {{ (bundle is not none) | tojson }};
   var currentProposalId = '';
   var assetInputsStale = {{ (stale_flags.get('plan', false) or stale_flags.get('titles', false) or stale_flags.get('body', false) or stale_flags.get('image_briefs', false)) | tojson }};
   var proposalGroups = {
@@ -279,21 +358,140 @@
     .catch(function(){ btn.disabled = false; alert('生成变体失败'); });
   });
 
-  document.getElementById('aw-btn-publish').addEventListener('click', function(){
-    if (!bundleId) {
-      alert('暂无资产包 ID，请先在策划流程中生成内容。');
+  var pubStatusEl = document.getElementById('aw-publish-result-status');
+  var outcomeEl = document.getElementById('aw-outcome-summary');
+
+  var perfLabelZh = { excellent: '优秀', good: '良好', average: '一般', poor: '偏弱', unknown: '未知' };
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function setPublishStatus(msg, isError) {
+    if (!pubStatusEl) return;
+    pubStatusEl.textContent = msg || '';
+    pubStatusEl.style.color = isError ? '#b71c1c' : (msg ? 'var(--accent)' : 'var(--muted)');
+  }
+
+  function parseNonNegInt(el) {
+    var v = parseInt((el && el.value) || '0', 10);
+    return isNaN(v) || v < 0 ? 0 : v;
+  }
+
+  function renderOutcomeSummary(data) {
+    if (!outcomeEl) return;
+    if (!data) {
+      outcomeEl.innerHTML = '<span style="color:#b71c1c">加载失败</span>';
       return;
     }
-    fetch('/content-planning/asset-bundle/' + encodeURIComponent(bundleId) + '/feedback', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        published_note_id: '',
-        feedback_notes: '标记已发布（工作台）',
-        performance_label: 'unknown'
+    var total = data.total_publish_results != null ? data.total_publish_results : 0;
+    var avg = data.avg_engagement_proxy != null ? data.avg_engagement_proxy : 0;
+    var html = '';
+    html += '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">';
+    html += '<span style="color:var(--muted);font-size:12px;">发布结果条数</span><strong>' + total + '</strong></div>';
+    html += '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">';
+    html += '<span style="color:var(--muted);font-size:12px;">平均互动代理</span><strong>' + avg + '</strong></div>';
+    html += '<div style="margin-top:12px;font-size:12px;font-weight:700;color:var(--accent);">反馈记录</div>';
+    var fbs = data.feedback_records || [];
+    if (!fbs.length) {
+      html += '<p style="margin:8px 0 0;font-size:12px;color:var(--muted);">暂无反馈记录</p>';
+    } else {
+      html += '<ul style="margin:8px 0 0;padding-left:1.1em;font-size:12px;color:var(--ink);">';
+      fbs.slice(0, 12).forEach(function(fr) {
+        var ql = perfLabelZh[fr.feedback_quality] || fr.feedback_quality || '—';
+        var proxy = fr.engagement_proxy != null ? fr.engagement_proxy : '—';
+        var note = (fr.notes || '').trim();
+        if (note.length > 80) note = note.substring(0, 80) + '…';
+        html += '<li style="margin-bottom:6px;"><span style="color:var(--muted);">' + ql + '</span> · 代理 ' + proxy;
+        if (note) html += '<br><span style="color:var(--muted);">' + escapeHtml(note) + '</span>';
+        html += '</li>';
+      });
+      html += '</ul>';
+      if (fbs.length > 12) {
+        html += '<p style="margin:6px 0 0;font-size:11px;color:var(--muted);">仅显示最近 12 条，共 ' + fbs.length + ' 条</p>';
+      }
+    }
+    outcomeEl.innerHTML = html;
+  }
+
+  function loadOutcomeSummary() {
+    if (!outcomeEl) return;
+    outcomeEl.innerHTML = '<span style="color:var(--muted);">加载中…</span>';
+    fetch('/content-planning/opportunities/' + encodeURIComponent(opportunityId) + '/outcome-summary')
+      .then(function(r) { return r.json(); })
+      .then(renderOutcomeSummary)
+      .catch(function() { renderOutcomeSummary(null); });
+  }
+
+  var formPub = document.getElementById('aw-form-publish-result');
+  if (formPub) {
+    formPub.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      var submitBtn = document.getElementById('aw-btn-submit-publish');
+      if (submitBtn && submitBtn.disabled) {
+        setPublishStatus('请先完成资产包生成后再提交。', true);
+        return;
+      }
+      var platform = (document.getElementById('aw-pub-platform') || {}).value || 'xhs';
+      var externalRef = ((document.getElementById('aw-pub-external-ref') || {}).value || '').trim();
+      var performanceLabel = (document.getElementById('aw-pub-performance') || {}).value || 'unknown';
+      var feedbackNotes = ((document.getElementById('aw-pub-notes') || {}).value || '').trim();
+      var payload = {
+        platform: platform,
+        external_ref: externalRef,
+        metrics: {
+          like_count: parseNonNegInt(document.getElementById('aw-m-like')),
+          collect_count: parseNonNegInt(document.getElementById('aw-m-collect')),
+          comment_count: parseNonNegInt(document.getElementById('aw-m-comment')),
+          share_count: parseNonNegInt(document.getElementById('aw-m-share')),
+          view_count: parseNonNegInt(document.getElementById('aw-m-view'))
+        },
+        performance_label: performanceLabel,
+        feedback_notes: feedbackNotes
+      };
+      if (submitBtn) submitBtn.disabled = true;
+      setPublishStatus('提交中…', false);
+      fetch('/content-planning/asset-bundle/' + encodeURIComponent(opportunityId) + '/publish-result', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
       })
-    }).then(function(r){ if(r.ok) alert('已记录发布反馈'); else alert('操作失败'); })
-    .catch(function(){ alert('操作失败'); });
-  });
+        .then(function(r) {
+          return r.json().then(function(data) {
+            if (!r.ok) {
+              var d = data && data.detail;
+              var msg = typeof d === 'string' ? d : (d ? JSON.stringify(d) : ('HTTP ' + r.status));
+              throw new Error(msg);
+            }
+            return data;
+          });
+        })
+        .then(function() {
+          setPublishStatus('已保存发布结果。', false);
+          loadOutcomeSummary();
+          formPub.reset();
+          ['aw-m-like','aw-m-collect','aw-m-comment','aw-m-share','aw-m-view'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.value = '0';
+          });
+        })
+        .catch(function(err) {
+          setPublishStatus((err && err.message) ? err.message : '提交失败', true);
+        })
+        .finally(function() {
+          if (submitBtn && hasBundleForPublish) submitBtn.disabled = false;
+        });
+    });
+  }
+
+  var refreshOutcomeBtn = document.getElementById('aw-btn-refresh-outcome');
+  if (refreshOutcomeBtn) {
+    refreshOutcomeBtn.addEventListener('click', function() { loadOutcomeSummary(); });
+  }
 
   function setCouncilStatus(msg, isError) {
     var el = document.getElementById('aw-council-status');
@@ -621,6 +819,7 @@
   }
 
   scheduleDeferred(loadLatestScorecard);
+  scheduleDeferred(loadOutcomeSummary);
 })();
 </script>
 {% endblock %}

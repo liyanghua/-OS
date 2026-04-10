@@ -40,16 +40,35 @@ class StageDelta(BaseModel):
     improved: bool = False
 
 
+class OutcomeDelta(BaseModel):
+    """发布结果维度的 Before/After 对比（Phase 1 闭环）。"""
+    approval_rounds_before: int = 0
+    approval_rounds_after: int = 0
+    approval_rounds_delta: int = 0
+    edit_count_before: int = 0
+    edit_count_after: int = 0
+    edit_count_delta: int = 0
+    time_to_ready_before: float = 0.0
+    time_to_ready_after: float = 0.0
+    time_delta: float = 0.0
+    engagement_before: float = 0.0
+    engagement_after: float = 0.0
+    engagement_delta: float = 0.0
+    outcome_improved: bool = False
+
+
 class ComparisonReport(BaseModel):
-    """完整 Before/After 对比报告。"""
+    """完整 Before/After 对比报告，含中间评分 + 发布结果双层。"""
     report_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     opportunity_id: str = ""
     baseline_id: str = ""
     upgrade_id: str = ""
+    run_mode_label: str = ""  # baseline / single-agent / council
     stage_deltas: dict[str, StageDelta] = Field(default_factory=dict)
     pipeline_delta: float = 0.0
     baseline_pipeline_score: float = 0.0
     upgrade_pipeline_score: float = 0.0
+    outcome: OutcomeDelta | None = None
     summary: str = ""
     skills_extracted: int = 0
     lessons_written: int = 0

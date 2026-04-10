@@ -9,16 +9,21 @@ from typing import Any, Iterable
 
 from apps.b2b_platform.schemas import (
     ApprovalRecord,
+    ApprovalRequest,
     B2BBootstrapResult,
     BrandProfile,
     Campaign,
     Connector,
+    ObjectAssignment,
+    ObjectComment,
     OpportunityQueueEntry,
     Organization,
     PublishResult,
+    ReadinessChecklist,
     UsageEvent,
     Workspace,
     WorkspaceMembership,
+    WorkspaceTimelineEvent,
 )
 
 ROLE_RANK: dict[str, int] = {
@@ -179,9 +184,79 @@ class B2BPlatformStore:
                     publish_result_id TEXT PRIMARY KEY,
                     workspace_id TEXT NOT NULL,
                     asset_bundle_id TEXT NOT NULL,
+                    opportunity_id TEXT,
                     platform TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     payload_json TEXT NOT NULL
+                )
+                """
+            )
+            # Migrate: add opportunity_id to publish_results if missing
+            existing_pr_cols = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(publish_results)").fetchall()
+            }
+            if "opportunity_id" not in existing_pr_cols:
+                conn.execute("ALTER TABLE publish_results ADD COLUMN opportunity_id TEXT")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS object_assignments (
+                    assignment_id TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL,
+                    object_type TEXT NOT NULL,
+                    object_id TEXT NOT NULL,
+                    assignee_user_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    payload_json TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS object_comments (
+                    comment_id TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL,
+                    object_type TEXT NOT NULL,
+                    object_id TEXT NOT NULL,
+                    author_user_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    payload_json TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS workspace_timeline (
+                    event_id TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    payload_json TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS approval_requests (
+                    request_id TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL,
+                    object_type TEXT NOT NULL,
+                    object_id TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TEXT NOT NULL,
+                    payload_json TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS readiness_checklists (
+                    checklist_id TEXT PRIMARY KEY,
+                    workspace_id TEXT,
+                    object_type TEXT NOT NULL,
+                    object_id TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
                 )
                 """
             )
@@ -528,6 +603,11 @@ class B2BPlatformStore:
         brand_id: str,
         campaign_id: str,
         asset_bundle_id: str,
+        opportunity_id: str = "",
+        brief_version: int = 0,
+        strategy_version: int = 0,
+        plan_version: int = 0,
+        asset_bundle_version: int = 0,
         platform: str,
         external_ref: str = "",
         metrics: dict[str, Any] | None = None,
@@ -537,6 +617,11 @@ class B2BPlatformStore:
             brand_id=brand_id,
             campaign_id=campaign_id,
             asset_bundle_id=asset_bundle_id,
+            opportunity_id=opportunity_id,
+            brief_version=brief_version,
+            strategy_version=strategy_version,
+            plan_version=plan_version,
+            asset_bundle_version=asset_bundle_version,
             platform=platform,
             external_ref=external_ref,
             metrics=metrics or {},
@@ -545,10 +630,212 @@ class B2BPlatformStore:
             self._upsert(conn, "publish_results", "publish_result_id", result.publish_result_id, result, extra={
                 "workspace_id": result.workspace_id,
                 "asset_bundle_id": result.asset_bundle_id,
+                "opportunity_id": result.opportunity_id,
                 "platform": result.platform,
                 "created_at": result.created_at.isoformat(),
             })
         return result
+
+    def list_publish_results(self, *, workspace_id: str | None = None,
+                             opportunity_id: str | None = None,
+                             limit: int = 50) -> list[PublishResult]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if workspace_id:
+            clauses.append("workspace_id = ?")
+            params.append(workspace_id)
+        if opportunity_id:
+            clauses.append("opportunity_id = ?")
+            params.append(opportunity_id)
+        where = " AND ".join(clauses) if clauses else "1=1"
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT payload_json FROM publish_results WHERE {where} ORDER BY created_at DESC LIMIT ?",
+                params + [limit],
+            ).fetchall()
+        return [PublishResult.model_validate_json(row["payload_json"]) for row in rows]
+
+    def save_assignment(self, assignment: ObjectAssignment) -> ObjectAssignment:
+        with self._connect() as conn:
+            self._upsert(
+                conn,
+                "object_assignments",
+                "assignment_id",
+                assignment.assignment_id,
+                assignment,
+                extra={
+                    "workspace_id": assignment.workspace_id,
+                    "object_type": assignment.object_type,
+                    "object_id": assignment.object_id,
+                    "assignee_user_id": assignment.assignee_user_id,
+                    "created_at": assignment.created_at.isoformat(),
+                },
+            )
+        return assignment
+
+    def list_assignments(
+        self,
+        workspace_id: str,
+        object_type: str = "",
+        object_id: str = "",
+    ) -> list[ObjectAssignment]:
+        filters = ["workspace_id = ?"]
+        params: list[Any] = [workspace_id]
+        if object_type:
+            filters.append("object_type = ?")
+            params.append(object_type)
+        if object_id:
+            filters.append("object_id = ?")
+            params.append(object_id)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT payload_json FROM object_assignments
+                WHERE {' AND '.join(filters)}
+                ORDER BY created_at DESC
+                """,
+                params,
+            ).fetchall()
+        return [ObjectAssignment.model_validate_json(row["payload_json"]) for row in rows]
+
+    def save_comment(self, comment: ObjectComment) -> ObjectComment:
+        with self._connect() as conn:
+            self._upsert(
+                conn,
+                "object_comments",
+                "comment_id",
+                comment.comment_id,
+                comment,
+                extra={
+                    "workspace_id": comment.workspace_id,
+                    "object_type": comment.object_type,
+                    "object_id": comment.object_id,
+                    "author_user_id": comment.author_user_id,
+                    "created_at": comment.created_at.isoformat(),
+                },
+            )
+        return comment
+
+    def list_comments(
+        self,
+        workspace_id: str,
+        object_type: str = "",
+        object_id: str = "",
+    ) -> list[ObjectComment]:
+        filters = ["workspace_id = ?"]
+        params: list[Any] = [workspace_id]
+        if object_type:
+            filters.append("object_type = ?")
+            params.append(object_type)
+        if object_id:
+            filters.append("object_id = ?")
+            params.append(object_id)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT payload_json FROM object_comments
+                WHERE {' AND '.join(filters)}
+                ORDER BY created_at DESC
+                """,
+                params,
+            ).fetchall()
+        return [ObjectComment.model_validate_json(row["payload_json"]) for row in rows]
+
+    def save_timeline_event(self, event: WorkspaceTimelineEvent) -> WorkspaceTimelineEvent:
+        with self._connect() as conn:
+            self._upsert(
+                conn,
+                "workspace_timeline",
+                "event_id",
+                event.event_id,
+                event,
+                extra={
+                    "workspace_id": event.workspace_id,
+                    "event_type": event.event_type,
+                    "created_at": event.created_at.isoformat(),
+                },
+            )
+        return event
+
+    def list_timeline_events(self, workspace_id: str, limit: int = 100) -> list[WorkspaceTimelineEvent]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT payload_json FROM workspace_timeline
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (workspace_id, limit),
+            ).fetchall()
+        return [WorkspaceTimelineEvent.model_validate_json(row["payload_json"]) for row in rows]
+
+    def save_approval_request(self, req: ApprovalRequest) -> ApprovalRequest:
+        with self._connect() as conn:
+            self._upsert(
+                conn,
+                "approval_requests",
+                "request_id",
+                req.request_id,
+                req,
+                extra={
+                    "workspace_id": req.workspace_id,
+                    "object_type": req.object_type,
+                    "object_id": req.object_id,
+                    "status": req.status,
+                    "created_at": req.requested_at.isoformat(),
+                },
+            )
+        return req
+
+    def list_approval_requests(self, workspace_id: str, status: str = "") -> list[ApprovalRequest]:
+        filters = ["workspace_id = ?"]
+        params: list[Any] = [workspace_id]
+        if status:
+            filters.append("status = ?")
+            params.append(status)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT payload_json FROM approval_requests
+                WHERE {' AND '.join(filters)}
+                ORDER BY created_at DESC
+                """,
+                params,
+            ).fetchall()
+        return [ApprovalRequest.model_validate_json(row["payload_json"]) for row in rows]
+
+    def save_readiness_checklist(self, checklist: ReadinessChecklist) -> ReadinessChecklist:
+        with self._connect() as conn:
+            self._upsert(
+                conn,
+                "readiness_checklists",
+                "checklist_id",
+                checklist.checklist_id,
+                checklist,
+                extra={
+                    "workspace_id": checklist.workspace_id,
+                    "object_type": checklist.object_type,
+                    "object_id": checklist.object_id,
+                    "created_at": checklist.created_at.isoformat(),
+                },
+            )
+        return checklist
+
+    def get_readiness_checklist(self, object_id: str) -> ReadinessChecklist | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT payload_json FROM readiness_checklists
+                WHERE object_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (object_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return ReadinessChecklist.model_validate_json(row["payload_json"])
 
     def workspace_snapshot(self, workspace_id: str) -> dict[str, Any]:
         workspace = self._get_one("workspaces", "workspace_id", workspace_id, Workspace)

@@ -745,8 +745,37 @@ def evaluate_stage(stage: str, opportunity_id: str, context: dict[str, Any]) -> 
     evaluator = STAGE_EVALUATORS.get(stage)
     if evaluator is None:
         logger.warning("Unknown stage %r, returning empty evaluation", stage)
-        return StageEvaluation(opportunity_id=opportunity_id, stage=stage)  # type: ignore[arg-type]
-    return evaluator.evaluate(opportunity_id, context)
+        evaluation = StageEvaluation(opportunity_id=opportunity_id, stage=stage)  # type: ignore[arg-type]
+    else:
+        evaluation = evaluator.evaluate(opportunity_id, context)
+
+    evaluation.dimensions.extend(
+        [
+            DimensionScore(
+                name="brand_fit",
+                name_zh="品牌契合度",
+                score=1.0,
+                weight=1.0,
+                explanation="",
+            ),
+            DimensionScore(
+                name="brand_guardrail_fit",
+                name_zh="品牌守护栏契合",
+                score=1.0,
+                weight=1.0,
+                explanation="",
+            ),
+            DimensionScore(
+                name="campaign_fit",
+                name_zh="战役契合度",
+                score=1.0,
+                weight=1.0,
+                explanation="",
+            ),
+        ]
+    )
+    evaluation.compute_overall()
+    return evaluation
 
 
 # ---------------------------------------------------------------------------

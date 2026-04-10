@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  body .shell { max-width: min(100vw - 8px, 1680px); }
+  .pl-header {
+    background: linear-gradient(135deg, rgba(138, 75, 47, 0.14), rgba(255, 255, 255, 0.7));
+    border: 1px solid rgba(138, 75, 47, 0.18);
+    border-radius: 22px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .pl-header h2 { margin: 0; font-size: 20px; color: var(--ink); }
+  .pl-header .meta { font-size: 13px; color: var(--muted); }
+  .pl-header a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .pl-board {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+    align-items: flex-start;
+  }
+  .pl-column {
+    flex: 0 0 220px;
+    min-width: 200px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: 0 12px 30px rgba(92, 66, 39, 0.08);
+    max-height: min(70vh, 640px);
+    display: flex;
+    flex-direction: column;
+  }
+  .pl-column-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0 0 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .pl-column-body {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 80px;
+  }
+  .pl-mini-card {
+    background: rgba(255, 253, 248, 0.95);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 12px;
+  }
+  .pl-mini-card .pl-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0 0 8px;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+  .pl-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .pl-mini-card .pl-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .pl-empty {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 12px;
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    text-align: center;
+  }
+</style>
+
+<div class="pl-header">
+  <div>
+    <h2>机会管线</h2>
+    <div class="meta">工作区 <code>{{ workspace_id }}</code></div>
+  </div>
+  <div>
+    <a href="/b2b/workspaces/{{ workspace_id }}">← 返回工作区首页</a>
+  </div>
+</div>
+
+<div class="pl-board" role="region" aria-label="机会管线看板">
+  {% for stage in stages %}
+  <section class="pl-column" data-stage="{{ stage.stage_name | default('') }}">
+    <h3 class="pl-column-title">{{ stage.stage_label | default(stage.stage_name) }}</h3>
+    <div class="pl-column-body">
+      {% if stage.items and stage.items | length > 0 %}
+        {% for item in stage.items %}
+        <article class="pl-mini-card">
+          <p class="pl-title">{{ item.title | default('未命名机会') }}</p>
+          <span class="pl-badge">{{ item.status | default('—') }}</span>
+          {% if item.updated_at %}
+          <div class="pl-meta">更新：{{ item.updated_at }}</div>
+          {% endif %}
+          {% if item.opportunity_id %}
+          <div class="pl-meta">ID：<code style="font-size: 10px;">{{ item.opportunity_id }}</code></div>
+          {% endif %}
+        </article>
+        {% endfor %}
+      {% else %}
+        <div class="pl-empty">暂无卡片</div>
+      {% endif %}
+    </div>
+  </section>
+  {% else %}
+  <div class="card" style="border-radius: 18px; padding: 24px; color: var(--muted);">
+    暂无阶段数据。请在后端注入 <code>stages</code> 列表。
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

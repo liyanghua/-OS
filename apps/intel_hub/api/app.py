@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -112,6 +112,9 @@ def create_app(
     session_svc = SessionService(resolve_repo_path("data/sessions"))
     review_store = review_store or XHSReviewStore(resolve_repo_path("data/xhs_review.sqlite"))
     platform_store = platform_store or B2BPlatformStore(resolve_repo_path(settings.b2b_platform_db_path))
+    from apps.content_planning.storage.plan_store import ContentPlanStore
+
+    _plan_store = content_plan_store or ContentPlanStore(resolve_repo_path("data/content_plan.sqlite"))
     _xhs_cards_json = resolve_repo_path("data/output/xhs_opportunities/opportunity_cards.json")
     _xhs_details_json = resolve_repo_path("data/output/xhs_opportunities/pipeline_details.json")
     if _xhs_cards_json.exists():
@@ -283,6 +286,120 @@ def create_app(
     async def b2b_workspace_snapshot(workspace_id: str, request: Request) -> dict[str, Any]:
         _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist", "editor", "reviewer", "designer", "viewer"))
         return platform_store.workspace_snapshot(workspace_id)
+
+    @app.get("/b2b/workspaces/{workspace_id}/feedback")
+    async def b2b_workspace_feedback(workspace_id: str, request: Request) -> dict[str, Any]:
+        _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist", "reviewer", "viewer"))
+        feedback = _plan_store.load_feedback_records(workspace_id=workspace_id)
+        winning = _plan_store.load_winning_patterns(workspace_id=workspace_id)
+        failed = _plan_store.load_failed_patterns(workspace_id=workspace_id)
+        return {"feedback_records": feedback, "winning_patterns": winning, "failed_patterns": failed}
+
+    @app.get("/b2b/workspaces/{workspace_id}/pipeline")
+    async def b2b_workspace_pipeline(workspace_id: str, request: Request) -> dict[str, Any]:
+        _require_workspace_auth(request, workspace_id, allowed_roles=("admin", "strategist", "reviewer", "viewer"))
+        publish_results = platform_store.list_publish_results(workspace_id=workspace_id)
+        feedback = _plan_store.load_feedback_records(workspace_id=workspace_id)
+        total_pubs = len(publish_results)
+        total_fb = len(feedback)
+        avg_eng = 0.0
+        if feedback:
+            engs = [fr.get("engagement_proxy", 0.0) for fr in feedback if fr.get("engagement_proxy")]
+            avg_eng = sum(engs) / len(engs) if engs else 0.0
+        return {
+            "workspace_id": workspace_id,
+            "total_published": total_pubs,
+            "total_feedback": total_fb,
+            "avg_engagement_proxy": round(avg_eng, 4),
+            "publish_results": [p.model_dump(mode="json") for p in publish_results],
+        }
+
+    @app.post("/objects/{object_type}/{object_id}/assign")
+    async def assign_object(object_type: str, object_id: str, request: Request) -> dict[str, Any]:
+        from apps.b2b_platform.schemas import ObjectAssignment
+
+        body = await request.json()
+        ws_id = body.get("workspace_id", "")
+        assignment = ObjectAssignment(
+            workspace_id=ws_id,
+            object_type=cast(Any, object_type),
+            object_id=object_id,
+            assignee_user_id=body.get("assignee_user_id", ""),
+            assigned_by=body.get("assigned_by", ""),
+            role_hint=body.get("role_hint", ""),
+        )
+        platform_store.save_assignment(assignment)
+        return assignment.model_dump(mode="json")
+
+    @app.post("/objects/{object_type}/{object_id}/comments")
+    async def add_comment(object_type: str, object_id: str, request: Request) -> dict[str, Any]:
+        from apps.b2b_platform.schemas import ObjectComment
+
+        body = await request.json()
+        comment = ObjectComment(
+            workspace_id=body.get("workspace_id", ""),
+            object_type=cast(Any, object_type),
+            object_id=object_id,
+            author_user_id=body.get("author_user_id", ""),
+            content=body.get("content", ""),
+        )
+        platform_store.save_comment(comment)
+        return comment.model_dump(mode="json")
+
+    @app.get("/objects/{object_type}/{object_id}/comments")
+    async def get_comments(object_type: str, object_id: str, request: Request) -> dict[str, Any]:
+        ws_id = request.query_params.get("workspace_id", "")
+        comments = platform_store.list_comments(ws_id, object_type=object_type, object_id=object_id)
+        return {"items": [c.model_dump(mode="json") for c in comments]}
+
+    @app.post("/approvals/{request_id}/decision")
+    async def approval_decision(request_id: str, request: Request) -> dict[str, Any]:
+        from datetime import UTC, datetime
+
+        body = await request.json()
+        reqs = platform_store.list_approval_requests(body.get("workspace_id", ""))
+        target = None
+        for r in reqs:
+            if r.request_id == request_id:
+                target = r
+                break
+        if not target:
+            raise HTTPException(status_code=404, detail="approval request not found")
+        target.status = body.get("decision", "approved")
+        target.reviewer_id = body.get("reviewer_id", "")
+        target.decision_at = datetime.now(UTC)
+        target.notes = body.get("notes", "")
+        platform_store.save_approval_request(target)
+        return target.model_dump(mode="json")
+
+    @app.get("/b2b/workspaces/{workspace_id}/timeline")
+    async def workspace_timeline(workspace_id: str, request: Request) -> dict[str, Any]:
+        _require_workspace_auth(
+            request,
+            workspace_id,
+            allowed_roles=("admin", "strategist", "editor", "reviewer", "designer", "viewer"),
+        )
+        events = platform_store.list_timeline_events(workspace_id)
+        return {"items": [e.model_dump(mode="json") for e in events]}
+
+    @app.get("/objects/{object_type}/{object_id}/readiness")
+    async def get_delivery_readiness(object_type: str, object_id: str) -> dict[str, Any]:
+        """交付门控：读取对象的就绪清单（B2B 协同）。"""
+        checklist = platform_store.get_readiness_checklist(object_id)
+        if checklist is None:
+            return {"checklist": None, "object_type": object_type, "object_id": object_id}
+        return {"checklist": checklist.model_dump(mode="json")}
+
+    @app.put("/objects/{object_type}/{object_id}/readiness")
+    async def put_delivery_readiness(object_type: str, object_id: str, request: Request) -> dict[str, Any]:
+        """交付门控：写入/更新就绪清单。"""
+        from apps.b2b_platform.schemas import ReadinessChecklist
+
+        body = await request.json()
+        merged = {**body, "object_type": object_type, "object_id": object_id}
+        checklist = ReadinessChecklist.model_validate(merged)
+        platform_store.save_readiness_checklist(checklist)
+        return checklist.model_dump(mode="json")
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request) -> HTMLResponse:
@@ -878,10 +995,7 @@ def create_app(
     )
     from apps.content_planning.services.opportunity_to_plan_flow import OpportunityToPlanFlow
     from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
-    from apps.content_planning.storage.plan_store import ContentPlanStore
-
     _cp_adapter = IntelHubAdapter(review_store=review_store)
-    _plan_store = content_plan_store or ContentPlanStore(resolve_repo_path("data/content_plan.sqlite"))
     _cp_flow = OpportunityToPlanFlow(
         adapter=_cp_adapter,
         plan_store=_plan_store,

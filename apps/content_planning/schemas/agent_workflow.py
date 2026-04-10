@@ -104,6 +104,9 @@ class StageProposal(BaseModel):
     session_id: str = ""
     consensus_text: str = ""
     fallback_action: dict[str, Any] = Field(default_factory=dict)
+    guardrail_warnings: list[str] = Field(default_factory=list)
+    blocked_by_guardrail: bool = False
+    brand_fit_score: float = 1.0
 
 
 class ProposalDecision(BaseModel):

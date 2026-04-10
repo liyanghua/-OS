@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  body .shell { max-width: 1200px; }
+  .ws-headline {
+    background: linear-gradient(135deg, rgba(138, 75, 47, 0.14), rgba(255, 255, 255, 0.7));
+    border: 1px solid rgba(138, 75, 47, 0.18);
+    border-radius: 22px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .ws-headline h2 { margin: 0 0 8px; font-size: 22px; color: var(--ink); }
+  .ws-headline .ws-id { font-size: 13px; color: var(--muted); font-family: ui-monospace, monospace; }
+  .ws-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  @media (max-width: 900px) {
+    .ws-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 520px) {
+    .ws-stats-grid { grid-template-columns: 1fr; }
+  }
+  .ws-stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: 0 12px 30px rgba(92, 66, 39, 0.08);
+  }
+  .ws-stat-card .ws-stat-label {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+  .ws-stat-card .ws-stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0;
+    line-height: 1.2;
+  }
+  .ws-nav-section { margin-top: 8px; }
+  .ws-nav-section h3 {
+    font-size: 14px;
+    color: var(--ink);
+    margin: 0 0 12px;
+    font-weight: 700;
+  }
+  .ws-nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .ws-nav-links a {
+    display: inline-flex;
+    align-items: center;
+    padding: 12px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 8px 22px rgba(92, 66, 39, 0.06);
+  }
+  .ws-nav-links a:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+</style>
+
+<div class="ws-headline">
+  <h2>{{ workspace_name | default('工作区') }}</h2>
+  <div class="ws-id">工作区 ID：<code>{{ workspace_id }}</code></div>
+</div>
+
+<div class="ws-stats-grid">
+  <div class="ws-stat-card">
+    <p class="ws-stat-label">机会总数</p>
+    <p class="ws-stat-value">{{ stats.total_opportunities | default(0) }}</p>
+  </div>
+  <div class="ws-stat-card">
+    <p class="ws-stat-label">策划中</p>
+    <p class="ws-stat-value">{{ stats.in_planning | default(0) }}</p>
+  </div>
+  <div class="ws-stat-card">
+    <p class="ws-stat-label">待审批</p>
+    <p class="ws-stat-value">{{ stats.pending_approval | default(0) }}</p>
+  </div>
+  <div class="ws-stat-card">
+    <p class="ws-stat-label">已发布</p>
+    <p class="ws-stat-value">{{ stats.published | default(0) }}</p>
+  </div>
+  <div class="ws-stat-card">
+    <p class="ws-stat-label">反馈记录</p>
+    <p class="ws-stat-value">{{ stats.total_feedback | default(0) }}</p>
+  </div>
+</div>
+
+<div class="card ws-nav-section">
+  <h3>快捷入口</h3>
+  <nav class="ws-nav-links" aria-label="工作区导航">
+    <a href="/b2b/workspaces/{{ workspace_id }}/pipeline">机会管线</a>
+    <a href="/b2b/workspaces/{{ workspace_id }}/approvals">审批队列</a>
+    <a href="/b2b/workspaces/{{ workspace_id }}/feedback">反馈与知识</a>
+  </nav>
+</div>
+{% endblock %}

@@ -649,13 +649,17 @@ async def submit_asset_feedback(
     """提交资产发布效果反馈。"""
     from apps.content_planning.schemas.feedback import PublishedAssetResult
 
+    flow = _get_flow()
     _Perf = Literal["excellent", "good", "average", "poor", "unknown"]
     allowed: tuple[str, ...] = ("excellent", "good", "average", "poor", "unknown")
     label_raw = body.performance_label if body.performance_label in allowed else "unknown"
     label = cast(_Perf, label_raw)
 
+    session = flow._store.load_session(asset_bundle_id) or {}
+    opp_id = session.get("opportunity_id", "")
     result = PublishedAssetResult(
         asset_bundle_id=asset_bundle_id,
+        opportunity_id=opp_id,
         published_note_id=body.published_note_id,
         like_count=body.like_count,
         collect_count=body.collect_count,
@@ -666,12 +670,184 @@ async def submit_asset_feedback(
         feedback_notes=body.feedback_notes,
     )
 
+    from apps.content_planning.schemas.feedback import FeedbackRecord
+    total_eng = body.like_count + body.collect_count + body.comment_count + body.share_count
+    fb = FeedbackRecord(
+        opportunity_id=opp_id,
+        asset_bundle_id=asset_bundle_id,
+        workspace_id=session.get("workspace_id", ""),
+        brand_id=session.get("brand_id", ""),
+        campaign_id=session.get("campaign_id", ""),
+        engagement_proxy=min(total_eng / 1000.0, 1.0) if total_eng else 0.0,
+        feedback_quality=label,
+        notes=body.feedback_notes,
+    )
+    flow._store.save_feedback_record(fb)
+
     return {
         "status": "received",
         "result_id": result.result_id,
         "asset_bundle_id": asset_bundle_id,
         "performance_label": result.performance_label,
+        "feedback_id": fb.feedback_id,
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 1: 发布结果闭环 API
+# ---------------------------------------------------------------------------
+
+
+class PublishResultRequest(BaseModel):
+    platform: str = "xhs"
+    external_ref: str = ""
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    performance_label: str = "unknown"
+    feedback_notes: str = ""
+
+
+def _metric_int(metrics: dict[str, Any], key: str) -> int:
+    raw = metrics.get(key, 0)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
+
+
+@router.post("/asset-bundle/{opportunity_id}/publish-result")
+@_handle_flow_error
+async def record_publish_result(opportunity_id: str, body: PublishResultRequest) -> dict[str, Any]:
+    """录入发布结果，关联到对象版本。"""
+    flow = _get_flow()
+    session = flow._store.load_session(opportunity_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="session not found")
+    bundle_json = session.get("asset_bundle_json")
+    bundle = json.loads(bundle_json) if bundle_json else {}
+
+    platform_store = getattr(flow, "_platform_store", None)
+    if platform_store is None:
+        raise HTTPException(status_code=501, detail="platform_store not available")
+
+    asset_bundle_id = bundle.get("asset_bundle_id", opportunity_id)
+    pub = platform_store.record_publish_result(
+        workspace_id=session.get("workspace_id", ""),
+        brand_id=session.get("brand_id", ""),
+        campaign_id=session.get("campaign_id", ""),
+        asset_bundle_id=asset_bundle_id,
+        opportunity_id=opportunity_id,
+        brief_version=session.get("version", 1),
+        strategy_version=bundle.get("version", 1),
+        plan_version=session.get("version", 1),
+        asset_bundle_version=bundle.get("version", 1),
+        platform=body.platform,
+        external_ref=body.external_ref,
+        metrics=body.metrics,
+    )
+
+    # 同步写入反馈记录，供 outcome-summary 聚合 avg_engagement_proxy 等
+    from apps.content_planning.schemas.feedback import FeedbackRecord
+
+    _Perf = Literal["excellent", "good", "average", "poor", "unknown"]
+    allowed: tuple[str, ...] = ("excellent", "good", "average", "poor", "unknown")
+    label_raw = body.performance_label if body.performance_label in allowed else "unknown"
+    label = cast(_Perf, label_raw)
+    m = body.metrics or {}
+    like_c = _metric_int(m, "like_count")
+    collect_c = _metric_int(m, "collect_count")
+    comment_c = _metric_int(m, "comment_count")
+    share_c = _metric_int(m, "share_count")
+    view_c = _metric_int(m, "view_count")
+    total_eng = like_c + collect_c + comment_c + share_c
+    fb = FeedbackRecord(
+        opportunity_id=opportunity_id,
+        asset_bundle_id=asset_bundle_id,
+        workspace_id=session.get("workspace_id", ""),
+        brand_id=session.get("brand_id", ""),
+        campaign_id=session.get("campaign_id", ""),
+        engagement_proxy=min(total_eng / 1000.0, 1.0) if total_eng else 0.0,
+        feedback_quality=label,
+        notes=body.feedback_notes or body.external_ref or "",
+    )
+    flow._store.save_feedback_record(fb)
+
+    out = pub.model_dump(mode="json")
+    out["feedback_id"] = fb.feedback_id
+    return out
+
+
+@router.get("/opportunities/{opportunity_id}/outcome-summary")
+@_handle_flow_error
+async def outcome_summary(opportunity_id: str) -> dict[str, Any]:
+    """聚合该机会下所有 publish results + feedback 的结果摘要。"""
+    flow = _get_flow()
+    platform_store = getattr(flow, "_platform_store", None)
+
+    publish_results: list[dict[str, Any]] = []
+    if platform_store:
+        prs = platform_store.list_publish_results(opportunity_id=opportunity_id)
+        publish_results = [p.model_dump(mode="json") for p in prs]
+
+    feedback_records = flow._store.load_feedback_records(opportunity_id=opportunity_id)
+    evaluations = flow._store.load_evaluations(opportunity_id)
+
+    total_pubs = len(publish_results)
+    avg_engagement = 0.0
+    if feedback_records:
+        engs = [float(fr.get("engagement_proxy") or 0.0) for fr in feedback_records]
+        avg_engagement = sum(engs) / len(engs) if engs else 0.0
+
+    return {
+        "opportunity_id": opportunity_id,
+        "total_publish_results": total_pubs,
+        "publish_results": publish_results,
+        "feedback_records": feedback_records,
+        "avg_engagement_proxy": round(avg_engagement, 4),
+        "evaluations_count": len(evaluations),
+    }
+
+
+@router.get("/comparison/{opportunity_id}/outcome-delta")
+@_handle_flow_error
+async def outcome_delta(opportunity_id: str) -> dict[str, Any]:
+    """含 outcome 的双层对比。"""
+    flow = _get_flow()
+    from apps.content_planning.evaluation.comparison import compare, OutcomeDelta
+
+    evals = flow._store.load_evaluations(opportunity_id)
+    baseline_eval = None
+    upgrade_eval = None
+    for ev in evals:
+        if ev.get("eval_type") == "baseline":
+            baseline_eval = ev
+        elif ev.get("eval_type") in ("pipeline", "stage_run", "comparison"):
+            upgrade_eval = ev
+
+    baseline_pe = None
+    upgrade_pe = None
+    if baseline_eval and baseline_eval.get("payload"):
+        try:
+            baseline_pe = PipelineEvaluation.model_validate(baseline_eval["payload"])
+        except Exception:
+            pass
+    if upgrade_eval and upgrade_eval.get("payload"):
+        try:
+            upgrade_pe = PipelineEvaluation.model_validate(upgrade_eval["payload"])
+        except Exception:
+            pass
+
+    report = compare(opportunity_id, baseline=baseline_pe, upgrade=upgrade_pe)
+
+    feedback = flow._store.load_feedback_records(opportunity_id=opportunity_id)
+    if feedback:
+        engs = [fr.get("engagement_proxy", 0.0) for fr in feedback]
+        avg_eng = sum(engs) / len(engs) if engs else 0.0
+        report.outcome = OutcomeDelta(
+            engagement_after=round(avg_eng, 4),
+            outcome_improved=avg_eng > 0.3,
+        )
+
+    return report.model_dump(mode="json")
 
 
 @router.post("/run-agent/{opportunity_id}")

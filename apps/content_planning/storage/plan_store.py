@@ -187,11 +187,47 @@ class ContentPlanStore:
                     created_at TEXT NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS feedback_records (
+                    feedback_id TEXT PRIMARY KEY,
+                    opportunity_id TEXT NOT NULL,
+                    asset_bundle_id TEXT NOT NULL,
+                    workspace_id TEXT,
+                    brand_id TEXT,
+                    campaign_id TEXT,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS winning_patterns (
+                    pattern_id TEXT PRIMARY KEY,
+                    workspace_id TEXT,
+                    brand_id TEXT,
+                    pattern_type TEXT NOT NULL,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS failed_patterns (
+                    pattern_id TEXT PRIMARY KEY,
+                    workspace_id TEXT,
+                    brand_id TEXT,
+                    pattern_type TEXT NOT NULL,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+            """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_evaluations_opp ON evaluations(opportunity_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_tasks_opp ON agent_tasks(opportunity_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_runs_opp ON agent_runs(opportunity_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_discussions_opp ON stage_discussions(opportunity_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_proposals_opp ON stage_proposals(opportunity_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_opp ON feedback_records(opportunity_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_ws ON feedback_records(workspace_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_winning_ws ON winning_patterns(workspace_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_failed_ws ON failed_patterns(workspace_id)")
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_planning_sessions_status
                 ON planning_sessions(session_status)
@@ -781,3 +817,124 @@ class ContentPlanStore:
                    VALUES (?, ?, ?, ?, ?)""",
                 (decision_id, proposal_id, decision, _serialize(payload), now),
             )
+
+    # ------------------------------------------------------------------
+    # Phase 1: Feedback / Winning / Failed patterns
+    # ------------------------------------------------------------------
+
+    def save_feedback_record(self, record: Any) -> None:
+        now = _utc_now_iso()
+        fid = getattr(record, "feedback_id", "") or ""
+        oid = getattr(record, "opportunity_id", "") or ""
+        abid = getattr(record, "asset_bundle_id", "") or ""
+        wsid = getattr(record, "workspace_id", "") or ""
+        bid = getattr(record, "brand_id", "") or ""
+        cid = getattr(record, "campaign_id", "") or ""
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO feedback_records
+                   (feedback_id, opportunity_id, asset_bundle_id, workspace_id, brand_id, campaign_id, payload_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (fid, oid, abid, wsid, bid, cid, _serialize(record), now),
+            )
+
+    def load_feedback_records(self, *, opportunity_id: str | None = None,
+                              workspace_id: str | None = None,
+                              limit: int = 50) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if opportunity_id:
+            clauses.append("opportunity_id = ?")
+            params.append(opportunity_id)
+        if workspace_id:
+            clauses.append("workspace_id = ?")
+            params.append(workspace_id)
+        where = " AND ".join(clauses) if clauses else "1=1"
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM feedback_records WHERE {where} ORDER BY created_at DESC LIMIT ?",
+                params + [limit],
+            ).fetchall()
+        return [
+            {**(_deserialize(row["payload_json"]) or {}),
+             "feedback_id": row["feedback_id"],
+             "opportunity_id": row["opportunity_id"],
+             "created_at": row["created_at"]}
+            for row in rows
+        ]
+
+    def save_winning_pattern(self, pattern: Any) -> None:
+        now = _utc_now_iso()
+        pid = getattr(pattern, "pattern_id", "") or ""
+        wsid = getattr(pattern, "workspace_id", "") or ""
+        bid = getattr(pattern, "brand_id", "") or ""
+        ptype = getattr(pattern, "pattern_type", "other") or "other"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO winning_patterns
+                   (pattern_id, workspace_id, brand_id, pattern_type, payload_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (pid, wsid, bid, ptype, _serialize(pattern), now),
+            )
+
+    def load_winning_patterns(self, *, workspace_id: str | None = None,
+                              brand_id: str | None = None,
+                              limit: int = 50) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if workspace_id:
+            clauses.append("workspace_id = ?")
+            params.append(workspace_id)
+        if brand_id:
+            clauses.append("brand_id = ?")
+            params.append(brand_id)
+        where = " AND ".join(clauses) if clauses else "1=1"
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM winning_patterns WHERE {where} ORDER BY created_at DESC LIMIT ?",
+                params + [limit],
+            ).fetchall()
+        return [
+            {**(_deserialize(row["payload_json"]) or {}),
+             "pattern_id": row["pattern_id"],
+             "created_at": row["created_at"]}
+            for row in rows
+        ]
+
+    def save_failed_pattern(self, pattern: Any) -> None:
+        now = _utc_now_iso()
+        pid = getattr(pattern, "pattern_id", "") or ""
+        wsid = getattr(pattern, "workspace_id", "") or ""
+        bid = getattr(pattern, "brand_id", "") or ""
+        ptype = getattr(pattern, "pattern_type", "other") or "other"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO failed_patterns
+                   (pattern_id, workspace_id, brand_id, pattern_type, payload_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (pid, wsid, bid, ptype, _serialize(pattern), now),
+            )
+
+    def load_failed_patterns(self, *, workspace_id: str | None = None,
+                             brand_id: str | None = None,
+                             limit: int = 50) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if workspace_id:
+            clauses.append("workspace_id = ?")
+            params.append(workspace_id)
+        if brand_id:
+            clauses.append("brand_id = ?")
+            params.append(brand_id)
+        where = " AND ".join(clauses) if clauses else "1=1"
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM failed_patterns WHERE {where} ORDER BY created_at DESC LIMIT ?",
+                params + [limit],
+            ).fetchall()
+        return [
+            {**(_deserialize(row["payload_json"]) or {}),
+             "pattern_id": row["pattern_id"],
+             "created_at": row["created_at"]}
+            for row in rows
+        ]

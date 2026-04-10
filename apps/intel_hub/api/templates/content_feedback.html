@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% set feedback_records = feedback_records|default([], true) %}
+{% set publish_results = publish_results|default([], true) %}
+{% set pipeline_stats = pipeline_stats|default({}, true) %}
+{% set winning_patterns = winning_patterns|default([], true) %}
+{% set failed_patterns = failed_patterns|default([], true) %}
+
+{# 漏斗与聚合：基于 feedback_records / publish_results 在模板侧计算 #}
+{% set fb_opp_ids = feedback_records
+  |rejectattr('opportunity_id','none')
+  |rejectattr('opportunity_id','equalto','')
+  |map(attribute='opportunity_id')
+  |map('string')
+  |unique
+  |list %}
+{% set pub_opp_ids = publish_results
+  |rejectattr('opportunity_id','none')
+  |rejectattr('opportunity_id','equalto','')
+  |map(attribute='opportunity_id')
+  |map('string')
+  |unique
+  |list %}
+{% set all_opp_ids = (fb_opp_ids + pub_opp_ids)|unique|list %}
+{% set funnel_planning = namespace(n=0) %}
+{% for oid in all_opp_ids %}
+  {% if oid not in pub_opp_ids %}
+    {% set funnel_planning.n = funnel_planning.n + 1 %}
+  {% endif %}
+{% endfor %}
+{% set funnel_total = all_opp_ids|length %}
+{% set funnel_published_rows = pipeline_stats.get('total_published', publish_results|length) %}
+{% set bundle_id_list = publish_results
+  |map(attribute='asset_bundle_id')
+  |map('string')
+  |reject('equalto','')
+  |list %}
+{% set funnel_ready = (bundle_id_list|unique|list|length) if bundle_id_list else publish_results|length %}
+{% set funnel_in_planning = funnel_planning.n %}
+{% set funnel_published = funnel_published_rows %}
+
+{# 返工/审批：均值 #}
+{% set avg_ns = namespace(ar=0, me=0, cnt=0) %}
+{% for r in feedback_records %}
+  {% set avg_ns.cnt = avg_ns.cnt + 1 %}
+  {% set avg_ns.ar = avg_ns.ar + (r.approval_rounds|default(0)|int) %}
+  {% set avg_ns.me = avg_ns.me + (r.manual_edits_count|default(0)|int) %}
+{% endfor %}
+{% set avg_approval = (avg_ns.ar / avg_ns.cnt)|round(2) if avg_ns.cnt else 0 %}
+{% set avg_manual = (avg_ns.me / avg_ns.cnt)|round(2) if avg_ns.cnt else 0 %}
+
+{# performance_label 分组 #}
+{% set perf_ns = namespace(counts={}) %}
+{% for p in publish_results %}
+  {% set m = p.metrics if p.metrics is mapping else {} %}
+  {% set lbl = (p.get('performance_label') if p is mapping else (p.performance_label if p.performance_label is defined else none))
+    or (m.get('performance_label') if m is mapping else none)
+    or 'unknown' %}
+  {% set prev = perf_ns.counts[lbl] if lbl in perf_ns.counts else 0 %}
+  {% set _ = perf_ns.counts.update({lbl: prev + 1}) %}
+{% endfor %}
+
+{% block content %}
+<style>
+  :root {
+    --bg-subtle: rgba(255, 253, 248, 0.72);
+  }
+  body .shell { max-width: 1200px; }
+  .cfb-headline {
+    background: linear-gradient(135deg, rgba(138, 75, 47, 0.12), var(--bg-subtle));
+    border: 1px solid rgba(138, 75, 47, 0.2);
+    border-radius: 22px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 12px 30px rgba(92, 66, 39, 0.08);
+  }
+  .cfb-dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 18px;
+    margin-bottom: 28px;
+  }
+  .cfb-dash-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px 20px;
+    box-shadow: 0 12px 30px rgba(92, 66, 39, 0.08);
+    border-left: 4px solid var(--accent);
+  }
+  .cfb-dash-card h2 {
+    margin: 0 0 14px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .cfb-funnel {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .cfb-stat {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .cfb-stat .cfb-num {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--ink);
+    line-height: 1.1;
+  }
+  .cfb-stat .cfb-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .cfb-metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(138, 75, 47, 0.12);
+  }
+  .cfb-metric-row:last-child { border-bottom: none; }
+  .cfb-metric-row span:first-child { color: var(--muted); font-size: 13px; }
+  .cfb-metric-row span:last-child {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .cfb-perf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .cfb-perf-table th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .cfb-perf-table td {
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(138, 75, 47, 0.08);
+    color: var(--ink);
+  }
+  .cfb-perf-table tr:last-child td { border-bottom: none; }
+  .cfb-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .cfb-foot {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .cfb-patterns {
+    margin-top: 8px;
+    display: grid;
+    gap: 10px;
+  }
+  .cfb-pattern-mini {
+    background: var(--bg-subtle);
+    border-radius: 12px;
+    padding: 10px 12px;
+    border: 1px dashed var(--border);
+    font-size: 12px;
+    color: var(--ink);
+  }
+  .cfb-pattern-mini .meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+</style>
+
+  <section class="cfb-headline">
+    <div class="meta">工作区 · Feedback &amp; Knowledge</div>
+    <h1 style="margin: 8px 0 6px; font-size: 22px;">反馈与知识看板</h1>
+    <p style="margin: 0; font-size: 14px; color: var(--muted); line-height: 1.55;">
+      聚合内容闭环中的过程指标与发布表现：漏斗进展、返工与审批强度、按表现标签分组的发布结果。
+      当前工作区：<code>{{ workspace_id }}</code>
+    </p>
+  </section>
+
+  <div class="cfb-dashboard">
+    {# 1. 机会到发布漏斗 #}
+    <section class="cfb-dash-card">
+      <h2>机会到发布漏斗</h2>
+      <div class="cfb-funnel">
+        <div class="cfb-stat">
+          <div class="cfb-num">{{ funnel_total }}</div>
+          <div class="cfb-label">机会总数（去重）</div>
+        </div>
+        <div class="cfb-stat">
+          <div class="cfb-num">{{ funnel_in_planning }}</div>
+          <div class="cfb-label">策划中（已知机会中尚无发布结果）</div>
+        </div>
+        <div class="cfb-stat">
+          <div class="cfb-num">{{ funnel_ready }}</div>
+          <div class="cfb-label">就绪（去重资产包 ID，已落发布结果）</div>
+        </div>
+        <div class="cfb-stat">
+          <div class="cfb-num">{{ funnel_published }}</div>
+          <div class="cfb-label">已发布（发布结果条数）</div>
+        </div>
+      </div>
+      <div class="cfb-foot">
+        发布条数（原始记录）：{{ pipeline_stats.get('total_published', publish_results|length) }}；
+        反馈条数：{{ pipeline_stats.get('total_feedback', feedback_records|length) }}。
+        漏斗按 <code>opportunity_id</code> 去重估算；「就绪」按发布结果中的去重 <code>asset_bundle_id</code> 计数。
+      </div>
+    </section>
+
+    {# 2. 各阶段返工 / 审批轮次 #}
+    <section class="cfb-dash-card">
+      <h2>各阶段返工 / 审批轮次</h2>
+      <p style="margin: 0 0 8px; font-size: 12px; color: var(--muted);">
+        基于反馈记录 <code>feedback_records</code> 的样本均值（条数：{{ avg_ns.cnt }}）。
+      </p>
+      <div class="cfb-metric-row">
+        <span>平均审批轮次 <span class="meta">approval_rounds</span></span>
+        <span>{{ avg_approval }}</span>
+      </div>
+      <div class="cfb-metric-row">
+        <span>平均人工编辑次数 <span class="meta">manual_edits_count</span></span>
+        <span>{{ avg_manual }}</span>
+      </div>
+      <div class="cfb-metric-row">
+        <span>互动代理均值 <span class="meta">avg_engagement_proxy</span></span>
+        <span>{{ pipeline_stats.avg_engagement_proxy|default('—', true) }}</span>
+      </div>
+    </section>
+
+    {# 3. 模板 / 策略 / 资产表现对比（按 performance_label） #}
+    <section class="cfb-dash-card" style="grid-column: 1 / -1;">
+      <h2>模板 / 策略 / 资产表现对比</h2>
+      <p style="margin: 0 0 12px; font-size: 12px; color: var(--muted);">
+        按发布结果上的 <code>performance_label</code>（或 <code>metrics.performance_label</code>）分组计数。
+      </p>
+      {% if publish_results %}
+      <table class="cfb-perf-table">
+        <thead>
+          <tr>
+            <th>表现标签</th>
+            <th>条数</th>
+            <th>占比</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set total_pub = publish_results|length %}
+          {% for plabel, pcnt in perf_ns.counts|dictsort(by='value', reverse=true) %}
+          <tr>
+            <td><span class="cfb-pill">{{ plabel }}</span></td>
+            <td><strong>{{ pcnt }}</strong></td>
+            <td class="meta">
+              {% if total_pub %}{{ ((pcnt / total_pub) * 100)|round(1) }}%{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">暂无发布结果，无法按表现标签对比。</div>
+      {% endif %}
+
+      {% if winning_patterns or failed_patterns %}
+      <div class="section-title" style="margin-top: 20px;">
+        <h3 style="margin: 0; font-size: 14px; color: var(--ink);">模式摘要（赢面 / 教训）</h3>
+      </div>
+      <div class="cfb-patterns" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); display: grid;">
+        {% if winning_patterns %}
+        <div>
+          <div class="meta" style="margin-bottom: 6px; font-weight: 700; color: var(--accent);">赢面模式</div>
+          {% for w in winning_patterns[:5] %}
+          <div class="cfb-pattern-mini">
+            <div class="meta">{{ w.get('pattern_type', '—') }} · n={{ w.get('sample_count', '—') }}</div>
+            <strong>{{ w.get('label', '—') }}</strong>
+            {% if w.get('description') %}<div style="margin-top: 4px; color: var(--muted);">{{ w.description }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if failed_patterns %}
+        <div>
+          <div class="meta" style="margin-bottom: 6px; font-weight: 700; color: #8b4513;">待避坑模式</div>
+          {% for f in failed_patterns[:5] %}
+          <div class="cfb-pattern-mini">
+            <div class="meta">{{ f.get('pattern_type', '—') }} · n={{ f.get('sample_count', '—') }}</div>
+            <strong>{{ f.get('label', '—') }}</strong>
+            {% if f.get('description') %}<div style="margin-top: 4px; color: var(--muted);">{{ f.description }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

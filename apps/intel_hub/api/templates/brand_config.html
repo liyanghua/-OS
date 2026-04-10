@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% set brand = brand|default({}, true) %}
+{% set guardrails = guardrails if guardrails is not none else none %}
+{% set voice = voice if voice is not none else none %}
+{% set audiences = audiences|default([], true) %}
+{% set objectives = objectives|default([], true) %}
+{% set workspace_id = workspace_id|default('', true) %}
+
+{% macro _render_items_as_chips(items, chip_class='') %}
+  {% if items %}
+    <div class="bc-chips">
+      {% if items is string %}
+        <span class="bc-chip {{ chip_class }}">{{ items }}</span>
+      {% elif items is mapping %}
+        {% for k, v in items.items() %}
+          <span class="bc-chip {{ chip_class }}">{{ k }}：{{ v }}</span>
+        {% endfor %}
+      {% else %}
+        {% for it in items %}
+          <span class="bc-chip {{ chip_class }}">{{ it }}</span>
+        {% endfor %}
+      {% endif %}
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro _render_list_block(label, items, empty_hint='暂无') %}
+  <div class="bc-field">
+    <div class="bc-label">{{ label }}</div>
+    {% if items %}
+      {% if items is string %}
+        <p class="bc-text">{{ items }}</p>
+      {% elif items is mapping %}
+        <ul class="bc-bullets">
+          {% for k, v in items.items() %}
+            <li><strong>{{ k }}</strong>：{{ v }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <ul class="bc-bullets">
+          {% for it in items %}
+            <li>{{ it }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% else %}
+      <p class="bc-empty-inline">{{ empty_hint }}</p>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+<style>
+  body .shell {
+    max-width: 900px;
+  }
+  .bc-page {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .bc-headline {
+    background: linear-gradient(135deg, rgba(138, 75, 47, 0.14), rgba(255, 255, 255, 0.7));
+    border: 1px solid rgba(138, 75, 47, 0.18);
+    border-radius: 22px;
+    padding: 22px 24px;
+    margin-bottom: 4px;
+    box-shadow: 0 12px 30px rgba(92, 66, 39, 0.08);
+  }
+  .bc-headline h2 {
+    margin: 0 0 8px;
+    font-size: 1.35rem;
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .bc-headline .bc-meta {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .bc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px 20px;
+    box-shadow: 0 12px 30px rgba(92, 66, 39, 0.08);
+  }
+  .bc-card h3 {
+    margin: 0 0 14px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .bc-kv {
+    display: grid;
+    gap: 12px;
+  }
+  .bc-kv-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  @media (max-width: 520px) {
+    .bc-kv-row {
+      grid-template-columns: 1fr;
+    }
+  }
+  .bc-k {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: none;
+  }
+  .bc-v {
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  .bc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .bc-chip {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid rgba(138, 75, 47, 0.2);
+  }
+  .bc-chip--red {
+    background: #fde8e8;
+    color: #b91c1c;
+    border-color: rgba(185, 28, 28, 0.25);
+  }
+  .bc-chip--green {
+    background: #dcfce7;
+    color: #166534;
+    border-color: rgba(22, 101, 52, 0.22);
+  }
+  .bc-chip--amber {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: rgba(146, 64, 14, 0.25);
+  }
+  .bc-field {
+    margin-top: 14px;
+  }
+  .bc-field:first-of-type {
+    margin-top: 0;
+  }
+  .bc-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .bc-text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  .bc-bullets {
+    margin: 0;
+    padding-left: 1.15rem;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  .bc-bullets li {
+    margin-bottom: 6px;
+  }
+  .bc-empty-inline {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .bc-empty-card {
+    padding: 16px;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    margin: 0;
+  }
+  .bc-audience {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    background: rgba(255, 253, 248, 0.65);
+  }
+  .bc-audience:last-child {
+    margin-bottom: 0;
+  }
+  .bc-audience-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .bc-audience-title + .bc-field {
+    margin-top: 0;
+  }
+  .bc-obj-card {
+    padding: 12px 14px 12px 16px;
+    margin-bottom: 12px;
+    background: rgba(241, 225, 212, 0.35);
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+  }
+  .bc-obj-card:last-child {
+    margin-bottom: 0;
+  }
+  .bc-obj-card .bc-field {
+    margin-top: 10px;
+  }
+  .bc-obj-card > .bc-obj-type + .bc-field {
+    margin-top: 6px;
+  }
+  .bc-obj-type {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  code.bc-code {
+    background: #f2ece2;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+</style>
+
+<div class="bc-page">
+  <div class="bc-headline">
+    <h2>品牌配置</h2>
+    <div class="bc-meta">
+      {% if workspace_id %}工作区：<code class="bc-code">{{ workspace_id }}</code>{% endif %}
+      {% if brand.get('brand_id') %}
+        {% if workspace_id %} · {% endif %}品牌 ID：<code class="bc-code">{{ brand.brand_id }}</code>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 1. 品牌基本信息 #}
+  <section class="bc-card" aria-labelledby="bc-basic">
+    <h3 id="bc-basic">品牌基本信息</h3>
+    <div class="bc-kv">
+      <div class="bc-kv-row">
+        <div class="bc-k">名称</div>
+        <div class="bc-v">{{ brand.get('name') or '—' }}</div>
+      </div>
+      <div class="bc-kv-row">
+        <div class="bc-k">品类</div>
+        <div class="bc-v">{{ brand.get('category') or '—' }}</div>
+      </div>
+      <div class="bc-kv-row">
+        <div class="bc-k">定位</div>
+        <div class="bc-v">{{ brand.get('positioning') or '—' }}</div>
+      </div>
+    </div>
+  </section>
+
+  {# 2. 品牌调性 #}
+  <section class="bc-card" aria-labelledby="bc-voice">
+    <h3 id="bc-voice">品牌调性</h3>
+    <div class="bc-field">
+      <div class="bc-label">语调（Tone of voice）</div>
+      {% if brand.get('tone_of_voice') %}
+        {{ _render_items_as_chips(brand.tone_of_voice, '') }}
+      {% else %}
+        <p class="bc-empty-inline">暂无</p>
+      {% endif %}
+    </div>
+    {% if voice and voice is mapping %}
+      {{ _render_list_block('语气光谱（Tone spectrum）', voice.get('tone_spectrum')) }}
+      <div class="bc-field">
+        <div class="bc-label">推荐用词（Whitelist）</div>
+        {% if voice.get('vocabulary_whitelist') %}
+          {{ _render_items_as_chips(voice.vocabulary_whitelist, '') }}
+        {% else %}
+          <p class="bc-empty-inline">暂无</p>
+        {% endif %}
+      </div>
+      <div class="bc-field">
+        <div class="bc-label">禁用词汇（Blacklist）</div>
+        {% if voice.get('vocabulary_blacklist') %}
+          {{ _render_items_as_chips(voice.vocabulary_blacklist, 'bc-chip--red') }}
+        {% else %}
+          <p class="bc-empty-inline">暂无</p>
+        {% endif %}
+      </div>
+      {{ _render_list_block('示例句式（Example sentences）', voice.get('example_sentences')) }}
+    {% else %}
+      <p class="bc-empty-card" style="margin-top: 12px;">未配置独立 Voice 档案；仅展示品牌侧的语调信息。</p>
+    {% endif %}
+  </section>
+
+  {# 3. 品牌护栏 #}
+  <section class="bc-card" aria-labelledby="bc-guard">
+    <h3 id="bc-guard">品牌护栏（Guardrails）</h3>
+    {% if guardrails and guardrails is mapping %}
+      <div class="bc-field">
+        <div class="bc-label">禁用表达</div>
+        {% if guardrails.get('forbidden_expressions') %}
+          {{ _render_items_as_chips(guardrails.forbidden_expressions, 'bc-chip--red') }}
+        {% else %}
+          <p class="bc-empty-inline">暂无</p>
+        {% endif %}
+      </div>
+      <div class="bc-field">
+        <div class="bc-label">必须提及要点</div>
+        {% if guardrails.get('must_mention_points') %}
+          {{ _render_items_as_chips(guardrails.must_mention_points, 'bc-chip--green') }}
+        {% else %}
+          <p class="bc-empty-inline">暂无</p>
+        {% endif %}
+      </div>
+      <div class="bc-field">
+        <div class="bc-label">风险词</div>
+        {% if guardrails.get('risk_words') %}
+          {{ _render_items_as_chips(guardrails.risk_words, 'bc-chip--amber') }}
+        {% else %}
+          <p class="bc-empty-inline">暂无</p>
+        {% endif %}
+      </div>
+      {{ _render_list_block('风格边界（Style boundaries）', guardrails.get('style_boundaries')) }}
+      {{ _render_list_block('平台规范（Platform guidelines）', guardrails.get('platform_guidelines')) }}
+      {{ _render_list_block('Campaign 目标（Campaign objectives）', guardrails.get('campaign_objectives')) }}
+    {% else %}
+      <p class="bc-empty-card">尚未配置护栏规则。</p>
+    {% endif %}
+  </section>
+
+  {# 4. 目标人群 #}
+  <section class="bc-card" aria-labelledby="bc-aud">
+    <h3 id="bc-aud">目标人群</h3>
+    {% if audiences %}
+      {% for a in audiences %}
+        <div class="bc-audience">
+          <div class="bc-audience-title">人群 {{ loop.index }}</div>
+          {{ _render_list_block('人设（Personas）', a.get('personas') if a is mapping else none) }}
+          {{ _render_list_block('痛点（Pain points）', a.get('pain_points') if a is mapping else none) }}
+          {{ _render_list_block('决策因素（Decision factors）', a.get('decision_factors') if a is mapping else none) }}
+          {{ _render_list_block('禁忌话题（Taboo topics）', a.get('taboo_topics') if a is mapping else none) }}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="bc-empty-card">暂无目标人群画像。</p>
+    {% endif %}
+  </section>
+
+  {# 5. Campaign 目标 #}
+  <section class="bc-card" aria-labelledby="bc-obj">
+    <h3 id="bc-obj">Campaign 目标</h3>
+    {% if objectives %}
+      {% for o in objectives %}
+        <div class="bc-obj-card">
+          <div class="bc-obj-type">{{ (o.get('objective_type') if o is mapping else none) or '—' }}</div>
+          {{ _render_list_block('目标指标（Target metrics）', o.get('target_metrics') if o is mapping else none) }}
+          {{ _render_list_block('约束（Constraints）', o.get('constraints') if o is mapping else none) }}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="bc-empty-card">暂无 Campaign 目标。</p>
+    {% endif %}
+  </section>
+
+  {# 6. 产品线 #}
+  <section class="bc-card" aria-labelledby="bc-pl">
+    <h3 id="bc-pl">产品线</h3>
+    {% if brand.get('product_lines') %}
+      {{ _render_items_as_chips(brand.product_lines, '') }}
+    {% else %}
+      <p class="bc-empty-card">暂无产品线。</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

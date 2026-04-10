@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  body .shell { max-width: 1280px; }
+  .ra-header {
+    background: linear-gradient(135deg, rgba(138, 75, 47, 0.14), rgba(255, 255, 255, 0.7));
+    border: 1px solid rgba(138, 75, 47, 0.18);
+    border-radius: 22px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .ra-header h2 { margin: 0; font-size: 20px; color: var(--ink); }
+  .ra-header .meta { font-size: 13px; color: var(--muted); }
+  .ra-header a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .ra-table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(92, 66, 39, 0.08);
+  }
+  .ra-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .ra-table th,
+  .ra-table td {
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .ra-table th {
+    background: rgba(241, 225, 212, 0.35);
+    color: var(--ink);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .ra-table tbody tr:last-child td { border-bottom: none; }
+  .ra-table tbody tr:hover td { background: rgba(138, 75, 47, 0.04); }
+  .ra-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  .ra-badge.pending { background: #fef3c7; color: #b45309; }
+  .ra-badge.approved { background: #dcfce7; color: #166534; }
+  .ra-badge.rejected { background: #fee2e2; color: #b91c1c; }
+  .ra-badge.withdrawn { background: #f3f4f6; color: #6b7280; }
+  .ra-badge.other { background: var(--accent-soft); color: var(--accent); }
+  .ra-sub { display: block; font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.4; word-break: break-word; }
+  .ra-actions a {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    margin-right: 10px;
+    font-size: 13px;
+  }
+  .ra-actions a:hover { text-decoration: underline; }
+  .ra-empty {
+    padding: 32px;
+    text-align: center;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.5);
+  }
+</style>
+
+<div class="ra-header">
+  <div>
+    <h2>审批队列</h2>
+    <div class="meta">工作区 <code>{{ workspace_id }}</code></div>
+  </div>
+  <div>
+    <a href="/b2b/workspaces/{{ workspace_id }}">← 返回工作区首页</a>
+  </div>
+</div>
+
+{% if approval_requests and approval_requests | length > 0 %}
+<div class="ra-table-wrap">
+  <table class="ra-table" role="table" aria-label="审批申请列表">
+    <thead>
+      <tr>
+        <th>对象类型</th>
+        <th>对象 ID</th>
+        <th>申请人</th>
+        <th>状态</th>
+        <th>申请时间</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in approval_requests %}
+      {% set st = (row.status | default('') | string | lower) %}
+      <tr>
+        <td>{{ row.object_type | default('—') }}</td>
+        <td>
+          <code style="font-size: 11px;">{{ row.object_id | default('—') }}</code>
+          {% if row.notes %}
+          <span class="ra-sub">{{ row.notes }}</span>
+          {% endif %}
+        </td>
+        <td>{{ row.requested_by | default('—') }}</td>
+        <td>
+          {% if st == 'pending' %}
+          <span class="ra-badge pending">待处理</span>
+          {% elif st == 'approved' %}
+          <span class="ra-badge approved">已通过</span>
+          {% elif st == 'rejected' %}
+          <span class="ra-badge rejected">已拒绝</span>
+          {% elif st == 'withdrawn' %}
+          <span class="ra-badge withdrawn">已撤回</span>
+          {% else %}
+          <span class="ra-badge other">{{ row.status | default('—') }}</span>
+          {% endif %}
+        </td>
+        <td>{{ row.requested_at | default('—') }}</td>
+        <td class="ra-actions">
+          <a href="/b2b/workspaces/{{ workspace_id }}/approvals/{{ row.request_id | default('') }}">查看</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="ra-empty">暂无审批申请。</div>
+{% endif %}
+{% endblock %}
