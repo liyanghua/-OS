@@ -2083,3 +2083,83 @@ async def compare_evaluations(opportunity_id: str, body: CompareRequest | None =
     if flow._store is not None:
         flow._store.save_evaluation(report.report_id, opportunity_id, "comparison", report.model_dump(mode="json"))
     return report.model_dump(mode="json")
+
+
+# ── Agent Pipeline 端点 ────────────────────────────────────────
+
+_pipeline_runner = None
+
+
+def _get_pipeline_runner():
+    global _pipeline_runner
+    if _pipeline_runner is None:
+        from apps.content_planning.services.agent_pipeline_runner import AgentPipelineRunner
+        flow = _get_flow()
+        _pipeline_runner = AgentPipelineRunner(
+            adapter=flow._adapter,
+            plan_store=flow._store,
+            platform_store=flow._platform_store,
+        )
+    return _pipeline_runner
+
+
+def set_pipeline_runner(runner) -> None:
+    global _pipeline_runner
+    _pipeline_runner = runner
+
+
+class AgentPipelineTriggerRequest(BaseModel):
+    skip_stages: list[str] = Field(default_factory=list)
+    execution_mode: str = "deep"
+
+
+@router.post("/{opportunity_id}/agent-pipeline")
+async def trigger_agent_pipeline(opportunity_id: str, body: AgentPipelineTriggerRequest | None = None):
+    runner = _get_pipeline_runner()
+    req = body or AgentPipelineTriggerRequest()
+    run = await runner.trigger(
+        opportunity_id,
+        skip_stages=req.skip_stages,
+        execution_mode=req.execution_mode,
+    )
+    return {"run_id": run.run_id, "graph_id": run.graph_id, "status": run.status.value}
+
+
+@router.get("/{opportunity_id}/agent-pipeline/status")
+async def get_agent_pipeline_status(opportunity_id: str):
+    runner = _get_pipeline_runner()
+    status = await runner.get_status(opportunity_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail="No pipeline run found")
+    return status
+
+
+@router.post("/{opportunity_id}/agent-pipeline/cancel")
+async def cancel_agent_pipeline(opportunity_id: str):
+    runner = _get_pipeline_runner()
+    ok = await runner.cancel(opportunity_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail="No running pipeline to cancel")
+    return {"cancelled": True}
+
+
+class BatchAgentPipelineRequest(BaseModel):
+    opportunity_ids: list[str]
+    execution_mode: str = "deep"
+
+
+@router.post("/batch-agent-pipeline")
+async def trigger_batch_agent_pipeline(body: BatchAgentPipelineRequest):
+    runner = _get_pipeline_runner()
+    runs = await runner.trigger_batch(body.opportunity_ids, execution_mode=body.execution_mode)
+    return {
+        oid: {"run_id": run.run_id, "graph_id": run.graph_id, "status": run.status.value}
+        for oid, run in runs.items()
+    }
+
+
+@router.post("/batch-agent-pipeline/status")
+async def get_batch_agent_pipeline_status(body: BatchAgentPipelineRequest):
+    runner = _get_pipeline_runner()
+    statuses = await runner.get_batch_status(body.opportunity_ids)
+    return statuses

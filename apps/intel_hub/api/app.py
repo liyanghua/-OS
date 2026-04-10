@@ -831,6 +831,8 @@ def create_app(
                 "type_bg": _xhs_type_bg,
                 "status_labels": _xhs_status_labels,
                 "status_colors": _xhs_status_colors,
+                "is_promoted": card_dict.get("opportunity_status") == "promoted",
+                "opportunity_id": opportunity_id,
             })
         return card_dict
 
@@ -1210,6 +1212,103 @@ def create_app(
             response.headers["X-Render-Timing-Ms"] = str(int((time.perf_counter() - t0) * 1000))
             return response
         return {"bundle": bundle_dict}
+
+    # ── 新增页面路由（全链路体验升级） ─────────────────────────
+    @app.get("/workspace", response_class=HTMLResponse)
+    async def workspace_home(request: Request) -> HTMLResponse:
+        pipeline_stats = {"total": review_store.card_count()}
+        return _render("workspace_home.html", {"request": request, "stats": pipeline_stats})
+
+    @app.get("/brand-config/{brand_id}", response_class=HTMLResponse)
+    async def brand_config_page(request: Request, brand_id: str) -> HTMLResponse:
+        brand = platform_store.get_brand(brand_id) if hasattr(platform_store, "get_brand") else None
+        brand_dict = brand.model_dump(mode="json") if brand and hasattr(brand, "model_dump") else {"brand_id": brand_id, "name": brand_id}
+        guardrails = []
+        if hasattr(platform_store, "list_guardrails"):
+            guardrails = platform_store.list_guardrails(brand_id)
+        return _render("brand_config.html", {"request": request, "brand": brand_dict, "guardrails": guardrails})
+
+    @app.get("/feedback", response_class=HTMLResponse)
+    async def feedback_page(request: Request) -> HTMLResponse:
+        feedback: list[Any] = []
+        winning: list[Any] = []
+        failed: list[Any] = []
+        publish_results: list[Any] = []
+        if hasattr(_plan_store, "load_feedback_records"):
+            try:
+                feedback = _plan_store.load_feedback_records()
+            except TypeError:
+                try:
+                    feedback = _plan_store.load_feedback_records(workspace_id=None)
+                except Exception:
+                    feedback = []
+        if hasattr(_plan_store, "load_winning_patterns"):
+            try:
+                winning = _plan_store.load_winning_patterns()
+            except TypeError:
+                try:
+                    winning = _plan_store.load_winning_patterns(workspace_id=None)
+                except Exception:
+                    winning = []
+        if hasattr(_plan_store, "load_failed_patterns"):
+            try:
+                failed = _plan_store.load_failed_patterns()
+            except TypeError:
+                try:
+                    failed = _plan_store.load_failed_patterns(workspace_id=None)
+                except Exception:
+                    failed = []
+        if hasattr(platform_store, "list_publish_results"):
+            try:
+                publish_results = platform_store.list_publish_results()
+            except TypeError:
+                try:
+                    publish_results = platform_store.list_publish_results(workspace_id=None)
+                except Exception:
+                    publish_results = []
+        return _render(
+            "content_feedback.html",
+            {
+                "request": request,
+                "feedback_records": feedback,
+                "winning_patterns": winning,
+                "failed_patterns": failed,
+                "publish_results": [p.model_dump(mode="json") if hasattr(p, "model_dump") else p for p in publish_results],
+            },
+        )
+
+    @app.get("/opportunity-pipeline", response_class=HTMLResponse)
+    async def opportunity_pipeline_page(request: Request) -> HTMLResponse:
+        review_store.sync_cards_from_json(_xhs_cards_json)
+        all_cards = review_store.list_cards(page=1, page_size=500)
+        cards = [c.model_dump(mode="json") for c in all_cards.get("items", [])]
+        by_status: dict[str, list] = {}
+        for c in cards:
+            ls = c.get("lifecycle_status") or c.get("opportunity_status", "new")
+            by_status.setdefault(ls, []).append(c)
+        return _render(
+            "opportunity_pipeline.html",
+            {
+                "request": request,
+                "by_status": by_status,
+                "total": len(cards),
+            },
+        )
+
+    @app.get("/review-approval", response_class=HTMLResponse)
+    async def review_approval_page(request: Request) -> HTMLResponse:
+        approvals = []
+        if hasattr(platform_store, "list_all_approval_requests"):
+            approvals = platform_store.list_all_approval_requests()
+        elif hasattr(platform_store, "list_approval_requests"):
+            approvals = platform_store.list_approval_requests("")
+        return _render(
+            "review_approval.html",
+            {
+                "request": request,
+                "approvals": [a.model_dump(mode="json") if hasattr(a, "model_dump") else a for a in approvals],
+            },
+        )
 
     @app.get("/watchlists")
     async def watchlists(

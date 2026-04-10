@@ -1,10 +1,11 @@
-"""Lead Agent：总调度，接收人类意图，委派 Sub-Agent，汇总结果。
+"""Lead Agent v2：tool_calls 驱动路由 + Pipeline/Interactive 双模式。
 
-借鉴 DeerFlow 的 Lead Agent + Sub-Agent 委派模式。
+借鉴 DeerFlow Lead Agent 模式（唯一入口，动态选工具/技能/子 Agent）
++ Hermes Agent Loop（LLM -> tool_calls -> execute -> 汇总）。
 """
-
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -19,6 +20,7 @@ from apps.content_planning.agents.skill_registry import skill_registry
 
 logger = logging.getLogger(__name__)
 
+# Legacy keyword map kept for fast-mode fallback
 _ROLE_KEYWORDS: dict[str, list[str]] = {
     "trend_analyst": ["趋势", "分析", "机会", "竞品", "观望", "深入", "值得"],
     "brief_synthesizer": ["brief", "摘要", "方向", "种草", "转化", "目标", "定位"],
@@ -39,7 +41,7 @@ _STAGE_AGENT_MAP: dict[str, str] = {
 
 
 class LeadAgent(BaseAgent):
-    """总调度 Agent：理解人类意图 → 选择最佳 Sub-Agent → 委派执行。"""
+    """总调度 Agent v2：支持 tool_calls 驱动路由和 Pipeline/Interactive 双模式。"""
 
     agent_id = "lead_agent_001"
     agent_name = "总调度"
@@ -47,11 +49,28 @@ class LeadAgent(BaseAgent):
 
     def __init__(self) -> None:
         super().__init__()
-        from apps.content_planning.adapters.deerflow_adapter import DeerFlowAdapter
-        self._deerflow = DeerFlowAdapter()
+        self._deerflow = None
+
+    def _get_deerflow(self) -> Any:
+        if self._deerflow is None:
+            try:
+                from apps.content_planning.adapters.deerflow_adapter import DeerFlowAdapter
+                self._deerflow = DeerFlowAdapter()
+            except Exception:
+                logger.debug("DeerFlowAdapter not available", exc_info=True)
+        return self._deerflow
 
     def run(self, context: AgentContext) -> AgentResult:
-        """Analyze context and delegate to the best sub-agent."""
+        """Dispatch based on mode: pipeline or interactive."""
+        mode = context.config.get("execution_mode", self.execution_mode(context))
+
+        if mode == "pipeline":
+            return self._run_pipeline(context)
+
+        return self._run_interactive(context)
+
+    def _run_interactive(self, context: AgentContext) -> AgentResult:
+        """Interactive mode: route to best sub-agent via tool_calls or keyword fallback."""
         user_message = context.extra.get("user_message", "")
         current_stage = context.extra.get("current_stage", "")
         hint = context.extra.get("hint", "")
@@ -64,36 +83,19 @@ class LeadAgent(BaseAgent):
         sub_agent = self._instantiate(target_role)
         if sub_agent is None:
             return self._make_result(
-                explanation=f"无法确定合适的 Agent 角色来处理: {user_message or hint or current_stage}",
+                explanation=f"无法确定合适的 Agent 角色: {user_message or hint or current_stage}",
                 confidence=0.2,
-                suggestions=[
-                    AgentChip(label="趋势分析", action="trend_analyst"),
-                    AgentChip(label="Brief 编译", action="brief_synthesizer"),
-                    AgentChip(label="模板匹配", action="template_planner"),
-                    AgentChip(label="策略生成", action="strategy_director"),
-                    AgentChip(label="图片规划", action="visual_director"),
-                    AgentChip(label="资产组包", action="asset_producer"),
-                ],
+                suggestions=self._default_suggestions(),
             )
 
-        result = sub_agent.run(context)
-
-        if mode != "fast":
-            try:
-                mem = AgentMemory()
-                mem.extract_from_result(
-                    context.opportunity_id, target_role,
-                    result.explanation, result.confidence,
-                )
-            except Exception:
-                pass
+        from apps.content_planning.agents.middleware import MiddlewareChain
+        chain = MiddlewareChain.default_chain()
+        result = chain.execute(context, target_role, sub_agent.run)
 
         suggestions = list(result.suggestions)
         for extra_role in extra_agents:
-            from apps.content_planning.adapters.deerflow_adapter import AGENT_DESCRIPTIONS
-            label = AGENT_DESCRIPTIONS.get(extra_role, extra_role)
             suggestions.append(AgentChip(
-                label=f"也问问 {label.split('：')[0]}" if "：" in label else f"也问问 {extra_role}",
+                label=f"也问问 {extra_role}",
                 action=extra_role,
             ))
         suggestions.append(
@@ -111,28 +113,125 @@ class LeadAgent(BaseAgent):
             suggestions=suggestions,
         )
 
+    def _run_pipeline(self, context: AgentContext) -> AgentResult:
+        """Pipeline mode: trigger full graph execution."""
+        return self._make_result(
+            explanation="Pipeline 模式: 请使用 AgentPipelineRunner 触发全链路",
+            confidence=0.9,
+            output_object={"mode": "pipeline", "opportunity_id": context.opportunity_id},
+            suggestions=[AgentChip(label="触发全链路", action="trigger_pipeline",
+                                   params={"opportunity_id": context.opportunity_id})],
+        )
+
     def explain(self, result: AgentResult) -> str:
         return result.explanation
 
-    def _route_llm(self, message: str, stage: str, context: AgentContext) -> dict | None:
-        """LLM-driven routing via DeerFlowAdapter."""
+    # ── Tool-calls driven routing ──
+
+    def _route_with_tools(self, message: str, stage: str, context: AgentContext) -> dict | None:
+        """Use LLM with tool_calls to determine routing."""
         try:
+            from apps.content_planning.adapters.llm_router import LLMMessage, llm_router
+            from apps.content_planning.agents.tool_registry import tool_registry
+
+            if not llm_router.is_any_available():
+                return None
+
+            tools_schema = tool_registry.to_openai_schema(toolset="orchestration")
+            skill_tools = skill_registry.to_openai_schema()
+            all_tools = tools_schema + skill_tools
+
+            if not all_tools:
+                return None
+
+            memory_ctx = self.resolve_memory_context(context)
+            object_summary = self.resolve_object_summary(context)
+
+            system_prompt = (
+                "你是内容策划平台的总调度 Agent。根据用户意图，选择最合适的工具或技能来完成任务。\n"
+                f"当前阶段: {stage or '未知'}\n"
+                f"已有上下文: brief={'有' if context.brief else '无'}, "
+                f"strategy={'有' if context.strategy else '无'}, "
+                f"plan={'有' if context.plan else '无'}\n"
+            )
+            if memory_ctx:
+                system_prompt += f"\n历史记忆:\n{memory_ctx}\n"
+            if object_summary:
+                system_prompt += f"\n对象摘要:\n{object_summary}\n"
+
+            messages = [
+                LLMMessage(role="system", content=system_prompt),
+                LLMMessage(role="user", content=message),
+            ]
+
+            resp = llm_router.chat(messages, tools=all_tools, fast_mode=True)
+            if resp.tool_calls:
+                tc = resp.tool_calls[0]
+                fn_name = tc.function.get("name", "")
+                fn_args = tc.function.get("arguments", "{}")
+                if isinstance(fn_args, str):
+                    try:
+                        fn_args = json.loads(fn_args)
+                    except json.JSONDecodeError:
+                        fn_args = {}
+
+                if fn_name == "delegate_task":
+                    target_role = fn_args.get("agent_role", "")
+                    if target_role in _ROLE_KEYWORDS:
+                        return {
+                            "target": target_role,
+                            "extra_agents": [],
+                            "reasoning": fn_args.get("task_description", ""),
+                            "method": "tool_calls",
+                        }
+
+                if fn_name == "trigger_pipeline":
+                    return {
+                        "target": "pipeline",
+                        "extra_agents": [],
+                        "reasoning": "LLM 建议触发全链路",
+                        "method": "tool_calls",
+                    }
+
+                if fn_name.startswith("skill_"):
+                    skill_id = fn_name[6:]
+                    skill = skill_registry.get(skill_id)
+                    if skill and skill.agent_role:
+                        return {
+                            "target": skill.agent_role,
+                            "extra_agents": [],
+                            "reasoning": f"匹配到技能: {skill.skill_name}",
+                            "method": "tool_calls_skill",
+                        }
+
+            return None
+        except Exception:
+            logger.debug("Tool-calls routing failed", exc_info=True)
+            return None
+
+    def _route_llm(self, message: str, stage: str, context: AgentContext) -> dict | None:
+        """LLM-driven routing via DeerFlowAdapter (legacy path)."""
+        try:
+            deerflow = self._get_deerflow()
+            if deerflow is None:
+                return None
+
             from apps.content_planning.adapters.llm_router import llm_router
             if not llm_router.is_any_available():
                 return None
 
             memory_ctx = self.resolve_memory_context(
                 context,
-                fallback=lambda: self._deerflow.recall_relevant_memory(
+                fallback=lambda: deerflow.recall_relevant_memory(
                     context.opportunity_id, query=message,
                 ),
             )
             object_summary = self.resolve_object_summary(
                 context,
-                fallback=lambda: self._deerflow.build_object_summary(context),
+                fallback=lambda: deerflow.build_object_summary(context),
             )
 
-            resp = self._deerflow.route_with_llm(
+            resp = deerflow.route_with_llm(
                 user_message=message,
                 stage=stage,
                 memory_context=memory_ctx,
@@ -159,7 +258,7 @@ class LeadAgent(BaseAgent):
             return None
 
     def _route_keyword(self, message: str, stage: str, context: AgentContext) -> str:
-        """Keyword-based routing (original logic)."""
+        """Keyword-based routing (fast fallback)."""
         if message:
             scores: dict[str, int] = {}
             msg_lower = message.lower()
@@ -191,17 +290,21 @@ class LeadAgent(BaseAgent):
         return "trend_analyst"
 
     def _route(self, message: str, stage: str, context: AgentContext, *, mode: str = "deep") -> dict:
-        """Route using LLM first, falling back to keyword matching."""
+        """Route with priority: tool_calls > LLM > keyword."""
+        if mode == "fast" and stage and stage in _STAGE_AGENT_MAP:
+            target = _STAGE_AGENT_MAP[stage]
+            return {"target": target, "extra_agents": [], "reasoning": "", "method": "fast_stage"}
+
         if mode != "fast" and message:
+            tool_result = self._route_with_tools(message, stage, context)
+            if tool_result:
+                logger.info("Routing via tool_calls → %s", tool_result["target"])
+                return tool_result
+
             llm_result = self._route_llm(message, stage, context)
             if llm_result:
                 logger.info("Routing via LLM → %s", llm_result["target"])
                 return llm_result
-
-        if mode == "fast" and stage and stage in _STAGE_AGENT_MAP:
-            target = _STAGE_AGENT_MAP[stage]
-            logger.info("Routing via fast stage map → %s", target)
-            return {"target": target, "extra_agents": [], "reasoning": "", "method": "fast_stage"}
 
         keyword_target = self._route_keyword(message, stage, context)
         logger.info("Routing via keywords → %s", keyword_target)
@@ -231,3 +334,13 @@ class LeadAgent(BaseAgent):
         except Exception:
             logger.exception("Failed to instantiate agent: %s", role)
         return None
+
+    def _default_suggestions(self) -> list[AgentChip]:
+        return [
+            AgentChip(label="趋势分析", action="trend_analyst"),
+            AgentChip(label="Brief 编译", action="brief_synthesizer"),
+            AgentChip(label="模板匹配", action="template_planner"),
+            AgentChip(label="策略生成", action="strategy_director"),
+            AgentChip(label="图片规划", action="visual_director"),
+            AgentChip(label="资产组包", action="asset_producer"),
+        ]

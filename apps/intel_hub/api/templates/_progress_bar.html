@@ -1,0 +1,30 @@
+{# _progress_bar.html — 全链路进度条 + 面包屑
+   Required variables: opportunity_id, current_stage (one of: brief, strategy, plan, assets)
+   Optional: lifecycle_statuses (dict with keys brief/strategy/plan/assets)
+#}
+{% set stages = [
+  ("brief", "Brief", "/content-planning/brief/" ~ opportunity_id),
+  ("strategy", "策略", "/content-planning/strategy/" ~ opportunity_id),
+  ("plan", "计划", "/content-planning/plan/" ~ opportunity_id),
+  ("assets", "资产包", "/content-planning/assets/" ~ opportunity_id),
+] %}
+{% set ls = lifecycle_statuses if lifecycle_statuses is defined else {} %}
+{% set status_labels = {"new": "新建", "in_planning": "进行中", "ready": "就绪", "approved": "已审批", "exported": "已导出", "published": "已发布"} %}
+{% set status_colors = {"new": "#9e9e9e", "in_planning": "#1565c0", "ready": "#2e7d32", "approved": "#00695c", "exported": "#1565c0", "published": "#6a1b9a"} %}
+
+<div style="display:flex;align-items:center;gap:0;margin-bottom:14px;padding:10px 16px;background:linear-gradient(135deg,var(--accent-soft),rgba(255,253,248,0.95));border:1px solid rgba(138,75,47,0.18);border-radius:14px;font-size:12px;flex-wrap:wrap;">
+  <a href="/xhs-opportunities" style="color:var(--accent);text-decoration:none;font-weight:600;">机会卡</a>
+  {% for key, label, url in stages %}
+  <span style="color:var(--border);margin:0 6px;">→</span>
+  {% if key == current_stage %}
+  <span style="font-weight:700;color:var(--ink);padding:3px 10px;background:var(--accent);color:#fff;border-radius:999px;">{{ label }}</span>
+  {% else %}
+  <a href="{{ url }}" style="color:var(--accent);text-decoration:none;font-weight:600;">{{ label }}</a>
+  {% endif %}
+  {% set st = ls.get(key, "") %}
+  {% if st and st != "new" %}
+  <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:{{ status_colors.get(st, '#9e9e9e') }}22;color:{{ status_colors.get(st, '#9e9e9e') }};margin-left:2px;">{{ status_labels.get(st, st) }}</span>
+  {% endif %}
+  {% endfor %}
+  <span style="color:var(--muted);margin-left:auto;">ID: {{ opportunity_id }}</span>
+</div>

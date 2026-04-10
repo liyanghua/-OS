@@ -379,6 +379,46 @@
       </details>
     </div>
 
+    <!-- 区域：策划入口 -->
+    <div class="card" style="margin-bottom: 20px; border: 2px solid #2e7d32; background: linear-gradient(135deg, #f1f8e9, #e8f5e9);">
+      <h3 style="margin: 0 0 12px; color: #2e7d32;">策划操作</h3>
+      {% if card.opportunity_status == 'promoted' %}
+      <a href="/content-planning/brief/{{ card.opportunity_id }}"
+         style="display: block; padding: 12px 16px; background: linear-gradient(135deg, #2e7d32, #43a047); color: #fff; border-radius: 12px; text-align: center; text-decoration: none; font-weight: 700; font-size: 14px; margin-bottom: 8px;">
+        进入 Brief 工作台 →
+      </a>
+      <div style="font-size: 12px; color: #555; text-align: center;">该机会卡已升级，可直接进入内容策划流程</div>
+      {% else %}
+      <form id="promote-form" style="text-align: center;">
+        <button type="submit"
+          style="padding: 12px 24px; background: var(--accent); color: #fff; border: none; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; width: 100%;">
+          升级为策划候选
+        </button>
+        <div style="font-size: 12px; color: #555; margin-top: 6px;">升级后可进入 Brief → 策略 → 计划 → 资产全链路</div>
+      </form>
+      <script>
+      document.getElementById('promote-form')?.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = this.querySelector('button');
+        btn.disabled = true;
+        btn.textContent = '升级中…';
+        try {
+          const resp = await fetch('/xhs-opportunities/{{ card.opportunity_id }}/reviews', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({reviewer: 'system', manual_quality_score: 8, is_actionable: true, evidence_sufficient: true, review_notes: '人工升级为策划候选'}),
+          });
+          if (resp.ok) { setTimeout(() => location.reload(), 600); }
+          else { btn.textContent = '升级失败'; btn.disabled = false; }
+        } catch (err) { btn.textContent = '升级失败'; btn.disabled = false; }
+      });
+      </script>
+      {% endif %}
+    </div>
+
+    <!-- Agent 一键策划面板 -->
+    {% include "_agent_pipeline_panel.html" %}
+
     <!-- 区域二：聚合检视结果 -->
     <div class="card" style="margin-bottom: 20px;">
       <h3 style="margin: 0 0 14px;">检视聚合</h3>

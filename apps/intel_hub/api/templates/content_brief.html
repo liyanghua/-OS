@@ -70,21 +70,14 @@
     <a href="/xhs-opportunities" style="color: var(--accent); text-decoration: none; font-size: 14px;">&larr; 返回机会池</a>
   </div>
 
-  {# ═══ 对象锚点栏 ═══ #}
-  <div class="ws-anchor">
-    <span class="ws-anchor-badge" style="background: var(--accent); color: #fff;">Opportunity Workspace</span>
-    <span class="ws-anchor-id">ID: {{ opportunity_id }}</span>
-    {% if card.opportunity_type %}
-    <span class="ws-anchor-badge" style="background: #e8f5e9; color: #2e7d32;">{{ card.opportunity_type }}</span>
-    {% endif %}
-    {% if card.opportunity_status %}
-    <span class="ws-anchor-badge">{{ card.opportunity_status }}</span>
-    {% endif %}
-    {% if card.get('opportunity_strength_score') %}
-    <span class="ws-anchor-badge" style="background: #fff3e0; color: #e65100;">强度 {{ '%.0f'|format(card.opportunity_strength_score * 100) }}%</span>
-    {% endif %}
-    {% if pipeline_run_id %}<span class="ws-anchor-id">Pipeline {{ pipeline_run_id }}</span>{% endif %}
-  </div>
+  {# ═══ 全链路进度条 ═══ #}
+  {% set lifecycle_statuses = {"brief": (brief.lifecycle_status if brief else "new"), "strategy": "", "plan": "", "assets": ""} %}
+  {% with current_stage="brief" %}{% include "_progress_bar.html" %}{% endwith %}
+  {% set is_promoted = true %}
+  {% include "_agent_pipeline_panel.html" %}
+  {% set _brand_id = (brief.brand_id | default("", true)) if brief is defined and brief else "" %}
+  {% set _gw = (brief.guardrail_warnings | default([], true)) if brief is defined and brief else [] %}
+  {% with brand_id=_brand_id, brand_name=_brand_id, guardrail_warnings=_gw %}{% include "_brand_context_bar.html" %}{% endwith %}
 
   {# ═══ AI 建议 Chips ═══ #}
   <div class="ws-chip-row" id="ws-ai-chips">
@@ -189,6 +182,40 @@
       {% else %}
       <div class="ws-card" style="text-align: center; color: var(--muted);">暂无来源笔记上下文</div>
       {% endif %}
+
+      <!-- 品牌历史表现 -->
+      <div class="ws-card" style="margin-top:14px;">
+        <h3>品牌历史表现</h3>
+        <div id="brand-patterns" style="font-size:12px;color:var(--muted);">
+          <div style="margin-bottom:10px;">
+            <div style="font-weight:700;color:#2e7d32;margin-bottom:4px;">高表现模式 Top 3</div>
+            <div id="winning-patterns">加载中…</div>
+          </div>
+          <div>
+            <div style="font-weight:700;color:#c62828;margin-bottom:4px;">踩坑记录 Top 3</div>
+            <div id="failed-patterns">加载中…</div>
+          </div>
+        </div>
+      </div>
+      <script>
+      (function(){
+        const wsId = '{{ brief.workspace_id if brief is defined and brief else "" }}' || '';
+        if(!wsId) { document.getElementById('brand-patterns').innerHTML = '<span style="color:#999;">无品牌关联</span>'; return; }
+        fetch('/b2b/workspaces/' + wsId + '/feedback', {headers:{'x-api-token':'','x-user-id':'system'}})
+          .then(r => r.json())
+          .then(d => {
+            const wp = (d.winning_patterns || []).slice(0, 3);
+            const fp = (d.failed_patterns || []).slice(0, 3);
+            document.getElementById('winning-patterns').innerHTML = wp.length
+              ? wp.map(p => '<div style="padding:4px 0;border-bottom:1px solid #f0ece4;"><strong>' + (p.label||p.pattern_label||'—') + '</strong> <span style="color:#2e7d32;">' + (p.avg_engagement != null ? '互动 ' + p.avg_engagement : '') + '</span></div>').join('')
+              : '<span>暂无数据</span>';
+            document.getElementById('failed-patterns').innerHTML = fp.length
+              ? fp.map(p => '<div style="padding:4px 0;border-bottom:1px solid #f0ece4;"><strong>' + (p.label||p.pattern_label||'—') + '</strong> <span style="color:#c62828;">' + (p.root_cause||'') + '</span></div>').join('')
+              : '<span>暂无数据</span>';
+          })
+          .catch(() => { document.getElementById('brand-patterns').innerHTML = '<span style="color:#999;">加载失败</span>'; });
+      })();
+      </script>
     </aside>
 
     {# ═══ 中栏 ═══ #}
@@ -431,6 +458,7 @@
         <h3>Brief 版本历史</h3>
         <div id="ws-versions-list"></div>
       </div>
+      {% set _obj_id = brief.brief_id if brief else "" %}{% set _obj_type = "brief" %}{% with object_type=_obj_type, object_id=_obj_id %}{% include "_collab_sidebar.html" %}{% endwith %}
     </aside>
   </div>
 

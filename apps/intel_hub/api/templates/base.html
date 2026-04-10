@@ -33,11 +33,26 @@
         align-items: center;
         margin-bottom: 24px;
       }
+      .topbar nav {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
       .topbar nav a {
-        margin-right: 12px;
         color: var(--accent);
         text-decoration: none;
         font-weight: 600;
+        font-size: 13px;
+        padding: 3px 8px;
+        border-radius: 8px;
+        transition: background .15s;
+      }
+      .topbar nav a:hover { background: var(--accent-soft); }
+      .nav-sep {
+        width: 1px; height: 16px;
+        background: var(--border);
+        margin: 0 2px;
       }
       .headline {
         background: linear-gradient(135deg, rgba(138, 75, 47, 0.14), rgba(255, 255, 255, 0.7));
@@ -115,17 +130,28 @@
           <h1 style="margin: 4px 0 0;">本体大脑情报中枢 V0.1</h1>
         </div>
         <nav>
+          <!-- 情报中心 -->
           <a href="/">总览</a>
           <a href="/notes">原始笔记</a>
           <a href="/xhs-opportunities">机会卡</a>
-          <a href="/xhs-opportunities?status=promoted" style="background: linear-gradient(135deg, #2e7d32, #43a047); color: #fff; padding: 3px 10px; border-radius: 999px; font-size: 12px;">内容策划</a>
-          <a href="/strategy-templates">策略模板</a>
           <a href="/rss/tech">科技趋势</a>
           <a href="/rss/news">新闻媒体</a>
-          <a href="/signals">Signals</a>
-          <a href="/opportunities">Opportunities</a>
-          <a href="/risks">Risks</a>
-          <a href="/watchlists">Watchlists</a>
+          <span class="nav-sep"></span>
+          <!-- 内容策划 -->
+          <a href="/opportunity-pipeline" style="background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;padding:3px 10px;border-radius:999px;">策划管线</a>
+          <a href="/xhs-opportunities?status=promoted">内容策划</a>
+          <a href="/strategy-templates">策略模板</a>
+          <a href="/feedback">反馈与知识</a>
+          <span class="nav-sep"></span>
+          <!-- 协同管理 -->
+          <a href="/workspace">工作区</a>
+          <a href="/review-approval">审批队列</a>
+          <span class="nav-sep"></span>
+          <!-- 情报对象 -->
+          <a href="/signals">信号</a>
+          <a href="/opportunities">商机</a>
+          <a href="/risks">风险</a>
+          <a href="/watchlists">关注列表</a>
         </nav>
       </div>
       {% block content %}{% endblock %}

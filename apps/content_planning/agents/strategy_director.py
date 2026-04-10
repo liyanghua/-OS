@@ -33,6 +33,23 @@ class StrategyDirectorAgent(BaseAgent):
         if not all([brief, match_result, template]):
             return self._make_result(explanation="缺少 Brief/匹配结果/模板，无法生成策略", confidence=0.0)
 
+        if isinstance(match_result, dict):
+            try:
+                from apps.content_planning.schemas.template_match_result import (
+                    TemplateMatchEntry,
+                    TemplateMatchResult,
+                )
+                top3 = match_result.get("top3", [])
+                entries = [TemplateMatchEntry(**e) for e in top3] if top3 else []
+                match_result = TemplateMatchResult(
+                    opportunity_id=context.opportunity_id,
+                    brief_id=getattr(brief, "brief_id", ""),
+                    primary_template=entries[0] if entries else TemplateMatchEntry(),
+                    secondary_templates=entries[1:] if len(entries) > 1 else [],
+                )
+            except Exception:
+                return self._make_result(explanation="匹配结果格式异常，无法生成策略", confidence=0.0)
+
         strategy = self._generator.generate(brief, match_result, template)
 
         chips = [

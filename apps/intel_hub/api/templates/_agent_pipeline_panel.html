@@ -1,0 +1,352 @@
+{# _agent_pipeline_panel.html — Agent 一键策划面板（可观测升级版）
+   Required: opportunity_id
+   Optional: is_promoted (bool, 默认 false)
+#}
+{% set promoted = is_promoted if is_promoted is defined else false %}
+
+<style>
+  #agent-pipeline-panel { background:linear-gradient(135deg,#f1f8e9,#e8f5e9);border:2px solid #2e7d32;border-radius:18px;padding:20px;margin-bottom:16px;box-shadow:0 8px 22px rgba(46,125,50,0.08); }
+  .ap-node-card { background:#fff;border-radius:12px;border-left:4px solid #9e9e9e;margin-bottom:8px;transition:all 0.3s;overflow:hidden; }
+  .ap-node-header { padding:10px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none; }
+  .ap-node-title { font-weight:700;font-size:13px;display:flex;align-items:center;gap:5px; }
+  .ap-node-right { display:flex;align-items:center;gap:8px;font-size:11px;color:#888; }
+  .ap-conf-dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
+  .ap-node-body { max-height:0;overflow:hidden;transition:max-height 0.35s ease;padding:0 14px; }
+  .ap-node-body.open { max-height:600px;padding:0 14px 12px; }
+  .ap-summary-row { display:flex;align-items:baseline;gap:6px;margin-top:6px;font-size:11px;line-height:1.5; }
+  .ap-summary-label { color:#888;white-space:nowrap;min-width:50px; }
+  .ap-summary-value { color:#333;word-break:break-all; }
+  .ap-badge { display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600; }
+  .ap-badge-green { background:#e8f5e9;color:#2e7d32; }
+  .ap-badge-blue { background:#e3f2fd;color:#1565c0; }
+  .ap-badge-amber { background:#fff8e1;color:#f57f17; }
+  .ap-badge-gray { background:#f5f5f5;color:#666; }
+  .ap-chip { display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;background:#f1f8e9;color:#2e7d32;margin:2px 3px 0 0; }
+  .ap-tpl-mini { display:flex;align-items:center;gap:6px;margin-top:4px;padding:4px 0; }
+  .ap-tpl-bar { height:4px;border-radius:2px;background:#c8e6c9;flex:1;max-width:60px;position:relative;overflow:hidden; }
+  .ap-tpl-fill { height:100%;border-radius:2px;background:#2e7d32; }
+  .ap-explain { margin-top:8px;padding-top:6px;border-top:1px dashed #e0e0e0;font-size:10px;color:#888;line-height:1.4; }
+  @keyframes ap-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .ap-running .ap-node-title { animation: ap-pulse 1.5s ease-in-out infinite; }
+  .ap-toggle-icon { font-size:10px;color:#aaa;transition:transform 0.2s; }
+  .ap-toggle-icon.open { transform:rotate(180deg); }
+</style>
+
+<div id="agent-pipeline-panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <h3 style="margin:0;font-size:16px;color:#2e7d32;font-weight:800;">Agent 一键策划</h3>
+    <div id="ap-elapsed" style="font-size:12px;color:#666;display:none;"></div>
+  </div>
+
+  <div id="ap-trigger-area">
+    {% if promoted %}
+    <button id="ap-start-btn" onclick="apTrigger()"
+      style="width:100%;padding:14px;background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(46,125,50,0.3);transition:all 0.2s;">
+      开始 Agent 全链路策划
+    </button>
+    <div style="font-size:11px;color:#666;text-align:center;margin-top:6px;">
+      趋势分析 → Brief → 模板匹配 → 策略 → 计划 → 视觉 → 资产包
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:12px;color:#999;font-size:13px;">
+      仅 promoted 状态的机会卡可触发 Agent 策划
+    </div>
+    {% endif %}
+  </div>
+
+  <div id="ap-progress" style="display:none;">
+    <div id="ap-nodes-grid"></div>
+    <div style="background:#c8e6c9;border-radius:8px;overflow:hidden;height:8px;margin-bottom:8px;margin-top:4px;">
+      <div id="ap-progress-bar" style="height:100%;background:#2e7d32;border-radius:8px;transition:width 0.5s;width:0%;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#555;">
+      <span id="ap-progress-text">准备中…</span>
+      <span id="ap-progress-pct">0%</span>
+    </div>
+  </div>
+
+  <div id="ap-done" style="display:none;margin-top:14px;">
+    <div style="text-align:center;padding:16px;background:#fff;border-radius:14px;border:1px solid #c8e6c9;">
+      <div style="font-size:28px;margin-bottom:8px;">✅</div>
+      <div style="font-size:15px;font-weight:700;color:#2e7d32;margin-bottom:6px;" id="ap-done-title">策划完成</div>
+      <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ap-done-detail"></div>
+      <a id="ap-asset-link" href="#" style="display:inline-block;padding:10px 24px;background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;border-radius:12px;text-decoration:none;font-weight:700;font-size:13px;">
+        查看资产包 →
+      </a>
+    </div>
+  </div>
+
+  <div id="ap-error" style="display:none;margin-top:14px;">
+    <div style="padding:12px;background:#fff0f0;border:1px solid #fca5a5;border-radius:12px;font-size:12px;color:#991b1b;">
+      <strong>策划异常：</strong><span id="ap-error-msg"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const oppId = '{{ opportunity_id }}';
+  let evtSource = null;
+  const nodeMap = {};
+  const nodeRoles = {};
+  let totalNodes = 0;
+  let completedNodes = 0;
+  let startTime = 0;
+  let elapsedTimer = null;
+
+  const STATUS = {
+    colors: {pending:'#9e9e9e',running:'#1565c0',completed:'#2e7d32',failed:'#c62828',skipped:'#ff8f00'},
+    icons:  {pending:'○',running:'◉',completed:'✓',failed:'✗',skipped:'⊘'},
+  };
+
+  function confColor(c) { return c >= 0.7 ? '#2e7d32' : c >= 0.4 ? '#f57f17' : '#c62828'; }
+
+  function nodeCardHTML(nodeId, role, label) {
+    nodeRoles[nodeId] = role;
+    return '<div id="ap-node-'+nodeId+'" class="ap-node-card" data-role="'+role+'">' +
+      '<div class="ap-node-header" onclick="apToggle(\''+nodeId+'\')">' +
+        '<div class="ap-node-title" style="color:#9e9e9e;"><span>○</span><span>'+label+'</span></div>' +
+        '<div class="ap-node-right">' +
+          '<span class="ap-conf-dot" style="background:#ddd;" id="ap-conf-'+nodeId+'"></span>' +
+          '<span id="ap-dur-'+nodeId+'">等待中</span>' +
+          '<span class="ap-toggle-icon" id="ap-tog-'+nodeId+'">▼</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ap-node-body" id="ap-body-'+nodeId+'"></div>' +
+    '</div>';
+  }
+
+  window.apToggle = function(nodeId) {
+    const body = document.getElementById('ap-body-'+nodeId);
+    const tog = document.getElementById('ap-tog-'+nodeId);
+    if (!body) return;
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open');
+    if (tog) tog.classList.toggle('open');
+  };
+
+  function renderSummary(role, summary, explanation, confidence, suggestions) {
+    if (!summary || Object.keys(summary).length === 0) return '';
+    let html = '';
+    if (role === 'trend_analyst') {
+      const score = summary.strength_score || 0;
+      html += row('强度分', '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<div style="flex:1;max-width:80px;height:5px;background:#e0e0e0;border-radius:3px;overflow:hidden;">' +
+        '<div style="width:'+Math.round(score*100)+'%;height:100%;background:'+confColor(score)+';border-radius:3px;"></div></div>' +
+        '<span>'+(score*100).toFixed(0)+'</span></div>');
+      if (summary.insight) html += row('洞察', summary.insight);
+      if (summary.recommendation) html += row('建议', badge(summary.recommendation, 'blue'));
+      if (summary.opportunity_type) html += row('类型', badge(summary.opportunity_type, 'gray'));
+    }
+    else if (role === 'brief_synthesizer') {
+      if (summary.opportunity_title) html += row('标题', '<b>'+esc(summary.opportunity_title)+'</b>');
+      if (summary.content_goal) html += row('目标', badge(summary.content_goal, 'green'));
+      if (summary.primary_value) html += row('核心价值', esc(summary.primary_value));
+      if (summary.planning_direction) html += row('策划方向', esc(summary.planning_direction));
+      if (summary.why_now) html += row('时机', esc(summary.why_now));
+    }
+    else if (role === 'template_planner') {
+      const top3 = summary.top3 || [];
+      top3.forEach(function(t, i) {
+        const pct = Math.min(Math.round((t.score||0)), 100);
+        html += '<div class="ap-tpl-mini">' +
+          '<span style="font-size:10px;color:#888;width:28px;">Top'+(i+1)+'</span>' +
+          '<span style="font-size:11px;font-weight:600;min-width:80px;">'+esc(t.name||'')+'</span>' +
+          '<div class="ap-tpl-bar"><div class="ap-tpl-fill" style="width:'+pct+'%;"></div></div>' +
+          '<span style="font-size:10px;color:#888;">'+pct+'分</span>' +
+        '</div>' +
+        (t.reason ? '<div style="font-size:10px;color:#aaa;margin-left:34px;">'+esc(t.reason).substring(0,60)+'</div>' : '');
+      });
+      if (summary.total) html += '<div style="font-size:10px;color:#aaa;margin-top:4px;">共匹配 '+summary.total+' 套模板</div>';
+    }
+    else if (role === 'strategy_director') {
+      if (summary.positioning) html += row('定位', '<b>'+esc(summary.positioning)+'</b>');
+      if (summary.tone) html += row('调性', badge(summary.tone, 'amber'));
+      if (summary.hook) html += row('钩子', esc(summary.hook));
+      if (summary.scenes && summary.scenes.length) html += row('场景', summary.scenes.map(function(s){return badge(s,'gray');}).join(' '));
+    }
+    else if (role === 'plan_compiler') {
+      if (summary.theme) html += row('主题', '<b>'+esc(summary.theme)+'</b>');
+      if (summary.note_goal) html += row('目标', badge(summary.note_goal, 'green'));
+      if (summary.target_user) html += row('用户', esc(summary.target_user));
+      if (summary.selling_point) html += row('卖点', esc(summary.selling_point));
+    }
+    else if (role === 'visual_director') {
+      html += row('图位', badge(summary.slot_count+'张', 'blue') + (summary.mode ? ' '+badge(summary.mode, 'gray') : ''));
+      var sp = summary.slots_preview || [];
+      sp.forEach(function(s, i) {
+        html += row('第'+(i+1)+'图', (s.role ? badge(s.role,'gray')+' ' : '') + esc(s.subject||''));
+      });
+    }
+    else if (role === 'asset_producer') {
+      html += row('标题', badge(summary.title_count+'条候选', 'blue'));
+      html += row('正文', badge(summary.body_length+'字草稿', 'blue'));
+      if (summary.export_status) html += row('状态', badge(summary.export_status, summary.export_status==='ready'?'green':'amber'));
+    }
+
+    if (suggestions && suggestions.length) {
+      html += '<div style="margin-top:6px;">';
+      suggestions.forEach(function(s){ html += '<span class="ap-chip">'+esc(s.label)+'</span>'; });
+      html += '</div>';
+    }
+
+    if (explanation && explanation.length > 40) {
+      html += '<div class="ap-explain">'+esc(explanation)+'</div>';
+    }
+    return html;
+  }
+
+  function row(label, value) {
+    return '<div class="ap-summary-row"><span class="ap-summary-label">'+label+'</span><span class="ap-summary-value">'+value+'</span></div>';
+  }
+  function badge(text, type) { return '<span class="ap-badge ap-badge-'+type+'">'+esc(text)+'</span>'; }
+  function esc(s) { if(!s) return ''; var d=document.createElement('div'); d.textContent=String(s); return d.innerHTML; }
+
+  function updateNodeUI(nodeId, status, meta) {
+    const el = document.getElementById('ap-node-'+nodeId);
+    if (!el) return;
+    const c = STATUS.colors[status]||'#9e9e9e';
+    const icon = STATUS.icons[status]||'○';
+    el.style.borderLeftColor = c;
+    el.className = 'ap-node-card' + (status==='running'?' ap-running':'');
+
+    const titleEl = el.querySelector('.ap-node-title');
+    if (titleEl) { titleEl.style.color = c; titleEl.innerHTML = '<span>'+icon+'</span><span>'+(nodeMap[nodeId]||nodeId)+'</span>'; }
+
+    const durEl = document.getElementById('ap-dur-'+nodeId);
+    const confEl = document.getElementById('ap-conf-'+nodeId);
+    const bodyEl = document.getElementById('ap-body-'+nodeId);
+
+    if (status === 'running') {
+      if (durEl) { durEl.textContent = '运行中…'; durEl.style.color = '#1565c0'; }
+    }
+    else if (status === 'completed' && meta) {
+      if (durEl) { durEl.textContent = (meta.duration_ms/1000).toFixed(1)+'s'; durEl.style.color = '#2e7d32'; }
+      if (confEl && meta.confidence !== undefined) { confEl.style.background = confColor(meta.confidence); confEl.title = '置信度: '+(meta.confidence*100).toFixed(0)+'%'; }
+
+      var role = nodeRoles[nodeId] || '';
+      var summaryHTML = renderSummary(role, meta.output_summary, meta.explanation, meta.confidence, meta.suggestions);
+      if (bodyEl && summaryHTML) {
+        bodyEl.innerHTML = summaryHTML;
+        bodyEl.classList.add('open');
+        var tog = document.getElementById('ap-tog-'+nodeId);
+        if (tog) tog.classList.add('open');
+      }
+    }
+    else if (status === 'failed' && meta) {
+      if (durEl) { durEl.textContent = meta.error||'失败'; durEl.style.color = '#c62828'; }
+      if (confEl) confEl.style.background = '#c62828';
+      if (bodyEl) { bodyEl.innerHTML = '<div style="color:#c62828;font-size:11px;padding-top:6px;">'+esc(meta.error||'未知错误')+'</div>'; bodyEl.classList.add('open'); }
+    }
+  }
+
+  function updateProgress() {
+    const pct = totalNodes > 0 ? Math.round(completedNodes/totalNodes*100) : 0;
+    const bar = document.getElementById('ap-progress-bar');
+    if (bar) bar.style.width = pct+'%';
+    const pctEl = document.getElementById('ap-progress-pct');
+    if (pctEl) pctEl.textContent = pct+'%';
+    const textEl = document.getElementById('ap-progress-text');
+    if (textEl) textEl.textContent = completedNodes+'/'+totalNodes+' 节点完成';
+  }
+
+  function updateElapsed() {
+    if (!startTime) return;
+    const s = ((Date.now()-startTime)/1000).toFixed(0);
+    const el = document.getElementById('ap-elapsed');
+    if (el) { el.style.display='block'; el.textContent='已耗时 '+s+'s'; }
+  }
+
+  window.apTrigger = async function() {
+    const btn = document.getElementById('ap-start-btn');
+    if (btn) { btn.disabled=true; btn.textContent='启动中…'; btn.style.opacity='0.7'; }
+    try {
+      const resp = await fetch('/content-planning/'+oppId+'/agent-pipeline', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({execution_mode:'deep'})
+      });
+      if (!resp.ok) throw new Error('触发失败: '+resp.status);
+      document.getElementById('ap-trigger-area').style.display='none';
+      document.getElementById('ap-progress').style.display='block';
+      startTime = Date.now();
+      elapsedTimer = setInterval(updateElapsed, 1000);
+      connectSSE();
+    } catch(err) {
+      if (btn) { btn.disabled=false; btn.textContent='开始 Agent 全链路策划'; btn.style.opacity='1'; }
+      document.getElementById('ap-error').style.display='block';
+      document.getElementById('ap-error-msg').textContent = err.message;
+    }
+  };
+
+  function connectSSE() {
+    evtSource = new EventSource('/content-planning/stream/'+oppId);
+
+    evtSource.addEventListener('agent_pipeline_started', function(e) {
+      const d = JSON.parse(e.data);
+      const nodes = d.payload?.nodes || [];
+      totalNodes = nodes.length;
+      completedNodes = 0;
+      const grid = document.getElementById('ap-nodes-grid');
+      if (grid) {
+        grid.innerHTML = nodes.map(function(n) {
+          nodeMap[n.node_id] = n.label || n.agent_role;
+          return nodeCardHTML(n.node_id, n.agent_role, n.label||n.agent_role);
+        }).join('');
+      }
+      updateProgress();
+    });
+
+    evtSource.addEventListener('agent_node_started', function(e) {
+      const d = JSON.parse(e.data);
+      const p = d.payload||d;
+      updateNodeUI(p.node_id, 'running', p);
+    });
+
+    evtSource.addEventListener('agent_node_completed', function(e) {
+      const d = JSON.parse(e.data);
+      const p = d.payload||d;
+      completedNodes++;
+      updateNodeUI(p.node_id, 'completed', p);
+      updateProgress();
+    });
+
+    evtSource.addEventListener('agent_node_failed', function(e) {
+      const d = JSON.parse(e.data);
+      const p = d.payload||d;
+      completedNodes++;
+      updateNodeUI(p.node_id, 'failed', p);
+      updateProgress();
+    });
+
+    evtSource.addEventListener('agent_pipeline_completed', function(e) {
+      const d = JSON.parse(e.data);
+      const p = d.payload||d;
+      if (elapsedTimer) clearInterval(elapsedTimer);
+      evtSource.close();
+      const elapsed = startTime ? ((Date.now()-startTime)/1000).toFixed(1) : '?';
+      document.getElementById('ap-done').style.display='block';
+      document.getElementById('ap-done-detail').textContent = '总耗时 '+elapsed+'s · 状态: '+(p.status||'completed');
+      const link = document.getElementById('ap-asset-link');
+      if (link) link.href = '/content-planning/assets/'+oppId;
+    });
+
+    evtSource.addEventListener('agent_pipeline_failed', function(e) {
+      const d = JSON.parse(e.data);
+      const p = d.payload||d;
+      if (elapsedTimer) clearInterval(elapsedTimer);
+      evtSource.close();
+      document.getElementById('ap-error').style.display='block';
+      document.getElementById('ap-error-msg').textContent = p.error||'未知错误';
+    });
+
+    evtSource.addEventListener('agent_pipeline_cancelled', function(e) {
+      if (elapsedTimer) clearInterval(elapsedTimer);
+      evtSource.close();
+      document.getElementById('ap-error').style.display='block';
+      document.getElementById('ap-error-msg').textContent = '管线已取消';
+    });
+
+    evtSource.onerror = function() {};
+  }
+})();
+</script>

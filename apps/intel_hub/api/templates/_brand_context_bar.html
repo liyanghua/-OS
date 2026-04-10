@@ -1,0 +1,24 @@
+{# _brand_context_bar.html — 品牌上下文摘要条 + guardrail warning
+   Optional variables: brand_id, brand_name, guardrail_warnings (list), guardrail_summary (dict with forbidden_count, must_mention_count)
+#}
+{% if brand_id is defined and brand_id %}
+<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;margin-bottom:12px;background:#fffdf8;border:1px solid #e8dcc8;border-radius:12px;font-size:12px;flex-wrap:wrap;">
+  <span style="font-weight:700;color:var(--accent);">品牌: {{ brand_name|default(brand_id) }}</span>
+  {% if guardrail_summary is defined and guardrail_summary %}
+  <span style="color:var(--muted);">|</span>
+  <span style="color:#c62828;">禁用 {{ guardrail_summary.get("forbidden_count", 0) }} 条</span>
+  <span style="color:#2e7d32;">必提 {{ guardrail_summary.get("must_mention_count", 0) }} 条</span>
+  {% endif %}
+  {% if brand_id %}
+  <a href="/brand-config/{{ brand_id }}" style="margin-left:auto;color:var(--accent);text-decoration:none;font-weight:600;font-size:11px;">品牌配置 →</a>
+  {% endif %}
+</div>
+{% if guardrail_warnings is defined and guardrail_warnings %}
+<div style="padding:8px 14px;margin-bottom:12px;background:#fff0f0;border:1px solid #fca5a5;border-radius:12px;font-size:12px;color:#991b1b;">
+  <strong>Guardrail 警告：</strong>
+  {% for w in guardrail_warnings %}
+  <span style="display:inline-block;margin:2px 4px;padding:2px 8px;background:#fee2e2;border-radius:6px;">{{ w }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+{% endif %}

@@ -35,6 +35,19 @@ class AgentContext(BaseModel):
     review_summary: dict[str, Any] = Field(default_factory=dict)
     extra: dict[str, Any] = Field(default_factory=dict)
 
+    # ThreadState extensions (DeerFlow-inspired)
+    artifacts: list[dict[str, Any]] = Field(default_factory=list)
+    todos: list[dict[str, Any]] = Field(default_factory=list)
+    middleware_log: list[str] = Field(default_factory=list)
+    config: dict[str, Any] = Field(default_factory=lambda: {
+        "execution_mode": "deep",
+        "thinking_enabled": False,
+        "subagent_enabled": True,
+        "max_tool_rounds": 5,
+    })
+    checkpoint_id: str = ""
+    run_id: str = ""
+
 
 class RequestContextBundle(BaseModel):
     """Per-request shared context assembled once in routes and reused downstream."""

@@ -74,19 +74,14 @@
     <a href="/content-planning/strategy/{{ opportunity_id }}" style="color: var(--accent); text-decoration: none; font-size: 14px;">&larr; 返回 Planning Workspace</a>
   </div>
 
-  <div class="cw-anchor">
-    <span class="cw-anchor-badge" style="background: var(--accent); color: #fff;">Creation Workspace</span>
-    <a class="cw-anchor-link" href="/xhs-opportunities/{{ opportunity_id }}">机会卡</a>
-    <span class="cw-anchor-sep">→</span>
-    <a class="cw-anchor-link" href="/content-planning/brief/{{ opportunity_id }}">Brief</a>
-    <span class="cw-anchor-sep">→</span>
-    <a class="cw-anchor-link" href="/content-planning/strategy/{{ opportunity_id }}">模板</a>
-    <span class="cw-anchor-sep">→</span>
-    <a class="cw-anchor-link" href="/content-planning/strategy/{{ opportunity_id }}">策略</a>
-    <span class="cw-anchor-sep">→</span>
-    <span style="font-weight: 700; color: var(--ink);">NotePlan & 内容</span>
-    <span style="color: var(--muted); margin-left: auto;">ID: {{ opportunity_id }}</span>
-  </div>
+  {# ═══ 全链路进度条 ═══ #}
+  {% set lifecycle_statuses = {"brief": (brief.get("lifecycle_status","") if brief else ""), "strategy": (strategy.get("lifecycle_status","") if strategy else ""), "plan": (note_plan.get("lifecycle_status","") if note_plan else ""), "assets": ""} %}
+  {% with current_stage="plan" %}{% include "_progress_bar.html" %}{% endwith %}
+  {% set is_promoted = true %}
+  {% include "_agent_pipeline_panel.html" %}
+  {% set _brand_id = (brief.brand_id | default("", true)) if brief is defined and brief else "" %}
+  {% set _gw = (brief.guardrail_warnings | default([], true)) if brief is defined and brief else [] %}
+  {% with brand_id=_brand_id, brand_name=_brand_id, guardrail_warnings=_gw %}{% include "_brand_context_bar.html" %}{% endwith %}
 
   {% if stale_flags %}
   <div class="cw-stale-row">
@@ -333,6 +328,7 @@
         <button id="cw-load-collab" type="button" style="margin-top: 8px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; cursor: pointer; font-size: 12px; color: var(--accent);">刷新协同状态</button>
         <p style="margin:6px 0 0;font-size:11px;color:var(--muted);">进入页面时不自动拉取流水线与参与者；需要时点击上方按钮。</p>
       </div>
+      {% set _obj_id = (note_plan.plan_id if note_plan else "") if note_plan is defined else "" %}{% set _obj_type = "plan" %}{% with object_type=_obj_type, object_id=_obj_id %}{% include "_collab_sidebar.html" %}{% endwith %}
     </aside>
   </div>
 </div>

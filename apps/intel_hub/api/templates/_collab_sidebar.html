@@ -1,0 +1,76 @@
+{# _collab_sidebar.html — 协同面板（指派 + 评论 + 审批）
+   Required: opportunity_id, object_type (brief/strategy/plan/asset_bundle), object_id
+#}
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 8px 22px rgba(92,66,39,0.06);">
+  <h3 style="margin:0 0 12px;font-size:14px;color:var(--accent);font-weight:700;">协同面板</h3>
+
+  <!-- 指派 -->
+  <details style="margin-bottom:10px;">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--accent);">指派</summary>
+    <div style="margin-top:8px;">
+      <div id="collab-assignee-{{ object_type }}" style="font-size:12px;color:var(--muted);margin-bottom:6px;">当前无指派</div>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="collab-assign-input-{{ object_type }}" placeholder="用户 ID" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;">
+        <button onclick="collabAssign('{{ object_type }}','{{ object_id }}')" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer;">指派</button>
+      </div>
+    </div>
+  </details>
+
+  <!-- 评论 -->
+  <details open style="margin-bottom:10px;">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--accent);">评论</summary>
+    <div style="margin-top:8px;">
+      <div id="collab-comments-{{ object_type }}" style="max-height:200px;overflow-y:auto;margin-bottom:8px;font-size:12px;color:var(--muted);">加载中…</div>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="collab-comment-input-{{ object_type }}" placeholder="写评论…" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;" onkeydown="if(event.key==='Enter')collabComment('{{ object_type }}','{{ object_id }}')">
+        <button onclick="collabComment('{{ object_type }}','{{ object_id }}')" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer;">发送</button>
+      </div>
+    </div>
+  </details>
+
+  <!-- 审批 -->
+  <details style="margin-bottom:0;">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--accent);">审批</summary>
+    <div style="margin-top:8px;">
+      <div id="collab-approval-{{ object_type }}" style="font-size:12px;color:var(--muted);margin-bottom:6px;">—</div>
+      <div style="display:flex;gap:6px;">
+        <button onclick="collabApprove('{{ object_type }}','{{ object_id }}','approved')" style="flex:1;padding:8px;background:#2e7d32;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">通过</button>
+        <button onclick="collabApprove('{{ object_type }}','{{ object_id }}','changes_requested')" style="flex:1;padding:8px;background:#e65100;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">需修改</button>
+      </div>
+    </div>
+  </details>
+</div>
+
+<script>
+(function(){
+  const ot = '{{ object_type }}', oid = '{{ object_id }}', oppId = '{{ opportunity_id }}';
+  async function loadComments(){
+    try {
+      const r = await fetch('/objects/' + ot + '/' + oid + '/comments');
+      const d = await r.json();
+      const el = document.getElementById('collab-comments-' + ot);
+      if(!d.items || d.items.length===0){ el.textContent='暂无评论'; return; }
+      el.innerHTML = d.items.map(c => '<div style="padding:4px 0;border-bottom:1px solid #f0ece4;"><strong style="font-size:11px;">' + (c.author_user_id||'匿名') + '</strong> <span style="color:#999;font-size:10px;">' + (c.created_at||'').slice(0,16) + '</span><div style="margin-top:2px;">' + c.content + '</div></div>').join('');
+    } catch(e) { document.getElementById('collab-comments-' + ot).textContent='加载失败'; }
+  }
+  loadComments();
+  window.collabAssign = async function(otype, oid2){
+    const uid = document.getElementById('collab-assign-input-' + otype).value.trim();
+    if(!uid) return;
+    await fetch('/objects/' + otype + '/' + oid2 + '/assign', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({assignee_user_id:uid, assigned_by:'current_user', workspace_id:''})});
+    document.getElementById('collab-assignee-' + otype).textContent = '已指派给 ' + uid;
+  };
+  window.collabComment = async function(otype, oid2){
+    const input = document.getElementById('collab-comment-input-' + otype);
+    const txt = input.value.trim();
+    if(!txt) return;
+    await fetch('/objects/' + otype + '/' + oid2 + '/comments', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({author_user_id:'current_user', content:txt, workspace_id:''})});
+    input.value = '';
+    loadComments();
+  };
+  window.collabApprove = async function(otype, oid2, decision){
+    const r = await fetch('/content-planning/' + oppId + '/approve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({object_type:otype, decision:decision, notes:'', workspace_id:'', user_id:'current_user', api_token:''})});
+    document.getElementById('collab-approval-' + otype).textContent = decision === 'approved' ? '已通过' : '需修改';
+  };
+})();
+</script>

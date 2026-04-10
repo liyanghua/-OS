@@ -77,7 +77,7 @@ class PlanGraph(BaseModel):
 
     def ready_nodes(self) -> list[GraphNode]:
         """Get nodes that are ready to execute (all deps completed)."""
-        completed = {nid for nid, n in self.nodes.items() if n.status == NodeStatus.COMPLETED}
+        completed = {nid for nid, n in self.nodes.items() if n.status in (NodeStatus.COMPLETED, NodeStatus.SKIPPED)}
         return [
             n for n in self.nodes.values()
             if n.status == NodeStatus.PENDING and n.is_ready(completed)
@@ -133,6 +133,28 @@ def build_default_graph(opportunity_id: str) -> PlanGraph:
     g.add_edge(n_brief.node_id, n_template.node_id, data_key="brief")
     g.add_edge(n_template.node_id, n_strategy.node_id, data_key="match_result")
     g.add_edge(n_strategy.node_id, n_visual.node_id, data_key="strategy")
+    g.add_edge(n_visual.node_id, n_asset.node_id, data_key="image_briefs")
+
+    return g
+
+
+def build_agent_pipeline_graph(opportunity_id: str) -> PlanGraph:
+    """Build the full agent pipeline graph with plan compilation step."""
+    g = PlanGraph(opportunity_id=opportunity_id, status="ready")
+
+    n_trend = g.add_node("trend_analyst", "分析机会与趋势")
+    n_brief = g.add_node("brief_synthesizer", "编译 OpportunityBrief", [n_trend.node_id])
+    n_template = g.add_node("template_planner", "匹配最佳模板", [n_brief.node_id])
+    n_strategy = g.add_node("strategy_director", "生成改写策略", [n_template.node_id])
+    n_plan = g.add_node("plan_compiler", "编译内容计划", [n_strategy.node_id])
+    n_visual = g.add_node("visual_director", "规划视觉方向", [n_plan.node_id])
+    n_asset = g.add_node("asset_producer", "组装资产包", [n_visual.node_id])
+
+    g.add_edge(n_trend.node_id, n_brief.node_id, data_key="card_analysis")
+    g.add_edge(n_brief.node_id, n_template.node_id, data_key="brief")
+    g.add_edge(n_template.node_id, n_strategy.node_id, data_key="match_result")
+    g.add_edge(n_strategy.node_id, n_plan.node_id, data_key="strategy")
+    g.add_edge(n_plan.node_id, n_visual.node_id, data_key="plan")
     g.add_edge(n_visual.node_id, n_asset.node_id, data_key="image_briefs")
 
     return g

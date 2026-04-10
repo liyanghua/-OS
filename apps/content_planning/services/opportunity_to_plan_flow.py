@@ -452,6 +452,7 @@ class OpportunityToPlanFlow:
         lineage.brief_id = brief.brief_id
         brief.lineage = lineage
         brief.brief_status = "generated"
+        brief.lifecycle_status = "in_planning"
         brief = self._apply_context(session, brief, previous=session.brief)
 
         brief = self._apply_locks(brief, session.brief)
@@ -911,6 +912,7 @@ class OpportunityToPlanFlow:
         lineage.template_id = selected_tpl.template_id
         strategy.lineage = lineage
         strategy.strategy_status = "generated"
+        strategy.lifecycle_status = "in_planning"
         strategy = self._apply_context(
             session,
             strategy,
@@ -947,6 +949,7 @@ class OpportunityToPlanFlow:
         lineage.plan_id = note_plan.plan_id
         note_plan.lineage = lineage
         note_plan.plan_status = "generated"
+        note_plan.lifecycle_status = "in_planning"
         note_plan = self._apply_context(session, note_plan, previous=previous_plan)
 
         note_plan = self._apply_locks(note_plan, previous_plan)
@@ -1177,6 +1180,7 @@ class OpportunityToPlanFlow:
             lineage=self._build_lineage(session),
         )
         session.asset_bundle = bundle
+        bundle.lifecycle_status = "ready"
         self._snapshot_version(session, "asset_bundle", bundle)
         session._mark_fresh("asset_bundle")
         self._persist(session, status="generated")
@@ -1218,6 +1222,7 @@ class OpportunityToPlanFlow:
                 stale_flags=dict(session.stale_flags),
             )
         bundle.export_status = "exported"
+        bundle.lifecycle_status = "exported"
         bundle.updated_at = datetime.now(UTC)
         if session.updated_by:
             bundle.updated_by = session.updated_by
@@ -1289,6 +1294,8 @@ class OpportunityToPlanFlow:
             raise ValueError(f"unknown object_type: {object_type}")
 
         target.approval_status = decision
+        if decision == "approved" and hasattr(target, "lifecycle_status"):
+            target.lifecycle_status = "approved"
         if hasattr(target, "updated_by"):
             target.updated_by = user_id
         self._persist(session, status="generated")

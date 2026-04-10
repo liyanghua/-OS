@@ -3,6 +3,59 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## Agent 一键策划全链路升级 (2026-04-10)
+
+### 概述
+
+将分步手动策划流程升级为 Agent 驱动的一键全链路模式。用户触发后，GraphExecutor 自动编排 7 个 Agent 节点（趋势分析 → Brief → 模板匹配 → 策略 → 计划编译 → 视觉规划 → 资产组装），通过 SSE 实时推送进度，最终产出 product-ready 资产包。
+
+### 新增文件
+
+| 文件 | 说明 |
+|---|---|
+| `apps/content_planning/services/agent_pipeline_runner.py` | AgentPipelineRunner 编排器核心，桥接 GraphExecutor + Flow Session + EventBus |
+| `apps/content_planning/agents/plan_compiler.py` | PlanCompilerAgent：在策略和视觉之间编译 NewNotePlan |
+| `apps/intel_hub/api/templates/_agent_pipeline_panel.html` | 前端一键触发 + SSE 实时节点进度面板 |
+
+### 修改文件
+
+| 文件 | 改动 |
+|---|---|
+| `apps/content_planning/agents/graph_executor.py` | execute/\_run\_node 增加 on\_node\_start/complete/fail 回调；\_propagate\_output 补全 trend\_analyst/plan\_compiler/template 自动选择 |
+| `apps/content_planning/agents/plan_graph.py` | 新增 `build_agent_pipeline_graph`（7 节点，含 plan\_compiler） |
+| `apps/content_planning/api/routes.py` | 新增 POST trigger / GET status / POST cancel / batch 端点 |
+| `apps/intel_hub/api/app.py` | xhs\_opportunity\_detail 传递 is\_promoted + opportunity\_id |
+| `apps/intel_hub/api/templates/xhs_opportunity_detail.html` | 嵌入 \_agent\_pipeline\_panel |
+| `apps/intel_hub/api/templates/content_brief.html` | 嵌入 \_agent\_pipeline\_panel |
+| `apps/intel_hub/api/templates/content_strategy.html` | 嵌入 \_agent\_pipeline\_panel |
+| `apps/intel_hub/api/templates/content_plan.html` | 嵌入 \_agent\_pipeline\_panel |
+| `apps/intel_hub/api/templates/content_assets.html` | 嵌入 \_agent\_pipeline\_panel |
+| `apps/intel_hub/api/templates/xhs_opportunities.html` | 「一键策划」按钮改为 Agent 管线触发；批量操作栏增加「批量 Agent 策划」 |
+
+### API 端点
+
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/content-planning/{opp_id}/agent-pipeline` | POST | 触发 Agent 全链路，立即返回 run\_id |
+| `/content-planning/{opp_id}/agent-pipeline/status` | GET | 查询管线 + 各节点状态 |
+| `/content-planning/{opp_id}/agent-pipeline/cancel` | POST | 取消执行中管线 |
+| `/content-planning/batch-agent-pipeline` | POST | 批量触发 |
+| `/content-planning/batch-agent-pipeline/status` | POST | 批量状态查询 |
+
+### SSE 事件类型
+
+`agent_pipeline_started`、`agent_node_started`、`agent_node_completed`、`agent_node_failed`、`agent_pipeline_completed`、`agent_pipeline_failed`、`agent_pipeline_cancelled`
+
+### 架构决策
+
+- GraphExecutor 增强而非替代：回调钩子 + 传播映射扩展
+- 7 节点管线（新增 plan\_compiler）确保 visual\_director 获取 context.plan
+- template\_planner 传播时自动从匹配结果选中首模板填入 context.template
+- Agent 管线是增量能力，手动分步流程保持可用
+- lifecycle\_status 自动推进：brief/strategy/plan → in\_planning，asset → ready
+
+---
+
 ## V0.9 进展 — AI-native 协同架构升级 (2026-04-09)
 
 ### Brief 三入口与 Council 合并升级 **已完成** (2026-04-10)
@@ -33,6 +86,7 @@
 | 项 | 说明 |
 |---|---|
 | `brand_config.html` | 继承 `base.html`；单列卡片（`body .shell` max-width 900px）；上下文变量 `workspace_id`、`brand`、`guardrails`、`voice`、`audiences`、`objectives`；护栏标签色：禁用表达红 / 必提要点绿 / 风险词琥珀 |
+| `_brand_context_bar.html` | Brief / Strategy / Plan / Assets 四工作台在 `_progress_bar.html` 之后共用品牌摘要条与 `guardrail_warnings`；链至 `/brand-config/{brand_id}`；可选 `guardrail_summary`（禁用/必提条数） |
 
 ### Intel Hub：Phase 3 工作区页面模板 (2026-04-10)
 
@@ -2157,3 +2211,214 @@ git commit -m "docs: capture agent performance optimization architecture and met
 - `B2BPlatformStore` publish_results (增强) + assignments + comments + timeline + approvals + readiness 全量 CRUD 通过
 - `guardrail_checker.check_guardrails` 正反用例通过
 - 既有测试 `test_b2b_flow.py` 通过
+
+---
+
+## 全链路体验极简化升级（2026-04-10）
+
+### 升级目标
+围绕「原始笔记 → 机会卡 → Brief → 策略 → 计划 → 资产 → 发布 → 闭环」全链路，从导航贯通、角色协同、操作效率、信息反馈四维度做极简化/高效化升级。
+
+### 1. 导航与页面贯通
+- **顶栏导航重构**（`base.html`）：拆分为「情报中心 | 内容策划 | 协同管理 | 情报对象」四组，全部中文标签，英文 Signals/Opportunities/Risks/Watchlists → 信号/商机/风险/关注列表
+- **5 个孤立模板挂载路由**（`app.py`）：`/workspace`、`/brand-config/{brand_id}`、`/feedback`、`/opportunity-pipeline`、`/review-approval` 五条 GET HTML 路由
+- **机会卡详情页策划入口**（`xhs_opportunity_detail.html`）：promoted → 「进入 Brief 工作台」；非 promoted → 「升级为策划候选」
+
+### 2. 全链路状态机驱动
+- **flow 层 lifecycle_status**（`opportunity_to_plan_flow.py`）：`build_brief` → in_planning、`build_strategy` → in_planning、`build_plan` → in_planning、`assemble_asset_bundle` → ready、`mark_asset_bundle_exported` → exported、`approve_object(approved)` → approved
+- **统一进度条**（`_progress_bar.html`）：机会卡 → Brief → 策略 → 计划 → 资产包，高亮当前阶段，显示 lifecycle_status 徽章，点击可跳转
+- 四工作台（content_brief / content_strategy / content_plan / content_assets）全部替换原 anchor 面包屑为统一进度条
+
+### 3. 角色协同集成
+- **协同侧栏**（`_collab_sidebar.html`）：指派 + 评论 + 审批三折叠面板，调用 `/objects/{type}/{id}/assign`、`.../comments`、审批 API
+- 四工作台右栏底部统一 include
+- **品牌上下文摘要条**（`_brand_context_bar.html`）：品牌名 + 禁用/必提条数 + guardrail 警告 + 品牌配置入口
+- 四工作台进度条下方统一 include
+
+### 4. 操作效率提升
+- **CTA 校准**：Assets 页发布后增加「查看反馈全局 →」导向 `/feedback`
+- **机会卡批量操作**（`xhs_opportunities.html`）：多选 checkbox + 批量操作栏（批量升级为候选 / 批量生成 Brief）
+
+### 5. 反馈闭环可见化
+- **Brief 页品牌历史表现**（`content_brief.html`）：左栏增加「高表现模式 Top 3」「踩坑记录 Top 3」，数据来自 `/b2b/workspaces/{id}/feedback`
+- **Dashboard 闭环指标**（`dashboard.html`）：已发布数 / 平均互动代理 / 平均审批轮次 / 高表现模式数
+
+### 新增文件
+| 文件 | 用途 |
+|------|------|
+| `_progress_bar.html` | 全链路进度条 include |
+| `_collab_sidebar.html` | 协同面板 include |
+| `_brand_context_bar.html` | 品牌上下文条 include |
+
+### 修改文件
+| 文件 | 改动 |
+|------|------|
+| `base.html` | 导航重构为中文四组 |
+| `app.py` | +5 页面路由 |
+| `opportunity_to_plan_flow.py` | 6 处 lifecycle_status 驱动 |
+| `xhs_opportunity_detail.html` | +策划入口卡 |
+| `xhs_opportunities.html` | +批量操作 |
+| `content_brief.html` | +进度条 +品牌条 +协同栏 +品牌历史 |
+| `content_strategy.html` | +进度条 +品牌条 +协同栏 |
+| `content_plan.html` | +进度条 +品牌条 +协同栏 |
+| `content_assets.html` | +进度条 +品牌条 +协同栏 +反馈CTA |
+| `dashboard.html` | +闭环指标卡 |
+
+### 验证结果
+- Python 文件 ast.parse 通过
+- 16 个 Jinja2 模板 `env.get_template()` 全部通过
+
+---
+
+## DeerFlow + Hermes Agent 架构升级（P0-P3）
+
+**日期**: 2026-04-10
+**范围**: Agent 基础设施全面升级，借鉴 DeerFlow 2.0 和 Hermes Agent 最佳实践
+
+### 升级概览
+
+基于 DeerFlow（LangGraph 状态图编排 + 中间件链 + Lead Agent 模式）和 Hermes Agent（自改进学习循环 + Tool Registry + 多入口统一核心）的最佳实践，对 Agent 层进行五阶段架构升级。
+
+### P0: LLMRouter v2 — async + streaming + tool_calls
+
+**文件**: `apps/content_planning/adapters/llm_router.py`
+
+- 新增 `ToolCall`、`StreamChunk` 模型
+- `LLMMessage` 扩展 `tool_calls`、`tool_call_id`、`name` 字段
+- `LLMResponse` 扩展 `tool_calls`、`finish_reason` 字段
+- `BaseLLMProvider` 新增 `achat()` / `achat_stream()` 默认 async 实现
+- `OpenAIProvider` 原生 `AsyncOpenAI` 实现（achat + achat_stream）
+- `AnthropicProvider` 原生 `AsyncAnthropic` 实现 + OpenAI→Anthropic tool schema 转换
+- `LLMRouter` 新增：
+  - `chat_with_tools()` — 同步 tool-calling 循环
+  - `achat()` / `achat_stream()` — 异步聊天 & 流式
+  - `achat_with_tools()` — 异步 tool-calling 循环
+- 降级链通过 `LLM_FALLBACK_CHAIN` 环境变量配置化
+- 全部同步接口保持向后兼容
+
+### P1: 统一 Tool Registry + MCP 适配器
+
+**新建文件**: `apps/content_planning/agents/tool_registry.py`
+
+- `ToolEntry` — 工具定义（name/description/parameters_schema/handler/toolset/check_fn）
+- `ToolResult` — 工具执行结果
+- `ToolRegistry` — 中心注册表：register / get / list_tools / to_openai_schema / handle_tool_call / ahandle_tool_call
+- `register_builtin_tools()` — 注册全部内置服务（compile_brief, generate_strategy, compile_plan, generate_titles, generate_body, generate_image_briefs, assemble_asset_bundle, list_templates, match_templates, check_guardrails, delegate_task, trigger_pipeline）
+
+**新建文件**: `apps/content_planning/agents/mcp_adapter.py`
+
+- `MCPServerConfig` / `MCPToolSpec` / `MCPAdapter`
+- 支持动态发现外部 MCP 服务端并注册到 ToolRegistry
+- 当前为结构占位，预留真实 MCP SDK 接口
+
+### P2: LangGraph 式 StateGraph + 中间件链 + GraphExecutor v2
+
+**修改文件**: `apps/content_planning/agents/base.py`
+
+- `AgentContext` 新增 ThreadState 字段：`artifacts`, `todos`, `middleware_log`, `config`, `checkpoint_id`, `run_id`
+
+**新建文件**: `apps/content_planning/agents/middleware.py`
+
+- `BaseMiddleware` 抽象基类（before / after）
+- 5 个内置中间件：
+  - `GuardrailMiddleware` — 品牌 guardrail 检查
+  - `SummarizationMiddleware` — 上下文过长自动摘要
+  - `MemoryMiddleware` — 自动注入/提取记忆
+  - `LifecycleMiddleware` — lifecycle_status 自动推进
+  - `PersistMiddleware` — 每步后自动持久化
+- `MiddlewareChain` — 有序中间件编排（default_chain 工厂方法）
+
+**修改文件**: `apps/content_planning/agents/graph_executor.py`
+
+- 新增 `GraphCheckpointer` — SQLite checkpoint（save/load/load_latest）
+- `execute()` 增加条件分支评估（`_should_skip_by_condition`）
+- 支持条件语法：`context.{field} is not None`、`context.{field} is None`、`context.extra.{key} exists`
+- 新增 `execute_from_checkpoint()` — 断点续跑
+- 中间件链集成（`set_middleware_chain`）
+- 每轮完成后自动 checkpoint
+
+**修改文件**: `apps/content_planning/agents/plan_graph.py`
+
+- `ready_nodes()` 增加 SKIPPED 节点作为已完成依赖
+
+### P3: Skills 可执行化 + Memory v2 + LeadAgent v2
+
+**修改文件**: `apps/content_planning/agents/skill_registry.py`
+
+- 新增 `SkillStep` 模型（tool_name + arguments + condition）
+- 新增 `SkillExecutionResult` 模型
+- `execute_skill()` / `aexecute_skill()` — 通过 ToolRegistry 执行工作流步骤
+- `create_skill_from_result()` — Hermes 式自动沉淀技能
+- `load_from_markdown()` — DeerFlow 式 Markdown Skill 加载
+- `to_openai_schema()` — 导出为 LLM function calling 格式
+- 新增 `full_pipeline` 默认 Skill 带完整 `executable_steps`
+
+**修改文件**: `apps/content_planning/agents/memory.py`
+
+- FTS5 全文检索虚拟表 + 自动同步触发器
+- `search()` 优先走 FTS5 MATCH，失败回退 LIKE
+- 新增 `session_id` 字段 + `search_sessions()` 跨会话检索
+- Nudge 机制：`nudge()` 生成提示 + `process_nudge_response()` 解析存储
+- `inject_context()` 增加 relevance_score 排序 + role boost
+
+**修改文件**: `apps/content_planning/agents/lead_agent.py`
+
+- Pipeline/Interactive 双模式：`_run_pipeline()` / `_run_interactive()`
+- 三级路由降级：tool_calls > LLM (DeerFlow) > keyword
+- `_route_with_tools()` — LLM tool_calls 驱动路由
+- `delegate_task` / `trigger_pipeline` / `skill_*` tool_call 解析
+- 中间件链集成
+
+### 文件变更总结
+
+| 文件 | 操作 |
+|------|------|
+| `adapters/llm_router.py` | 改 — async + stream + tool_calls |
+| `agents/base.py` | 改 — ThreadState 扩展 |
+| `agents/middleware.py` | 新建 — 5 个中间件 |
+| `agents/tool_registry.py` | 新建 — 统一工具注册 |
+| `agents/mcp_adapter.py` | 新建 — MCP 客户端 |
+| `agents/graph_executor.py` | 改 — 条件分支 + checkpoint |
+| `agents/plan_graph.py` | 改 — SKIPPED 依赖支持 |
+| `agents/skill_registry.py` | 改 — 可执行化 |
+| `agents/memory.py` | 改 — FTS5 + 跨会话 |
+| `agents/lead_agent.py` | 改 — tool_calls 路由 |
+
+### 架构决策
+
+1. **不引入 LangGraph 包** — 借鉴其 StateGraph + reducer + checkpoint 模式自实现轻量版
+2. **向后兼容** — 所有同步接口保持不变，新增 async 接口为增量
+3. **不替换现有 7 个 Agent 的业务逻辑** — 只改基类和调用方式
+4. **MCP 结构占位** — 预留接口，不引入 MCP SDK 依赖
+
+---
+
+## 一键策划执行过程可观测性升级 (2026-04-10)
+
+将一键策划面板从"状态指示器"升级为"逐步产出预览器"。
+
+### 改动要点
+
+1. **数据层 — GraphExecutor._build_output_summary**
+   - 新增方法，按 `agent_role` 从 `output_object` 提取关键字段为结构化 dict
+   - 7 个 Agent 角色各有独立的摘要提取逻辑
+   - `_run_node` 的 `on_node_complete` 回调增加 `output_summary` + `suggestions` 字段
+
+2. **事件层 — AgentPipelineRunner 透传**
+   - `_on_node_complete` 已有 `**data` 展开，新字段自动包含在 SSE payload 中，无需额外改动
+
+3. **展示层 — _agent_pipeline_panel.html**
+   - 节点卡片从平铺 grid 改为可展开式单列卡片
+   - 完成后自动展开预览区，展示该步骤的结构化产出摘要
+   - 按 agent_role 分别渲染：强度评分条/Top3 模板卡/策略三行/视觉图位等
+   - 置信度小圆点（绿/黄/红三色）
+   - 建议操作标签（chip 展示）
+   - explanation 从 40 字扩展到 200 字
+   - running 状态脉冲动画
+
+### 文件变更
+
+| 文件 | 操作 |
+|------|------|
+| `agents/graph_executor.py` | 改 — `_build_output_summary` + 丰富回调 |
+| `api/templates/_agent_pipeline_panel.html` | 改 — 可展开预览卡片 + 分角色渲染 |

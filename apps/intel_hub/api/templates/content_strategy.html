@@ -60,16 +60,14 @@
     <a href="/content-planning/brief/{{ opportunity_id }}" style="color: var(--accent); text-decoration: none; font-size: 14px;">&larr; 返回 Opportunity Workspace</a>
   </div>
 
-  {# ═══ 对象锚点链路 ═══ #}
-  <div class="pw-anchor">
-    <span class="pw-anchor-badge" style="background: var(--accent); color: #fff;">Planning Workspace</span>
-    <a class="pw-anchor-link" href="/xhs-opportunities/{{ opportunity_id }}">OpportunityCard</a>
-    <span class="pw-anchor-sep">→</span>
-    <a class="pw-anchor-link" href="/content-planning/brief/{{ opportunity_id }}">Brief</a>
-    <span class="pw-anchor-sep">→</span>
-    <span style="font-weight: 700; color: var(--ink);">Template → Strategy</span>
-    <span style="color: var(--muted); margin-left: auto;">ID: {{ opportunity_id }}</span>
-  </div>
+  {# ═══ 全链路进度条 ═══ #}
+  {% set lifecycle_statuses = {"brief": (brief.get("lifecycle_status","") if brief else ""), "strategy": (strategy.get("lifecycle_status","") if strategy else ""), "plan": "", "assets": ""} %}
+  {% with current_stage="strategy" %}{% include "_progress_bar.html" %}{% endwith %}
+  {% set is_promoted = true %}
+  {% include "_agent_pipeline_panel.html" %}
+  {% set _brand_id = (brief.brand_id | default("", true)) if brief is defined and brief else "" %}
+  {% set _gw = (brief.guardrail_warnings | default([], true)) if brief is defined and brief else [] %}
+  {% with brand_id=_brand_id, brand_name=_brand_id, guardrail_warnings=_gw %}{% include "_brand_context_bar.html" %}{% endwith %}
 
   {% if stale_flags %}
   <div class="pw-stale-row">
@@ -312,6 +310,7 @@
         <h3>策略版本历史</h3>
         <div id="pw-versions-list"></div>
       </div>
+      {% set _obj_id = (strategy.strategy_id if strategy else "") %}{% set _obj_type = "strategy" %}{% with object_type=_obj_type, object_id=_obj_id %}{% include "_collab_sidebar.html" %}{% endwith %}
     </aside>
   </div>
 </div>
