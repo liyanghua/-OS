@@ -139,3 +139,84 @@ class HermesAdapter:
             relevance_score=1.0 - score,
             tags=[stage, "lesson"],
         ))
+
+    # ── Learning Loop Hooks (V2) ──
+
+    def on_proposal_adopted(
+        self,
+        opportunity_id: str,
+        stage: str,
+        consensus: str,
+        proposed_updates: dict[str, Any],
+        *,
+        brand_id: str = "",
+    ) -> None:
+        """When a Council proposal is adopted, extract strategy pattern → project memory."""
+        pattern_content = f"[adopted|{stage}] {consensus[:300]}"
+        if proposed_updates:
+            keys = list(proposed_updates.keys())[:5]
+            pattern_content += f" | fields: {', '.join(keys)}"
+        self._memory.store_project_consensus(
+            opportunity_id, pattern_content, stage, brand_id=brand_id,
+        )
+        self._memory.store(MemoryEntry(
+            opportunity_id=opportunity_id,
+            brand_id=brand_id,
+            category="adopted_strategy_pattern",
+            content=pattern_content,
+            source_agent="learning_loop",
+            relevance_score=0.9,
+            tags=[stage, "adopted"],
+        ))
+        logger.info("Learning loop: adopted proposal stored for opp=%s stage=%s", opportunity_id, stage)
+
+    def on_low_score(
+        self,
+        opportunity_id: str,
+        stage: str,
+        score: float,
+        dimension_details: list[dict[str, Any]] | None = None,
+        *,
+        brand_id: str = "",
+    ) -> None:
+        """When stage score < threshold, auto-write lesson_learned to project memory."""
+        if score >= 0.4:
+            return
+        lesson = f"环节 {stage} 评分较低 ({score:.2f})，需优化。"
+        if dimension_details:
+            worst = min(dimension_details, key=lambda d: d.get("score", 1.0))
+            lesson += f" 最弱维度: {worst.get('name_zh', worst.get('name', '?'))}"
+        self._memory.store(MemoryEntry(
+            opportunity_id=opportunity_id,
+            brand_id=brand_id,
+            category="lesson_learned",
+            content=f"[scoring] {lesson}",
+            source_agent="learning_loop",
+            relevance_score=1.0 - score,
+            tags=[stage, "low_score"],
+        ))
+        self._memory.store(MemoryEntry(
+            opportunity_id=opportunity_id,
+            brand_id=brand_id,
+            category="scoring_shortfall",
+            content=lesson,
+            source_agent="learning_loop",
+            relevance_score=score,
+            tags=[dimension_details[0].get("name", stage) if dimension_details else stage],
+        ))
+
+    def track_skill_execution(self, skill_id: str, success: bool) -> None:
+        """Track skill execution success/failure; flag low-success skills for prompt updates."""
+        skill = skill_registry.get(skill_id)
+        if skill is None:
+            return
+        if success:
+            skill.success_count += 1
+        else:
+            skill.fail_count += 1
+        if skill.success_rate < 0.3 and (skill.success_count + skill.fail_count) >= 5:
+            logger.warning(
+                "Skill %s has low success rate %.1f%% — flagging for prompt version update",
+                skill_id, skill.success_rate * 100,
+            )
+            skill.last_updated = "needs_prompt_update"

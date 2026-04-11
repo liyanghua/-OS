@@ -192,6 +192,31 @@ class GraphExecutor:
         graph.status = "completed" if graph.is_complete() else "partial"
         return results
 
+    async def execute_subgraph(
+        self,
+        graph: PlanGraph,
+        start_node_id: str,
+        context: AgentContext,
+        *,
+        on_node_start: NodeCallback | None = None,
+        on_node_complete: NodeCallback | None = None,
+        on_node_fail: NodeCallback | None = None,
+    ) -> dict[str, AgentResult]:
+        """Execute a subgraph starting from a specific node, skipping upstream nodes."""
+        for nid, node in graph.nodes.items():
+            if nid == start_node_id:
+                break
+            if node.status == NodeStatus.PENDING:
+                graph.mark_completed(nid, {"skipped_upstream": True})
+                node.status = NodeStatus.SKIPPED
+
+        return await self.execute(
+            graph, context,
+            on_node_start=on_node_start,
+            on_node_complete=on_node_complete,
+            on_node_fail=on_node_fail,
+        )
+
     async def execute_from_checkpoint(
         self,
         checkpoint_id: str,

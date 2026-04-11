@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from apps.content_planning.agents.base import AgentContext, AgentMessage, AgentResult, AgentThread, RequestContextBundle
+from apps.content_planning.agents.context_assembler import PlanningContextAssembler
 from apps.content_planning.adapters.llm_router import llm_router
 from apps.content_planning.agents.discussion import (
     AGENT_DISPLAY_NAMES,
@@ -206,6 +207,9 @@ def _build_request_context_bundle(
     )
 
 
+_planning_assembler = PlanningContextAssembler()
+
+
 def _build_agent_context_from_bundle(
     opportunity_id: str,
     session: Any,
@@ -216,7 +220,7 @@ def _build_agent_context_from_bundle(
     payload_extra = dict(extra or {})
     payload_extra.setdefault("card", bundle.card)
     payload_extra.setdefault("request_context_bundle", bundle.model_dump())
-    return AgentContext(
+    ctx = AgentContext(
         opportunity_id=opportunity_id,
         brief=session.brief,
         strategy=session.strategy,
@@ -231,6 +235,13 @@ def _build_agent_context_from_bundle(
         review_summary=bundle.review_summary,
         extra=payload_extra,
     )
+    stage = payload_extra.get("current_stage", "")
+    mode = payload_extra.get("mode", "deep")
+    planning_ctx = _planning_assembler.assemble(
+        opportunity_id, stage, mode, session=session, bundle=bundle,
+    )
+    _planning_assembler.enrich_agent_context(ctx, planning_ctx)
+    return ctx
 
 
 # ── Request Models ────────────────────────────────────────────
@@ -2175,3 +2186,208 @@ async def get_batch_agent_pipeline_status(body: BatchAgentPipelineRequest):
     runner = _get_pipeline_runner()
     statuses = await runner.get_batch_status(body.opportunity_ids)
     return statuses
+
+
+# ── V2 API Endpoints: HealthCheck / Inspect / Readiness / Judge / ReviewLoop ──
+
+
+class HealthCheckRequest(BaseModel):
+    stage: str = "brief"
+
+
+@router.post("/{opportunity_id}/health-check")
+@_handle_flow_error
+async def run_health_check(opportunity_id: str, body: HealthCheckRequest) -> dict[str, Any]:
+    """Run stage-specific health check, return issues + action chips."""
+    from apps.content_planning.agents.health_checker import HealthChecker
+    from apps.content_planning.schemas.action_spec import actions_from_health_issues
+
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+    checker = HealthChecker()
+
+    result = checker.check(
+        body.stage,
+        brief=session.brief,
+        strategy=session.strategy,
+        plan=session.note_plan,
+        asset_bundle=session.asset_bundle,
+    )
+    actions = actions_from_health_issues(result.issues, opportunity_id, body.stage)
+    return {
+        "stage": result.stage,
+        "score": result.score,
+        "is_healthy": result.is_healthy,
+        "issues": [i.model_dump(mode="json") for i in result.issues],
+        "next_best_action": result.next_best_action,
+        "next_best_action_type": result.next_best_action_type,
+        "action_chips": [a.model_dump(mode="json") for a in actions],
+    }
+
+
+class InspectRequest(BaseModel):
+    object_type: str = "title"
+    object_content: Any = None
+
+
+@router.post("/{opportunity_id}/inspect")
+@_handle_flow_error
+async def run_inspect(opportunity_id: str, body: InspectRequest) -> dict[str, Any]:
+    """AI Inspector: analyze a selected object, return quality + actions."""
+    from apps.content_planning.agents.ai_inspector import AIInspector
+
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+    inspector = AIInspector()
+    result = inspector.inspect(
+        body.object_type,
+        body.object_content,
+        context={"strategy": session.strategy, "brief": session.brief},
+        opportunity_id=opportunity_id,
+    )
+    return result.model_dump(mode="json")
+
+
+@router.post("/{opportunity_id}/plan-consistency")
+@_handle_flow_error
+async def run_plan_consistency(opportunity_id: str) -> dict[str, Any]:
+    """Check plan-level consistency across titles, body, images, strategy."""
+    from apps.content_planning.agents.ai_inspector import AIInspector
+
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+    inspector = AIInspector()
+    result = inspector.check_plan_consistency(
+        titles=session.titles,
+        body=session.body,
+        strategy=session.strategy,
+        image_briefs=session.image_briefs,
+        plan=session.note_plan,
+        opportunity_id=opportunity_id,
+    )
+    return result.model_dump(mode="json")
+
+
+@router.get("/{opportunity_id}/readiness")
+@_handle_flow_error
+async def check_readiness(opportunity_id: str) -> dict[str, Any]:
+    """Opportunity readiness check: evidence + review + history."""
+    from apps.content_planning.agents.opportunity_readiness import OpportunityReadinessChecker
+
+    flow = _get_flow()
+    card = flow._adapter.get_card(opportunity_id)
+    source_notes = flow._adapter.get_source_notes(card.source_note_ids) if card else []
+    review_summary = flow._adapter.get_review_summary(opportunity_id) if card else {}
+    checker = OpportunityReadinessChecker()
+    result = checker.check(
+        opportunity_id,
+        card=card,
+        review_summary=review_summary,
+        source_notes=source_notes,
+    )
+    return result.model_dump(mode="json")
+
+
+class JudgeRequest(BaseModel):
+    variants: list[dict[str, Any]] = Field(default_factory=list)
+
+
+@router.post("/{opportunity_id}/judge")
+@_handle_flow_error
+async def run_judge(opportunity_id: str, body: JudgeRequest | None = None) -> dict[str, Any]:
+    """Judge Agent: evaluate asset quality and optionally compare variants."""
+    from apps.content_planning.agents.judge_agent import JudgeAgent
+
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+    judge = JudgeAgent()
+
+    req = body or JudgeRequest()
+    if req.variants:
+        comparison = judge.compare_variants(req.variants, plan=session.note_plan)
+        return {"mode": "comparison", **comparison.model_dump(mode="json")}
+    else:
+        result = judge.evaluate(
+            session.asset_bundle,
+            plan=session.note_plan,
+            strategy=session.strategy,
+            opportunity_id=opportunity_id,
+        )
+        return {"mode": "evaluate", **result.model_dump(mode="json")}
+
+
+class ReviewFeedbackRequest(BaseModel):
+    asset_id: str = ""
+    brand_id: str = ""
+    metrics: dict[str, float] = Field(default_factory=dict)
+    performance_tier: str = "average"
+    human_notes: str = ""
+
+
+@router.post("/{opportunity_id}/review-feedback")
+@_handle_flow_error
+async def submit_review_feedback(opportunity_id: str, body: ReviewFeedbackRequest) -> dict[str, Any]:
+    """Submit post-publish performance feedback to close the review loop."""
+    from apps.content_planning.agents.review_loop import PerformanceFeedback, ReviewLoop
+
+    feedback = PerformanceFeedback(
+        opportunity_id=opportunity_id,
+        asset_id=body.asset_id,
+        brand_id=body.brand_id,
+        metrics=body.metrics,
+        performance_tier=body.performance_tier,
+        human_notes=body.human_notes,
+    )
+    loop = ReviewLoop()
+    result = loop.process_feedback(feedback)
+    return result.model_dump(mode="json")
+
+
+class StrategyBlockRequest(BaseModel):
+    block_name: str = ""
+    block_type: str = ""
+    content: str = ""
+    instruction: str = ""
+    action: str = "analyze"  # analyze | rewrite
+
+
+@router.post("/{opportunity_id}/strategy-block")
+@_handle_flow_error
+async def operate_strategy_block(opportunity_id: str, body: StrategyBlockRequest) -> dict[str, Any]:
+    """Block-level strategy operations: analyze or rewrite a single block."""
+    from apps.content_planning.agents.strategy_block_analyzer import StrategyBlock, StrategyBlockAnalyzer
+
+    flow = _get_flow()
+    session = flow._get_session(opportunity_id)
+    analyzer = StrategyBlockAnalyzer()
+    block = StrategyBlock(
+        block_name=body.block_name,
+        block_type=body.block_type,
+        content=body.content,
+    )
+
+    brief_context = ""
+    if session.brief:
+        brief_context = str(session.brief)[:500]
+
+    if body.action == "rewrite":
+        rewritten = analyzer.rewrite_block(block, instruction=body.instruction, brief_context=brief_context)
+        return {"action": "rewrite", "block_name": body.block_name, "rewritten_content": rewritten}
+    else:
+        result = analyzer.analyze_block(block, brief_context=brief_context, opportunity_id=opportunity_id)
+        return result.model_dump(mode="json")
+
+
+class RerunFromNodeRequest(BaseModel):
+    node_id: str = ""
+
+
+@router.post("/{opportunity_id}/agent-pipeline/rerun")
+@_handle_flow_error
+async def rerun_from_node(opportunity_id: str, body: RerunFromNodeRequest) -> dict[str, Any]:
+    """Partial rerun: restart pipeline from a specific node."""
+    runner = _get_pipeline_runner()
+    run = await runner.rerun_from_node(opportunity_id, body.node_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="No pipeline run or node found")
+    return {"run_id": run.run_id, "status": run.status.value, "rerun_from": body.node_id}

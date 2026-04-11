@@ -92,6 +92,10 @@ class CouncilSynthesisBundle:
     recommended_steps_structured: list[dict[str, Any]] = field(default_factory=list)
     synthesis_used_llm: bool = False
     synthesis_degraded: bool = False
+    # Multi-stage diffs (V2)
+    strategy_block_diffs: list[dict[str, Any]] = field(default_factory=list)
+    plan_field_diffs: list[dict[str, Any]] = field(default_factory=list)
+    asset_diffs: list[dict[str, Any]] = field(default_factory=list)
 
 
 class DiscussionRound(BaseModel):
@@ -706,9 +710,25 @@ class DiscussionOrchestrator:
 
         all_text = "\n".join(statements)
         whitelist_note = ""
+        stage_diff_note = ""
         if stage == "brief":
             whitelist_note = (
                 f"proposed_updates 的 key 必须来自：{', '.join(sorted(BRIEF_PROPOSED_UPDATE_KEYS))}。"
+            )
+        elif stage in ("strategy", "策略"):
+            stage_diff_note = (
+                "- strategy_block_diffs: 可选数组，每项含 {block_name, before_summary, after_summary, action}，"
+                "表示策略块级别的变更建议。"
+            )
+        elif stage in ("plan", "content", "内容计划"):
+            stage_diff_note = (
+                "- plan_field_diffs: 可选数组，每项含 {field, before, after, reason}，"
+                "表示计划字段级别的变更建议。"
+            )
+        elif stage in ("asset", "资产"):
+            stage_diff_note = (
+                "- asset_diffs: 可选数组，每项含 {component, action, detail}，"
+                "表示资产组件级别的变更建议。"
             )
         task_block = f"""任务指令：你是内容策划总调度（Advisory Session）。请综合所有 Agent 观点，输出 JSON：
 - executive_summary: 一句话摘要（中文，≤120字）
@@ -720,7 +740,8 @@ class DiscussionOrchestrator:
 - recommended_next_steps: 可为字符串数组；或对象数组，每项含 action_type(apply_as_draft|turn_into_variant|ask_follow_up|note), label, target_field(可选)
 - alternatives: [{{"label":"方向名","summary":"说明"}}] 可选多方向
 - decision_type: 之一：applyable | advisory | exploratory
-{whitelist_note}"""
+{whitelist_note}
+{stage_diff_note}"""
         sys = (
             f"{lead_soul.strip()}\n\n---\n{task_block}"
             if lead_soul and lead_soul.strip()
@@ -819,6 +840,16 @@ class DiscussionOrchestrator:
         if not dis_flat:
             dis_flat = _plain_str_list("disagreements")
 
+        strategy_block_diffs = resp.get("strategy_block_diffs") or []
+        if not isinstance(strategy_block_diffs, list):
+            strategy_block_diffs = []
+        plan_field_diffs = resp.get("plan_field_diffs") or []
+        if not isinstance(plan_field_diffs, list):
+            plan_field_diffs = []
+        asset_diffs = resp.get("asset_diffs") or []
+        if not isinstance(asset_diffs, list):
+            asset_diffs = []
+
         syn_deg = not (consensus and (updates or _plain_str_list("agreements")))
         return CouncilSynthesisBundle(
             consensus=consensus,
@@ -834,6 +865,9 @@ class DiscussionOrchestrator:
             recommended_steps_structured=steps_structured,
             synthesis_used_llm=True,
             synthesis_degraded=syn_deg,
+            strategy_block_diffs=strategy_block_diffs,
+            plan_field_diffs=plan_field_diffs,
+            asset_diffs=asset_diffs,
         )
 
     def _build_object_context(self, stage: str, context: AgentContext | None) -> str:

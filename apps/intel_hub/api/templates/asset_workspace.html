@@ -500,6 +500,40 @@
         <div class="aw-agent-text" id="aw-agent-status">待命 — 点击右侧操作后 Agent 将介入执行。</div>
       </div>
 
+      {# V2 JudgeAgent 评分面板 #}
+      <div id="aw-judge-panel" class="aw-card" style="display:none;">
+        <h3 style="display:flex;align-items:center;gap:8px;">AI 评审 <span id="aw-judge-score" style="font-size:13px;font-weight:800;"></span></h3>
+        <div id="aw-judge-dims" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div id="aw-judge-risks" style="margin-top:8px;"></div>
+        <div id="aw-judge-recommendation" style="margin-top:8px;font-size:13px;line-height:1.6;color:var(--ink);"></div>
+      </div>
+
+      {# V2 效果反馈表单 #}
+      <details class="aw-card" style="cursor:pointer;">
+        <summary style="font-size:14px;font-weight:700;color:var(--accent);list-style:none;">
+          <span style="display:flex;align-items:center;justify-content:space-between;">
+            效果反馈
+            <span style="font-size:11px;color:var(--muted);font-weight:400;">点击展开</span>
+          </span>
+        </summary>
+        <div style="margin-top:12px;">
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">表现等级</label>
+            <select id="aw-fb-tier" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;">
+              <option value="good">好</option>
+              <option value="average" selected>一般</option>
+              <option value="poor">差</option>
+            </select>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">补充说明</label>
+            <textarea id="aw-fb-notes" rows="3" style="width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;border-radius:10px;border:1px solid var(--border);font-family:inherit;font-size:13px;" placeholder="可选填写…"></textarea>
+          </div>
+          <button type="button" class="aw-btn" id="aw-btn-feedback">提交反馈</button>
+          <div id="aw-fb-result" style="display:none;margin-top:8px;font-size:12px;"></div>
+        </div>
+      </details>
+
       {# 协同区 #}
       <details class="aw-card" style="cursor:pointer;">
         <summary style="font-size:14px;font-weight:700;color:var(--accent);list-style:none;">
@@ -654,6 +688,102 @@
       }, 1200);
     });
   });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  /* ═══ V2 JudgeAgent 评分 ═══ */
+  (function loadJudge() {
+    var judgePanel = document.getElementById('aw-judge-panel');
+    if (!judgePanel) return;
+
+    fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/judge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ variants: [] })
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || data.overall_score === undefined) return;
+      judgePanel.style.display = 'block';
+
+      var score = Math.round((data.overall_score || 0) * 100);
+      var scoreEl = document.getElementById('aw-judge-score');
+      if (scoreEl) {
+        scoreEl.textContent = score + ' 分';
+        scoreEl.style.color = score >= 70 ? '#2e7d32' : score >= 40 ? '#f57f17' : '#c62828';
+      }
+
+      var dimsEl = document.getElementById('aw-judge-dims');
+      if (dimsEl && data.dimensions && data.dimensions.length > 0) {
+        var html = '';
+        data.dimensions.forEach(function(dim) {
+          var s = Math.round((dim.score || 0) * 100);
+          html += '<div style="display:flex;align-items:center;gap:8px;font-size:12px;">'
+            + '<span style="min-width:80px;font-weight:600;color:var(--ink);">' + esc(dim.name_zh || dim.name) + '</span>'
+            + '<div style="flex:1;height:6px;border-radius:3px;background:rgba(138,75,47,0.1);overflow:hidden;">'
+            + '<div style="width:' + s + '%;height:100%;border-radius:3px;background:' + (s >= 70 ? '#2e7d32' : s >= 40 ? '#f57f17' : '#c62828') + ';"></div>'
+            + '</div>'
+            + '<span style="min-width:32px;text-align:right;font-weight:600;color:' + (s >= 70 ? '#2e7d32' : s >= 40 ? '#f57f17' : '#c62828') + ';">' + s + '</span>'
+            + '</div>';
+        });
+        dimsEl.innerHTML = html;
+      }
+
+      var risksEl = document.getElementById('aw-judge-risks');
+      if (risksEl && data.risks && data.risks.length > 0) {
+        risksEl.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:4px;">'
+          + data.risks.map(function(r) { return '<span style="font-size:11px;padding:3px 10px;border-radius:999px;background:#fee2e2;color:#991b1b;">' + esc(r) + '</span>'; }).join('')
+          + '</div>';
+      }
+
+      var recEl = document.getElementById('aw-judge-recommendation');
+      if (recEl && data.recommendation) {
+        recEl.textContent = data.recommendation;
+      }
+    })
+    .catch(function() { /* judge graceful degradation */ });
+  })();
+
+  /* ═══ V2 效果反馈 ═══ */
+  var fbBtn = document.getElementById('aw-btn-feedback');
+  if (fbBtn) {
+    fbBtn.addEventListener('click', function() {
+      fbBtn.disabled = true;
+      fbBtn.textContent = '提交中…';
+      var tier = document.getElementById('aw-fb-tier');
+      var notes = document.getElementById('aw-fb-notes');
+
+      fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/review-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asset_id: {{ (bundle.asset_bundle_id if bundle else '') | tojson }},
+          metrics: {},
+          performance_tier: tier ? tier.value : 'average',
+          human_notes: notes ? notes.value : ''
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        fbBtn.disabled = false;
+        fbBtn.textContent = '提交反馈';
+        var resultEl = document.getElementById('aw-fb-result');
+        if (resultEl) {
+          resultEl.style.display = 'block';
+          var count = (data.insights || []).length;
+          resultEl.innerHTML = '<span style="color:#166534;font-weight:600;">已提交</span> — 提取了 ' + count + ' 条洞察';
+          if (data.evolution_actions && data.evolution_actions.length > 0) {
+            resultEl.innerHTML += '，建议 ' + data.evolution_actions.length + ' 项改进动作';
+          }
+        }
+      })
+      .catch(function(e) {
+        fbBtn.disabled = false;
+        fbBtn.textContent = '提交反馈';
+        alert('提交失败：' + (e.message || '网络错误'));
+      });
+    });
+  }
 
 })();
 </script>

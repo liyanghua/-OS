@@ -27,6 +27,8 @@ class MemoryEntry(BaseModel):
     memory_id: str = ""
     opportunity_id: str = ""
     session_id: str = ""
+    brand_id: str = ""
+    campaign_id: str = ""
     category: str = ""
     content: str = ""
     source_agent: str = ""
@@ -77,6 +79,8 @@ class AgentMemory:
             migrations = {
                 "session_id": "ALTER TABLE memories ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
                 "nudge_source": "ALTER TABLE memories ADD COLUMN nudge_source TEXT NOT NULL DEFAULT ''",
+                "brand_id": "ALTER TABLE memories ADD COLUMN brand_id TEXT NOT NULL DEFAULT ''",
+                "campaign_id": "ALTER TABLE memories ADD COLUMN campaign_id TEXT NOT NULL DEFAULT ''",
             }
             for col, ddl in migrations.items():
                 if col not in existing_cols:
@@ -89,6 +93,8 @@ class AgentMemory:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_opp ON memories(opportunity_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_cat ON memories(category)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_session ON memories(session_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_brand ON memories(brand_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_campaign ON memories(campaign_id)")
 
             # FTS5 virtual table for full-text search
             try:
@@ -135,11 +141,13 @@ class AgentMemory:
         with self._connect() as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO memories
-                   (memory_id, opportunity_id, session_id, category, content, source_agent,
+                   (memory_id, opportunity_id, session_id, brand_id, campaign_id,
+                    category, content, source_agent,
                     relevance_score, tags_json, created_at, nudge_source)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     entry.memory_id, entry.opportunity_id, entry.session_id,
+                    entry.brand_id, entry.campaign_id,
                     entry.category, entry.content, entry.source_agent,
                     entry.relevance_score, json.dumps(entry.tags, ensure_ascii=False),
                     entry.created_at.isoformat(), entry.nudge_source,
@@ -366,21 +374,86 @@ class AgentMemory:
             logger.debug("Failed to process nudge response", exc_info=True)
             return None
 
+    # ── Project-level memory (brand / campaign / cross-opportunity) ──
+
+    def inject_project_context(self, brand_id: str, *, limit: int = 5) -> str:
+        """Return brand-level historical preferences: templates, strategies, tone keywords."""
+        if not brand_id:
+            return ""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM memories WHERE brand_id = ?
+                   ORDER BY relevance_score DESC, created_at DESC LIMIT ?""",
+                (brand_id, limit),
+            ).fetchall()
+        if not rows:
+            return ""
+        entries = [self._row_to_entry(r) for r in rows]
+        lines = [f"- [{e.category}] {e.content[:200]}" for e in entries]
+        return "\n".join(lines)
+
+    def inject_cross_opportunity_lessons(
+        self, opportunity_id: str, *, brand_id: str = "", limit: int = 5,
+    ) -> str:
+        """Return Council consensuses and scoring lessons from sibling opportunities."""
+        clauses = ["opportunity_id != ?", "category IN ('project_consensus', 'discussion_consensus', 'lesson_learned')"]
+        params: list[Any] = [opportunity_id]
+        if brand_id:
+            clauses.append("brand_id = ?")
+            params.append(brand_id)
+        where = " AND ".join(clauses)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM memories WHERE {where} ORDER BY created_at DESC LIMIT ?",
+                params + [limit],
+            ).fetchall()
+        if not rows:
+            return ""
+        entries = [self._row_to_entry(r) for r in rows]
+        lines = [f"- [{e.category}|{e.opportunity_id[:8]}] {e.content[:200]}" for e in entries]
+        return "\n".join(lines)
+
+    def store_project_consensus(
+        self,
+        opportunity_id: str,
+        consensus: str,
+        stage: str,
+        *,
+        brand_id: str = "",
+        campaign_id: str = "",
+    ) -> MemoryEntry:
+        """Store Council consensus as project-level memory (not just council_opinion)."""
+        entry = MemoryEntry(
+            opportunity_id=opportunity_id,
+            brand_id=brand_id,
+            campaign_id=campaign_id,
+            category="project_consensus",
+            content=f"[{stage}] {consensus[:500]}",
+            source_agent="council",
+            relevance_score=0.85,
+            tags=[stage, "consensus"],
+        )
+        self.store(entry)
+        return entry
+
     def _row_to_entry(self, row: sqlite3.Row) -> MemoryEntry:
         tags = []
         try:
             tags = json.loads(row["tags_json"])
         except Exception:
             pass
+        keys = row.keys()
         return MemoryEntry(
             memory_id=row["memory_id"],
             opportunity_id=row["opportunity_id"],
-            session_id=row["session_id"] if "session_id" in row.keys() else "",
+            session_id=row["session_id"] if "session_id" in keys else "",
+            brand_id=row["brand_id"] if "brand_id" in keys else "",
+            campaign_id=row["campaign_id"] if "campaign_id" in keys else "",
             category=row["category"],
             content=row["content"],
             source_agent=row["source_agent"],
             relevance_score=row["relevance_score"],
             tags=tags,
             created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else datetime.now(UTC),
-            nudge_source=row["nudge_source"] if "nudge_source" in row.keys() else "",
+            nudge_source=row["nudge_source"] if "nudge_source" in keys else "",
         )

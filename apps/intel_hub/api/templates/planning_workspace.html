@@ -149,7 +149,7 @@
   } %}
   {% with current_stage="plan" %}{% include "_progress_bar.html" %}{% endwith %}
 
-  {# ═══ 对象状态条 ═══ #}
+  {# ═══ 对象状态条 + V2 健康度指示器 ═══ #}
   <div class="pw-status-bar">
     <span class="pw-status-title">{{ _ctx.title or (_card.title if _card else '') or '策划台' }}</span>
     {% if needs_build %}
@@ -164,7 +164,19 @@
     {% else %}
     <span class="pw-status-badge pw-status-badge-ok">就绪</span>
     {% endif %}
+    <span id="pw-health-badge" class="pw-status-badge" style="display:none;"></span>
     <span class="pw-status-id">{{ (opportunity_id|string)[:12] }}…</span>
+  </div>
+
+  {# ═══ V2 健康检查 + Action Chips 区域 ═══ #}
+  <div id="pw-health-bar" style="display:none; margin-bottom:14px; padding:12px 16px; border-radius:14px; border:1px solid var(--border); background:var(--surface);">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <span style="font-size:13px; font-weight:700; color:var(--ink);">阶段健康度</span>
+      <span id="pw-health-score" style="font-size:13px; font-weight:700;"></span>
+      <span id="pw-health-next" style="font-size:12px; color:var(--muted); margin-left:auto;"></span>
+    </div>
+    <div id="pw-health-issues" style="display:flex; flex-direction:column; gap:4px;"></div>
+    <div id="pw-action-chips" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;"></div>
   </div>
 
   {% if stale_flags %}
@@ -376,7 +388,7 @@
         {% for key in ['title_strategy', 'body_strategy', 'image_strategy', 'tone_and_risk'] %}
         {% set block = _ss[key] if _ss and key in _ss else none %}
         {% if block %}
-        <div class="pw-strategy-block">
+        <div class="pw-strategy-block" data-block-name="{{ key }}" data-block-type="{{ key.replace('_strategy','').replace('_and_risk','') }}">
           <div class="pw-strategy-block-content">
             <div class="pw-strategy-label">{{ block.label }}</div>
             <div class="pw-strategy-items">
@@ -395,7 +407,7 @@
               {% endif %}
             </div>
           </div>
-          <button type="button" class="pw-btn-tertiary" style="flex-shrink: 0;">重写</button>
+          <button type="button" class="pw-btn-tertiary pw-strategy-inspect-btn" style="flex-shrink: 0;" data-block-name="{{ key }}">AI 检视</button>
         </div>
         {% endif %}
         {% endfor %}
@@ -1026,6 +1038,132 @@
   if (approveBtn) {
     approveBtn.addEventListener('click', function () { alert('批准功能即将上线'); });
   }
+
+  /* ═══ V2 Health Check + Action Chips ═══ */
+  (function loadHealthCheck() {
+    var healthBar = document.getElementById('pw-health-bar');
+    var healthBadge = document.getElementById('pw-health-badge');
+    if (!healthBar) return;
+
+    var stages = ['brief', 'strategy', 'plan', 'asset'];
+    var currentStage = 'brief';
+    {% if _strategy %}currentStage = 'strategy';{% endif %}
+    {% if _np %}currentStage = 'plan';{% endif %}
+
+    fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/health-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: currentStage })
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) return;
+      healthBar.style.display = 'block';
+
+      var score = data.score || 0;
+      var scorePct = Math.round(score * 100);
+      var scoreEl = document.getElementById('pw-health-score');
+      var scoreColor = scorePct >= 70 ? '#2e7d32' : scorePct >= 40 ? '#f57f17' : '#c62828';
+      if (scoreEl) {
+        scoreEl.textContent = scorePct + ' 分';
+        scoreEl.style.color = scoreColor;
+      }
+
+      if (healthBadge) {
+        healthBadge.style.display = 'inline-block';
+        if (scorePct >= 70) {
+          healthBadge.textContent = '健康';
+          healthBadge.className = 'pw-status-badge pw-status-badge-ok';
+        } else if (scorePct >= 40) {
+          healthBadge.textContent = '待改进';
+          healthBadge.className = 'pw-status-badge pw-status-badge-stale';
+        } else {
+          healthBadge.textContent = '需关注';
+          healthBadge.className = 'pw-status-badge pw-status-badge-warn';
+        }
+      }
+
+      var nextEl = document.getElementById('pw-health-next');
+      if (nextEl && data.next_best_action) {
+        nextEl.textContent = '建议：' + data.next_best_action;
+      }
+
+      var issuesEl = document.getElementById('pw-health-issues');
+      if (issuesEl && data.issues && data.issues.length > 0) {
+        var html = '';
+        data.issues.forEach(function(issue) {
+          var icon = issue.severity === 'error' ? '🔴' : issue.severity === 'warning' ? '🟡' : '🔵';
+          html += '<div style="font-size:12px; line-height:1.5; display:flex; gap:6px; align-items:flex-start;">'
+            + '<span>' + icon + '</span>'
+            + '<span><strong>' + esc(issue.dimension || '') + '</strong> ' + esc(issue.message || '') + '</span>'
+            + '</div>';
+        });
+        issuesEl.innerHTML = html;
+      }
+
+      var chipsEl = document.getElementById('pw-action-chips');
+      if (chipsEl && data.action_chips && data.action_chips.length > 0) {
+        var chipHtml = '';
+        data.action_chips.forEach(function(chip) {
+          chipHtml += '<button type="button" class="pw-btn-tertiary pw-action-chip" '
+            + 'data-action-type="' + esc(chip.action_type || '') + '" '
+            + 'data-target="' + esc(chip.target_object || '') + '" '
+            + 'data-endpoint="' + esc(chip.api_endpoint || '') + '" '
+            + 'style="padding:4px 12px; border:1px solid var(--border); border-radius:999px; font-size:11px; font-weight:600; background:var(--surface);">'
+            + esc(chip.label || chip.action_type) + '</button>';
+        });
+        chipsEl.innerHTML = chipHtml;
+      }
+    })
+    .catch(function() { /* health-check graceful degradation */ });
+  })();
+
+  /* ═══ V2 Strategy Block Inspector ═══ */
+  document.querySelectorAll('.pw-strategy-inspect-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var blockEl = btn.closest('.pw-strategy-block');
+      if (!blockEl) return;
+      var blockName = blockEl.dataset.blockName || '';
+      var blockType = blockEl.dataset.blockType || '';
+      var items = blockEl.querySelectorAll('.pw-strategy-items li');
+      var content = [];
+      items.forEach(function(li) { content.push(li.textContent.trim()); });
+
+      openDrawer('AI 检视: ' + blockName, '<div style="text-align:center;padding:40px;color:var(--muted);"><div class="council-dots" style="font-size:28px;">🔍</div>正在分析策略块…</div>');
+
+      fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/strategy-block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'analyze',
+          block_name: blockName,
+          block_type: blockType,
+          content: content.join('\n'),
+          locked: false,
+          brief_context: ''
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var html = '<div style="padding:4px;">';
+        if (data.strength) html += '<div style="margin-bottom:12px;"><strong style="color:#166534;">优势</strong><p style="font-size:13px;line-height:1.6;margin:4px 0;">' + esc(data.strength) + '</p></div>';
+        if (data.weakness) html += '<div style="margin-bottom:12px;"><strong style="color:#dc2626;">待改进</strong><p style="font-size:13px;line-height:1.6;margin:4px 0;">' + esc(data.weakness) + '</p></div>';
+        if (data.improvement_suggestions) html += '<div style="margin-bottom:12px;"><strong style="color:var(--accent);">改进建议</strong><p style="font-size:13px;line-height:1.6;margin:4px 0;">' + esc(data.improvement_suggestions) + '</p></div>';
+        if (data.actions && data.actions.length > 0) {
+          html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">';
+          data.actions.forEach(function(a) {
+            html += '<span style="font-size:11px;font-weight:600;padding:4px 12px;border-radius:999px;background:var(--accent-soft);color:var(--accent);">' + esc(a.label || a.action_type) + '</span>';
+          });
+          html += '</div>';
+        }
+        html += '</div>';
+        document.getElementById('pw-drawer-body').innerHTML = html;
+      })
+      .catch(function(e) {
+        document.getElementById('pw-drawer-body').innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">分析失败：' + esc(e.message || '网络错误') + '</div>';
+      });
+    });
+  });
 })();
 </script>
 {% endblock %}

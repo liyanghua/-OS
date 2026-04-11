@@ -2548,3 +2548,110 @@ git commit -m "docs: capture agent performance optimization architecture and met
 | `apps/intel_hub/api/templates/asset_workspace_list.html` | 新增 — 资产工作台列表入口页 |
 | `apps/content_planning/adapters/llm_router.py` | 改 — OpenAIProvider 显式传入 base_url/api_key |
 | `.env` | 改 — 新增 Gemini 自定义端点配置 |
+
+---
+
+## V2 三层架构升级: Hermes Base + DeerFlow Harness + Workspace OS (2026-04-11)
+
+### 变更摘要
+
+基于 `product_architecture_V4` 和 `architech_deerflow_hermes_V4` 两份文档，完成三层架构升级：
+
+**Phase A: Agent Base Layer (Hermes 风格基座)**
+1. **PlanningContextAssembler** — 统一上下文组装，`run-agent`/`chat`/`council` 三条 AI 入口共用
+2. **ProjectMemoryProvider** — `AgentMemory` 新增 `brand_id`/`campaign_id` 维度，支持品牌级记忆、跨机会教训注入、项目共识存储
+3. **SkillRegistry v2** — 所有 10 个默认 Skill 补上 `executable_steps`；新增 `success_rate`/`last_updated` 追踪
+4. **LearningLoopHooks** — `HermesAdapter` 新增 `on_proposal_adopted`/`on_low_score`/`track_skill_execution` 闭环钩子
+
+**Phase B: Workflow Harness Layer (DeerFlow 风格编排)**
+5. **Workspace Subgraphs** — 4 个 Workspace 子图 (`opportunity`/`planning`/`creation`/`asset`) + `WORKSPACE_GRAPH_BUILDERS` 映射
+6. **execute_subgraph** — `GraphExecutor` 新增从指定节点开始执行的子图能力
+7. **Partial Rerun** — `AgentPipelineRunner` 新增 `rerun_from_node`/`cancel_node` 支持局部重跑
+8. **IntentRouter** — 替代 LeadAgent 关键词猜测，Stage 约束 → 正则意图分类 → LLM 兜底
+
+**Phase C: Workspace-native AI (产品层)**
+9. **HealthChecker** — Brief/Strategy/Plan/Asset 四阶段健康检查
+10. **ActionSpec** — 统一 AI 动作规格模型
+11. **Council 全阶段 diff** — `strategy_block_diffs`/`plan_field_diffs`/`asset_diffs`
+12. **StrategyBlockAnalyzer** — 策略块级分析/重写/锁定
+13. **AIInspector** — 对象选中态 AI 面板 + Plan Consistency
+14. **OpportunityReadinessChecker** — 证据完整度 + Review 共识 + 历史机会
+15. **JudgeAgent** — 资产质量评估 + VariantSet 多变体对比
+16. **ReviewLoop** — 发布后效果回填 → 记忆 → 进化信号
+
+**Phase D: Review and Evolution Loop (自进化闭环)**
+17. D1-D3 整合在 `ReviewLoop`：Skill 版本追踪、品牌偏好沉淀、策略模式提取
+
+### 新增 API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/{opp_id}/health-check` | POST | 阶段健康检查 |
+| `/{opp_id}/inspect` | POST | AI Inspector 对象分析 |
+| `/{opp_id}/plan-consistency` | POST | 计划一致性检查 |
+| `/{opp_id}/readiness` | GET | 机会就绪度评估 |
+| `/{opp_id}/judge` | POST | 资产质量评审 + 变体对比 |
+| `/{opp_id}/review-feedback` | POST | 发布后效果回填 |
+| `/{opp_id}/strategy-block` | POST | 策略块级操作 |
+| `/{opp_id}/agent-pipeline/rerun` | POST | 局部重跑 pipeline |
+
+### 文件变更
+
+| 文件 | 操作 |
+|------|------|
+| `apps/content_planning/agents/context_assembler.py` | 新增 — PlanningContextAssembler |
+| `apps/content_planning/agents/intent_router.py` | 新增 — IntentRouter |
+| `apps/content_planning/agents/health_checker.py` | 新增 — HealthChecker |
+| `apps/content_planning/agents/strategy_block_analyzer.py` | 新增 — StrategyBlockAnalyzer |
+| `apps/content_planning/agents/ai_inspector.py` | 新增 — AIInspector + PlanConsistency |
+| `apps/content_planning/agents/opportunity_readiness.py` | 新增 — OpportunityReadinessChecker |
+| `apps/content_planning/agents/judge_agent.py` | 新增 — JudgeAgent + VariantSetComparison |
+| `apps/content_planning/agents/review_loop.py` | 新增 — ReviewLoop + D1/D2/D3 |
+| `apps/content_planning/schemas/action_spec.py` | 新增 — ActionSpec + 转换函数 |
+| `apps/content_planning/agents/memory.py` | 改 — brand_id/campaign_id + 项目级记忆方法 |
+| `apps/content_planning/agents/skill_registry.py` | 改 — 10 个 Skill 补 executable_steps |
+| `apps/content_planning/agents/discussion.py` | 改 — CouncilSynthesisBundle 多阶段 diff |
+| `apps/content_planning/agents/plan_graph.py` | 改 — 4 个 Workspace 子图 |
+| `apps/content_planning/agents/graph_executor.py` | 改 — execute_subgraph |
+| `apps/content_planning/agents/lead_agent.py` | 改 — 集成 IntentRouter |
+| `apps/content_planning/adapters/hermes_adapter.py` | 改 — LearningLoopHooks V2 |
+| `apps/content_planning/services/agent_pipeline_runner.py` | 改 — rerun_from_node + cancel_node |
+| `apps/content_planning/api/routes.py` | 改 — PlanningContextAssembler + 8 个新端点 |
+
+---
+
+## V3 验收测试与补全（2026-04-11 完成）
+
+### Schema 补全
+
+| 文件 | 操作 |
+|------|------|
+| `apps/content_planning/schemas/export_package.py` | 新增 — ExportPackage（导出封装 + lineage） |
+| `apps/content_planning/schemas/image_execution_brief.py` | 新增 — ImageExecutionBrief（强类型图位执行指令） |
+| `apps/content_planning/schemas/variant.py` | 改 — VariantSet +brief_id/strategy_id/plan_id |
+| `apps/content_planning/schemas/asset_bundle.py` | 改 — +brief_id/strategy_id 顶层; image_execution_briefs 类型升级 |
+
+### 验收测试（83 项全部通过）
+
+| 测试文件 | 用例数 | 覆盖层 |
+|----------|--------|--------|
+| `test_v3_L0_architecture.py` | 18 | Hermes 基座 + DeerFlow 编排 + 分层隔离 |
+| `test_v3_L1_object_chain.py` | 7 | 12+ 对象构造 + 全链路追溯 + 版本管理 |
+| `test_v3_L2_context_stage.py` | 18 | Context Assembler + HealthChecker + ActionSpec 转换 |
+| `test_v3_L3_decision_action.py` | 18 | IntentRouter + Council Diffs + ActionSpec 覆盖 |
+| `test_v3_L4_compiler.py` | 7 | Brief 健康 + StrategyBlock 分析 + AssetBundle 组装 |
+| `test_v3_L5_workspace_api.py` | 8 | 8 个 V2 API 端点集成测试 |
+| `test_v3_L6_L7_stability.py` | 7 | LLM 降级 + Memory miss + 回归确认 |
+
+### 前端 V2 端点对接
+
+| 工作台模板 | 对接端点 | 功能 |
+|------------|----------|------|
+| `planning_workspace.html` | health-check, strategy-block | 健康度指示器 + Action Chips + 策略块 AI 检视 |
+| `opportunity_workspace.html` | readiness | 就绪度面板 + 历史记忆 |
+| `asset_workspace.html` | judge, review-feedback | JudgeAgent 评分 + 效果反馈表单 |
+| `content_plan.html` | plan-consistency, inspect | 一致性检查 + AI Inspector |
+
+### 验收报告
+
+详见 `docs/V3_VERIFICATION_REPORT.md` — 96 项测试（含 13 项 V1 回归）全部通过，零失败。

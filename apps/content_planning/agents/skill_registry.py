@@ -26,7 +26,7 @@ class SkillStep(BaseModel):
 
 
 class SkillDefinition(BaseModel):
-    """Skill 定义 v2: 可执行工作流。"""
+    """Skill 定义 v2: 可执行工作流 + Hermes 式版本追踪。"""
     skill_id: str = ""
     skill_name: str = ""
     description: str = ""
@@ -41,6 +41,12 @@ class SkillDefinition(BaseModel):
     version: int = 1
     success_count: int = 0
     fail_count: int = 0
+    last_updated: str = ""
+
+    @property
+    def success_rate(self) -> float:
+        total = self.success_count + self.fail_count
+        return self.success_count / total if total > 0 else 0.0
 
 
 class SkillExecutionResult(BaseModel):
@@ -280,7 +286,25 @@ class SkillRegistry:
                 trigger_keywords=["深入分析", "竞品", "趋势", "深度"],
                 agent_role="trend_analyst",
                 workflow_steps=["提取关键信号", "对比竞品", "评估窗口", "输出报告"],
+                executable_steps=[
+                    SkillStep(tool_name="analyze_opportunity", description="提取关键信号", arguments={"card": "$ctx.card"}),
+                    SkillStep(tool_name="compare_competitors", description="对比竞品", arguments={"card": "$ctx.card"}),
+                    SkillStep(tool_name="evaluate_timing_window", description="评估时间窗口", arguments={"card": "$ctx.card"}),
+                ],
                 category="analysis",
+            ),
+            SkillDefinition(
+                skill_id="generate_brief_from_promoted",
+                skill_name="从已推进机会生成 Brief",
+                description="基于已推进的机会卡自动编译 OpportunityBrief",
+                trigger_keywords=["生成brief", "编译brief", "从机会生成"],
+                agent_role="brief_synthesizer",
+                workflow_steps=["加载机会卡", "提取核心信号", "编译Brief", "检查完整度"],
+                executable_steps=[
+                    SkillStep(tool_name="compile_brief", description="编译 Brief", arguments={"card": "$ctx.card"}),
+                    SkillStep(tool_name="evaluate_stage", description="检查 Brief 完整度", arguments={"stage": "brief", "opportunity_id": "$ctx.opportunity_id"}),
+                ],
+                category="compilation",
             ),
             SkillDefinition(
                 skill_id="brief_comparison",
@@ -289,16 +313,49 @@ class SkillRegistry:
                 trigger_keywords=["对比", "版本", "哪个好", "选哪个"],
                 agent_role="brief_synthesizer",
                 workflow_steps=["加载历史版本", "逐字段对比", "标注差异", "推荐最优版本"],
+                executable_steps=[
+                    SkillStep(tool_name="load_brief_versions", description="加载历史版本", arguments={"opportunity_id": "$ctx.opportunity_id"}),
+                    SkillStep(tool_name="compare_briefs", description="逐字段对比", arguments={"opportunity_id": "$ctx.opportunity_id"}),
+                ],
                 category="comparison",
             ),
             SkillDefinition(
-                skill_id="strategy_debate",
-                skill_name="策略辩论",
-                description="生成两个对立策略方向",
-                trigger_keywords=["对比方案", "两个方向", "辩论", "哪个策略"],
+                skill_id="rematch_templates_for_brief",
+                skill_name="重新匹配模板",
+                description="基于更新后的 Brief 重新匹配模板",
+                trigger_keywords=["重新匹配", "换模板", "不合适"],
+                agent_role="template_planner",
+                workflow_steps=["加载最新Brief", "重新评分", "返回新Top3"],
+                executable_steps=[
+                    SkillStep(tool_name="match_templates", description="模板匹配", arguments={"brief": "$ctx.brief"}),
+                ],
+                category="matching",
+            ),
+            SkillDefinition(
+                skill_id="compare_strategy_blocks",
+                skill_name="策略块对比",
+                description="对比当前策略中不同 block 的方向",
+                trigger_keywords=["对比方案", "两个方向", "辩论", "哪个策略", "对比策略"],
                 agent_role="strategy_director",
-                workflow_steps=["生成方向 A", "生成方向 B", "列出优劣对比", "等待人类决策"],
+                workflow_steps=["提取策略块", "生成对比分析", "列出优劣", "推荐选择"],
+                executable_steps=[
+                    SkillStep(tool_name="generate_strategy", description="生成方向 A", arguments={"brief": "$ctx.brief", "match_result": "$ctx.match_result", "variant": "A"}),
+                    SkillStep(tool_name="generate_strategy", description="生成方向 B", arguments={"brief": "$ctx.brief", "match_result": "$ctx.match_result", "variant": "B"}),
+                    SkillStep(tool_name="compare_strategies", description="对比两个策略方向", arguments={"opportunity_id": "$ctx.opportunity_id"}),
+                ],
                 category="planning",
+            ),
+            SkillDefinition(
+                skill_id="regenerate_image_slot",
+                skill_name="重新生成图位",
+                description="重新生成指定图位的视觉规划",
+                trigger_keywords=["重新生成图", "换图", "重做图位"],
+                agent_role="visual_director",
+                workflow_steps=["定位图位", "重新生成视觉规划", "返回新图位"],
+                executable_steps=[
+                    SkillStep(tool_name="generate_image_briefs", description="重新生成图位规划", arguments={"plan": "$ctx.plan", "strategy": "$ctx.strategy", "slot_index": "$ctx.slot_index"}),
+                ],
+                category="visual",
             ),
             SkillDefinition(
                 skill_id="visual_style_transfer",
@@ -307,7 +364,23 @@ class SkillRegistry:
                 trigger_keywords=["参考", "风格", "像这个", "类似"],
                 agent_role="visual_director",
                 workflow_steps=["分析参考图风格", "提取风格特征", "生成迁移建议", "适配到当前场景"],
+                executable_steps=[
+                    SkillStep(tool_name="analyze_reference_style", description="分析参考风格", arguments={"reference_url": "$ctx.reference_url"}),
+                    SkillStep(tool_name="generate_image_briefs", description="生成风格迁移建议", arguments={"plan": "$ctx.plan", "style_reference": "$ctx.style_reference"}),
+                ],
                 category="visual",
+            ),
+            SkillDefinition(
+                skill_id="compile_asset_bundle",
+                skill_name="编译资产包",
+                description="从内容计划组装完整资产包",
+                trigger_keywords=["组包", "资产包", "导出"],
+                agent_role="asset_producer",
+                workflow_steps=["收集所有内容元素", "组装资产包", "质量检查"],
+                executable_steps=[
+                    SkillStep(tool_name="assemble_asset_bundle", description="组装资产包", arguments={"opportunity_id": "$ctx.opportunity_id"}),
+                ],
+                category="production",
             ),
             SkillDefinition(
                 skill_id="batch_variant",
@@ -316,6 +389,10 @@ class SkillRegistry:
                 trigger_keywords=["批量", "变体", "多套", "AB测试"],
                 agent_role="asset_producer",
                 workflow_steps=["确定变体轴", "生成变体快照", "标注差异", "打包输出"],
+                executable_steps=[
+                    SkillStep(tool_name="generate_variants", description="生成变体集", arguments={"opportunity_id": "$ctx.opportunity_id", "variant_count": 3}),
+                    SkillStep(tool_name="assemble_asset_bundle", description="打包输出", arguments={"opportunity_id": "$ctx.opportunity_id"}),
+                ],
                 category="production",
             ),
             SkillDefinition(

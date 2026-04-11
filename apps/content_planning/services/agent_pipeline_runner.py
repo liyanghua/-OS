@@ -149,6 +149,74 @@ class AgentPipelineRunner:
             }
         return s
 
+    async def rerun_from_node(
+        self,
+        opportunity_id: str,
+        node_id: str,
+    ) -> PipelineRun | None:
+        """Partial rerun: restart execution from a specific node, reusing upstream context."""
+        run = self._runs.get(opportunity_id)
+        if run is None or run.graph is None or run.context is None:
+            return None
+
+        target_node = run.graph.nodes.get(node_id)
+        if target_node is None:
+            return None
+
+        from apps.content_planning.agents.plan_graph import NodeStatus
+        for nid, node in run.graph.nodes.items():
+            if nid == node_id:
+                node.status = NodeStatus.PENDING
+                node.output = None
+                node.error = ""
+                node.started_at = None
+                node.completed_at = None
+            elif self._is_downstream_of(run.graph, nid, node_id):
+                node.status = NodeStatus.PENDING
+                node.output = None
+                node.error = ""
+                node.started_at = None
+                node.completed_at = None
+
+        run.status = PipelineStatus.RUNNING
+        run.started_at = time.time()
+        run.error = ""
+
+        logger.info("[Pipeline] RERUN_FROM_NODE run=%s node=%s opp=%s",
+                     run.run_id, node_id, opportunity_id)
+
+        run._task = asyncio.create_task(self._execute_safe(run))
+        return run
+
+    async def cancel_node(self, opportunity_id: str, node_id: str) -> bool:
+        """Cancel a specific running node."""
+        run = self._runs.get(opportunity_id)
+        if run is None or run.graph is None:
+            return False
+        node = run.graph.nodes.get(node_id)
+        if node is None:
+            return False
+        from apps.content_planning.agents.plan_graph import NodeStatus
+        if node.status == NodeStatus.RUNNING:
+            run.graph.mark_failed(node_id, "Cancelled by user")
+            await self._emit(opportunity_id, "agent_node_cancelled", {
+                "run_id": run.run_id, "node_id": node_id,
+            })
+            return True
+        return False
+
+    def _is_downstream_of(self, graph: PlanGraph, candidate_id: str, ancestor_id: str) -> bool:
+        """Check if candidate_id is downstream of ancestor_id in the graph."""
+        visited: set[str] = set()
+        queue = [ancestor_id]
+        while queue:
+            current = queue.pop(0)
+            for edge in graph.edges:
+                if edge.from_node == current and edge.to_node not in visited:
+                    visited.add(edge.to_node)
+                    queue.append(edge.to_node)
+        return candidate_id in visited
+
     async def cancel(self, opportunity_id: str) -> bool:
         run = self._runs.get(opportunity_id)
         if run is None or run.status != PipelineStatus.RUNNING:

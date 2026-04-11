@@ -8,6 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from apps.content_planning.schemas.image_execution_brief import ImageExecutionBrief
 from apps.content_planning.schemas.lineage import PlanLineage
 from apps.content_planning.schemas.lock import ObjectLock
 
@@ -18,6 +19,8 @@ class AssetBundle(BaseModel):
     asset_bundle_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:16])
     plan_id: str = ""
     opportunity_id: str = ""
+    brief_id: str = ""
+    strategy_id: str = ""
     template_id: str = ""
     template_name: str = ""
     workspace_id: str = ""
@@ -36,7 +39,7 @@ class AssetBundle(BaseModel):
     title_candidates: list[dict] = Field(default_factory=list)
     body_outline: list[str] = Field(default_factory=list)
     body_draft: str = ""
-    image_execution_briefs: list[dict] = Field(default_factory=list)
+    image_execution_briefs: list[ImageExecutionBrief | dict] = Field(default_factory=list)
 
     export_status: Literal["draft", "ready", "exported"] = "draft"
     lineage: PlanLineage | None = None

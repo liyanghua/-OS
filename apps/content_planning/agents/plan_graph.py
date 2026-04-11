@@ -138,6 +138,68 @@ def build_default_graph(opportunity_id: str) -> PlanGraph:
     return g
 
 
+# ── Workspace-specific subgraphs (DeerFlow-style) ──
+
+def build_opportunity_subgraph(opportunity_id: str) -> PlanGraph:
+    """Opportunity workspace: evaluate → sanity check → promote decision."""
+    g = PlanGraph(opportunity_id=opportunity_id, status="ready")
+    n_eval = g.add_node("trend_analyst", "评估机会质量与时机")
+    n_sanity = g.add_node("risk_assessor", "风险与证据完整性检查", [n_eval.node_id])
+    n_decision = g.add_node("lead_agent", "推进决策建议", [n_sanity.node_id])
+    g.add_edge(n_eval.node_id, n_sanity.node_id, data_key="card_analysis")
+    g.add_edge(n_sanity.node_id, n_decision.node_id, data_key="sanity_result")
+    return g
+
+
+def build_planning_subgraph(opportunity_id: str) -> PlanGraph:
+    """Planning workspace: brief → templates → strategy → evaluate strategy."""
+    g = PlanGraph(opportunity_id=opportunity_id, status="ready")
+    n_brief = g.add_node("brief_synthesizer", "编译 OpportunityBrief")
+    n_tpl = g.add_node("template_planner", "匹配最佳模板", [n_brief.node_id])
+    n_strategy = g.add_node("strategy_director", "生成改写策略", [n_tpl.node_id])
+    n_eval = g.add_node("health_checker", "策略健康度检查", [n_strategy.node_id])
+    g.add_edge(n_brief.node_id, n_tpl.node_id, data_key="brief")
+    g.add_edge(n_tpl.node_id, n_strategy.node_id, data_key="match_result")
+    g.add_edge(n_strategy.node_id, n_eval.node_id, data_key="strategy")
+    return g
+
+
+def build_creation_subgraph(opportunity_id: str) -> PlanGraph:
+    """Creation workspace: plan → titles → body → image briefs → consistency check."""
+    g = PlanGraph(opportunity_id=opportunity_id, status="ready")
+    n_plan = g.add_node("plan_compiler", "编译内容计划")
+    n_title = g.add_node("brief_synthesizer", "生成标题候选", [n_plan.node_id])
+    n_body = g.add_node("strategy_director", "生成正文草稿", [n_title.node_id])
+    n_image = g.add_node("visual_director", "规划图位", [n_body.node_id])
+    n_check = g.add_node("health_checker", "计划一致性检查", [n_image.node_id])
+    g.add_edge(n_plan.node_id, n_title.node_id, data_key="plan")
+    g.add_edge(n_title.node_id, n_body.node_id, data_key="titles")
+    g.add_edge(n_body.node_id, n_image.node_id, data_key="body")
+    g.add_edge(n_image.node_id, n_check.node_id, data_key="image_briefs")
+    return g
+
+
+def build_asset_subgraph(opportunity_id: str) -> PlanGraph:
+    """Asset workspace: assemble bundle → generate variants → judge → export."""
+    g = PlanGraph(opportunity_id=opportunity_id, status="ready")
+    n_bundle = g.add_node("asset_producer", "组装资产包")
+    n_variant = g.add_node("asset_producer", "生成变体集", [n_bundle.node_id])
+    n_judge = g.add_node("judge_agent", "评估资产质量", [n_variant.node_id])
+    n_export = g.add_node("asset_producer", "导出资产包", [n_judge.node_id])
+    g.add_edge(n_bundle.node_id, n_variant.node_id, data_key="asset_bundle")
+    g.add_edge(n_variant.node_id, n_judge.node_id, data_key="variants")
+    g.add_edge(n_judge.node_id, n_export.node_id, data_key="judge_result")
+    return g
+
+
+WORKSPACE_GRAPH_BUILDERS = {
+    "opportunity": build_opportunity_subgraph,
+    "planning": build_planning_subgraph,
+    "creation": build_creation_subgraph,
+    "asset": build_asset_subgraph,
+}
+
+
 def build_agent_pipeline_graph(opportunity_id: str) -> PlanGraph:
     """Build the full agent pipeline graph with plan compilation step."""
     g = PlanGraph(opportunity_id=opportunity_id, status="ready")

@@ -15,6 +15,7 @@ from apps.content_planning.agents.base import (
     AgentResult,
     BaseAgent,
 )
+from apps.content_planning.agents.intent_router import IntentRouter
 from apps.content_planning.agents.memory import AgentMemory
 from apps.content_planning.agents.skill_registry import skill_registry
 
@@ -50,6 +51,7 @@ class LeadAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__()
         self._deerflow = None
+        self._intent_router = IntentRouter()
 
     def _get_deerflow(self) -> Any:
         if self._deerflow is None:
@@ -290,10 +292,24 @@ class LeadAgent(BaseAgent):
         return "trend_analyst"
 
     def _route(self, message: str, stage: str, context: AgentContext, *, mode: str = "deep") -> dict:
-        """Route with priority: tool_calls > LLM > keyword."""
+        """Route with priority: IntentRouter (stage+regex+LLM) > tool_calls > keyword fallback."""
         if mode == "fast" and stage and stage in _STAGE_AGENT_MAP:
             target = _STAGE_AGENT_MAP[stage]
             return {"target": target, "extra_agents": [], "reasoning": "", "method": "fast_stage"}
+
+        intent_result = self._intent_router.route(message, stage, context)
+        if intent_result.confidence >= 0.5 and intent_result.target_agent != "council":
+            logger.info("Routing via IntentRouter (%s) → %s (conf=%.2f)",
+                        intent_result.method, intent_result.target_agent, intent_result.confidence)
+            target = intent_result.target_agent
+            if target in _ROLE_KEYWORDS or target in _STAGE_AGENT_MAP.values():
+                return {
+                    "target": target,
+                    "extra_agents": [],
+                    "reasoning": intent_result.reasoning,
+                    "method": f"intent_{intent_result.method}",
+                    "intent": intent_result.intent,
+                }
 
         if mode != "fast" and message:
             tool_result = self._route_with_tools(message, stage, context)

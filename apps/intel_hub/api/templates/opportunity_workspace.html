@@ -395,6 +395,17 @@
       </div>
     </div>
 
+    {# ── V2 就绪度指示器 ── #}
+    <div id="ow-readiness-panel" style="display:none; margin-bottom:14px; padding:14px 16px; border-radius:16px; border:1px solid var(--border); background:var(--surface);">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <span style="font-size:13px; font-weight:700; color:var(--ink);">就绪度评估</span>
+        <span id="ow-readiness-score" style="font-size:14px; font-weight:800;"></span>
+        <span id="ow-readiness-badge" style="font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; margin-left:auto;"></span>
+      </div>
+      <div id="ow-readiness-blockers" style="display:flex; flex-direction:column; gap:4px;"></div>
+      <div id="ow-readiness-history" style="margin-top:8px; font-size:12px; color:var(--muted);"></div>
+    </div>
+
     {# ── 底部操作区 ── #}
     <div class="ow-actions">
       {% if sc.opportunity_status != 'promoted' %}
@@ -427,6 +438,62 @@ function xhsLightbox(src) {
 }
 
 (function () {
+  /* ═══ V2 就绪度检查 ═══ */
+  var readinessPanel = document.getElementById('ow-readiness-panel');
+  var selectedOppId = {{ selected_card.opportunity_id | tojson if selected_card else 'null' }};
+
+  function escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  if (readinessPanel && selectedOppId) {
+    fetch('/content-planning/' + encodeURIComponent(selectedOppId) + '/readiness')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) return;
+      readinessPanel.style.display = 'block';
+
+      var score = data.readiness_score || 0;
+      var scorePct = Math.round(score * 100);
+      var scoreEl = document.getElementById('ow-readiness-score');
+      if (scoreEl) {
+        scoreEl.textContent = scorePct + '%';
+        scoreEl.style.color = scorePct >= 70 ? '#2e7d32' : scorePct >= 40 ? '#f57f17' : '#c62828';
+      }
+
+      var badgeEl = document.getElementById('ow-readiness-badge');
+      if (badgeEl) {
+        if (data.is_ready) {
+          badgeEl.textContent = '就绪';
+          badgeEl.style.cssText += 'background:#dcfce7;color:#166534;';
+        } else {
+          badgeEl.textContent = '未就绪';
+          badgeEl.style.cssText += 'background:#fee2e2;color:#991b1b;';
+        }
+      }
+
+      var blockersEl = document.getElementById('ow-readiness-blockers');
+      if (blockersEl && data.blockers && data.blockers.length > 0) {
+        var html = '';
+        data.blockers.forEach(function(b) {
+          var icon = b.severity === 'error' ? '🔴' : '🟡';
+          html += '<div style="font-size:12px;line-height:1.5;display:flex;gap:6px;align-items:flex-start;">'
+            + '<span>' + icon + '</span>'
+            + '<span><strong>' + escHtml(b.dimension || '') + '</strong> ' + escHtml(b.message || '') + '</span>'
+            + '</div>';
+        });
+        blockersEl.innerHTML = html;
+      }
+
+      var historyEl = document.getElementById('ow-readiness-history');
+      if (historyEl && data.similar_history_count > 0) {
+        historyEl.textContent = '发现 ' + data.similar_history_count + ' 条相似历史机会记忆';
+        if (data.similar_history_summary) {
+          historyEl.textContent += '：' + data.similar_history_summary;
+        }
+      }
+    })
+    .catch(function() { /* readiness graceful degradation */ });
+  }
+
   var promoteBtn = document.getElementById('ow-btn-promote');
   if (!promoteBtn) return;
 

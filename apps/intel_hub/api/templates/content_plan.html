@@ -199,6 +199,28 @@
     </main>
 
     <aside class="cw-right cp-col-right">
+
+      {# ═══ V2 计划一致性检查面板 ═══ #}
+      <div id="cw-consistency-panel" style="display:none; margin-bottom:14px; padding:14px 16px; border-radius:16px; border:1px solid var(--border); background:var(--surface);">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+          <span style="font-size:13px; font-weight:700; color:var(--ink);">一致性检查</span>
+          <span id="cw-consistency-badge" style="font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px;"></span>
+          <span id="cw-consistency-score" style="font-size:13px; font-weight:700; margin-left:auto;"></span>
+        </div>
+        <div id="cw-consistency-details" style="font-size:12px; line-height:1.5; color:var(--muted);"></div>
+        <div id="cw-consistency-actions" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;"></div>
+      </div>
+
+      {# ═══ V2 AI Inspector 面板 ═══ #}
+      <div id="cw-inspector-panel" style="display:none; margin-bottom:14px; padding:14px 16px; border-radius:16px; border:1px solid var(--border); background:var(--surface);">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+          <span style="font-size:13px; font-weight:700; color:var(--ink);">AI 检视</span>
+          <span id="cw-inspect-score" style="font-size:13px; font-weight:700;"></span>
+        </div>
+        <div id="cw-inspect-analysis" style="font-size:13px; line-height:1.6; color:var(--ink);"></div>
+        <div id="cw-inspect-actions" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;"></div>
+      </div>
+
       <div class="cw-agent-box"><div class="cw-agent-title">视觉总监（Visual Director）</div><div class="cw-agent-text">负责画面风格、封面张力与「广告感」控制；下图位 AI Chips 将约束构图与道具叙事。</div></div>
       <div class="cw-agent-box"><div class="cw-agent-title">资产制作人（Asset Producer）</div><div class="cw-agent-text">{% if strategy.positioning_statement %}基于定位「{{ strategy.positioning_statement[:80] }}{% if strategy.positioning_statement|length > 80 %}…{% endif %}」协调标题/正文/图片一致性与导出资产包。{% else %}生成内容后将汇总为可导出资产包。{% endif %}</div></div>
       <div class="cw-agent-box"><div class="cw-agent-title">Agent 分析结果</div><div class="cw-agent-text" id="cw-agent-explanation">点击下方 AI Chips 获取 Agent 建议。</div></div>
@@ -353,6 +375,7 @@
   var opportunityId = {{ opportunity_id | tojson }};
   var strategyIsStale = {{ stale_flags.get('strategy', false) | tojson }};
   var base = apiPrefix.replace(/\/$/, '') + '/xhs-opportunities/' + encodeURIComponent(opportunityId);
+  function escHtml(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
   var cpApi = apiPrefix.replace(/\/$/, '');
   var currentProposalId = '';
   var proposalGroups = {
@@ -854,6 +877,90 @@
   }
 
   scheduleDeferred(loadLatestScorecard);
+
+  /* ═══ V2 Plan Consistency Check ═══ */
+  (function loadConsistency() {
+    var panel = document.getElementById('cw-consistency-panel');
+    if (!panel) return;
+    fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/plan-consistency', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) return;
+      panel.style.display = 'block';
+      var badge = document.getElementById('cw-consistency-badge');
+      if (badge) {
+        if (data.is_consistent) {
+          badge.textContent = '一致';
+          badge.style.cssText += 'background:#dcfce7;color:#166534;';
+        } else {
+          badge.textContent = '不一致';
+          badge.style.cssText += 'background:#fee2e2;color:#991b1b;';
+        }
+      }
+      var scoreEl = document.getElementById('cw-consistency-score');
+      if (scoreEl && data.score !== undefined) {
+        var s = Math.round((data.score || 0) * 100);
+        scoreEl.textContent = s + ' 分';
+        scoreEl.style.color = s >= 70 ? '#2e7d32' : s >= 40 ? '#f57f17' : '#c62828';
+      }
+      var detEl = document.getElementById('cw-consistency-details');
+      if (detEl) {
+        var items = [];
+        if (data.title_strategy_aligned !== undefined) items.push((data.title_strategy_aligned ? '✅' : '❌') + ' 标题-策略对齐');
+        if (data.image_coverage_complete !== undefined) items.push((data.image_coverage_complete ? '✅' : '❌') + ' 图位覆盖完整');
+        if (data.body_title_consistent !== undefined) items.push((data.body_title_consistent ? '✅' : '❌') + ' 正文-标题一致');
+        if (data.issues && data.issues.length > 0) {
+          data.issues.forEach(function(iss) { items.push('⚠️ ' + iss); });
+        }
+        detEl.innerHTML = items.join('<br>');
+      }
+      var actEl = document.getElementById('cw-consistency-actions');
+      if (actEl && data.actions && data.actions.length > 0) {
+        actEl.innerHTML = data.actions.map(function(a) {
+          return '<span style="font-size:11px;font-weight:600;padding:4px 12px;border-radius:999px;background:var(--accent-soft);color:var(--accent);">' + escHtml(a.label || a.action_type) + '</span>';
+        }).join('');
+      }
+    })
+    .catch(function() {});
+  })();
+
+  /* ═══ V2 AI Inspector (plan-level) ═══ */
+  (function loadInspect() {
+    var panel = document.getElementById('cw-inspector-panel');
+    if (!panel) return;
+    fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ object_type: 'plan', object_content: {} })
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) return;
+      panel.style.display = 'block';
+      var scoreEl = document.getElementById('cw-inspect-score');
+      if (scoreEl && data.quality_score !== undefined) {
+        var s = Math.round((data.quality_score || 0) * 100);
+        scoreEl.textContent = s + ' 分';
+        scoreEl.style.color = s >= 70 ? '#2e7d32' : s >= 40 ? '#f57f17' : '#c62828';
+      }
+      var analysisEl = document.getElementById('cw-inspect-analysis');
+      if (analysisEl && data.analysis) {
+        analysisEl.textContent = data.analysis;
+      }
+      var actEl = document.getElementById('cw-inspect-actions');
+      if (actEl && data.actions && data.actions.length > 0) {
+        actEl.innerHTML = data.actions.map(function(a) {
+          return '<span style="font-size:11px;font-weight:600;padding:4px 12px;border-radius:999px;background:var(--accent-soft);color:var(--accent);">' + escHtml(a.label || a.action_type) + '</span>';
+        }).join('');
+      }
+    })
+    .catch(function() {});
+  })();
+
   function loadCollab() {
     fetch('/content-planning/timeline/' + encodeURIComponent(opportunityId))
       .then(function(r){ return r.json(); })
