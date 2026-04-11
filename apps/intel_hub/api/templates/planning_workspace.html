@@ -240,7 +240,10 @@
         <summary style="cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 0;">来源笔记 ({{ source_notes|length }})</summary>
         <div class="pw-card" style="margin-top: 6px;">
           {% for sn in source_notes[:5] %}
-          <div style="padding: 6px 0; border-bottom: 1px solid rgba(138,75,47,0.08); font-size: 12px; color: var(--ink);">{{ sn.title or sn.note_id[:12] ~ '…' }}</div>
+          {% set nc = sn.get('note_context', {}) if sn is mapping else {} %}
+          <div style="padding: 6px 0; border-bottom: 1px solid rgba(138,75,47,0.08); font-size: 12px; color: var(--ink);">
+            {{ nc.get('title', '') or '来源笔记 #' ~ loop.index }}
+          </div>
           {% endfor %}
           {% if source_notes|length > 5 %}
           <p style="margin: 6px 0 0; font-size: 11px; color: var(--muted);">还有 {{ source_notes|length - 5 }} 条…</p>

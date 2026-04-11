@@ -160,6 +160,8 @@
           <div class="ow-card-title">{{ card.title or '—' }}</div>
           {% if card.insight_statement %}
           <div class="ow-card-insight">{{ card.insight_statement }}</div>
+          {% elif card.summary %}
+          <div class="ow-card-insight">{{ card.summary[:80] }}{% if card.summary|length > 80 %}…{% endif %}</div>
           {% endif %}
           {% if card.opportunity_status == 'promoted' %}
           <div class="ow-card-bottom">
@@ -239,7 +241,22 @@
         </div>
         {% endif %}
         {% if not sc.insight_statement and not sc.engagement_insight and not sc.cross_modal_verdict %}
-        <div style="font-size:13px; color:var(--muted);">暂无洞察数据</div>
+        {% if sc.summary %}
+        <div style="font-size:13px; line-height:1.6; color:var(--ink); margin-bottom:8px;">{{ sc.summary }}</div>
+        {% endif %}
+        {% set _refs = [] %}
+        {% if sc.scene_refs %}{% set _refs = _refs + sc.scene_refs %}{% endif %}
+        {% if sc.entity_refs %}{% set _refs = _refs + sc.entity_refs %}{% endif %}
+        {% if _refs %}
+        <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">
+          {% for ref in _refs[:8] %}
+          <span style="font-size:11px; padding:2px 8px; border-radius:999px; background:var(--accent-soft); color:var(--accent);">{{ ref }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if not sc.summary and not _refs %}
+        <div style="font-size:13px; color:var(--muted);">尚未生成洞察，可通过编译流水线补充。</div>
+        {% endif %}
         {% endif %}
       </div>
 

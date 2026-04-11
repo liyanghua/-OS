@@ -211,7 +211,7 @@ graph TB
 
 ### Layer 3：对象交互层（增强）
 
-- **ObjectLock enforcement**：在所有 `build`_* / `regenerate_`* 方法中检查锁，锁定字段跳过重写
+- **ObjectLock enforcement**：在所有 `build`** / `regenerate`** 方法中检查锁，锁定字段跳过重写
 - **append_version 接线**：在 `build_brief`、`build_strategy`、`build_plan` 成功后自动调用 `append_version`
 - **Object Event 广播**：每次对象变更通过 Event Bus 通知前端
 

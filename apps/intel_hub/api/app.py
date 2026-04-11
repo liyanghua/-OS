@@ -1253,11 +1253,8 @@ def create_app(
         pipeline_run_id = session_data.get("pipeline_run_id", "")
         needs_build = not bool(brief_dict)
 
-        try:
-            bundle = _cp_flow.assemble_asset_bundle(opportunity_id)
-            bundle_dict = bundle.model_dump(mode="json") if hasattr(bundle, "model_dump") else {}
-        except Exception:
-            bundle_dict = {}
+        cached_bundle = session_data.get("asset_bundle", {})
+        bundle_dict = cached_bundle if isinstance(cached_bundle, dict) else {}
 
         from apps.content_planning.viewmodels.planning_workspace_vm import build_workspace_vm
         vm = build_workspace_vm(card_dict, brief_dict, match_result, strategy, note_plan, generated)
