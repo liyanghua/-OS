@@ -17,6 +17,7 @@ class CouncilParticipantSpec(BaseModel):
     agent_id: str = ""
     display_name: str = ""
     role_type: CouncilParticipantRole | str = "specialist"
+    soul_tagline: str = ""
 
 
 class CouncilSession(BaseModel):

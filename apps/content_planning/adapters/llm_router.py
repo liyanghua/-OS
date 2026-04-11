@@ -98,15 +98,7 @@ class BaseLLMProvider(ABC):
 
     def chat_json(self, messages: list[LLMMessage], **kwargs: Any) -> dict[str, Any]:
         resp = self.chat(messages, **kwargs)
-        text = resp.content.strip()
-        if text.startswith("```"):
-            lines = text.split("\n")
-            end_idx = len(lines) - 1 if lines[-1].strip().startswith("```") else len(lines)
-            text = "\n".join(lines[1:end_idx])
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            return {}
+        return _lenient_json_parse(resp.content)
 
 
 # ── Concrete Providers ─────────────────────────────────────────────
@@ -441,9 +433,9 @@ def _init_providers() -> None:
 
 _init_providers()
 
-_DEFAULT_PROVIDER = os.environ.get("LLM_PROVIDER", "dashscope")
+_DEFAULT_PROVIDER = os.environ.get("LLM_PROVIDER", "openai")
 _DEFAULT_FALLBACK_CHAIN = os.environ.get(
-    "LLM_FALLBACK_CHAIN", "dashscope,openai,anthropic"
+    "LLM_FALLBACK_CHAIN", "openai,dashscope,anthropic"
 ).split(",")
 
 
@@ -465,6 +457,36 @@ def _strip_code_fences(text: str) -> str:
         end_idx = len(lines) - 1 if lines[-1].strip().startswith("```") else len(lines)
         stripped = "\n".join(lines[1:end_idx])
     return stripped
+
+
+import re as _re
+
+def _lenient_json_parse(text: str) -> dict[str, Any]:
+    """Try hard to parse JSON from LLM output that may be malformed or truncated."""
+    cleaned = _strip_code_fences(text).strip()
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+    # Some models wrap JSON in extra text; extract first { ... }
+    m = _re.search(r"\{", cleaned)
+    if m:
+        candidate = cleaned[m.start():]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+        # Truncated JSON: try closing open braces/brackets
+        depth_brace = candidate.count("{") - candidate.count("}")
+        depth_bracket = candidate.count("[") - candidate.count("]")
+        patched = candidate.rstrip().rstrip(",")
+        patched += "]" * max(depth_bracket, 0)
+        patched += "}" * max(depth_brace, 0)
+        try:
+            return json.loads(patched)
+        except json.JSONDecodeError:
+            pass
+    return {}
 
 
 def _degraded_response(
@@ -561,10 +583,7 @@ class LLMRouter:
         response = self.chat(messages, **kwargs)
         if response.degraded or not response.content.strip():
             return {}
-        try:
-            return json.loads(_strip_code_fences(response.content))
-        except json.JSONDecodeError:
-            return {}
+        return _lenient_json_parse(response.content)
 
     def chat_with_tools(
         self,

@@ -21,22 +21,29 @@ from pydantic import BaseModel, Field
 
 from apps.content_planning.adapters.llm_router import LLMMessage, llm_router
 from apps.content_planning.agents.base import AgentContext, AgentMessage, AgentResult, RequestContextBundle
+from apps.content_planning.agents.council_runner import CouncilAgentRunner
 from apps.content_planning.agents.memory import AgentMemory, MemoryEntry
+from apps.content_planning.agents.soul_loader import SoulLoader
 
 logger = logging.getLogger(__name__)
 
-
+# Council 专家：SOUL 驱动（见 agents/souls/*/SOUL.md）
 STAGE_DISCUSSION_ROLES: dict[str, list[str]] = {
-    "card": ["trend_analyst", "brief_synthesizer"],
-    "brief": ["trend_analyst", "brief_synthesizer", "strategy_director"],
-    "match": ["template_planner", "strategy_director", "visual_director"],
-    "strategy": ["strategy_director", "visual_director", "brief_synthesizer"],
-    "content": ["visual_director", "asset_producer", "strategy_director"],
-    "plan": ["strategy_director", "visual_director", "asset_producer"],
-    "asset": ["asset_producer", "visual_director", "strategy_director"],
+    "card": ["growth_strategist", "brand_guardian"],
+    "brief": ["brand_guardian", "growth_strategist", "creative_director"],
+    "match": ["creative_director", "brand_guardian", "risk_assessor"],
+    "strategy": ["growth_strategist", "creative_director", "risk_assessor"],
+    "content": ["creative_director", "growth_strategist", "risk_assessor"],
+    "plan": ["creative_director", "brand_guardian", "growth_strategist"],
+    "asset": ["risk_assessor", "brand_guardian", "creative_director"],
 }
 
 AGENT_DISPLAY_NAMES: dict[str, str] = {
+    "brand_guardian": "品牌守护者",
+    "growth_strategist": "增长策略师",
+    "creative_director": "创意总监",
+    "risk_assessor": "风险评估员",
+    "lead_synthesizer": "总调度",
     "trend_analyst": "趋势分析师",
     "brief_synthesizer": "Brief 编译师",
     "template_planner": "模板策划师",
@@ -165,8 +172,10 @@ def compute_applyability(diff_rows: list[dict[str, Any]]) -> Literal["direct", "
 class DiscussionOrchestrator:
     """Orchestrate multi-agent discussions for a given stage and question."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._memory = AgentMemory()
+        self._soul_loader = SoulLoader()
+        self._runner = CouncilAgentRunner(self._memory, self._soul_loader)
 
     def discuss(
         self,
@@ -208,7 +217,11 @@ class DiscussionOrchestrator:
                     "stage_type": stage,
                     "question": user_question,
                     "participants": [
-                        {"agent_id": r, "agent_name": AGENT_DISPLAY_NAMES.get(r, r)}
+                        {
+                            "agent_id": r,
+                            "agent_name": AGENT_DISPLAY_NAMES.get(r, r),
+                            "soul_tagline": self._soul_loader.tagline(r),
+                        }
                         for r in participants
                     ],
                 },
@@ -227,61 +240,53 @@ class DiscussionOrchestrator:
             )
 
         object_context = self._resolve_object_context(stage, context)
-        memory_context = self._resolve_memory_context(opportunity_id, context)
+        shared_memory = self._resolve_memory_context(opportunity_id, context)
 
-        opinion_results = self._collect_agent_opinions(
+        opinion_round1 = self._collect_round_opinions(
             participants=participants,
             user_question=user_question,
             stage=stage,
             object_context=object_context,
-            memory_context=memory_context,
+            opportunity_id=opportunity_id,
+            shared_memory_context=shared_memory,
+            prior_statements=[],
+            council_round=1,
             on_council_event=on_council_event,
             council_session_id=sid,
         )
+        prior_statements = self._append_round_messages(
+            discussion, opinion_round1, stage, on_message, council_round=1
+        )
+        prior_after_round1 = list(prior_statements)
 
-        prior_statements: list[str] = []
-        for result in opinion_results:
-            agent_role = str(result["agent_role"])
-            agent_name = str(result["agent_name"])
-            if result["status"] == "ok":
-                agent_response = str(result["response"])
-                meta = dict(result.get("metadata") or {})
-                meta.setdefault("agent_name", agent_name)
-                meta.setdefault("stage", stage)
-                tm = int(meta.get("timing_ms") or 0)
-                if tm:
-                    discussion.specialist_timings_ms[agent_role] = tm
-                msg = AgentMessage(
-                    role="agent",
-                    content=agent_response,
-                    agent_role=agent_role,
-                    metadata=meta,
-                )
-                discussion.messages.append(msg)
-                prior_statements.append(f"[{agent_name}]: {agent_response}")
-            else:
-                discussion.failed_participants.append(agent_role)
-                meta_fail = dict(result.get("metadata") or {})
-                tm = int(meta_fail.get("timing_ms") or 0)
-                if tm:
-                    discussion.specialist_timings_ms[agent_role] = tm
-                msg = AgentMessage(
-                    role="agent",
-                    content="（未成功获取该 Agent 观点，已跳过）",
-                    agent_role=agent_role,
-                    metadata={
-                        "agent_name": agent_name,
-                        "stage": stage,
-                        "status": "failed",
-                        "error": str(result.get("error", "")),
-                        "used_llm": meta_fail.get("used_llm", False),
-                        "degraded": True,
-                        **{k: v for k, v in meta_fail.items() if k in ("timing_ms", "references")},
+        if mode == "deep" and len(participants) > 1:
+            if on_phase:
+                on_phase("council_round2", {"label_zh": "第二轮：专家互见补充/反驳"})
+            if on_council_event:
+                on_council_event(
+                    "council_phase_changed",
+                    {
+                        "session_id": sid,
+                        "phase": "council_round2",
+                        "label": "第二轮讨论（基于第一轮观点）",
                     },
                 )
-                discussion.messages.append(msg)
-            if on_message:
-                on_message(msg)
+            opinion_round2 = self._collect_round_opinions(
+                participants=participants,
+                user_question=user_question,
+                stage=stage,
+                object_context=object_context,
+                opportunity_id=opportunity_id,
+                shared_memory_context=shared_memory,
+                prior_statements=prior_after_round1,
+                council_round=2,
+                on_council_event=on_council_event,
+                council_session_id=sid,
+            )
+            prior_round2_lines = self._append_round_messages(
+                discussion, opinion_round2, stage, on_message, council_round=2
+            )
+            prior_statements = prior_after_round1 + prior_round2_lines
 
         if on_phase:
             on_phase("synthesizing_consensus", {"label_zh": "综合共识与可应用提案"})
@@ -298,7 +303,13 @@ class DiscussionOrchestrator:
                 )
                 on_council_event("council_synthesis_started", {"session_id": sid, "phase": "synthesizing_consensus"})
             st0 = time.perf_counter()
-            bundle = self._synthesize_consensus(user_question, stage, prior_statements, object_context)
+            bundle = self._synthesize_consensus(
+                user_question,
+                stage,
+                prior_statements,
+                object_context,
+                lead_soul=self._soul_loader.load("lead_synthesizer"),
+            )
             discussion.synthesis_timing_ms = int((time.perf_counter() - st0) * 1000)
             discussion.synthesis_used_llm = bundle.synthesis_used_llm
             discussion.synthesis_degraded = bundle.synthesis_degraded
@@ -380,6 +391,7 @@ class DiscussionOrchestrator:
         if on_message:
             on_message(consensus_msg)
 
+        self._store_council_role_memories(discussion, opportunity_id, stage)
         self._memory.store(
             MemoryEntry(
                 opportunity_id=opportunity_id,
@@ -405,14 +417,108 @@ class DiscussionOrchestrator:
 
         return discussion
 
-    def _collect_agent_opinions(
+    def _append_round_messages(
+        self,
+        discussion: DiscussionRound,
+        results: list[dict[str, Any]],
+        stage: str,
+        on_message: Any,
+        council_round: int,
+    ) -> list[str]:
+        """Append AgentMessage rows; return lines for next round / synthesis."""
+        lines: list[str] = []
+        for result in results:
+            agent_role = str(result["agent_role"])
+            agent_name = str(result["agent_name"])
+            if result["status"] == "ok":
+                agent_response = str(result["response"])
+                meta = dict(result.get("metadata") or {})
+                meta.setdefault("agent_name", agent_name)
+                meta.setdefault("stage", stage)
+                meta["council_round"] = council_round
+                meta.setdefault("soul_tagline", self._soul_loader.tagline(agent_role))
+                tm = int(meta.get("timing_ms") or 0)
+                if tm:
+                    discussion.specialist_timings_ms[agent_role] = (
+                        discussion.specialist_timings_ms.get(agent_role, 0) + tm
+                    )
+                msg = AgentMessage(
+                    role="agent",
+                    content=agent_response,
+                    agent_role=agent_role,
+                    metadata=meta,
+                )
+                discussion.messages.append(msg)
+                lines.append(f"[第{council_round}轮·{agent_name}]: {agent_response}")
+                if on_message:
+                    on_message(msg)
+            else:
+                if agent_role not in discussion.failed_participants:
+                    discussion.failed_participants.append(agent_role)
+                meta_fail = dict(result.get("metadata") or {})
+                tm = int(meta_fail.get("timing_ms") or 0)
+                if tm:
+                    discussion.specialist_timings_ms[agent_role] = (
+                        discussion.specialist_timings_ms.get(agent_role, 0) + tm
+                    )
+                msg = AgentMessage(
+                    role="agent",
+                    content="（未成功获取该 Agent 观点，已跳过）",
+                    agent_role=agent_role,
+                    metadata={
+                        "agent_name": agent_name,
+                        "stage": stage,
+                        "council_round": council_round,
+                        "soul_tagline": self._soul_loader.tagline(agent_role),
+                        "status": "failed",
+                        "error": str(result.get("error", "")),
+                        "used_llm": meta_fail.get("used_llm", False),
+                        "degraded": True,
+                        **{k: v for k, v in meta_fail.items() if k in ("timing_ms", "references")},
+                    },
+                )
+                discussion.messages.append(msg)
+                if on_message:
+                    on_message(msg)
+        return lines
+
+    def _store_council_role_memories(
+        self, discussion: DiscussionRound, opportunity_id: str, stage: str
+    ) -> None:
+        """Persist latest council turn per role (prefer higher round)."""
+        best: dict[str, tuple[int, str]] = {}
+        for m in discussion.messages:
+            if m.role != "agent" or not m.agent_role:
+                continue
+            if m.metadata.get("status") == "failed":
+                continue
+            r = int(m.metadata.get("council_round") or 1)
+            prev = best.get(m.agent_role)
+            if prev is None or r >= prev[0]:
+                best[m.agent_role] = (r, m.content)
+        for role, (rnd, content) in best.items():
+            self._memory.store(
+                MemoryEntry(
+                    opportunity_id=opportunity_id,
+                    category="council_opinion",
+                    content=content[:500],
+                    source_agent=role,
+                    relevance_score=0.75,
+                    tags=[stage, "council", f"round{rnd}"],
+                )
+            )
+
+    def _collect_round_opinions(
         self,
         *,
         participants: list[str],
         user_question: str,
         stage: str,
         object_context: str,
-        memory_context: str,
+        opportunity_id: str,
+        shared_memory_context: str,
+        prior_statements: list[str],
+        council_round: int,
         on_council_event: CouncilEventCallback | None = None,
         council_session_id: str = "",
     ) -> list[dict[str, Any]]:
@@ -423,14 +529,17 @@ class DiscussionOrchestrator:
         def _run_one(agent_role: str, agent_name: str) -> dict[str, Any]:
             t0 = time.perf_counter()
             try:
-                response, meta = self._get_agent_opinion_structured(
+                response, meta = self._runner.opinion(
                     agent_role=agent_role,
                     agent_name=agent_name,
                     user_question=user_question,
                     stage=stage,
                     object_context=object_context,
-                    memory_context=memory_context,
-                    prior_statements=[],
+                    opportunity_id=opportunity_id,
+                    prior_statements=prior_statements,
+                    council_round=council_round,
+                    shared_memory_context=shared_memory_context,
+                    rule_based_fallback=self._rule_based_opinion,
                 )
                 elapsed = int((time.perf_counter() - t0) * 1000)
                 meta["timing_ms"] = elapsed
@@ -444,6 +553,8 @@ class DiscussionOrchestrator:
                             "stance": meta.get("stance"),
                             "claim": meta.get("claim"),
                             "snippet": (response or "")[:400],
+                            "council_round": council_round,
+                            "soul_tagline": meta.get("soul_tagline", ""),
                         },
                     )
                     on_council_event(
@@ -455,6 +566,7 @@ class DiscussionOrchestrator:
                             "degraded": meta.get("degraded", False),
                             "timing_ms": elapsed,
                             "status": "ok",
+                            "council_round": council_round,
                         },
                     )
                 return {
@@ -478,6 +590,7 @@ class DiscussionOrchestrator:
                             "timing_ms": elapsed,
                             "status": "failed",
                             "error_message": str(exc)[:500],
+                            "council_round": council_round,
                         },
                     )
                 return {
@@ -492,6 +605,8 @@ class DiscussionOrchestrator:
                         "fallback_mode": "exception",
                         "timing_ms": elapsed,
                         "references": [],
+                        "council_round": council_round,
+                        "soul_tagline": self._soul_loader.tagline(agent_role),
                     },
                 }
 
@@ -508,6 +623,7 @@ class DiscussionOrchestrator:
                             "session_id": sid,
                             "agent_id": agent_role,
                             "agent_name": agent_name,
+                            "council_round": council_round,
                         },
                     )
                 fut = executor.submit(_run_one, agent_role, agent_name)
@@ -525,7 +641,7 @@ class DiscussionOrchestrator:
         *,
         mode: Literal["fast", "deep"] = "deep",
     ) -> list[str]:
-        participants = list(STAGE_DISCUSSION_ROLES.get(stage, ["trend_analyst", "brief_synthesizer"]))
+        participants = list(STAGE_DISCUSSION_ROLES.get(stage, ["growth_strategist", "brand_guardian"]))
         if mode == "fast":
             return participants[:1]
         if stage != "strategy":
@@ -542,110 +658,17 @@ class DiscussionOrchestrator:
                 except Exception:
                     card_text = str(card)
                 wants_trend = any(term in card_text for term in _TREND_HINT_TERMS)
-        if wants_trend and "trend_analyst" not in participants:
-            participants.append("trend_analyst")
+        if wants_trend and "growth_strategist" not in participants:
+            participants.insert(0, "growth_strategist")
         return participants
-
-    def _get_agent_opinion_structured(
-        self,
-        *,
-        agent_role: str,
-        agent_name: str,
-        user_question: str,
-        stage: str,
-        object_context: str,
-        memory_context: str,
-        prior_statements: list[str],
-    ) -> tuple[str, dict[str, Any]]:
-        """返回 (展示正文, metadata：stance/claim/used_llm/degraded/timing_ms/...)。"""
-        if not llm_router.is_any_available():
-            text = self._rule_based_opinion(agent_role, user_question, stage)
-            return text, {
-                "stance": "neutral",
-                "claim": text[:80],
-                "agent_name": agent_name,
-                "stage": stage,
-                "used_llm": False,
-                "degraded": True,
-                "fallback_mode": "rule_template",
-                "model": "",
-                "references": [],
-            }
-
-        prior_text = "\n".join(prior_statements) if prior_statements else "你是第一个发言的。"
-
-        system = f"""你是「{agent_name}」，专业内容策划 Agent。
-当前阶段：{stage}。请基于当前 Brief 快照与用户问题给出观点。
-必须先输出 JSON，格式严格如下（不要 Markdown）：
-{{"stance":"support|neutral|oppose|supplement","claim":"一句话立场","detail":"3-5句专业展开","references":["Brief字段或证据键，可选"]}}
-stance 含义：support 赞同主方向 / oppose 反对或风险 / supplement 补充条件 / neutral 中立。"""
-
-        user_msg = f"""用户问题：{user_question}
-
-【对象与 Brief 上下文】
-{object_context}
-
-相关记忆：
-{memory_context}
-
-其他专家发言摘要：
-{prior_text}
-
-仅输出 JSON。"""
-
-        resp: dict[str, Any] = {}
-        try:
-            resp = llm_router.chat_json(
-                [
-                    LLMMessage(role="system", content=system),
-                    LLMMessage(role="user", content=user_msg),
-                ],
-                temperature=0.35,
-                max_tokens=700,
-            )
-        except Exception:
-            logger.warning("agent opinion chat_json failed for %s", agent_role, exc_info=True)
-            text = self._rule_based_opinion(agent_role, user_question, stage)
-            return text, {
-                "stance": "neutral",
-                "claim": text[:80],
-                "agent_name": agent_name,
-                "stage": stage,
-                "used_llm": True,
-                "degraded": True,
-                "fallback_mode": "exception",
-                "model": "",
-                "references": [],
-            }
-
-        stance = str(resp.get("stance") or "neutral")
-        claim = str(resp.get("claim") or "").strip()
-        detail = str(resp.get("detail") or "").strip()
-        degraded = False
-        if not detail:
-            detail = self._rule_based_opinion(agent_role, user_question, stage)
-            degraded = True
-        if not claim:
-            claim = detail[:80]
-        display = detail
-        refs_raw = resp.get("references") or []
-        references = [str(x) for x in refs_raw] if isinstance(refs_raw, list) else []
-        meta = {
-            "stance": stance,
-            "claim": claim,
-            "agent_name": agent_name,
-            "stage": stage,
-            "used_llm": True,
-            "degraded": degraded,
-            "fallback_mode": "rule_template" if degraded else "",
-            "model": "",
-            "references": references,
-        }
-        return display, meta
 
     def _rule_based_opinion(self, agent_role: str, question: str, stage: str) -> str:
         """Fallback rule-based opinion when LLM is unavailable."""
         opinions = {
+            "brand_guardian": f"从品牌一致性看，「{question[:30]}」需先核对调性与禁区，再谈创意放大。",
+            "growth_strategist": f"从增长视角，「{question[:30]}」应明确可验证指标与平台机制适配，再迭代内容。",
+            "creative_director": f"从创意叙事看，「{question[:30]}」要找到记忆点与差异化角度，避免品类套话。",
+            "risk_assessor": f"从风险看，「{question[:30]}」需扫描合规与舆情雷区，给出可替换的安全表述。",
             "trend_analyst": f"从趋势角度看，「{question[:30]}」需要结合当前市场热点和竞品动态来分析。建议关注数据支撑度。",
             "brief_synthesizer": f"从策划角度看，这个问题的核心在于目标用户和场景的匹配度。建议明确用户画像后再推进。",
             "template_planner": f"从模板角度看，需要确保选择的模板风格与内容方向一致。建议对比 Top-3 候选的差异。",
@@ -656,7 +679,13 @@ stance 含义：support 赞同主方向 / oppose 反对或风险 / supplement �
         return opinions.get(agent_role, f"作为 {agent_role}，我建议从专业角度审视此问题。")
 
     def _synthesize_consensus(
-        self, question: str, stage: str, statements: list[str], object_context: str
+        self,
+        question: str,
+        stage: str,
+        statements: list[str],
+        object_context: str,
+        *,
+        lead_soul: str = "",
     ) -> CouncilSynthesisBundle:
         """综合共识 + 结构化产出 + 白名单字段更新建议。"""
         if not llm_router.is_any_available():
@@ -681,7 +710,7 @@ stance 含义：support 赞同主方向 / oppose 反对或风险 / supplement �
             whitelist_note = (
                 f"proposed_updates 的 key 必须来自：{', '.join(sorted(BRIEF_PROPOSED_UPDATE_KEYS))}。"
             )
-        sys = f"""你是内容策划总调度（Advisory Session）。请综合所有 Agent 观点，输出 JSON：
+        task_block = f"""任务指令：你是内容策划总调度（Advisory Session）。请综合所有 Agent 观点，输出 JSON：
 - executive_summary: 一句话摘要（中文，≤120字）
 - consensus: 可执行共识段落（中文，比摘要更完整）
 - proposed_updates: 对象，仅含可落地字段的改写建议；若无把握则 {{}}
@@ -692,6 +721,11 @@ stance 含义：support 赞同主方向 / oppose 反对或风险 / supplement �
 - alternatives: [{{"label":"方向名","summary":"说明"}}] 可选多方向
 - decision_type: 之一：applyable | advisory | exploratory
 {whitelist_note}"""
+        sys = (
+            f"{lead_soul.strip()}\n\n---\n{task_block}"
+            if lead_soul and lead_soul.strip()
+            else task_block
+        )
 
         try:
             resp = llm_router.chat_json(
@@ -703,7 +737,7 @@ stance 含义：support 赞同主方向 / oppose 反对或风险 / supplement �
                     ),
                 ],
                 temperature=0.3,
-                max_tokens=1200,
+                max_tokens=4096,
             )
         except Exception:
             logger.warning("council synthesis chat_json failed, using fallback", exc_info=True)

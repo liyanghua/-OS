@@ -27,6 +27,7 @@ from apps.content_planning.agents.discussion import (
 from apps.content_planning.agents.memory import AgentMemory, MemoryEntry
 from apps.content_planning.agents.plan_graph import PlanGraph, build_default_graph
 from apps.content_planning.agents.skill_registry import SkillDefinition, skill_registry
+from apps.content_planning.agents.soul_loader import SoulLoader
 from apps.content_planning.evaluation.pipeline_metrics import compute_pipeline_metrics
 from apps.content_planning.evaluation.stage_evaluator import evaluate_stage
 from apps.content_planning.exceptions import OpportunityNotPromotedError, StageApplyConflictError
@@ -1542,21 +1543,30 @@ async def _run_stage_discussion(
         council_started_at = datetime.now(UTC)
         discussion_t0 = time.perf_counter()
         discussion_mode = "fast" if run_mode == "agent_assisted_single" else "deep"
-        round_data = orchestrator.discuss(
-            opportunity_id=opportunity_id,
-            stage=normalized_stage,
-            user_question=discussion_question,
-            context=_build_agent_context(
-                flow,
-                opportunity_id,
-                normalized_stage,
-                include_deep_context=discussion_mode == "deep",
+        _disc_ctx = _build_agent_context(
+            flow,
+            opportunity_id,
+            normalized_stage,
+            include_deep_context=discussion_mode == "deep",
+        )
+
+        import asyncio as _aio
+        import functools as _ft
+        _loop = _aio.get_running_loop()
+        round_data = await _loop.run_in_executor(
+            None,
+            _ft.partial(
+                orchestrator.discuss,
+                opportunity_id=opportunity_id,
+                stage=normalized_stage,
+                user_question=discussion_question,
+                context=_disc_ctx,
+                on_message=_on_message,
+                on_phase=_on_phase,
+                on_council_event=_on_council_event,
+                council_session_id=run.run_id,
+                mode=cast(Literal["fast", "deep"], discussion_mode),
             ),
-            on_message=_on_message,
-            on_phase=_on_phase,
-            on_council_event=_on_council_event,
-            council_session_id=run.run_id,
-            mode=cast(Literal["fast", "deep"], discussion_mode),
         )
         discussion_ms = int((time.perf_counter() - discussion_t0) * 1000)
         specialists_ms = sum(round_data.specialist_timings_ms.values())
@@ -1664,6 +1674,7 @@ async def _run_stage_discussion(
         finished_at = datetime.now(UTC)
         observability = _build_council_observability(run.run_id, round_data)
         timing_total = int((time.perf_counter() - total_t0) * 1000)
+        _council_soul = SoulLoader()
         council_session = CouncilSession(
             session_id=run.run_id,
             stage_type=normalized_stage,
@@ -1678,6 +1689,7 @@ async def _run_stage_discussion(
                     agent_id=role,
                     display_name=AGENT_DISPLAY_NAMES.get(role, role),
                     role_type="specialist",
+                    soul_tagline=_council_soul.tagline(role),
                 )
                 for role in round_data.participants
             ],

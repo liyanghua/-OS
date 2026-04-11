@@ -3,6 +3,15 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## Council 多角色 SOUL 与圆桌协议 (2026-04-11)
+
+- **SOUL**：`apps/content_planning/agents/souls/{role}/SOUL.md`，`SoulLoader` + Hermes 风格 `soul_context_hermes`（扫描/截断）。
+- **运行**：`CouncilAgentRunner` 将 SOUL、按角色记忆块、`prior_statements` 注入单次专家回合；`DiscussionOrchestrator`：`fast` = Round1 + 综合，`deep` = Round1 并行 + Round2 互见 + `lead_synthesizer` SOUL 综合。
+- **记忆**：各角色独立写入 `council_opinion`；`council_memory_block` 与机会维度检索辅助 Council 上下文。
+- **API/UI**：`CouncilParticipantSpec.soul_tagline`（`routes._run_stage_discussion` 注入）；`planning_workspace.html` 委员会抽屉使用 `discussion.messages`，分「第一轮」「第二轮（补充/反驳）」并展示参与者一句定位。
+
+---
+
 ## Agent 一键策划全链路升级 (2026-04-10)
 
 ### 概述

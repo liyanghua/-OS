@@ -15,6 +15,9 @@
 {% set _pb = _vm.plan_board if _vm and _vm.plan_board else {} %}
 
 <style>
+  @keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pulseDots { 0%,80%,100% { opacity:.3; } 40% { opacity:1; } }
+  .council-dots { animation: pulseDots 1.2s infinite; }
   body .shell { max-width: 1560px; }
   .pw-shell { max-width: 1560px; margin: 0 auto; }
 
@@ -642,6 +645,10 @@
     growth_strategist: { icon: '📈', label: '增长策略师', color: '#059669' },
     creative_director: { icon: '🎨', label: '创意总监', color: '#d97706' },
     risk_assessor:     { icon: '⚠️', label: '风险评估员', color: '#dc2626' },
+    lead_synthesizer:  { icon: '🧭', label: '总调度', color: '#7c3aed' },
+    lead_agent:        { icon: '✅', label: '共识汇总', color: '#0f766e' },
+    trend_analyst:     { icon: '📊', label: '趋势分析师', color: '#059669' },
+    brief_synthesizer: { icon: '📝', label: 'Brief 综合', color: '#d97706' },
     lead:              { icon: '🧠', label: '主导 Agent', color: '#7c3aed' }
   };
   function roleMeta(r) { return ROLE_META[r] || { icon: '🤖', label: r, color: '#64748b' }; }
@@ -705,7 +712,7 @@
             '<textarea id="council-topic" rows="3" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:12px;font:inherit;font-size:13px;resize:vertical;" placeholder="例如：当前策略的品牌一致性是否足够？"></textarea>' +
           '</div>' +
           '<button type="button" id="council-start-btn" style="width:100%;padding:11px 16px;background:var(--accent);color:#fff;border:none;border-radius:14px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;">发起讨论</button>' +
-          '<div id="council-thread" style="margin-top:16px;"></div>' +
+          '<div id="council-thread" style="margin-top:16px;max-height:60vh;overflow-y:auto;"></div>' +
           '<div id="council-proposal" style="margin-top:14px;"></div>' +
         '</div>';
       openDrawer('策略委员会讨论', html);
@@ -718,8 +725,234 @@
         startBtn.disabled = true;
         startBtn.textContent = '讨论进行中…';
         var thread = document.getElementById('council-thread');
-        thread.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);"><div style="font-size:24px;margin-bottom:6px;">🔄</div>各角色 Agent 正在思考…</div>';
+        thread.innerHTML = '';
         document.getElementById('council-proposal').innerHTML = '';
+
+        var _phaseEl = document.createElement('div');
+        _phaseEl.id = 'council-phase-banner';
+        _phaseEl.style.cssText = 'text-align:center;padding:14px;color:var(--muted);font-size:13px;font-weight:600;';
+        _phaseEl.innerHTML = '<span style="font-size:20px;">🔄</span> 正在初始化 Council…';
+        thread.appendChild(_phaseEl);
+
+        var _r1Header = null, _r2Header = null;
+        var _currentRound = 0;
+        var _sseSource = null;
+        var _finalData = null;
+
+        function _ensureRoundHeader(round) {
+          if (round === 1 && !_r1Header) {
+            _r1Header = document.createElement('div');
+            _r1Header.style.cssText = 'font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:12px 0 8px;';
+            _r1Header.textContent = '第一轮 · 独立观点';
+            thread.insertBefore(_r1Header, _phaseEl);
+          } else if (round === 2 && !_r2Header) {
+            _r2Header = document.createElement('div');
+            _r2Header.style.cssText = 'font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:16px 0 8px;';
+            _r2Header.textContent = '第二轮 · 互见后补充/反驳';
+            thread.insertBefore(_r2Header, _phaseEl);
+          }
+        }
+
+        function _appendAgentCard(d, round) {
+          var agentId = d.agent_id || '';
+          var rm = roleMeta(agentId);
+          var agentName = d.agent_name || rm.label;
+          var tagline = (d.soul_tagline || '').trim();
+          var snippet = d.snippet || '';
+          var stance = d.stance || '';
+          var claim = d.claim || '';
+          var roundBadge = '';
+          if (round === 2) {
+            roundBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#b45309;">补充/反驳</span>';
+          } else if (_currentRound >= 2 || round === 1) {
+            roundBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3;">第一轮</span>';
+          }
+          var stanceBadge = '';
+          if (stance === 'support') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;">赞同</span>';
+          else if (stance === 'oppose') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fee2e2;color:#991b1b;">反对</span>';
+          else if (stance === 'supplement') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fef9c3;color:#854d0e;">补充</span>';
+          else if (stance === 'neutral') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;">中立</span>';
+          var card = document.createElement('div');
+          card.style.cssText = 'border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(255,255,255,0.6);animation:fadeSlideIn 0.35s ease;';
+          card.innerHTML =
+            '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' +
+              '<span style="font-size:16px;">' + rm.icon + '</span>' +
+              '<span style="font-size:13px;font-weight:700;color:' + rm.color + ';">' + esc(agentName) + '</span>' +
+              roundBadge + stanceBadge +
+            '</div>' +
+            (tagline ? '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">' + esc(tagline) + '</div>' : '') +
+            (claim ? '<div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px;">' + esc(claim) + '</div>' : '') +
+            '<div style="font-size:13px;line-height:1.65;color:var(--ink);white-space:pre-wrap;">' + esc(snippet) + '</div>';
+          _ensureRoundHeader(round);
+          thread.insertBefore(card, _phaseEl);
+          thread.scrollTop = thread.scrollHeight;
+        }
+
+        function _appendThinkingDot(d) {
+          var agentId = d.agent_id || '';
+          var rm = roleMeta(agentId);
+          var dotId = 'thinking-' + agentId + '-' + (d.council_round || 1);
+          if (document.getElementById(dotId)) return;
+          var dot = document.createElement('div');
+          dot.id = dotId;
+          dot.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:6px 12px;margin:0 6px 6px 0;border-radius:999px;background:rgba(138,75,47,0.06);border:1px solid var(--border);font-size:12px;color:var(--muted);';
+          dot.innerHTML = '<span>' + rm.icon + '</span><span>' + esc(d.agent_name || rm.label) + '</span><span class="council-dots">…</span>';
+          var round = d.council_round || 1;
+          _ensureRoundHeader(round);
+          thread.insertBefore(dot, _phaseEl);
+        }
+
+        function _removeThinkingDot(d) {
+          var dotId = 'thinking-' + (d.agent_id || '') + '-' + (d.council_round || 1);
+          var el = document.getElementById(dotId);
+          if (el) el.remove();
+        }
+
+        function _updatePhase(text) {
+          if (_phaseEl) _phaseEl.innerHTML = '<span style="font-size:16px;">🔄</span> ' + esc(text);
+        }
+
+        function _renderParticipants(parts) {
+          if (!parts || !parts.length) return;
+          var el = document.createElement('div');
+          el.style.cssText = 'margin-bottom:14px;padding:10px 12px;background:rgba(138,75,47,0.06);border-radius:12px;border:1px solid var(--border);';
+          el.innerHTML =
+            '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:8px;">本轮参与者 · SOUL 定位</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:10px 14px;">' +
+              parts.map(function(p) {
+                var rm = roleMeta(p.agent_id);
+                var tag = (p.soul_tagline || '').trim();
+                return '<div style="display:flex;align-items:flex-start;gap:6px;min-width:120px;max-width:100%;">' +
+                  '<span style="font-size:15px;line-height:1.2;">' + rm.icon + '</span>' +
+                  '<div><div style="font-size:12px;font-weight:700;color:' + rm.color + ';">' + esc(p.display_name || p.agent_name || rm.label) + '</div>' +
+                  (tag ? '<div style="font-size:11px;color:var(--muted);line-height:1.35;margin-top:2px;">' + esc(tag) + '</div>' : '') +
+                  '</div></div>';
+              }).join('') +
+            '</div>';
+          thread.insertBefore(el, thread.firstChild);
+        }
+
+        function _renderFinalProposal(data) {
+          var proposal = (data || {}).proposal || null;
+          var proposalEl = document.getElementById('council-proposal');
+          if (!proposal || !proposalEl) return;
+          var changes = proposal.field_changes || proposal.changes || {};
+          var changesHtml = '';
+          Object.keys(changes).forEach(function(k) {
+            changesHtml += '<div style="padding:6px 0;border-bottom:1px solid rgba(215,206,191,0.4);">' +
+              '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(k) + '</span>' +
+              '<div style="font-size:12px;line-height:1.5;color:var(--ink);margin-top:2px;">' + esc(typeof changes[k] === 'string' ? changes[k] : JSON.stringify(changes[k])) + '</div>' +
+            '</div>';
+          });
+          var consensusLabel = (data.consensus_status === 'consensus' || proposal.consensus)
+            ? '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#dcfce7;color:#166534;">达成共识</span>'
+            : '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#fee2e2;color:#991b1b;">存在分歧</span>';
+          proposalEl.innerHTML =
+            '<div style="border:1px solid var(--accent);border-radius:14px;padding:14px;background:linear-gradient(135deg,rgba(138,75,47,0.04),rgba(255,253,248,0.9));">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+                '<span style="font-size:14px;font-weight:700;color:var(--ink);">Proposal</span>' +
+                consensusLabel +
+              '</div>' +
+              (proposal.summary || proposal.rationale ? '<div style="font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:10px;">' + esc(proposal.summary || proposal.rationale || '') + '</div>' : '') +
+              (changesHtml ? '<div style="margin-bottom:12px;">' + changesHtml + '</div>' : '') +
+              '<div style="display:flex;gap:8px;">' +
+                '<button type="button" onclick="applyProposal(\'' + esc(data.discussion_id || '') + '\')" style="flex:1;padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">采纳</button>' +
+                '<button type="button" onclick="rejectProposal(\'' + esc(data.discussion_id || '') + '\')" style="flex:1;padding:9px 16px;background:var(--surface);color:var(--accent);border:1px solid var(--accent);border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">拒绝</button>' +
+              '</div>' +
+            '</div>';
+        }
+
+        function _finishSession(data) {
+          if (_sseSource) { _sseSource.close(); _sseSource = null; }
+          if (_phaseEl) _phaseEl.remove();
+          startBtn.disabled = false;
+          startBtn.textContent = '继续追问';
+          if (data) _renderFinalProposal(data);
+        }
+
+        _sseSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
+
+        _sseSource.addEventListener('council_session_started', function(e) {
+          try {
+            var d = JSON.parse(e.data);
+            var p = (d.payload || {}).participants || d.participants || [];
+            _renderParticipants(p);
+            _updatePhase('各角色 Agent 正在思考…');
+          } catch(ex) {}
+        });
+
+        _sseSource.addEventListener('council_phase_changed', function(e) {
+          try {
+            var d = JSON.parse(e.data);
+            var p = d.payload || d;
+            var phase = p.phase || '';
+            var label = p.label || '';
+            if (phase === 'council_round2') { _currentRound = 2; }
+            if (phase === 'synthesizing_consensus') { _updatePhase('正在综合各方观点，生成共识…'); }
+            else if (label) { _updatePhase(label); }
+          } catch(ex) {}
+        });
+
+        _sseSource.addEventListener('council_phase', function(e) {
+          try {
+            var d = JSON.parse(e.data);
+            var p = d.payload || d;
+            var phase = p.phase || '';
+            if (phase === 'collecting_opinions') _updatePhase('正在收集各角色观点…');
+            else if (phase === 'synthesizing_consensus') _updatePhase('正在综合各方观点，生成共识…');
+            else if (phase === 'session_ready') _updatePhase('会话产出已就绪');
+          } catch(ex) {}
+        });
+
+        _sseSource.addEventListener('council_participant_started', function(e) {
+          try { _appendThinkingDot(JSON.parse(e.data).payload || JSON.parse(e.data)); } catch(ex) {}
+        });
+
+        _sseSource.addEventListener('council_participant_message', function(e) {
+          try {
+            var d = JSON.parse(e.data);
+            var p = d.payload || d;
+            _removeThinkingDot(p);
+            _appendAgentCard(p, p.council_round || 1);
+          } catch(ex) {}
+        });
+
+        _sseSource.addEventListener('council_participant_completed', function(e) {
+          try { var d = JSON.parse(e.data); _removeThinkingDot(d.payload || d); } catch(ex) {}
+        });
+
+        _sseSource.addEventListener('council_synthesis_started', function(e) {
+          _updatePhase('总调度正在综合各方观点…');
+        });
+
+        _sseSource.addEventListener('council_synthesis_completed', function(e) {
+          try {
+            var d = JSON.parse(e.data);
+            var p = d.payload || d;
+            var consensus = p.consensus || '';
+            if (consensus) {
+              var synthCard = document.createElement('div');
+              synthCard.style.cssText = 'border:1px solid rgba(15,118,110,0.35);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(240,253,250,0.7);animation:fadeSlideIn 0.35s ease;';
+              synthCard.innerHTML =
+                '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">' +
+                  '<span style="font-size:16px;">🧭</span>' +
+                  '<span style="font-size:13px;font-weight:700;color:#0f766e;">总调度 · 共识</span>' +
+                '</div>' +
+                '<div style="font-size:13px;line-height:1.65;color:var(--ink);white-space:pre-wrap;">' + esc(consensus) + '</div>';
+              if (_phaseEl) thread.insertBefore(synthCard, _phaseEl);
+              else thread.appendChild(synthCard);
+            }
+            _updatePhase('共识已生成，等待最终结果…');
+          } catch(ex) {}
+        });
+
+        _sseSource.addEventListener('council_session_completed', function(e) {
+          if (_finalData) _finishSession(_finalData);
+        });
+
+        _sseSource.onerror = function() {
+          if (_finalData) _finishSession(_finalData);
+        };
 
         fetch('/content-planning/stages/' + stage + '/' + encodeURIComponent(opportunityId) + '/discussions', {
           method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -727,54 +960,12 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          startBtn.disabled = false;
-          startBtn.textContent = '继续追问';
-
-          var messages = data.messages || [];
-          var threadHtml = '';
-          messages.forEach(function(msg) {
-            var rm = roleMeta(msg.role || msg.agent_role || 'lead');
-            threadHtml +=
-              '<div style="border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(255,255,255,0.6);">' +
-                '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">' +
-                  '<span style="font-size:16px;">' + rm.icon + '</span>' +
-                  '<span style="font-size:13px;font-weight:700;color:' + rm.color + ';">' + rm.label + '</span>' +
-                '</div>' +
-                '<div style="font-size:13px;line-height:1.65;color:var(--ink);white-space:pre-wrap;">' + esc(msg.content || msg.text || '') + '</div>' +
-              '</div>';
-          });
-          thread.innerHTML = threadHtml || '<div style="color:var(--muted);font-size:13px;">无讨论记录</div>';
-
-          var proposal = data.proposal || data.result || null;
-          var proposalEl = document.getElementById('council-proposal');
-          if (proposal) {
-            var changes = proposal.field_changes || proposal.changes || {};
-            var changesHtml = '';
-            Object.keys(changes).forEach(function(k) {
-              changesHtml += '<div style="padding:6px 0;border-bottom:1px solid rgba(215,206,191,0.4);">' +
-                '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(k) + '</span>' +
-                '<div style="font-size:12px;line-height:1.5;color:var(--ink);margin-top:2px;">' + esc(typeof changes[k] === 'string' ? changes[k] : JSON.stringify(changes[k])) + '</div>' +
-              '</div>';
-            });
-            var consensusLabel = (data.consensus_status === 'consensus' || proposal.consensus)
-              ? '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#dcfce7;color:#166534;">达成共识</span>'
-              : '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#fee2e2;color:#991b1b;">存在分歧</span>';
-            proposalEl.innerHTML =
-              '<div style="border:1px solid var(--accent);border-radius:14px;padding:14px;background:linear-gradient(135deg,rgba(138,75,47,0.04),rgba(255,253,248,0.9));">' +
-                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
-                  '<span style="font-size:14px;font-weight:700;color:var(--ink);">Proposal</span>' +
-                  consensusLabel +
-                '</div>' +
-                (proposal.summary || proposal.rationale ? '<div style="font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:10px;">' + esc(proposal.summary || proposal.rationale || '') + '</div>' : '') +
-                (changesHtml ? '<div style="margin-bottom:12px;">' + changesHtml + '</div>' : '') +
-                '<div style="display:flex;gap:8px;">' +
-                  '<button type="button" onclick="applyProposal(\'' + esc(data.discussion_id || '') + '\')" style="flex:1;padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">采纳</button>' +
-                  '<button type="button" onclick="rejectProposal(\'' + esc(data.discussion_id || '') + '\')" style="flex:1;padding:9px 16px;background:var(--surface);color:var(--accent);border:1px solid var(--accent);border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">拒绝</button>' +
-                '</div>' +
-              '</div>';
-          }
+          _finalData = data;
+          setTimeout(function() { _finishSession(data); }, 500);
         })
         .catch(function(e) {
+          if (_sseSource) { _sseSource.close(); _sseSource = null; }
+          if (_phaseEl) _phaseEl.remove();
           startBtn.disabled = false;
           startBtn.textContent = '发起讨论';
           thread.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;">讨论失败：' + esc(e.message || '网络错误') + '</div>';

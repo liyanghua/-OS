@@ -62,16 +62,28 @@ class EventBus:
                 logger.warning("Event queue full for %s, dropping event %s", oid, event.event_id)
 
     def publish_sync(self, event: ObjectEvent) -> None:
-        """Synchronous publish (schedules async publish on running loop)."""
+        """Synchronous publish — works from any thread (main or executor)."""
+        oid = event.opportunity_id
+        history = self._history.setdefault(oid, [])
+        history.append(event)
+        if len(history) > self._max_history:
+            self._history[oid] = history[-self._max_history:]
+
+        if not self._subscribers.get(oid):
+            return
+
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self.publish(event))
+            loop.call_soon_threadsafe(self._enqueue_nowait, oid, event)
         except RuntimeError:
-            oid = event.opportunity_id
-            history = self._history.setdefault(oid, [])
-            history.append(event)
-            if len(history) > self._max_history:
-                self._history[oid] = history[-self._max_history:]
+            self._enqueue_nowait(oid, event)
+
+    def _enqueue_nowait(self, oid: str, event: ObjectEvent) -> None:
+        for q in self._subscribers.get(oid, []):
+            try:
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                logger.warning("Event queue full for %s, dropping event %s", oid, event.event_id)
 
     def get_history(self, opportunity_id: str, since: float = 0) -> list[ObjectEvent]:
         """Get event history, optionally filtered by timestamp."""

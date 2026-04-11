@@ -243,10 +243,17 @@ def test_stage_discussion_single_run_mode_reduces_participants(
     performance_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _fake_agent_opinion_structured(self, **kwargs):
-        return "建议保持早餐桌景场景，同时避免过强广告感。", {"stance": "neutral", "claim": "保持场景", "agent_name": "", "stage": kwargs.get("stage", "")}
+    def _fake_council_opinion(self, **kwargs):
+        return "建议保持早餐桌景场景，同时避免过强广告感。", {
+            "stance": "neutral",
+            "claim": "保持场景",
+            "agent_name": "",
+            "stage": kwargs.get("stage", ""),
+            "soul_tagline": "",
+            "council_round": kwargs.get("council_round", 1),
+        }
 
-    def _fake_synthesize(self, question, stage, statements, object_context):
+    def _fake_synthesize(self, question, stage, statements, object_context, *, lead_soul="", **kwargs):
         from apps.content_planning.agents.discussion import CouncilSynthesisBundle
 
         return CouncilSynthesisBundle(
@@ -260,8 +267,8 @@ def test_stage_discussion_single_run_mode_reduces_participants(
         )
 
     monkeypatch.setattr(
-        "apps.content_planning.agents.discussion.DiscussionOrchestrator._get_agent_opinion_structured",
-        _fake_agent_opinion_structured,
+        "apps.content_planning.agents.council_runner.CouncilAgentRunner.opinion",
+        _fake_council_opinion,
         raising=True,
     )
     monkeypatch.setattr(
@@ -414,12 +421,19 @@ def test_discussion_reuses_shared_memory_context(monkeypatch: pytest.MonkeyPatch
     def _boom_object(self, stage: str, context: AgentContext | None) -> str:
         raise AssertionError("discussion should reuse shared object summary")
 
-    def _fake_agent_opinion_structured(self, **kwargs):
-        assert kwargs["memory_context"] == "共享记忆"
+    def _fake_council_opinion(self, **kwargs):
+        assert kwargs["shared_memory_context"] == "共享记忆"
         assert kwargs["object_context"] == "共享对象摘要"
-        return "建议先调整 brief 的主价值表达。", {"stance": "neutral", "claim": "调主价值", "agent_name": "", "stage": ""}
+        return "建议先调整 brief 的主价值表达。", {
+            "stance": "neutral",
+            "claim": "调主价值",
+            "agent_name": "",
+            "stage": "",
+            "soul_tagline": "",
+            "council_round": kwargs.get("council_round", 1),
+        }
 
-    def _fake_synthesize(self, question, stage, statements, object_context):
+    def _fake_synthesize(self, question, stage, statements, object_context, *, lead_soul="", **kwargs):
         from apps.content_planning.agents.discussion import CouncilSynthesisBundle
 
         assert object_context == "共享对象摘要"
@@ -444,8 +458,8 @@ def test_discussion_reuses_shared_memory_context(monkeypatch: pytest.MonkeyPatch
         raising=True,
     )
     monkeypatch.setattr(
-        "apps.content_planning.agents.discussion.DiscussionOrchestrator._get_agent_opinion_structured",
-        _fake_agent_opinion_structured,
+        "apps.content_planning.agents.council_runner.CouncilAgentRunner.opinion",
+        _fake_council_opinion,
         raising=True,
     )
     monkeypatch.setattr(
@@ -478,11 +492,18 @@ def test_discussion_reuses_shared_memory_context(monkeypatch: pytest.MonkeyPatch
 def test_discussion_parallelizes_specialist_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     from apps.content_planning.agents.discussion import DiscussionOrchestrator
 
-    def _fake_agent_opinion_structured(self, **kwargs):
+    def _fake_council_opinion(self, **kwargs):
         time.sleep(0.08)
-        return f"{kwargs['agent_role']} 建议", {"stance": "neutral", "claim": "...", "agent_name": "", "stage": ""}
+        return f"{kwargs['agent_role']} 建议", {
+            "stance": "neutral",
+            "claim": "...",
+            "agent_name": "",
+            "stage": "",
+            "soul_tagline": "",
+            "council_round": kwargs.get("council_round", 1),
+        }
 
-    def _fake_synthesize(self, question, stage, statements, object_context):
+    def _fake_synthesize(self, question, stage, statements, object_context, *, lead_soul="", **kwargs):
         from apps.content_planning.agents.discussion import CouncilSynthesisBundle
 
         return CouncilSynthesisBundle(
@@ -496,8 +517,8 @@ def test_discussion_parallelizes_specialist_calls(monkeypatch: pytest.MonkeyPatc
         )
 
     monkeypatch.setattr(
-        "apps.content_planning.agents.discussion.DiscussionOrchestrator._get_agent_opinion_structured",
-        _fake_agent_opinion_structured,
+        "apps.content_planning.agents.council_runner.CouncilAgentRunner.opinion",
+        _fake_council_opinion,
         raising=True,
     )
     monkeypatch.setattr(
@@ -516,21 +537,28 @@ def test_discussion_parallelizes_specialist_calls(monkeypatch: pytest.MonkeyPatc
     elapsed = time.perf_counter() - started
 
     assert discussion.consensus == "综合意见：保留多角度观点。"
-    assert elapsed < 0.18
+    assert elapsed < 0.35
 
 
 def test_discussion_keeps_partial_results_when_one_specialist_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     from apps.content_planning.agents.discussion import DiscussionOrchestrator
 
-    def _fake_agent_opinion_structured(self, **kwargs):
-        if kwargs["agent_role"] == "brief_synthesizer":
+    def _fake_council_opinion(self, **kwargs):
+        if kwargs["agent_role"] == "creative_director":
             raise RuntimeError("temporary llm error")
-        return f"{kwargs['agent_role']} 成功建议", {"stance": "neutral", "claim": "...", "agent_name": "", "stage": ""}
+        return f"{kwargs['agent_role']} 成功建议", {
+            "stance": "neutral",
+            "claim": "...",
+            "agent_name": "",
+            "stage": "",
+            "soul_tagline": "",
+            "council_round": kwargs.get("council_round", 1),
+        }
 
-    def _fake_synthesize(self, question, stage, statements, object_context):
+    def _fake_synthesize(self, question, stage, statements, object_context, *, lead_soul="", **kwargs):
         from apps.content_planning.agents.discussion import CouncilSynthesisBundle
 
-        assert len(statements) == 2
+        assert len(statements) >= 2
         return CouncilSynthesisBundle(
             consensus="综合意见：先采用成功观点。",
             proposed_updates={"primary_value": "保留成功建议"},
@@ -542,8 +570,8 @@ def test_discussion_keeps_partial_results_when_one_specialist_fails(monkeypatch:
         )
 
     monkeypatch.setattr(
-        "apps.content_planning.agents.discussion.DiscussionOrchestrator._get_agent_opinion_structured",
-        _fake_agent_opinion_structured,
+        "apps.content_planning.agents.council_runner.CouncilAgentRunner.opinion",
+        _fake_council_opinion,
         raising=True,
     )
     monkeypatch.setattr(
@@ -559,12 +587,13 @@ def test_discussion_keeps_partial_results_when_one_specialist_fails(monkeypatch:
     )
 
     assert discussion.consensus == "综合意见：先采用成功观点。"
-    assert discussion.failed_participants == ["brief_synthesizer"]
+    assert discussion.failed_participants == ["creative_director"]
     failed_messages = [
-        message for message in discussion.messages
-        if message.agent_role == "brief_synthesizer" and message.metadata.get("status") == "failed"
+        message
+        for message in discussion.messages
+        if message.agent_role == "creative_director" and message.metadata.get("status") == "failed"
     ]
-    assert len(failed_messages) == 1
+    assert len(failed_messages) >= 1
 
 
 def test_llm_timeout_returns_degraded_response_quickly(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -576,7 +605,7 @@ def test_llm_timeout_returns_degraded_response_quickly(monkeypatch: pytest.Monke
         def is_available(self) -> bool:
             return True
 
-        def chat(self, messages, *, model=None, temperature=0.3, max_tokens=2000):
+        def chat(self, messages, *, model=None, temperature=0.3, max_tokens=2000, **kwargs):
             time.sleep(0.2)
             return LLMResponse(content="slow result", provider=self.name, model=model or "slow-model")
 

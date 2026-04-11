@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import uuid
 from datetime import UTC, datetime
@@ -222,6 +223,52 @@ class AgentMemory:
                 (f"%{query}%", limit),
             ).fetchall()
         return [self._row_to_entry(row) for row in rows]
+
+    def search_for_opportunity(self, opportunity_id: str, query: str, *, limit: int = 5) -> list[MemoryEntry]:
+        """LIKE search scoped to one opportunity (safe for arbitrary user text)."""
+        q = query.strip()[:120]
+        if len(q) < 2:
+            return []
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM memories WHERE opportunity_id = ? AND content LIKE ?
+                   ORDER BY created_at DESC LIMIT ?""",
+                (opportunity_id, f"%{q}%", limit),
+            ).fetchall()
+        out = [self._row_to_entry(row) for row in rows]
+        if out or len(q) < 4:
+            return out
+        first = re.split(r"[\s\u3000]+", q, maxsplit=1)[0]
+        if len(first) >= 2 and first != q:
+            rows = conn.execute(
+                """SELECT * FROM memories WHERE opportunity_id = ? AND content LIKE ?
+                   ORDER BY created_at DESC LIMIT ?""",
+                (opportunity_id, f"%{first}%", limit),
+            ).fetchall()
+            return [self._row_to_entry(row) for row in rows]
+        return out
+
+    def council_memory_block(
+        self,
+        opportunity_id: str,
+        agent_role: str,
+        user_question: str,
+        *,
+        inject_limit: int = 5,
+        search_limit: int = 4,
+    ) -> str:
+        """Per-role weighted recall + opportunity-scoped search on question text."""
+        parts: list[str] = []
+        inj = self.inject_context(opportunity_id, agent_role=agent_role, limit=inject_limit)
+        if inj.strip():
+            parts.append("【与本角色相关的记忆】\n" + inj)
+        hits = self.search_for_opportunity(opportunity_id, user_question, limit=search_limit)
+        if hits:
+            lines = [f"- [{e.category}|{e.source_agent}] {e.content[:150]}" for e in hits]
+            parts.append("【与问题相关的记忆检索】\n" + "\n".join(lines))
+        if not parts:
+            return "无历史记忆"
+        return "\n\n".join(parts)
 
     def inject_context(self, opportunity_id: str, agent_role: str = "", limit: int = 5) -> str:
         """Build a memory context string with semantic relevance ranking."""
