@@ -107,6 +107,10 @@ class StageProposal(BaseModel):
     guardrail_warnings: list[str] = Field(default_factory=list)
     blocked_by_guardrail: bool = False
     brand_fit_score: float = 1.0
+    # Multi-stage diffs (V2)
+    strategy_block_diffs: list[dict[str, Any]] = Field(default_factory=list)
+    plan_field_diffs: list[dict[str, Any]] = Field(default_factory=list)
+    asset_diffs: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ProposalDecision(BaseModel):

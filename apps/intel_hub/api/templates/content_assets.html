@@ -150,180 +150,192 @@
     </main>
 
     <aside class="aw-right">
-      <div class="aw-agent-box">
-        <div class="aw-agent-title">资产制作人</div>
-        <div class="aw-agent-text">{% if bundle and bundle.title_candidates %}资产包含 {{ bundle.title_candidates|length }} 条标题候选{% if bundle.body_draft %} + {{ bundle.body_draft|length }} 字正文{% endif %}{% if bundle.image_execution_briefs %} + {{ bundle.image_execution_briefs|length }} 张图位{% endif %}。{% else %}尚未组装资产包。{% endif %}</div>
-        <button type="button" class="aw-btn" id="aw-btn-run-agent" style="margin-top:10px;">资产制作人分析</button>
-        <div class="aw-agent-text" id="aw-agent-explanation" style="margin-top:8px;"></div>
+      {# ═══ 固定主操作区 ═══ #}
+      <div class="aw-card" style="position:sticky;top:20px;z-index:10;background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1px solid #c4b5fd;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="aw-btn" id="aw-btn-run-agent" style="flex:1;min-width:100px;margin:0;">资产制作人分析</button>
+          <button type="button" class="aw-btn secondary" id="aw-btn-export-json" style="flex:0;margin:0;padding:8px 12px;font-size:12px;white-space:nowrap;">JSON</button>
+          <button type="button" class="aw-btn secondary" id="aw-btn-export-md" style="flex:0;margin:0;padding:8px 12px;font-size:12px;white-space:nowrap;">MD</button>
+          <button type="button" class="aw-btn secondary" id="aw-btn-variant" style="flex:0;margin:0;padding:8px 12px;font-size:12px;white-space:nowrap;">变体</button>
+        </div>
+        <div id="aw-agent-explanation" style="font-size:12px;line-height:1.5;color:#4c1d95;margin-top:8px;max-height:120px;overflow-y:auto;"></div>
       </div>
 
-      <div class="aw-card">
-        <h3 style="font-size: 16px; color: var(--ink);">Ask the Council</h3>
-        {% if stale_flags.get('plan') or stale_flags.get('titles') or stale_flags.get('body') or stale_flags.get('image_briefs') %}
-        <div style="margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: #fff7ed; border: 1px solid #fdba74; font-size: 12px; line-height: 1.6; color: #9a3412;">
-          当前 Asset 上游输入已 stale。你仍然可以发起 Asset Council 获取建议，但在 Plan / 生成结果修复前不会开放 apply。
-        </div>
-        {% endif %}
-        <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;" for="aw-council-question">围绕当前 Asset 提问</label>
-        <textarea id="aw-council-question" rows="3" style="width:100%;box-sizing:border-box;resize:vertical;padding:10px 12px;border-radius:12px;border:1px solid var(--border);font-family:inherit;font-size:13px;" placeholder="例如：请把当前资产包调成更适合早餐桌景高收藏发布的版本。"></textarea>
-        <div style="display:flex; gap:10px; margin-top:10px;">
-          <button type="button" class="aw-btn secondary" id="aw-btn-council" style="margin-bottom:0;">发起 Asset Council</button>
-          <button type="button" class="aw-btn secondary" id="aw-btn-scorecard" style="margin-bottom:0;">刷新 Asset 评分</button>
-        </div>
-        <div id="aw-council-status" style="font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--muted);"></div>
-
-        <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
-          <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Discussion Summary</div>
-          <div id="aw-discussion-summary" style="font-size:13px;line-height:1.6;color:var(--ink);">暂无讨论记录</div>
+      {# ═══ AI 面板 Tab 组 ═══ #}
+      <div class="aw-card" style="padding:0;">
+        <div class="aw-tabs" role="tablist" style="padding:12px 16px 0;margin-bottom:0;border-bottom:1px solid var(--border);">
+          <button type="button" class="aw-tab aw-rtab active" data-rtab="rtab-review" role="tab">AI 评审</button>
+          <button type="button" class="aw-tab aw-rtab" data-rtab="rtab-council" role="tab">Council</button>
+          <button type="button" class="aw-tab aw-rtab" data-rtab="rtab-collab" role="tab">协同</button>
         </div>
 
-        <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
-          <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Proposal Diff</div>
-          <div id="aw-proposal-diff" style="font-size:12px;color:var(--muted);">暂无 proposal</div>
-          <button type="button" class="aw-btn" id="aw-btn-apply-proposal" style="display:none;margin-top:10px;">Apply Selected Changes</button>
-        </div>
-
-        <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
-          <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Baseline vs Current Scorecard</div>
+        {# ── Tab 1: AI 评审 ── #}
+        <div id="rtab-review" class="aw-tab-panel active" role="tabpanel" style="padding:14px 16px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Baseline vs Current Scorecard</div>
           <div id="aw-scorecard" style="font-size:12px;color:var(--muted);">暂无评分</div>
+          <button type="button" class="aw-btn secondary" id="aw-btn-scorecard" style="margin-top:10px;margin-bottom:0;">刷新 Asset 评分</button>
+        </div>
+
+        {# ── Tab 2: Council (完整 SSE 版) ── #}
+        <div id="rtab-council" class="aw-tab-panel" role="tabpanel" style="padding:14px 16px;">
+          {% if stale_flags.get('plan') or stale_flags.get('titles') or stale_flags.get('body') or stale_flags.get('image_briefs') %}
+          <div style="margin-bottom:10px;padding:8px 10px;border-radius:10px;background:#fff7ed;border:1px solid #fdba74;font-size:11px;line-height:1.5;color:#9a3412;">
+            上游输入已 stale，apply 暂不可用。
+          </div>
+          {% endif %}
+          <div id="aw-council-history-section" style="margin-bottom:10px;">
+            <div style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:rgba(138,75,47,0.04);border:1px solid var(--border);border-radius:10px;" onclick="var tgt=document.getElementById('aw-council-history-list');tgt.style.display=tgt.style.display==='none'?'block':'none';this.querySelector('.toggle-arrow').textContent=tgt.style.display==='none'?'▸':'▾';">
+              <span style="font-size:11px;font-weight:700;color:var(--ink);">历史讨论</span>
+              <span class="toggle-arrow" style="font-size:10px;color:var(--muted);">▸</span>
+            </div>
+            <div id="aw-council-history-list" style="display:none;max-height:160px;overflow-y:auto;margin-top:6px;"></div>
+          </div>
+          <label style="display:block;font-size:11px;font-weight:700;margin-bottom:4px;" for="aw-council-question">围绕 Asset 提问</label>
+          <textarea id="aw-council-question" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;border-radius:10px;border:1px solid var(--border);font-family:inherit;font-size:12px;" placeholder="例如：请把资产包调成更适合早餐桌景高收藏发布的版本"></textarea>
+          <button type="button" class="aw-btn secondary" id="aw-btn-council" style="margin-top:8px;margin-bottom:0;font-size:12px;">发起 Council</button>
+          <div id="aw-council-thread" style="margin-top:12px;max-height:45vh;overflow-y:auto;"></div>
+          <div id="aw-council-proposal" style="margin-top:10px;"></div>
+        </div>
+
+        {# ── Tab 3: 协同 (时间线 + 对话 合并) ── #}
+        <div id="rtab-collab" class="aw-tab-panel" role="tabpanel" style="padding:14px 16px;">
+          <div id="aw-timeline" style="max-height:220px;overflow-y:auto;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--bg-subtle,#fafafa);margin-bottom:10px;">
+            <div style="color:var(--muted);">等待 Agent 事件...</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <input id="aw-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;">
+            <button id="aw-chat-send" type="button" style="padding:6px 12px;border-radius:8px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:12px;">发送</button>
+          </div>
+          <div id="aw-chat-status" style="font-size:10px;margin-top:4px;color:var(--muted);"></div>
         </div>
       </div>
 
+      {# ═══ 发布与复盘（折叠） ═══ #}
       <div class="aw-card">
-        <h3>导出与审核</h3>
-        <button type="button" class="aw-btn" id="aw-btn-export-json">导出 JSON</button>
-        <button type="button" class="aw-btn" id="aw-btn-export-md">导出 Markdown</button>
-        <button type="button" class="aw-btn secondary" id="aw-btn-variant">生成变体</button>
-      </div>
-
-      <div class="aw-card">
-        <h3>发布结果录入</h3>
-        <p style="margin: 0 0 12px; font-size: 12px; color: var(--muted); line-height: 1.5;">将实际上线平台、外链与互动数据记入闭环，便于后续结果摘要与对比。</p>
-        <form id="aw-form-publish-result" novalidate>
-          <div class="aw-field">
-            <label for="aw-pub-platform">发布平台</label>
-            <select id="aw-pub-platform" name="platform" required>
-              <option value="xhs">小红书</option>
-              <option value="douyin">抖音</option>
-              <option value="wechat">微信</option>
-            </select>
-          </div>
-          <div class="aw-field">
-            <label for="aw-pub-external-ref">外链 / 笔记 ID</label>
-            <input type="text" id="aw-pub-external-ref" name="external_ref" placeholder="平台内链接或内容 ID" autocomplete="off">
-          </div>
-          <div class="aw-field">
-            <label style="margin-bottom:8px;">互动指标</label>
-            <div class="aw-metrics-grid">
-              <div>
-                <label for="aw-m-like" style="font-weight:600;font-size:11px;color:var(--muted);">点赞</label>
-                <input type="number" id="aw-m-like" name="like_count" min="0" step="1" value="0" inputmode="numeric">
-              </div>
-              <div>
-                <label for="aw-m-collect" style="font-weight:600;font-size:11px;color:var(--muted);">收藏</label>
-                <input type="number" id="aw-m-collect" name="collect_count" min="0" step="1" value="0" inputmode="numeric">
-              </div>
-              <div>
-                <label for="aw-m-comment" style="font-weight:600;font-size:11px;color:var(--muted);">评论</label>
-                <input type="number" id="aw-m-comment" name="comment_count" min="0" step="1" value="0" inputmode="numeric">
-              </div>
-              <div>
-                <label for="aw-m-share" style="font-weight:600;font-size:11px;color:var(--muted);">分享</label>
-                <input type="number" id="aw-m-share" name="share_count" min="0" step="1" value="0" inputmode="numeric">
-              </div>
-              <div style="grid-column: 1 / -1;">
-                <label for="aw-m-view" style="font-weight:600;font-size:11px;color:var(--muted);">播放 / 阅读</label>
-                <input type="number" id="aw-m-view" name="view_count" min="0" step="1" value="0" inputmode="numeric">
+        <div style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="var b=document.getElementById('aw-publish-body');b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.toggle-arrow').textContent=b.style.display==='none'?'▸':'▾';">
+          <h3 style="margin:0;font-size:14px;color:var(--ink);">发布与复盘</h3>
+          <span class="toggle-arrow" style="font-size:12px;color:var(--muted);">▸</span>
+        </div>
+        <div id="aw-publish-body" style="display:none;margin-top:12px;">
+          <form id="aw-form-publish-result" novalidate>
+            <div class="aw-field">
+              <label for="aw-pub-platform">发布平台</label>
+              <select id="aw-pub-platform" name="platform" required>
+                <option value="xhs">小红书</option>
+                <option value="douyin">抖音</option>
+                <option value="wechat">微信</option>
+              </select>
+            </div>
+            <div class="aw-field">
+              <label for="aw-pub-external-ref">外链 / 笔记 ID</label>
+              <input type="text" id="aw-pub-external-ref" name="external_ref" placeholder="平台内链接或内容 ID" autocomplete="off">
+            </div>
+            <div class="aw-field">
+              <label style="margin-bottom:6px;">互动指标</label>
+              <div class="aw-metrics-grid">
+                <div>
+                  <label for="aw-m-like" style="font-weight:600;font-size:11px;color:var(--muted);">点赞</label>
+                  <input type="number" id="aw-m-like" name="like_count" min="0" step="1" value="0" inputmode="numeric">
+                </div>
+                <div>
+                  <label for="aw-m-collect" style="font-weight:600;font-size:11px;color:var(--muted);">收藏</label>
+                  <input type="number" id="aw-m-collect" name="collect_count" min="0" step="1" value="0" inputmode="numeric">
+                </div>
+                <div>
+                  <label for="aw-m-comment" style="font-weight:600;font-size:11px;color:var(--muted);">评论</label>
+                  <input type="number" id="aw-m-comment" name="comment_count" min="0" step="1" value="0" inputmode="numeric">
+                </div>
+                <div>
+                  <label for="aw-m-share" style="font-weight:600;font-size:11px;color:var(--muted);">分享</label>
+                  <input type="number" id="aw-m-share" name="share_count" min="0" step="1" value="0" inputmode="numeric">
+                </div>
+                <div style="grid-column:1/-1;">
+                  <label for="aw-m-view" style="font-weight:600;font-size:11px;color:var(--muted);">播放/阅读</label>
+                  <input type="number" id="aw-m-view" name="view_count" min="0" step="1" value="0" inputmode="numeric">
+                </div>
               </div>
             </div>
+            <div class="aw-field">
+              <label for="aw-pub-performance">效果标签</label>
+              <select id="aw-pub-performance" name="performance_label">
+                <option value="unknown">未知</option>
+                <option value="excellent">优秀</option>
+                <option value="good">良好</option>
+                <option value="average">一般</option>
+                <option value="poor">偏弱</option>
+              </select>
+            </div>
+            <div class="aw-field">
+              <label for="aw-pub-notes">备注说明</label>
+              <textarea id="aw-pub-notes" name="feedback_notes" rows="2" placeholder="投放时段、素材版本、运营动作等"></textarea>
+            </div>
+            <button type="submit" class="aw-btn" id="aw-btn-submit-publish" {% if not bundle %}disabled{% endif %}>提交发布结果</button>
+          </form>
+          <div id="aw-publish-result-status" style="font-size:11px;margin-top:8px;min-height:16px;color:var(--muted);"></div>
+          {% if not bundle %}
+          <p style="margin:6px 0 0;font-size:11px;color:#b45309;">暂无资产包时无法提交。</p>
+          {% endif %}
+          <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;">
+            <div style="font-size:12px;font-weight:700;margin-bottom:6px;">结果摘要</div>
+            <div id="aw-outcome-summary" style="font-size:12px;line-height:1.5;color:var(--ink);"><span style="color:var(--muted);">加载中…</span></div>
+            <button type="button" class="aw-btn secondary" id="aw-btn-refresh-outcome" style="margin-top:8px;margin-bottom:0;font-size:12px;">刷新摘要</button>
           </div>
-          <div class="aw-field">
-            <label for="aw-pub-performance">效果标签</label>
-            <select id="aw-pub-performance" name="performance_label">
-              <option value="unknown">未知</option>
-              <option value="excellent">优秀</option>
-              <option value="good">良好</option>
-              <option value="average">一般</option>
-              <option value="poor">偏弱</option>
-            </select>
-          </div>
-          <div class="aw-field">
-            <label for="aw-pub-notes">备注说明</label>
-            <textarea id="aw-pub-notes" name="feedback_notes" rows="3" placeholder="投放时段、素材版本、运营动作等补充信息"></textarea>
-          </div>
-          <button type="submit" class="aw-btn" id="aw-btn-submit-publish" {% if not bundle %}disabled{% endif %}>提交发布结果</button>
-        </form>
-        <div id="aw-publish-result-status" style="font-size: 12px; margin-top: 10px; min-height: 18px; color: var(--muted);"></div>
-        {% if not bundle %}
-        <p style="margin: 8px 0 0; font-size: 11px; color: #b45309;">暂无资产包时无法提交；请先在 Creation Workspace 生成内容。</p>
-        {% endif %}
-        <a href="/feedback" class="aw-btn secondary" style="margin-top:8px;">查看反馈全局 →</a>
+          <a href="/feedback" class="aw-btn secondary" style="margin-top:10px;font-size:12px;">查看反馈全局 →</a>
+        </div>
       </div>
 
+      {# ═══ 辅助信息（折叠） ═══ #}
       <div class="aw-card">
-        <h3>结果摘要</h3>
-        <div id="aw-outcome-summary" style="font-size: 13px; line-height: 1.55; color: var(--ink);">
-          <span style="color: var(--muted);">加载中…</span>
+        <div style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="var b=document.getElementById('aw-aux-body');b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.toggle-arrow').textContent=b.style.display==='none'?'▸':'▾';">
+          <h3 style="margin:0;font-size:14px;color:var(--ink);">辅助信息</h3>
+          <span class="toggle-arrow" style="font-size:12px;color:var(--muted);">▸</span>
         </div>
-        <button type="button" class="aw-btn secondary" id="aw-btn-refresh-outcome" style="margin-top: 12px; margin-bottom: 0;">刷新摘要</button>
-      </div>
-
-      {% if stale_flags %}
-      <div class="aw-card">
-        <h3>对象状态</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-          {% for key in ['brief','match','strategy','plan','titles','body','image_briefs','asset_bundle'] %}
-          {% set is_stale = stale_flags.get(key, false) %}
-          <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">{{ key }} {{ '⟳' if is_stale else '✓' }}</span>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      <div class="ws-card" style="margin-top: 12px;">
-        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">可用技能</h3>
-        <div id="aw-skills-list" style="font-size: 12px;"></div>
-      </div>
-
-      <div class="aw-card" style="margin-top: 12px;">
-        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">协同时间线</h3>
-        <div id="aw-timeline" style="max-height: 260px; overflow-y: auto; font-size: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--bg-subtle, #fafafa);">
-          <div style="color: var(--muted);">等待 Agent 事件...</div>
+        <div id="aw-aux-body" style="display:none;margin-top:12px;">
+          {% if stale_flags %}
+          <div style="margin-bottom:12px;">
+            <div style="font-size:12px;font-weight:700;margin-bottom:6px;">对象状态</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              {% for key in ['brief','match','strategy','plan','titles','body','image_briefs','asset_bundle'] %}
+              {% set is_stale = stale_flags.get(key, false) %}
+              <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">{{ key }} {{ '⟳' if is_stale else '✓' }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          <div>
+            <div style="font-size:12px;font-weight:700;margin-bottom:6px;">可用技能</div>
+            <div id="aw-skills-list" style="font-size:12px;"></div>
+          </div>
         </div>
       </div>
 
-      <div class="aw-card" style="margin-top: 12px;">
-        <h3 style="font-size: 14px; color: var(--ink); margin: 0 0 8px;">对话</h3>
-        <div style="display: flex; gap: 6px;">
-          <input id="aw-chat-input" type="text" placeholder="追问 AI 或给出指令…" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
-          <button id="aw-chat-send" type="button" style="padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 13px;">发送</button>
-        </div>
-        <div id="aw-chat-status" style="font-size: 11px; margin-top: 4px; color: var(--muted);"></div>
-      </div>
       {% set _obj_id = bundle.asset_bundle_id if bundle else "" %}{% set _obj_type = "asset_bundle" %}{% with object_type=_obj_type, object_id=_obj_id %}{% include "_collab_sidebar.html" %}{% endwith %}
     </aside>
   </div>
 </div>
 
+{% include "_council_ui.html" %}
 <script>
 (function () {
   var opportunityId = {{ opportunity_id | tojson }};
   var bundleId = {{ (bundle.asset_bundle_id if bundle and bundle.asset_bundle_id else '') | tojson }};
   var hasBundleForPublish = {{ (bundle is not none) | tojson }};
-  var currentProposalId = '';
-  var assetInputsStale = {{ (stale_flags.get('plan', false) or stale_flags.get('titles', false) or stale_flags.get('body', false) or stale_flags.get('image_briefs', false)) | tojson }};
-  var proposalGroups = {
-    '标题资产': ['title_candidates'],
-    '正文资产': ['body_outline', 'body_draft'],
-    '图位资产': ['image_execution_briefs']
-  };
 
-  document.querySelectorAll('.aw-tab').forEach(function(btn){
+  document.querySelectorAll('.aw-tab:not(.aw-rtab)').forEach(function(btn){
     btn.addEventListener('click', function(){
-      document.querySelectorAll('.aw-tab').forEach(function(b){ b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
-      document.querySelectorAll('.aw-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+      document.querySelectorAll('.aw-tab:not(.aw-rtab)').forEach(function(b){ b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
+      document.querySelectorAll('.aw-tab-panel:not([id^="rtab-"])').forEach(function(p){ p.classList.remove('active'); });
       btn.classList.add('active'); btn.setAttribute('aria-selected','true');
       document.getElementById(btn.getAttribute('data-tab')).classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.aw-rtab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.aw-rtab').forEach(function(b){ b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
+      document.querySelectorAll('[id^="rtab-"]').forEach(function(p){ p.classList.remove('active'); });
+      btn.classList.add('active'); btn.setAttribute('aria-selected','true');
+      document.getElementById(btn.getAttribute('data-rtab')).classList.add('active');
     });
   });
 
@@ -488,13 +500,6 @@
     refreshOutcomeBtn.addEventListener('click', function() { loadOutcomeSummary(); });
   }
 
-  function setCouncilStatus(msg, isError) {
-    var el = document.getElementById('aw-council-status');
-    if (!el) return;
-    el.textContent = msg || '';
-    el.style.color = isError ? '#b71c1c' : (msg ? 'var(--accent)' : 'var(--muted)');
-  }
-
   function scheduleDeferred(fn, delayMs) {
     delayMs = delayMs || 0;
     function run() {
@@ -507,56 +512,7 @@
     }
   }
 
-  function groupForField(field) {
-    for (var groupName in proposalGroups) {
-      if (proposalGroups[groupName].indexOf(field) >= 0) return groupName;
-    }
-    return '其他字段';
-  }
-
-  function renderProposal(proposal) {
-    var diffEl = document.getElementById('aw-proposal-diff');
-    var applyBtn = document.getElementById('aw-btn-apply-proposal');
-    if (!diffEl || !applyBtn) return;
-    if (!proposal) {
-      diffEl.innerHTML = '<span style="color:var(--muted)">暂无 proposal</span>';
-      applyBtn.style.display = 'none';
-      return;
-    }
-    currentProposalId = proposal.proposal_id || '';
-    if (proposal.summary) {
-      document.getElementById('aw-discussion-summary').textContent = proposal.summary;
-    }
-    var grouped = {};
-    (proposal.diff && proposal.diff.changes ? proposal.diff.changes : []).forEach(function(change) {
-      var groupName = groupForField(change.field);
-      grouped[groupName] = grouped[groupName] || [];
-      grouped[groupName].push(change);
-    });
-    var html = '';
-    Object.keys(grouped).forEach(function(groupName) {
-      html += '<div style="margin-bottom:10px;">';
-      html += '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;">' + groupName + '</div>';
-      grouped[groupName].forEach(function(change) {
-        var checked = change.blocked || assetInputsStale ? '' : ' checked';
-        var disabled = change.blocked || assetInputsStale ? ' disabled' : '';
-        html += '<label style="display:block;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">';
-        html += '<div style="display:flex;gap:8px;align-items:flex-start;">';
-        html += '<input type="checkbox" class="js-proposal-field" value="' + change.field + '"' + checked + disabled + '>';
-        html += '<div style="flex:1;">';
-        html += '<div style="font-weight:600;color:var(--ink);">' + change.field;
-        if (change.blocked) html += ' <span style="color:#b71c1c;">(locked)</span>';
-        if (assetInputsStale) html += ' <span style="color:#b45309;">(upstream stale)</span>';
-        html += '</div>';
-        html += '<div style="color:#b71c1c;text-decoration:line-through;">- ' + JSON.stringify(change.before) + '</div>';
-        html += '<div style="color:#2e7d32;">+ ' + JSON.stringify(change.after) + '</div>';
-        html += '</div></div></label>';
-      });
-      html += '</div>';
-    });
-    diffEl.innerHTML = html || '<span style="color:var(--muted)">proposal 没有字段变化</span>';
-    applyBtn.style.display = currentProposalId && !assetInputsStale ? 'block' : 'none';
-  }
+  /* Council rendering handled by _council_ui.html include */
 
   function renderScorecard(currentItem, baselineEval) {
     var el = document.getElementById('aw-scorecard');
@@ -610,7 +566,7 @@
       var res = await fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({agent_role: role, mode: 'fast', extra: extra || {}})
+        body: JSON.stringify({agent_role: role, mode: (role === 'asset_producer' ? 'deep' : 'fast'), extra: extra || {}})
       });
       if (!res.ok) throw new Error('Agent 调用失败: ' + res.status);
       var data = await res.json();
@@ -642,27 +598,25 @@
     runAgent('asset_producer');
   });
 
+  councilUI.loadDiscussionHistory('aw-council-history-list', opportunityId, 'asset');
+
   var councilBtn = document.getElementById('aw-btn-council');
   if (councilBtn) {
     councilBtn.addEventListener('click', function() {
       var question = (document.getElementById('aw-council-question').value || '').trim();
-      if (!question) { setCouncilStatus('请先输入问题', true); return; }
-      setCouncilStatus('Asset Council 讨论中…', false);
-      fetch('/content-planning/stages/asset/' + encodeURIComponent(opportunityId) + '/discussions', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({question: question})
-      })
-      .then(function(r){ return r.json(); })
-      .then(function(data){
-        if (data.proposal) {
-          renderProposal(data.proposal);
-          setCouncilStatus('已生成 proposal', false);
-        } else {
-          setCouncilStatus('未生成 proposal', true);
+      if (!question) { alert('请先输入问题'); return; }
+      councilUI.initCouncilSession({
+        threadId: 'aw-council-thread',
+        proposalId: 'aw-council-proposal',
+        startBtn: councilBtn,
+        stage: 'asset',
+        opportunityId: opportunityId,
+        topic: question,
+        cbClass: 'aw-proposal-field-cb',
+        onFinish: function() {
+          councilUI.loadDiscussionHistory('aw-council-history-list', opportunityId, 'asset');
         }
-      })
-      .catch(function(){ setCouncilStatus('讨论失败', true); });
+      });
     });
   }
 
@@ -682,35 +636,7 @@
     });
   }
 
-  var applyBtn = document.getElementById('aw-btn-apply-proposal');
-  if (applyBtn) {
-    applyBtn.addEventListener('click', function() {
-      if (!currentProposalId) return;
-      var selected = Array.from(document.querySelectorAll('.js-proposal-field:checked')).map(function(el){ return el.value; });
-      if (!selected.length) {
-        setCouncilStatus('请至少选择一个字段', true);
-        return;
-      }
-      applyBtn.disabled = true;
-      setCouncilStatus('正在应用 proposal…', false);
-      fetch('/content-planning/proposals/' + encodeURIComponent(currentProposalId) + '/apply', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({selected_fields: selected})
-      })
-      .then(function(r){ return r.json(); })
-      .then(function(data){
-        if (data.asset_bundle) {
-          setCouncilStatus('已应用 proposal，页面即将刷新。', false);
-          window.location.reload();
-        } else {
-          setCouncilStatus('proposal 应用失败', true);
-        }
-      })
-      .catch(function(){ setCouncilStatus('proposal 应用失败', true); })
-      .finally(function(){ applyBtn.disabled = false; });
-    });
-  }
+  /* Apply/reject handled by councilUI from _council_ui.html */
 
   // ── Skills Panel（延后加载，避免首屏争抢） ──
   function loadSkillsPanel() {

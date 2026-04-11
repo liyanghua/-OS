@@ -371,24 +371,44 @@ class OpportunityToPlanFlow:
             "payload": obj.model_dump(mode="json") if hasattr(obj, "model_dump") else obj,
         }
 
+    _STAGE_EDITABLE_FIELDS: dict[str, set[str]] = {
+        "brief": {
+            "target_user", "target_scene", "content_goal", "primary_value",
+            "visual_style_direction", "avoid_directions", "template_hints",
+            "core_motive", "price_positioning", "target_audience",
+            "why_worth_doing", "competitive_angle",
+        },
+        "asset": {
+            "title_candidates", "body_outline", "body_draft", "image_execution_briefs",
+        },
+    }
+
     def build_stage_diff(self, opportunity_id: str, stage: str, proposed_updates: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
         session = self._get_session(opportunity_id)
         obj = self.ensure_stage_object(opportunity_id, stage)
         locked_fields = obj.locks.locked_field_names() if getattr(obj, "locks", None) else []
+        editable = self._STAGE_EDITABLE_FIELDS.get(stage)
         changes: list[dict[str, Any]] = []
         blocked: list[str] = []
         for field, value in proposed_updates.items():
             is_blocked = field in locked_fields
+            skip_reason = ""
             if is_blocked:
                 blocked.append(field)
-            changes.append(
-                {
-                    "field": field,
-                    "before": self._get_field_value(obj, field),
-                    "after": value,
-                    "blocked": is_blocked,
-                }
-            )
+                skip_reason = "字段已锁定"
+            elif editable is not None and field not in editable:
+                is_blocked = True
+                blocked.append(field)
+                skip_reason = "属于上游对象，请在策划页修改"
+            row: dict[str, Any] = {
+                "field": field,
+                "before": self._get_field_value(obj, field),
+                "after": value,
+                "blocked": is_blocked,
+            }
+            if skip_reason:
+                row["skip_reason"] = skip_reason
+            changes.append(row)
         return changes, blocked
 
     def bind_workspace_context(
@@ -503,6 +523,8 @@ class OpportunityToPlanFlow:
         selected_fields: list[str] | None = None,
         actor_user_id: str = "",
         base_version: int | None = None,
+        strategy_block_diffs: list[dict[str, Any]] | None = None,
+        asset_diffs: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         session = self._get_session(opportunity_id)
         selected = set(selected_fields or proposed_updates.keys())
@@ -614,6 +636,31 @@ class OpportunityToPlanFlow:
                 if hasattr(strategy, field):
                     setattr(strategy, field, value)
                     applied_fields.append(field)
+
+            _BLOCK_FIELD_MAP = {
+                "title": "title_strategy",
+                "body": "body_strategy",
+                "image": "image_strategy",
+                "hook": "hook_strategy",
+                "cta": "cta_strategy",
+            }
+            if strategy_block_diffs:
+                for diff in strategy_block_diffs:
+                    action = diff.get("action")
+                    block_name = diff.get("block") or diff.get("block_name") or ""
+                    target_field = _BLOCK_FIELD_MAP.get(block_name, block_name + "_strategy")
+                    if action != "rewrite":
+                        continue
+                    if target_field not in editable:
+                        skipped_fields.append(f"block:{block_name}")
+                        continue
+                    if strategy.locks and strategy.locks.is_locked(target_field):
+                        skipped_fields.append(f"block:{block_name}")
+                        continue
+                    new_content = diff.get("rewrite") or diff.get("content") or diff.get("after") or ""
+                    if new_content and hasattr(strategy, target_field):
+                        setattr(strategy, target_field, new_content)
+                        applied_fields.append(f"block:{block_name}")
 
             strategy.strategy_status = "reviewed"
             strategy.updated_at = datetime.now(UTC)
@@ -732,20 +779,51 @@ class OpportunityToPlanFlow:
                 "body_draft",
                 "image_execution_briefs",
             }
+            skipped_reasons: dict[str, str] = {}
 
             for field, value in proposed_updates.items():
                 if field not in selected:
                     continue
                 if field not in editable:
                     skipped_fields.append(field)
+                    skipped_reasons[field] = "属于上游对象，请在策划页修改"
                     continue
                 if bundle.locks and bundle.locks.is_locked(field):
                     skipped_fields.append(field)
+                    skipped_reasons[field] = "字段已锁定"
                     continue
                 if self._set_field_value(bundle, field, value):
                     applied_fields.append(field)
                 else:
                     skipped_fields.append(field)
+                    skipped_reasons[field] = "写入失败"
+
+            _ASSET_COMPONENT_MAP = {
+                "title": "title_candidates",
+                "body": "body_draft",
+                "body_outline": "body_outline",
+                "image": "image_execution_briefs",
+            }
+            if asset_diffs:
+                for diff in asset_diffs:
+                    action = diff.get("action")
+                    component = diff.get("component") or diff.get("block") or diff.get("block_name") or ""
+                    target_field = _ASSET_COMPONENT_MAP.get(component, component)
+                    if action != "rewrite":
+                        continue
+                    label = f"component:{component}"
+                    if target_field not in editable:
+                        skipped_fields.append(label)
+                        skipped_reasons[label] = "属于上游对象，请在策划页修改"
+                        continue
+                    if bundle.locks and bundle.locks.is_locked(target_field):
+                        skipped_fields.append(label)
+                        skipped_reasons[label] = "字段已锁定"
+                        continue
+                    new_content = diff.get("rewrite") or diff.get("content") or diff.get("after") or diff.get("detail") or ""
+                    if new_content and hasattr(bundle, target_field):
+                        self._set_field_value(bundle, target_field, new_content)
+                        applied_fields.append(label)
 
             bundle.updated_at = datetime.now(UTC)
             bundle.updated_by = actor_user_id or session.updated_by or session.created_by
@@ -762,6 +840,7 @@ class OpportunityToPlanFlow:
                 "payload": bundle.model_dump(mode="json"),
                 "applied_fields": applied_fields,
                 "skipped_fields": skipped_fields,
+                "skipped_reasons": skipped_reasons,
                 "stale_flags": dict(session.stale_flags),
             }
 

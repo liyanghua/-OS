@@ -28,12 +28,45 @@ class AssetProducerAgent(BaseAgent):
             return base_result
         return self._enhance_with_llm(context, base_result)
 
-    def _run_core(self, context: AgentContext) -> AgentResult:
+    def _ensure_prerequisites(self, context: AgentContext) -> tuple:
+        """Try to load plan/strategy from flow if not present in context."""
         plan = context.plan
         strategy = context.strategy
+        if plan is not None and strategy is not None:
+            return plan, strategy
+        try:
+            from apps.content_planning.api.routes import _get_flow
+            flow = _get_flow()
+            session = flow._get_session(context.opportunity_id)
+            if strategy is None and session.strategy is not None:
+                strategy = session.strategy
+            if plan is None and session.note_plan is not None:
+                plan = session.note_plan
+            if strategy is None:
+                strategy = flow.build_strategy(context.opportunity_id)
+            if plan is None:
+                plan = flow.build_plan(context.opportunity_id)
+        except Exception:
+            logger.debug("Failed to auto-load plan/strategy for asset_producer", exc_info=True)
+        return plan, strategy
+
+    def _run_core(self, context: AgentContext) -> AgentResult:
+        plan, strategy = self._ensure_prerequisites(context)
 
         if plan is None or strategy is None:
-            return self._make_result(explanation="缺少 NotePlan 或策略", confidence=0.0)
+            missing = []
+            if plan is None:
+                missing.append("NotePlan")
+            if strategy is None:
+                missing.append("策略")
+            return self._make_result(
+                explanation=f"缺少 {' 和 '.join(missing)}，请先完成上游策划流程（Brief → 模板匹配 → 策略 → 计划）后再运行资产制作人。",
+                confidence=0.0,
+                suggestions=[
+                    AgentChip(label="编译 Brief", action="brief_synthesizer"),
+                    AgentChip(label="生成策略", action="strategy_director"),
+                ],
+            )
 
         titles = self._title_gen.generate(plan, strategy)
         body = self._body_gen.generate(plan, strategy)

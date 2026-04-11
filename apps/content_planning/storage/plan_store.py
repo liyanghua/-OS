@@ -777,6 +777,43 @@ class ContentPlanStore:
         )
         return payload
 
+    def list_discussions_by_opportunity(
+        self, opportunity_id: str, *, limit: int = 20, stage: str | None = None,
+    ) -> list[dict[str, Any]]:
+        clauses = ["opportunity_id = ?"]
+        params: list[Any] = [opportunity_id]
+        if stage:
+            clauses.append("stage = ?")
+            params.append(stage)
+        where = " AND ".join(clauses)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""SELECT discussion_id, opportunity_id, stage, proposal_id, run_id,
+                           payload_json, created_at, updated_at
+                    FROM stage_discussions
+                    WHERE {where}
+                    ORDER BY created_at DESC LIMIT ?""",
+                params + [limit],
+            ).fetchall()
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            payload = _deserialize(row["payload_json"]) or {}
+            summary = payload.get("consensus", "") or payload.get("summary", "")
+            question = payload.get("question", "")
+            consensus_status = payload.get("consensus_status", "")
+            results.append({
+                "discussion_id": row["discussion_id"],
+                "opportunity_id": row["opportunity_id"],
+                "stage": row["stage"],
+                "proposal_id": row["proposal_id"],
+                "question": question,
+                "summary": summary[:200] if summary else "",
+                "consensus_status": consensus_status,
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            })
+        return results
+
     def save_proposal(self, proposal_id: str, opportunity_id: str, stage: str, status: str, payload: Any) -> None:
         now = _utc_now_iso()
         with self._connect() as conn:

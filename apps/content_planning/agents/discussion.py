@@ -35,7 +35,7 @@ STAGE_DISCUSSION_ROLES: dict[str, list[str]] = {
     "strategy": ["growth_strategist", "creative_director", "risk_assessor"],
     "content": ["creative_director", "growth_strategist", "risk_assessor"],
     "plan": ["creative_director", "brand_guardian", "growth_strategist"],
-    "asset": ["risk_assessor", "brand_guardian", "creative_director"],
+    "asset": ["creative_director", "brand_guardian", "growth_strategist", "risk_assessor"],
 }
 
 AGENT_DISPLAY_NAMES: dict[str, str] = {
@@ -127,6 +127,10 @@ class DiscussionRound(BaseModel):
     synthesis_timing_ms: int = 0
     synthesis_used_llm: bool = False
     synthesis_degraded: bool = False
+    # Multi-stage diffs (V2)
+    strategy_block_diffs: list[dict[str, Any]] = Field(default_factory=list)
+    plan_field_diffs: list[dict[str, Any]] = Field(default_factory=list)
+    asset_diffs: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def filter_brief_proposed_updates(raw: dict[str, Any]) -> dict[str, Any]:
@@ -344,6 +348,9 @@ class DiscussionOrchestrator:
             discussion.executive_summary = bundle.executive_summary or (consensus[:160] if consensus else "")
             discussion.disagreements_structured = bundle.disagreements_structured
             discussion.recommended_steps_structured = bundle.recommended_steps_structured
+            discussion.strategy_block_diffs = bundle.strategy_block_diffs
+            discussion.plan_field_diffs = bundle.plan_field_diffs
+            discussion.asset_diffs = bundle.asset_diffs
         else:
             consensus = "本轮讨论暂未拿到有效专家观点，建议稍后重试。"
             proposed_updates = {}

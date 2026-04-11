@@ -1146,5 +1146,5 @@ def test_asset_workspace_renders_council_and_scorecard_sections(stage_client: Te
         headers={"accept": "text/html"},
     )
     assert response.status_code == 200
-    assert "Ask the Council" in response.text
+    assert "Council" in response.text
     assert "Baseline vs Current Scorecard" in response.text

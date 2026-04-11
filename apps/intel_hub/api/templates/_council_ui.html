@@ -1,0 +1,443 @@
+{#
+  Shared Council UI JS functions.
+  Required: `opportunityId` must be defined before including this.
+  Provides: councilUI.init(config) to start a full SSE Council session.
+#}
+<style>
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.council-dots { animation: dotPulse 1.2s infinite; }
+@keyframes dotPulse { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+</style>
+<script>
+var councilUI = (function() {
+  var ROLE_META = {
+    brand_guardian:     { icon: '\u{1F6E1}\uFE0F', label: '\u54C1\u724C\u5B88\u62A4\u8005', color: '#2563eb' },
+    growth_strategist:  { icon: '\u{1F4C8}', label: '\u589E\u957F\u7B56\u7565\u5E08', color: '#059669' },
+    creative_director:  { icon: '\u{1F3A8}', label: '\u521B\u610F\u603B\u76D1', color: '#d97706' },
+    risk_assessor:      { icon: '\u26A0\uFE0F', label: '\u98CE\u9669\u8BC4\u4F30\u5458', color: '#dc2626' },
+    lead_synthesizer:   { icon: '\u{1F9ED}', label: '\u603B\u8C03\u5EA6', color: '#7c3aed' },
+    lead_agent:         { icon: '\u2705', label: '\u5171\u8BC6\u6C47\u603B', color: '#0f766e' },
+    trend_analyst:      { icon: '\u{1F4CA}', label: '\u8D8B\u52BF\u5206\u6790\u5E08', color: '#059669' },
+    brief_synthesizer:  { icon: '\u{1F4DD}', label: 'Brief \u7EFC\u5408', color: '#d97706' },
+    lead:               { icon: '\u{1F9E0}', label: '\u4E3B\u5BFC Agent', color: '#7c3aed' }
+  };
+
+  function roleMeta(r) { return ROLE_META[r] || { icon: '\u{1F916}', label: r, color: '#64748b' }; }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  function loadDiscussionHistory(listElId, oppId, stageFilter) {
+    var listEl = document.getElementById(listElId);
+    if (!listEl) return;
+    listEl.innerHTML = '<div style="padding:8px;text-align:center;color:var(--muted);font-size:12px;">\u52A0\u8F7D\u4E2D\u2026</div>';
+    var url = '/content-planning/discussions/by-opportunity/' + encodeURIComponent(oppId);
+    if (stageFilter) url += '?stage=' + encodeURIComponent(stageFilter) + '&limit=20';
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var items = data.discussions || [];
+        if (items.length === 0) {
+          listEl.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:var(--muted);">\u6682\u65E0\u5386\u53F2\u8BA8\u8BBA\u8BB0\u5F55</div>';
+          return;
+        }
+        listEl.innerHTML = items.map(function(d) {
+          var stageLabel = {brief:'Brief',strategy:'Strategy',plan:'Plan',asset:'Asset'}[d.stage] || d.stage;
+          var statusBadge = d.consensus_status === 'consensus'
+            ? '<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#dcfce7;color:#166534;">\u5171\u8BC6</span>'
+            : d.consensus_status ? '<span style="font-size:10px;padding:2px 6px;border-radius:999px;background:#fee2e2;color:#991b1b;">' + esc(d.consensus_status) + '</span>' : '';
+          var timeStr = d.created_at ? d.created_at.substring(0, 16).replace('T', ' ') : '';
+          return '<div style="padding:8px 12px;border-bottom:1px solid rgba(215,206,191,0.3);cursor:pointer;" onmouseenter="this.style.background=\'rgba(138,75,47,0.04)\'" onmouseleave="this.style.background=\'transparent\'">' +
+            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">' +
+              '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(stageLabel) + '</span>' +
+              statusBadge +
+              '<span style="margin-left:auto;font-size:10px;color:var(--muted);">' + esc(timeStr) + '</span>' +
+            '</div>' +
+            '<div style="font-size:12px;color:var(--ink);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(d.question || d.summary || '\u2014') + '</div>' +
+            (d.summary ? '<div style="font-size:11px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(d.summary) + '</div>' : '') +
+          '</div>';
+        }).join('');
+      })
+      .catch(function() {
+        listEl.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:#dc2626;">\u52A0\u8F7D\u5386\u53F2\u5931\u8D25</div>';
+      });
+  }
+
+  function renderFinalProposal(data, containerEl, opts) {
+    var proposal = (data || {}).proposal || null;
+    if (!proposal || !containerEl) return;
+    var proposalId = data.proposal_id || proposal.proposal_id || '';
+    var cbClass = (opts && opts.cbClass) || 'council-proposal-field-cb';
+
+    var updates = proposal.proposed_updates || proposal.field_changes || proposal.changes || {};
+    var diffRows = proposal.diff || [];
+    var changesHtml = '';
+    var fieldKeys = Object.keys(updates);
+
+    if (diffRows.length > 0) {
+      diffRows.forEach(function(row) {
+        var field = row.field || '';
+        var isBlocked = row.blocked;
+        var skipReason = row.skip_reason || '';
+        var beforeVal = row.before != null ? (typeof row.before === 'string' ? row.before : JSON.stringify(row.before)) : '\u2014';
+        var afterVal = row.after != null ? (typeof row.after === 'string' ? row.after : JSON.stringify(row.after)) : '\u2014';
+        var skipHtml = '';
+        if (skipReason) {
+          skipHtml = '<div style="font-size:10px;color:#9a3412;margin-top:2px;font-style:italic;">\u{1F6AB} ' + esc(skipReason) + '</div>';
+        }
+        changesHtml += '<div style="padding:8px 0;border-bottom:1px solid rgba(215,206,191,0.4);">' +
+          '<label style="display:flex;align-items:flex-start;gap:8px;cursor:' + (isBlocked ? 'not-allowed' : 'pointer') + ';">' +
+            '<input type="checkbox" class="' + cbClass + '" data-field="' + esc(field) + '" ' + (isBlocked ? 'disabled' : 'checked') + ' style="margin-top:2px;">' +
+            '<div style="flex:1;min-width:0;">' +
+              '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(field) + '</span>' +
+              (isBlocked ? ' <span style="font-size:10px;color:#dc2626;">\u{1F512} \u5DF2\u9501\u5B9A</span>' : '') +
+              skipHtml +
+              '<div style="display:flex;gap:8px;margin-top:4px;font-size:12px;line-height:1.5;">' +
+                '<div style="flex:1;color:var(--muted);"><span style="font-size:10px;font-weight:700;">\u539F\u503C</span><div style="margin-top:2px;max-height:60px;overflow:hidden;text-overflow:ellipsis;">' + esc(beforeVal).substring(0, 120) + '</div></div>' +
+                '<div style="flex:1;color:var(--ink);"><span style="font-size:10px;font-weight:700;color:#166534;">\u5EFA\u8BAE</span><div style="margin-top:2px;max-height:60px;overflow:hidden;text-overflow:ellipsis;">' + esc(afterVal).substring(0, 200) + '</div></div>' +
+              '</div>' +
+            '</div>' +
+          '</label>' +
+        '</div>';
+      });
+    } else if (fieldKeys.length > 0) {
+      fieldKeys.forEach(function(k) {
+        var val = updates[k];
+        changesHtml += '<div style="padding:6px 0;border-bottom:1px solid rgba(215,206,191,0.4);">' +
+          '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">' +
+            '<input type="checkbox" class="' + cbClass + '" data-field="' + esc(k) + '" checked style="margin-top:2px;">' +
+            '<div style="flex:1;min-width:0;">' +
+              '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(k) + '</span>' +
+              '<div style="font-size:12px;line-height:1.5;color:var(--ink);margin-top:2px;">' + esc(typeof val === 'string' ? val : JSON.stringify(val)) + '</div>' +
+            '</div>' +
+          '</label>' +
+        '</div>';
+      });
+    }
+
+    var consensusLabel = (data.consensus_status === 'consensus' || proposal.consensus)
+      ? '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#dcfce7;color:#166534;">\u8FBE\u6210\u5171\u8BC6</span>'
+      : '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#fee2e2;color:#991b1b;">\u5B58\u5728\u5206\u6B67</span>';
+    var noChanges = fieldKeys.length === 0 && diffRows.length === 0;
+    containerEl.innerHTML =
+      '<div style="border:1px solid var(--accent);border-radius:14px;padding:14px;background:linear-gradient(135deg,rgba(138,75,47,0.04),rgba(255,253,248,0.9));">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+          '<span style="font-size:14px;font-weight:700;color:var(--ink);">Proposal</span>' +
+          consensusLabel +
+        '</div>' +
+        (proposal.summary || proposal.rationale ? '<div style="font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:10px;">' + esc(proposal.summary || proposal.rationale || '') + '</div>' : '') +
+        (changesHtml ? '<div style="margin-bottom:12px;max-height:280px;overflow-y:auto;">' + changesHtml + '</div>' : '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">\u672C\u6B21\u8BA8\u8BBA\u4E3A advisory \u6A21\u5F0F\uFF0C\u672A\u751F\u6210\u53EF\u76F4\u63A5\u5E94\u7528\u7684\u5B57\u6BB5\u5EFA\u8BAE\u3002</div>') +
+        '<div style="display:flex;gap:8px;" data-proposal-id="' + esc(proposalId) + '">' +
+          '<button type="button" class="council-apply-btn" data-proposal-id="' + esc(proposalId) + '" data-cb-class="' + cbClass + '" style="flex:1;padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;' + (noChanges ? 'opacity:0.5;cursor:not-allowed;' : '') + '"' + (noChanges ? ' disabled' : '') + '>\u91C7\u7EB3\u9009\u4E2D\u5B57\u6BB5</button>' +
+          '<button type="button" class="council-reject-btn" data-proposal-id="' + esc(proposalId) + '" style="flex:1;padding:9px 16px;background:var(--surface);color:var(--accent);border:1px solid var(--accent);border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">\u62D2\u7EDD</button>' +
+        '</div>' +
+      '</div>';
+
+    containerEl.querySelectorAll('.council-apply-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var pid = this.dataset.proposalId;
+        var cls = this.dataset.cbClass;
+        applyProposal(pid, cls);
+      });
+    });
+    containerEl.querySelectorAll('.council-reject-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        rejectProposal(this.dataset.proposalId);
+      });
+    });
+  }
+
+  function applyProposal(proposalId, cbClass) {
+    if (!proposalId) return;
+    cbClass = cbClass || 'council-proposal-field-cb';
+    var selectedFields = [];
+    document.querySelectorAll('.' + cbClass + ':checked').forEach(function(cb) {
+      selectedFields.push(cb.getAttribute('data-field'));
+    });
+    if (!selectedFields.length) {
+      alert('\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u4E2A\u5B57\u6BB5');
+      return;
+    }
+    fetch('/content-planning/proposals/' + proposalId + '/apply', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ selected_fields: selectedFields })
+    })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data) {
+      var msg = '\u5DF2\u91C7\u7EB3 Proposal\uFF08' + selectedFields.length + ' \u4E2A\u5B57\u6BB5\uFF09';
+      if (data.skipped_fields && data.skipped_fields.length) {
+        var reasons = data.skipped_reasons || {};
+        var details = data.skipped_fields.map(function(f) {
+          return reasons[f] ? f + ' (' + reasons[f] + ')' : f;
+        });
+        msg += '\n\u8DF3\u8FC7: ' + details.join(', ');
+      }
+      alert(msg);
+      location.reload();
+    })
+    .catch(function(e) { alert('\u91C7\u7EB3\u5931\u8D25\uFF1A' + (e.message || '\u7F51\u7EDC\u9519\u8BEF')); });
+  }
+
+  function rejectProposal(proposalId) {
+    if (!proposalId) return;
+    fetch('/content-planning/proposals/' + proposalId + '/reject', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({notes: '\u7528\u6237\u624B\u52A8\u62D2\u7EDD'})
+    })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function() { alert('\u5DF2\u62D2\u7EDD Proposal'); location.reload(); })
+    .catch(function(e) { alert('\u62D2\u7EDD\u5931\u8D25\uFF1A' + (e.message || '\u7F51\u7EDC\u9519\u8BEF')); });
+  }
+
+  function initCouncilSession(config) {
+    var threadEl = document.getElementById(config.threadId);
+    var proposalEl = document.getElementById(config.proposalId);
+    var startBtn = config.startBtn;
+    var stage = config.stage;
+    var oppId = config.opportunityId;
+    var topic = config.topic;
+    var onFinish = config.onFinish || function(){};
+    var cbClass = config.cbClass || 'council-proposal-field-cb';
+
+    if (!threadEl || !topic) return;
+    startBtn.disabled = true;
+    startBtn.textContent = '\u8BA8\u8BBA\u8FDB\u884C\u4E2D\u2026';
+    threadEl.innerHTML = '';
+    if (proposalEl) proposalEl.innerHTML = '';
+
+    var _phaseEl = document.createElement('div');
+    _phaseEl.id = 'council-phase-banner-' + stage;
+    _phaseEl.style.cssText = 'text-align:center;padding:14px;color:var(--muted);font-size:13px;font-weight:600;';
+    _phaseEl.innerHTML = '<span style="font-size:20px;">\u{1F504}</span> \u6B63\u5728\u521D\u59CB\u5316 Council\u2026';
+    threadEl.appendChild(_phaseEl);
+
+    var _r1Header = null, _r2Header = null;
+    var _currentRound = 0;
+    var _sseSource = null;
+    var _finalData = null;
+
+    function _ensureRoundHeader(round) {
+      if (round === 1 && !_r1Header) {
+        _r1Header = document.createElement('div');
+        _r1Header.style.cssText = 'font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:12px 0 8px;';
+        _r1Header.textContent = '\u7B2C\u4E00\u8F6E \u00B7 \u72EC\u7ACB\u89C2\u70B9';
+        threadEl.insertBefore(_r1Header, _phaseEl);
+      } else if (round === 2 && !_r2Header) {
+        _r2Header = document.createElement('div');
+        _r2Header.style.cssText = 'font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:16px 0 8px;';
+        _r2Header.textContent = '\u7B2C\u4E8C\u8F6E \u00B7 \u4E92\u89C1\u540E\u8865\u5145/\u53CD\u9A73';
+        threadEl.insertBefore(_r2Header, _phaseEl);
+      }
+    }
+
+    function _appendAgentCard(d, round) {
+      var agentId = d.agent_id || '';
+      var rm = roleMeta(agentId);
+      var agentName = d.agent_name || rm.label;
+      var tagline = (d.soul_tagline || '').trim();
+      var snippet = d.snippet || '';
+      var stance = d.stance || '';
+      var claim = d.claim || '';
+      var roundBadge = '';
+      if (round === 2) {
+        roundBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#b45309;">\u8865\u5145/\u53CD\u9A73</span>';
+      } else if (_currentRound >= 2 || round === 1) {
+        roundBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3;">\u7B2C\u4E00\u8F6E</span>';
+      }
+      var stanceBadge = '';
+      if (stance === 'support') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;">\u8D5E\u540C</span>';
+      else if (stance === 'oppose') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fee2e2;color:#991b1b;">\u53CD\u5BF9</span>';
+      else if (stance === 'supplement') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fef9c3;color:#854d0e;">\u8865\u5145</span>';
+      else if (stance === 'neutral') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;">\u4E2D\u7ACB</span>';
+      var card = document.createElement('div');
+      card.style.cssText = 'border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(255,255,255,0.6);animation:fadeSlideIn 0.35s ease;';
+      card.innerHTML =
+        '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' +
+          '<span style="font-size:16px;">' + rm.icon + '</span>' +
+          '<span style="font-size:13px;font-weight:700;color:' + rm.color + ';">' + esc(agentName) + '</span>' +
+          roundBadge + stanceBadge +
+        '</div>' +
+        (tagline ? '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">' + esc(tagline) + '</div>' : '') +
+        (claim ? '<div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px;">' + esc(claim) + '</div>' : '') +
+        '<div style="font-size:13px;line-height:1.65;color:var(--ink);white-space:pre-wrap;">' + esc(snippet) + '</div>';
+      _ensureRoundHeader(round);
+      threadEl.insertBefore(card, _phaseEl);
+      threadEl.scrollTop = threadEl.scrollHeight;
+    }
+
+    function _appendThinkingDot(d) {
+      var agentId = d.agent_id || '';
+      var rm = roleMeta(agentId);
+      var dotId = 'thinking-' + agentId + '-' + (d.council_round || 1) + '-' + stage;
+      if (document.getElementById(dotId)) return;
+      var dot = document.createElement('div');
+      dot.id = dotId;
+      dot.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:6px 12px;margin:0 6px 6px 0;border-radius:999px;background:rgba(138,75,47,0.06);border:1px solid var(--border);font-size:12px;color:var(--muted);';
+      dot.innerHTML = '<span>' + rm.icon + '</span><span>' + esc(d.agent_name || rm.label) + '</span><span class="council-dots">\u2026</span>';
+      _ensureRoundHeader(d.council_round || 1);
+      threadEl.insertBefore(dot, _phaseEl);
+    }
+
+    function _removeThinkingDot(d) {
+      var dotId = 'thinking-' + (d.agent_id || '') + '-' + (d.council_round || 1) + '-' + stage;
+      var el = document.getElementById(dotId);
+      if (el) el.remove();
+    }
+
+    function _updatePhase(text) {
+      if (_phaseEl) _phaseEl.innerHTML = '<span style="font-size:16px;">\u{1F504}</span> ' + esc(text);
+    }
+
+    function _renderParticipants(parts) {
+      if (!parts || !parts.length) return;
+      var el = document.createElement('div');
+      el.style.cssText = 'margin-bottom:14px;padding:10px 12px;background:rgba(138,75,47,0.06);border-radius:12px;border:1px solid var(--border);';
+      el.innerHTML =
+        '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:8px;">\u672C\u8F6E\u53C2\u4E0E\u8005 \u00B7 SOUL \u5B9A\u4F4D</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:10px 14px;">' +
+          parts.map(function(p) {
+            var rm = roleMeta(p.agent_id);
+            var tag = (p.soul_tagline || '').trim();
+            return '<div style="display:flex;align-items:flex-start;gap:6px;min-width:120px;max-width:100%;">' +
+              '<span style="font-size:15px;line-height:1.2;">' + rm.icon + '</span>' +
+              '<div><div style="font-size:12px;font-weight:700;color:' + rm.color + ';">' + esc(p.display_name || p.agent_name || rm.label) + '</div>' +
+              (tag ? '<div style="font-size:11px;color:var(--muted);line-height:1.35;margin-top:2px;">' + esc(tag) + '</div>' : '') +
+              '</div></div>';
+          }).join('') +
+        '</div>';
+      threadEl.insertBefore(el, threadEl.firstChild);
+    }
+
+    function _finishSession(data) {
+      if (_sseSource) { _sseSource.close(); _sseSource = null; }
+      if (_phaseEl) _phaseEl.remove();
+      startBtn.disabled = false;
+      startBtn.textContent = '\u7EE7\u7EED\u8FFD\u95EE';
+      if (data && proposalEl) renderFinalProposal(data, proposalEl, { cbClass: cbClass });
+      onFinish(data);
+    }
+
+    _sseSource = new EventSource('/content-planning/stream/' + encodeURIComponent(oppId));
+
+    _sseSource.addEventListener('council_session_started', function(e) {
+      try {
+        var d = JSON.parse(e.data);
+        var p = (d.payload || {}).participants || d.participants || [];
+        _renderParticipants(p);
+        _updatePhase('\u5404\u89D2\u8272 Agent \u6B63\u5728\u601D\u8003\u2026');
+      } catch(ex) {}
+    });
+
+    _sseSource.addEventListener('council_phase_changed', function(e) {
+      try {
+        var d = JSON.parse(e.data);
+        var p = d.payload || d;
+        var phase = p.phase || '';
+        var label = p.label || '';
+        if (phase === 'council_round2') { _currentRound = 2; }
+        if (phase === 'synthesizing_consensus') { _updatePhase('\u6B63\u5728\u7EFC\u5408\u5404\u65B9\u89C2\u70B9\uFF0C\u751F\u6210\u5171\u8BC6\u2026'); }
+        else if (label) { _updatePhase(label); }
+      } catch(ex) {}
+    });
+
+    _sseSource.addEventListener('council_phase', function(e) {
+      try {
+        var d = JSON.parse(e.data);
+        var p = d.payload || d;
+        var phase = p.phase || '';
+        if (phase === 'collecting_opinions') _updatePhase('\u6B63\u5728\u6536\u96C6\u5404\u89D2\u8272\u89C2\u70B9\u2026');
+        else if (phase === 'synthesizing_consensus') _updatePhase('\u6B63\u5728\u7EFC\u5408\u5404\u65B9\u89C2\u70B9\uFF0C\u751F\u6210\u5171\u8BC6\u2026');
+        else if (phase === 'session_ready') _updatePhase('\u4F1A\u8BDD\u4EA7\u51FA\u5DF2\u5C31\u7EEA');
+      } catch(ex) {}
+    });
+
+    _sseSource.addEventListener('council_participant_started', function(e) {
+      try { _appendThinkingDot(JSON.parse(e.data).payload || JSON.parse(e.data)); } catch(ex) {}
+    });
+
+    _sseSource.addEventListener('council_participant_message', function(e) {
+      try {
+        var d = JSON.parse(e.data);
+        var p = d.payload || d;
+        _removeThinkingDot(p);
+        _appendAgentCard(p, p.council_round || 1);
+      } catch(ex) {}
+    });
+
+    _sseSource.addEventListener('council_participant_completed', function(e) {
+      try { var d = JSON.parse(e.data); _removeThinkingDot(d.payload || d); } catch(ex) {}
+    });
+
+    _sseSource.addEventListener('council_synthesis_started', function(e) {
+      _updatePhase('\u603B\u8C03\u5EA6\u6B63\u5728\u7EFC\u5408\u5404\u65B9\u89C2\u70B9\u2026');
+    });
+
+    _sseSource.addEventListener('council_synthesis_completed', function(e) {
+      try {
+        var d = JSON.parse(e.data);
+        var p = d.payload || d;
+        var consensus = p.consensus || '';
+        if (consensus) {
+          var synthCard = document.createElement('div');
+          synthCard.style.cssText = 'border:1px solid rgba(15,118,110,0.35);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(240,253,250,0.7);animation:fadeSlideIn 0.35s ease;';
+          synthCard.innerHTML =
+            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">' +
+              '<span style="font-size:16px;">\u{1F9ED}</span>' +
+              '<span style="font-size:13px;font-weight:700;color:#0f766e;">\u603B\u8C03\u5EA6 \u00B7 \u5171\u8BC6</span>' +
+            '</div>' +
+            '<div style="font-size:13px;line-height:1.65;color:var(--ink);white-space:pre-wrap;">' + esc(consensus) + '</div>';
+          if (_phaseEl) threadEl.insertBefore(synthCard, _phaseEl);
+          else threadEl.appendChild(synthCard);
+        }
+        _updatePhase('\u5171\u8BC6\u5DF2\u751F\u6210\uFF0C\u7B49\u5F85\u6700\u7EC8\u7ED3\u679C\u2026');
+      } catch(ex) {}
+    });
+
+    _sseSource.addEventListener('council_session_completed', function(e) {
+      if (_finalData) _finishSession(_finalData);
+    });
+
+    _sseSource.onerror = function() {
+      if (_finalData) _finishSession(_finalData);
+    };
+
+    fetch('/content-planning/stages/' + stage + '/' + encodeURIComponent(oppId) + '/discussions', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ question: topic, run_mode: 'agent_assisted_council' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      _finalData = data;
+      setTimeout(function() { _finishSession(data); }, 500);
+    })
+    .catch(function(e) {
+      if (_sseSource) { _sseSource.close(); _sseSource = null; }
+      if (_phaseEl) _phaseEl.remove();
+      startBtn.disabled = false;
+      startBtn.textContent = '\u53D1\u8D77\u8BA8\u8BBA';
+      threadEl.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;">\u8BA8\u8BBA\u5931\u8D25\uFF1A' + esc(e.message || '\u7F51\u7EDC\u9519\u8BEF') + '</div>';
+    });
+
+    return {
+      close: function() { if (_sseSource) { _sseSource.close(); _sseSource = null; } }
+    };
+  }
+
+  return {
+    roleMeta: roleMeta,
+    esc: esc,
+    loadDiscussionHistory: loadDiscussionHistory,
+    renderFinalProposal: renderFinalProposal,
+    applyProposal: applyProposal,
+    rejectProposal: rejectProposal,
+    initCouncilSession: initCouncilSession,
+  };
+})();
+</script>

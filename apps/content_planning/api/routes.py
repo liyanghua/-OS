@@ -1623,6 +1623,9 @@ async def _run_stage_discussion(
             session_id=run.run_id,
             consensus_text=consensus_body,
             fallback_action=fb_action,
+            strategy_block_diffs=round_data.strategy_block_diffs,
+            plan_field_diffs=round_data.plan_field_diffs,
+            asset_diffs=round_data.asset_diffs,
         )
         record = AgentDiscussionRecord(
             discussion_id=round_data.round_id,
@@ -1907,6 +1910,11 @@ async def apply_proposal(proposal_id: str, body: ApplyProposalRequest) -> dict[s
     stage = proposal.get("stage")
     if stage not in {"brief", "strategy", "plan", "asset"}:
         raise HTTPException(status_code=409, detail=f"Stage apply is not enabled yet for {stage}")
+    extra_kwargs: dict[str, Any] = {}
+    if stage == "strategy" and proposal.get("strategy_block_diffs"):
+        extra_kwargs["strategy_block_diffs"] = proposal["strategy_block_diffs"]
+    if stage == "asset" and proposal.get("asset_diffs"):
+        extra_kwargs["asset_diffs"] = proposal["asset_diffs"]
     result = flow.apply_stage_updates(
         proposal["opportunity_id"],
         stage,
@@ -1914,6 +1922,7 @@ async def apply_proposal(proposal_id: str, body: ApplyProposalRequest) -> dict[s
         selected_fields=body.selected_fields,
         actor_user_id=body.actor_user_id,
         base_version=proposal.get("base_version"),
+        **extra_kwargs,
     )
     decision = ProposalDecision(
         proposal_id=proposal_id,
@@ -1933,7 +1942,7 @@ async def apply_proposal(proposal_id: str, body: ApplyProposalRequest) -> dict[s
         "plan": "plan",
         "asset": "asset_bundle",
     }[stage]
-    return {
+    resp: dict[str, Any] = {
         "proposal_id": proposal_id,
         "status": proposal["status"],
         "applied_fields": result["applied_fields"],
@@ -1941,6 +1950,9 @@ async def apply_proposal(proposal_id: str, body: ApplyProposalRequest) -> dict[s
         "stale_flags": result["stale_flags"],
         payload_key: result.get(payload_key) or result.get("payload"),
     }
+    if result.get("skipped_reasons"):
+        resp["skipped_reasons"] = result["skipped_reasons"]
+    return resp
 
 
 @router.post("/proposals/{proposal_id}/reject")
@@ -1962,6 +1974,22 @@ async def reject_proposal(proposal_id: str, body: RejectProposalRequest) -> dict
     proposal["status"] = "rejected"
     flow._store.save_proposal(proposal_id, proposal["opportunity_id"], proposal["stage"], proposal["status"], proposal)
     return {"proposal_id": proposal_id, "status": "rejected"}
+
+
+@router.get("/discussions/by-opportunity/{opportunity_id}")
+@_handle_flow_error
+async def list_discussions_by_opportunity(
+    opportunity_id: str,
+    stage: str | None = None,
+    limit: int = 20,
+) -> dict[str, Any]:
+    flow = _get_flow()
+    if flow._store is None:
+        raise HTTPException(status_code=500, detail="Store not available")
+    discussions = flow._store.list_discussions_by_opportunity(
+        opportunity_id, limit=min(limit, 100), stage=stage,
+    )
+    return {"opportunity_id": opportunity_id, "discussions": discussions, "total": len(discussions)}
 
 
 @router.post("/evaluate/{opportunity_id}")

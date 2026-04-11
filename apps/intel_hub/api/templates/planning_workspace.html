@@ -622,6 +622,7 @@
   </form>
 </template>
 
+{% include "_council_ui.html" %}
 <script>
 (function () {
   /* ── 抽屉逻辑 ── */
@@ -652,19 +653,8 @@
   /* ── 基础 ── */
   var opportunityId = {{ opportunity_id | tojson }};
 
-  var ROLE_META = {
-    brand_guardian:    { icon: '🛡️', label: '品牌守护者', color: '#2563eb' },
-    growth_strategist: { icon: '📈', label: '增长策略师', color: '#059669' },
-    creative_director: { icon: '🎨', label: '创意总监', color: '#d97706' },
-    risk_assessor:     { icon: '⚠️', label: '风险评估员', color: '#dc2626' },
-    lead_synthesizer:  { icon: '🧭', label: '总调度', color: '#7c3aed' },
-    lead_agent:        { icon: '✅', label: '共识汇总', color: '#0f766e' },
-    trend_analyst:     { icon: '📊', label: '趋势分析师', color: '#059669' },
-    brief_synthesizer: { icon: '📝', label: 'Brief 综合', color: '#d97706' },
-    lead:              { icon: '🧠', label: '主导 Agent', color: '#7c3aed' }
-  };
-  function roleMeta(r) { return ROLE_META[r] || { icon: '🤖', label: r, color: '#64748b' }; }
-  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  var roleMeta = councilUI.roleMeta;
+  var esc = councilUI.esc;
 
   /* ── 快速分析（抽屉） ── */
   var analyzeBtn = document.getElementById('pw-btn-analyze');
@@ -710,6 +700,13 @@
     councilBtn.addEventListener('click', function () {
       var html =
         '<div id="council-ui">' +
+          '<div id="council-history-section" style="margin-bottom:16px;">' +
+            '<div style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(138,75,47,0.04);border:1px solid var(--border);border-radius:12px;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span.toggle-arrow\').textContent=this.nextElementSibling.style.display===\'none\'?\'▸\':\'▾\';">' +
+              '<span style="font-size:12px;font-weight:700;color:var(--ink);">历史讨论</span>' +
+              '<span class="toggle-arrow" style="font-size:11px;color:var(--muted);">▸</span>' +
+            '</div>' +
+            '<div id="council-history-list" style="display:none;max-height:200px;overflow-y:auto;margin-top:8px;"></div>' +
+          '</div>' +
           '<div style="margin-bottom:14px;">' +
             '<label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">讨论阶段</label>' +
             '<select id="council-stage" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font:inherit;font-size:13px;background:#fff;">' +
@@ -728,6 +725,8 @@
           '<div id="council-proposal" style="margin-top:14px;"></div>' +
         '</div>';
       openDrawer('策略委员会讨论', html);
+
+      councilUI.loadDiscussionHistory('council-history-list', opportunityId, null);
 
       document.getElementById('council-start-btn').addEventListener('click', function () {
         var stage = document.getElementById('council-stage').value;
@@ -848,14 +847,48 @@
           var proposal = (data || {}).proposal || null;
           var proposalEl = document.getElementById('council-proposal');
           if (!proposal || !proposalEl) return;
-          var changes = proposal.field_changes || proposal.changes || {};
+          var proposalId = data.proposal_id || proposal.proposal_id || '';
+
+          var updates = proposal.proposed_updates || proposal.field_changes || proposal.changes || {};
+          var diffRows = proposal.diff || [];
           var changesHtml = '';
-          Object.keys(changes).forEach(function(k) {
-            changesHtml += '<div style="padding:6px 0;border-bottom:1px solid rgba(215,206,191,0.4);">' +
-              '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(k) + '</span>' +
-              '<div style="font-size:12px;line-height:1.5;color:var(--ink);margin-top:2px;">' + esc(typeof changes[k] === 'string' ? changes[k] : JSON.stringify(changes[k])) + '</div>' +
-            '</div>';
-          });
+          var fieldKeys = Object.keys(updates);
+
+          if (diffRows.length > 0) {
+            diffRows.forEach(function(row) {
+              var field = row.field || '';
+              var isBlocked = row.blocked;
+              var beforeVal = row.before != null ? (typeof row.before === 'string' ? row.before : JSON.stringify(row.before)) : '—';
+              var afterVal = row.after != null ? (typeof row.after === 'string' ? row.after : JSON.stringify(row.after)) : '—';
+              changesHtml += '<div style="padding:8px 0;border-bottom:1px solid rgba(215,206,191,0.4);">' +
+                '<label style="display:flex;align-items:flex-start;gap:8px;cursor:' + (isBlocked ? 'not-allowed' : 'pointer') + ';">' +
+                  '<input type="checkbox" class="pw-proposal-field-cb" data-field="' + esc(field) + '" ' + (isBlocked ? 'disabled' : 'checked') + ' style="margin-top:2px;">' +
+                  '<div style="flex:1;min-width:0;">' +
+                    '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(field) + '</span>' +
+                    (isBlocked ? ' <span style="font-size:10px;color:#dc2626;">🔒 已锁定</span>' : '') +
+                    '<div style="display:flex;gap:8px;margin-top:4px;font-size:12px;line-height:1.5;">' +
+                      '<div style="flex:1;color:var(--muted);"><span style="font-size:10px;font-weight:700;">原值</span><div style="margin-top:2px;max-height:60px;overflow:hidden;text-overflow:ellipsis;">' + esc(beforeVal).substring(0, 120) + '</div></div>' +
+                      '<div style="flex:1;color:var(--ink);"><span style="font-size:10px;font-weight:700;color:#166534;">建议</span><div style="margin-top:2px;max-height:60px;overflow:hidden;text-overflow:ellipsis;">' + esc(afterVal).substring(0, 200) + '</div></div>' +
+                    '</div>' +
+                  '</div>' +
+                '</label>' +
+              '</div>';
+            });
+          } else if (fieldKeys.length > 0) {
+            fieldKeys.forEach(function(k) {
+              var val = updates[k];
+              changesHtml += '<div style="padding:6px 0;border-bottom:1px solid rgba(215,206,191,0.4);">' +
+                '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">' +
+                  '<input type="checkbox" class="pw-proposal-field-cb" data-field="' + esc(k) + '" checked style="margin-top:2px;">' +
+                  '<div style="flex:1;min-width:0;">' +
+                    '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(k) + '</span>' +
+                    '<div style="font-size:12px;line-height:1.5;color:var(--ink);margin-top:2px;">' + esc(typeof val === 'string' ? val : JSON.stringify(val)) + '</div>' +
+                  '</div>' +
+                '</label>' +
+              '</div>';
+            });
+          }
+
           var consensusLabel = (data.consensus_status === 'consensus' || proposal.consensus)
             ? '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#dcfce7;color:#166534;">达成共识</span>'
             : '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#fee2e2;color:#991b1b;">存在分歧</span>';
@@ -866,10 +899,10 @@
                 consensusLabel +
               '</div>' +
               (proposal.summary || proposal.rationale ? '<div style="font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:10px;">' + esc(proposal.summary || proposal.rationale || '') + '</div>' : '') +
-              (changesHtml ? '<div style="margin-bottom:12px;">' + changesHtml + '</div>' : '') +
-              '<div style="display:flex;gap:8px;">' +
-                '<button type="button" onclick="applyProposal(\'' + esc(data.discussion_id || '') + '\')" style="flex:1;padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">采纳</button>' +
-                '<button type="button" onclick="rejectProposal(\'' + esc(data.discussion_id || '') + '\')" style="flex:1;padding:9px 16px;background:var(--surface);color:var(--accent);border:1px solid var(--accent);border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">拒绝</button>' +
+              (changesHtml ? '<div style="margin-bottom:12px;max-height:280px;overflow-y:auto;">' + changesHtml + '</div>' : '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">本次讨论为 advisory 模式，未生成可直接应用的字段建议。</div>') +
+              '<div style="display:flex;gap:8px;" id="pw-proposal-actions" data-proposal-id="' + esc(proposalId) + '">' +
+                '<button type="button" onclick="applyProposal(\'' + esc(proposalId) + '\')" style="flex:1;padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;"' + (fieldKeys.length === 0 && diffRows.length === 0 ? ' disabled style="flex:1;padding:9px 16px;background:var(--muted);color:#fff;border:none;border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:not-allowed;opacity:0.5;"' : '') + '>采纳选中字段</button>' +
+                '<button type="button" onclick="rejectProposal(\'' + esc(proposalId) + '\')" style="flex:1;padding:9px 16px;background:var(--surface);color:var(--accent);border:1px solid var(--accent);border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">拒绝</button>' +
               '</div>' +
             '</div>';
         }
@@ -986,23 +1019,11 @@
     });
   }
 
-  window.applyProposal = function(discussionId) {
-    if (!discussionId) return;
-    fetch('/content-planning/discussions/' + discussionId + '/apply', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({})
-    })
-    .then(function() { alert('已采纳 Proposal'); location.reload(); })
-    .catch(function() { alert('采纳失败'); });
+  window.applyProposal = function(proposalId) {
+    councilUI.applyProposal(proposalId, 'pw-proposal-field-cb');
   };
-  window.rejectProposal = function(discussionId) {
-    if (!discussionId) return;
-    fetch('/content-planning/discussions/' + discussionId + '/reject', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({notes: '用户手动拒绝'})
-    })
-    .then(function() { alert('已拒绝 Proposal'); })
-    .catch(function() { alert('拒绝失败'); });
+  window.rejectProposal = function(proposalId) {
+    councilUI.rejectProposal(proposalId);
   };
 
   /* ── 生成变体（抽屉） ── */

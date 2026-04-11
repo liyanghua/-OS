@@ -2655,3 +2655,132 @@ git commit -m "docs: capture agent performance optimization architecture and met
 ### 验收报告
 
 详见 `docs/V3_VERIFICATION_REPORT.md` — 96 项测试（含 13 项 V1 回归）全部通过，零失败。
+
+---
+
+## Council 讨论 Apply + 资产详情页升级（2026-04-11）
+
+### Phase A: Council Apply 断裂修复
+
+| 变更 | 说明 |
+|------|------|
+| `planning_workspace.html` apply/reject 路径 | `applyProposal` / `rejectProposal` 改为调用 `/proposals/{proposalId}/apply`（之前错误调用 `/discussions/{id}/apply`） |
+| `_renderFinalProposal` 字段展示 | 读取 `proposed_updates` + `diff` 行，渲染 before/after 对比 + 逐字段勾选框 + `selected_fields` 传参 |
+| Strategy 块级 diff 映射 | `apply_stage_updates` strategy 分支新增 `strategy_block_diffs` 参数处理：`action=rewrite` 的块映射到 `title_strategy` / `body_strategy` 等字段 |
+| `routes.py` apply_proposal | 当 stage=strategy 时，从 proposal 载荷中提取 `strategy_block_diffs` 传入 flow |
+
+### Phase B: 资产制作人分析修复
+
+| 变更 | 说明 |
+|------|------|
+| `AssetProducerAgent._ensure_prerequisites` | 新增方法：当 context 缺少 plan/strategy 时，自动从 flow session 加载或触发上游构建 |
+| `content_assets.html` mode 修正 | `asset_producer` 角色改为 `deep` 模式（其他角色保持 `fast`） |
+| 错误提示优化 | 缺少前置对象时返回明确提示 + 引导 chips |
+
+### Phase C: 资产阶段 Council 角色
+
+| 变更 | 说明 |
+|------|------|
+| `discussion.py` STAGE_DISCUSSION_ROLES | asset 阶段角色更新为 `[creative_director, brand_guardian, growth_strategist, risk_assessor]`，4 角色全参与 |
+
+### Phase D: 委员会历史讨论可见
+
+| 变更 | 说明 |
+|------|------|
+| `plan_store.py` | 新增 `list_discussions_by_opportunity(opportunity_id, limit, stage)` 方法 |
+| `routes.py` | 新增 `GET /discussions/by-opportunity/{opportunity_id}` 端点 |
+| `planning_workspace.html` | Council 抽屉顶部增加「历史讨论」折叠区，打开时自动加载 |
+| `content_assets.html` | Council 区块上方增加「历史讨论」折叠区，按 asset 阶段过滤 |
+
+### Phase E: 资产详情页右栏重构
+
+右栏从 10+ 卡片垂直堆叠重构为 4 层结构：
+
+```
+├── 固定主操作区（sticky）
+│   ├── 资产制作人分析
+│   ├── 导出 JSON / MD
+│   └── 生成变体
+├── AI 面板 Tab 组
+│   ├── Tab 1: AI 评审（Scorecard）
+│   ├── Tab 2: Council（历史 + 提问 + Proposal）
+│   └── Tab 3: 协同（时间线 + 对话合并）
+├── 发布与复盘（折叠）
+│   ├── 发布结果录入
+│   ├── 结果摘要
+│   └── 反馈全局入口
+└── 辅助信息（折叠）
+    ├── 对象状态
+    └── 可用技能
+```
+
+### 测试状态
+
+148 项测试全部通过（含新增 + 原有回归），零失败。
+
+---
+
+## 资产页 Council 交互对齐策划页 (2026-04-11)
+
+### Phase 1: 资产页 Council SSE 全链路对齐
+
+资产详情页的 Council Tab 从「轻量单次 HTTP 请求」升级为与策划页完全一致的「SSE 流式讨论 + 结构化 Proposal Apply」模式：
+
+- **SSE 实时讨论过程**：`EventSource` 监听所有 `council_*` 事件
+- **讨论线程 UI**：参与者卡片 + SOUL tagline + 轮次标题 + thinking 动画
+- **共识综合卡**：绿色「总调度 · 共识」实时插入
+- **Proposal 结构适配**：`proposed_updates` + `diff[]` + `field_changes` 多路兼容
+- **Reject 操作**：`/proposals/{id}/reject` 按钮
+- **`run_mode` 显式传参**：`agent_assisted_council`
+- **stage 固定为 `asset`**，不需要阶段下拉
+
+### Phase 2: Council 公共 JS 提取
+
+新建 `_council_ui.html` Jinja include，两页面共用：
+
+| 函数 | 说明 |
+|------|------|
+| `councilUI.roleMeta(agentId)` | 角色图标/颜色/标签映射 |
+| `councilUI.esc(s)` | HTML 转义 |
+| `councilUI.loadDiscussionHistory(elId, oppId, stage)` | 历史讨论加载 |
+| `councilUI.renderFinalProposal(data, el, opts)` | Proposal 渲染（含 diff 适配 + 共识徽章 + skip_reason） |
+| `councilUI.applyProposal(proposalId, cbClass)` | 采纳 |
+| `councilUI.rejectProposal(proposalId)` | 拒绝 |
+| `councilUI.initCouncilSession(config)` | 入口函数，初始化 SSE + POST |
+
+### Phase 3: asset_diffs 持久化 + apply 通道
+
+- **3a**: `DiscussionRound` 增加 `strategy_block_diffs` / `plan_field_diffs` / `asset_diffs` 字段，`discuss()` 在合成后赋值
+- **3a**: `StageProposal` schema 增加同名三个字段，创建 Proposal 时写入
+- **3b**: `apply_proposal` 路由在 `stage == "asset"` 时从 proposal 取 `asset_diffs` 传入 flow
+- **3c**: `apply_stage_updates` asset 分支增加 `_ASSET_COMPONENT_MAP` 映射：
+
+```
+title -> title_candidates
+body -> body_draft
+body_outline -> body_outline
+image -> image_execution_briefs
+```
+
+### Phase 4: skip_reason 提示
+
+- `build_stage_diff` 对不在 editable 白名单的字段标注 `skip_reason: "属于上游对象，请在策划页修改"`
+- `apply_stage_updates` asset 分支返回 `skipped_reasons` 字典
+- `apply_proposal` API 响应中包含 `skipped_reasons`
+- 前端 `renderFinalProposal` 对有 `skip_reason` 的 diff 行显示灰色提示
+
+### 文件变更清单
+
+| 文件 | 变更 |
+|------|------|
+| `_council_ui.html` | **新建**：Council 公共 JS include |
+| `content_assets.html` | Council Tab 替换为完整 SSE 版本，引入 `_council_ui.html` |
+| `planning_workspace.html` | 引入 `_council_ui.html`，移除重复函数，delegate 到 `councilUI.*` |
+| `discussion.py` | `DiscussionRound` 增加 `strategy_block_diffs`/`plan_field_diffs`/`asset_diffs`，`discuss()` 赋值 |
+| `agent_workflow.py` | `StageProposal` 增加 `strategy_block_diffs`/`plan_field_diffs`/`asset_diffs` |
+| `routes.py` | `_run_stage_discussion` 创建 Proposal 时写入 diffs；`apply_proposal` 传 `asset_diffs`；响应含 `skipped_reasons` |
+| `opportunity_to_plan_flow.py` | `apply_stage_updates` 增加 `asset_diffs` 参数 + `_ASSET_COMPONENT_MAP`；`build_stage_diff` 增加 `skip_reason` 标注 |
+
+### 测试状态
+
+148 项测试全部通过，零失败。
