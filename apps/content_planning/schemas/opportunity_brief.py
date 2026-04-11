@@ -70,6 +70,22 @@ class OpportunityBrief(BaseModel):
     proof_blocks: list[dict] | None = None
     planning_direction: str | None = None
 
+    # V6 production-ready 字段
+    title_directions: list[str] = Field(default_factory=list)
+    opening_hook: str = ""
+    content_structure: list[str] = Field(default_factory=list)
+    cta: str = ""
+    core_claim: str = ""
+    proof_points: list[str] = Field(default_factory=list)
+    risk_boundaries: list[str] = Field(default_factory=list)
+    tone: str = ""
+    visual_direction: str = ""
+    cover_direction: str = ""
+    image_plan: list[dict] = Field(default_factory=list)
+    video_optional_plan: dict | None = None
+    production_readiness_status: str = "draft"
+    scorecard_id: str = ""
+
     lineage: PlanLineage | None = None
     locks: ObjectLock | None = None
 

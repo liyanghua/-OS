@@ -57,3 +57,18 @@ class XHSOpportunityCard(BaseModel):
     # V2.0 决策增强字段
     action_recommendation: str | None = None
     opportunity_strength_score: float | None = None
+
+    # V6 语义升级字段
+    audience: str = ""
+    scene: str = ""
+    pain_point: str = ""
+    desire: str = ""
+    hook: str = ""
+    selling_points: list[str] = Field(default_factory=list)
+    content_angle: str = ""
+    format_suggestion: str = ""
+    why_now: str = ""
+    why_worth_doing: str = ""
+    supporting_signal_ids: list[str] = Field(default_factory=list)
+    benchmark_refs: list[str] = Field(default_factory=list)
+    card_status: str = "draft"

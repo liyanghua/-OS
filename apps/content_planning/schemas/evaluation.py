@@ -23,7 +23,7 @@ class StageEvaluation(BaseModel):
 
     evaluation_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     opportunity_id: str = ""
-    stage: Literal["card", "brief", "match", "strategy", "plan", "content", "asset"] = "card"
+    stage: Literal["ingest", "card", "scorecard", "brief", "match", "strategy", "plan", "content", "asset"] = "card"
     dimensions: list[DimensionScore] = Field(default_factory=list)
     overall_score: float = 0.0
     evaluator: str = "llm_judge"  # llm_judge / rule / human

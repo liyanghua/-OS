@@ -1,0 +1,240 @@
+{# ── ExpertScorecard 面板 (V6) ── #}
+<style>
+  .sc-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px 18px; box-shadow: 0 4px 16px rgba(92,66,39,0.05); display: none; }
+  .sc-panel.active { display: block; }
+  .sc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .sc-title { font-size: 13px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 6px; }
+  .sc-rec-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .sc-rec-initiate { background: #dcfce7; color: #166534; }
+  .sc-rec-evaluate { background: #fef9c3; color: #854d0e; }
+  .sc-rec-observe { background: #e0e7ff; color: #3730a3; }
+  .sc-rec-ignore { background: #fee2e2; color: #991b1b; }
+
+  .sc-radar-wrap { display: flex; justify-content: center; margin-bottom: 14px; }
+  .sc-radar-canvas { width: 240px; height: 240px; }
+
+  .sc-summary { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .sc-metric { text-align: center; flex: 1; min-width: 60px; }
+  .sc-metric-value { font-size: 22px; font-weight: 800; color: var(--ink); }
+  .sc-metric-label { font-size: 10px; font-weight: 600; color: var(--muted); }
+
+  .sc-dims { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .sc-dim-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .sc-dim-label { width: 72px; font-weight: 600; color: var(--ink); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sc-dim-bar-bg { flex: 1; height: 6px; background: rgba(215,206,191,0.4); border-radius: 3px; overflow: hidden; }
+  .sc-dim-bar { height: 100%; border-radius: 3px; transition: width .3s; }
+  .sc-dim-score { width: 36px; font-weight: 700; color: var(--muted); }
+
+  .sc-details { margin-top: 8px; }
+  .sc-details summary { font-size: 12px; font-weight: 700; color: var(--accent); cursor: pointer; }
+  .sc-detail-item { font-size: 12px; line-height: 1.55; padding: 4px 0; border-bottom: 1px solid rgba(215,206,191,0.3); }
+  .sc-detail-item:last-child { border-bottom: none; }
+  .sc-evidence { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .sc-advice { margin-top: 10px; }
+  .sc-advice-item { display: flex; gap: 6px; font-size: 12px; line-height: 1.55; padding: 2px 0; }
+
+  .sc-btn-score { display: inline-block; padding: 6px 16px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; background: var(--accent); border: none; cursor: pointer; transition: background .15s; }
+  .sc-btn-score:hover { filter: brightness(1.1); }
+  .sc-btn-score:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .sc-confidence { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .sc-conf-bar-bg { flex: 1; height: 8px; background: rgba(215,206,191,0.4); border-radius: 4px; overflow: hidden; }
+  .sc-conf-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #f59e0b, #10b981); transition: width .3s; }
+  .sc-conf-label { font-size: 11px; font-weight: 600; color: var(--muted); }
+</style>
+
+<div id="scorecard-panel" class="sc-panel">
+  <div class="sc-header">
+    <span class="sc-title">专家评分卡</span>
+    <span id="sc-rec-badge" class="sc-rec-badge"></span>
+  </div>
+
+  <div class="sc-summary">
+    <div class="sc-metric">
+      <div class="sc-metric-value" id="sc-total-score">--</div>
+      <div class="sc-metric-label">综合评分</div>
+    </div>
+    <div class="sc-metric">
+      <div class="sc-metric-value" id="sc-confidence">--</div>
+      <div class="sc-metric-label">数据置信度</div>
+    </div>
+  </div>
+
+  <div class="sc-confidence">
+    <span class="sc-conf-label">置信度</span>
+    <div class="sc-conf-bar-bg"><div id="sc-conf-bar" class="sc-conf-bar" style="width:0"></div></div>
+  </div>
+
+  <div class="sc-radar-wrap">
+    <canvas id="sc-radar-canvas" class="sc-radar-canvas" width="240" height="240"></canvas>
+  </div>
+
+  <div id="sc-dims" class="sc-dims"></div>
+
+  <details class="sc-details" id="sc-details-section">
+    <summary>维度详情 & 证据</summary>
+    <div id="sc-detail-items"></div>
+  </details>
+
+  <div id="sc-advice" class="sc-advice"></div>
+
+  <div style="margin-top: 14px; display: flex; gap: 8px;">
+    <button type="button" class="sc-btn-score" id="sc-btn-generate">生成评分卡</button>
+  </div>
+</div>
+
+<script>
+var scorecardUI = (function() {
+  var DIM_COLORS = {
+    demand_strength: '#ef4444',
+    differentiation: '#f97316',
+    commerce_fit: '#eab308',
+    scalability: '#22c55e',
+    reusability: '#06b6d4',
+    visual_potential: '#8b5cf6',
+    video_potential: '#ec4899',
+    risk_score: '#6b7280',
+  };
+  var REC_CLS = { initiate: 'sc-rec-initiate', evaluate: 'sc-rec-evaluate', observe: 'sc-rec-observe', ignore: 'sc-rec-ignore' };
+  var REC_LABEL = { initiate: '启动', evaluate: '评估', observe: '观察', ignore: '忽略' };
+
+  function render(data) {
+    var panel = document.getElementById('scorecard-panel');
+    if (!panel || !data) return;
+    panel.classList.add('active');
+
+    var sc = data.scorecard || data;
+    document.getElementById('sc-total-score').textContent = (sc.total_score * 100).toFixed(0) + '%';
+    document.getElementById('sc-confidence').textContent = (sc.confidence * 100).toFixed(0) + '%';
+    var confBar = document.getElementById('sc-conf-bar');
+    if (confBar) confBar.style.width = (sc.confidence * 100) + '%';
+
+    var badge = document.getElementById('sc-rec-badge');
+    if (badge) {
+      badge.textContent = REC_LABEL[sc.recommendation] || sc.recommendation;
+      badge.className = 'sc-rec-badge ' + (REC_CLS[sc.recommendation] || '');
+    }
+
+    var dims = sc.dimensions || [];
+    var dimsEl = document.getElementById('sc-dims');
+    if (dimsEl) {
+      dimsEl.innerHTML = '';
+      dims.forEach(function(d) {
+        var pct = (d.score * 100).toFixed(0);
+        var color = DIM_COLORS[d.name] || 'var(--accent)';
+        dimsEl.innerHTML += '<div class="sc-dim-row">'
+          + '<span class="sc-dim-label">' + (d.label || d.name) + '</span>'
+          + '<div class="sc-dim-bar-bg"><div class="sc-dim-bar" style="width:' + pct + '%;background:' + color + ';"></div></div>'
+          + '<span class="sc-dim-score">' + pct + '%</span>'
+          + '</div>';
+      });
+    }
+
+    var detailsEl = document.getElementById('sc-detail-items');
+    if (detailsEl) {
+      detailsEl.innerHTML = '';
+      dims.forEach(function(d) {
+        var ev = (d.evidence_sources || []).join(', ');
+        detailsEl.innerHTML += '<div class="sc-detail-item">'
+          + '<strong>' + (d.label || d.name) + '</strong>: ' + (d.explanation || '')
+          + (ev ? '<div class="sc-evidence">证据: ' + ev + '</div>' : '')
+          + '</div>';
+      });
+    }
+
+    var adviceEl = document.getElementById('sc-advice');
+    if (adviceEl && sc.upgrade_advice && sc.upgrade_advice.length > 0) {
+      adviceEl.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px;">优化建议</div>';
+      sc.upgrade_advice.forEach(function(a) {
+        adviceEl.innerHTML += '<div class="sc-advice-item"><span style="color:var(--accent);">→</span> ' + a + '</div>';
+      });
+    }
+
+    drawRadar(dims);
+  }
+
+  function drawRadar(dims) {
+    var canvas = document.getElementById('sc-radar-canvas');
+    if (!canvas || !canvas.getContext) return;
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width, H = canvas.height;
+    var cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 24;
+    ctx.clearRect(0, 0, W, H);
+
+    var n = dims.length;
+    if (n < 3) return;
+    var angleStep = (2 * Math.PI) / n;
+    var levels = [0.2, 0.4, 0.6, 0.8, 1.0];
+
+    ctx.strokeStyle = 'rgba(215,206,191,0.4)';
+    ctx.lineWidth = 0.5;
+    levels.forEach(function(lv) {
+      ctx.beginPath();
+      for (var i = 0; i <= n; i++) {
+        var a = -Math.PI / 2 + i * angleStep;
+        var x = cx + R * lv * Math.cos(a);
+        var y = cy + R * lv * Math.sin(a);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+
+    for (var i = 0; i < n; i++) {
+      var a = -Math.PI / 2 + i * angleStep;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + R * Math.cos(a), cy + R * Math.sin(a));
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    dims.forEach(function(d, i) {
+      var a = -Math.PI / 2 + i * angleStep;
+      var val = d.inverse ? (1 - d.score) : d.score;
+      var x = cx + R * val * Math.cos(a);
+      var y = cy + R * val * Math.sin(a);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(138,75,47,0.15)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(138,75,47,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = 'var(--ink, #333)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    dims.forEach(function(d, i) {
+      var a = -Math.PI / 2 + i * angleStep;
+      var lx = cx + (R + 16) * Math.cos(a);
+      var ly = cy + (R + 16) * Math.sin(a);
+      ctx.fillText(d.label || d.name, lx, ly + 3);
+    });
+  }
+
+  function load(opportunityId) {
+    fetch('/content-planning/v6/scorecard/' + encodeURIComponent(opportunityId))
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) { if (data) render(data); })
+    .catch(function() {});
+  }
+
+  function generate(opportunityId) {
+    var btn = document.getElementById('sc-btn-generate');
+    if (btn) { btn.disabled = true; btn.textContent = '评分中...'; }
+    fetch('/content-planning/v6/score/' + encodeURIComponent(opportunityId), { method: 'POST' })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (btn) { btn.disabled = false; btn.textContent = '生成评分卡'; }
+      if (data) render(data);
+    })
+    .catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '生成评分卡'; }
+    });
+  }
+
+  return { render: render, load: load, generate: generate };
+})();
+</script>

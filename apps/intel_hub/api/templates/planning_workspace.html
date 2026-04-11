@@ -272,6 +272,23 @@
     {# ═══════════════════ 中栏 ═══════════════════ #}
     <main class="pw-mid">
 
+      {# ── V6 生产链路状态 ── #}
+      <div class="pw-section" id="v6-pipeline-panel" style="display:none;">
+        <div class="pw-section-title">
+          <h3>V6 生产链路状态</h3>
+          <button type="button" class="pw-btn pw-btn-secondary pw-btn-inline" id="v6-run-pipeline-btn">一键全链路</button>
+        </div>
+        <div id="v6-gates" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;"></div>
+        <div id="v6-scorecard-mini" style="display:none; margin-top:8px;">
+          <div style="display:flex; gap:14px; align-items:center;">
+            <span style="font-size:12px; font-weight:700; color:var(--ink);">评分卡</span>
+            <span id="v6-sc-total" style="font-size:18px; font-weight:800;"></span>
+            <span id="v6-sc-rec" style="font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px;"></span>
+            <span id="v6-sc-conf" style="font-size:12px; color:var(--muted);"></span>
+          </div>
+        </div>
+      </div>
+
       {# ── 区块 A: Brief 方向 ── #}
       <div class="pw-section">
         <div class="pw-section-title">
@@ -616,6 +633,57 @@
       <label class="pw-form-label">规避方向</label>
       <textarea class="pw-form-textarea" name="avoid_directions" rows="2">{{ (_brief.get('avoid_directions', [])|join('、')) if _brief else '' }}</textarea>
     </div>
+
+    {# ── V6 Production-Ready 字段 ── #}
+    <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border);">
+      <div style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+        V6 生产就绪字段
+        {% if _brief and _brief.get('production_readiness_status') %}
+        <span style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px;
+          {% if _brief.get('production_readiness_status') == 'ready_for_review' %}background:#dcfce7;color:#166534;
+          {% elif _brief.get('production_readiness_status') == 'approved' %}background:#dbeafe;color:#1e40af;
+          {% else %}background:var(--accent-soft);color:var(--accent);{% endif %}">
+          {{ _brief.get('production_readiness_status', 'draft') }}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">标题方向</label>
+      <textarea class="pw-form-textarea" name="title_directions" rows="2">{{ (_brief.get('title_directions', [])|join('、')) if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">开篇钩子</label>
+      <textarea class="pw-form-textarea" name="opening_hook" rows="2">{{ _brief.get('opening_hook', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">内容结构</label>
+      <textarea class="pw-form-textarea" name="content_structure" rows="3">{{ (_brief.get('content_structure', [])|join('\n')) if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">CTA</label>
+      <textarea class="pw-form-textarea" name="cta" rows="1">{{ _brief.get('cta', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">核心主张</label>
+      <textarea class="pw-form-textarea" name="core_claim" rows="2">{{ _brief.get('core_claim', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">论据支撑</label>
+      <textarea class="pw-form-textarea" name="proof_points" rows="2">{{ (_brief.get('proof_points', [])|join('、')) if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">语气风格</label>
+      <textarea class="pw-form-textarea" name="tone" rows="1">{{ _brief.get('tone', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">视觉方向</label>
+      <textarea class="pw-form-textarea" name="visual_direction" rows="1">{{ _brief.get('visual_direction', '') if _brief else '' }}</textarea>
+    </div>
+    <div class="pw-form-field">
+      <label class="pw-form-label">封面方向</label>
+      <textarea class="pw-form-textarea" name="cover_direction" rows="1">{{ _brief.get('cover_direction', '') if _brief else '' }}</textarea>
+    </div>
     <div style="padding-top: 10px; border-top: 1px solid var(--border);">
       <button type="button" class="pw-btn pw-btn-primary" onclick="alert('Brief 保存功能即将上线')">保存 Brief</button>
     </div>
@@ -657,6 +725,75 @@
 
   var roleMeta = councilUI.roleMeta;
   var esc = councilUI.esc;
+
+  /* ── V6 Pipeline Panel ── */
+  (function v6Init() {
+    var panel = document.getElementById('v6-pipeline-panel');
+    if (!panel || !opportunityId) return;
+
+    var REC_STYLES = {
+      initiate: { bg: '#dcfce7', color: '#166534', label: '启动' },
+      evaluate: { bg: '#fef9c3', color: '#854d0e', label: '评估' },
+      observe:  { bg: '#e0e7ff', color: '#3730a3', label: '观察' },
+      ignore:   { bg: '#fee2e2', color: '#991b1b', label: '忽略' },
+    };
+
+    function loadStatus() {
+      fetch('/content-planning/v6/pipeline-status/' + encodeURIComponent(opportunityId))
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (!d) return;
+        panel.style.display = 'block';
+        var gatesEl = document.getElementById('v6-gates');
+        if (gatesEl) {
+          var stages = [
+            { key: 'ingest', label: 'Ingest' },
+            { key: 'card', label: 'Card' },
+            { key: 'scorecard', label: 'Scorecard' },
+            { key: 'brief', label: 'Brief' },
+          ];
+          gatesEl.innerHTML = '';
+          stages.forEach(function(s) {
+            var ev = (d.stage_evaluations || {})[s.key];
+            var score = ev ? Math.round((ev.overall_score || 0) * 100) : null;
+            var color = score === null ? '#9ca3af' : score >= 60 ? '#16a34a' : score >= 35 ? '#ca8a04' : '#dc2626';
+            gatesEl.innerHTML += '<div style="text-align:center;min-width:56px;">'
+              + '<div style="font-size:16px;font-weight:800;color:' + color + ';">' + (score !== null ? score + '%' : '--') + '</div>'
+              + '<div style="font-size:10px;font-weight:600;color:var(--muted);">' + s.label + '</div></div>';
+          });
+        }
+        if (d.has_scorecard && d.scorecard_summary) {
+          var scMini = document.getElementById('v6-scorecard-mini');
+          if (scMini) scMini.style.display = 'block';
+          var totalEl = document.getElementById('v6-sc-total');
+          if (totalEl) totalEl.textContent = Math.round(d.scorecard_summary.total_score * 100) + '%';
+          var recEl = document.getElementById('v6-sc-rec');
+          var rs = REC_STYLES[d.scorecard_summary.recommendation] || {};
+          if (recEl) {
+            recEl.textContent = rs.label || d.scorecard_summary.recommendation;
+            recEl.style.background = rs.bg || '#f3f4f6';
+            recEl.style.color = rs.color || '#374151';
+          }
+          var confEl = document.getElementById('v6-sc-conf');
+          if (confEl) confEl.textContent = '置信度 ' + Math.round(d.scorecard_summary.confidence * 100) + '%';
+        }
+      })
+      .catch(function() {});
+    }
+
+    loadStatus();
+
+    var runBtn = document.getElementById('v6-run-pipeline-btn');
+    if (runBtn) {
+      runBtn.addEventListener('click', function() {
+        runBtn.disabled = true; runBtn.textContent = '运行中...';
+        fetch('/content-planning/v6/run-pipeline/' + encodeURIComponent(opportunityId), { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function() { runBtn.disabled = false; runBtn.textContent = '一键全链路'; loadStatus(); location.reload(); })
+        .catch(function() { runBtn.disabled = false; runBtn.textContent = '一键全链路'; });
+      });
+    }
+  })();
 
   /* ── 快速分析（抽屉） ── */
   var analyzeBtn = document.getElementById('pw-btn-analyze');

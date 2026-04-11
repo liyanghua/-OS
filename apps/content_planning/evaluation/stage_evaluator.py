@@ -162,6 +162,68 @@ class BaseStageEvaluator(ABC):
 
 
 # ---------------------------------------------------------------------------
+# IngestEvaluator (V6)
+# ---------------------------------------------------------------------------
+
+class IngestEvaluator(BaseStageEvaluator):
+    """原始笔记数据完整度评估——决定是否可以生成机会卡。"""
+
+    stage = "ingest"
+
+    def _build_user_prompt(self, opportunity_id: str, context: dict[str, Any]) -> str:
+        note = context.get("parsed_note", {})
+        if hasattr(note, "model_dump"):
+            note = note.model_dump()
+        parts = [
+            "## 原始笔记信息",
+            f"- opportunity_id: {opportunity_id}",
+            f"- title: {note.get('title', '')}",
+            f"- desc: {str(note.get('desc', note.get('description', '')))[:500]}",
+            f"- comments_count: {note.get('comments_count', note.get('comment_count', 0))}",
+            f"- liked_count: {note.get('liked_count', 0)}",
+            f"- collected_count: {note.get('collected_count', 0)}",
+            f"- note_type: {note.get('type', note.get('note_type', 'unknown'))}",
+        ]
+        return "\n".join(parts)
+
+    def _rule_based_scores(self, opportunity_id: str, context: dict[str, Any]) -> list[DimensionScore]:
+        note = context.get("parsed_note", {})
+        if hasattr(note, "model_dump"):
+            note = note.model_dump()
+        pipeline = context.get("pipeline_details", {})
+
+        core_fields = ["title", "desc", "liked_count", "collected_count", "type"]
+        filled = sum(1 for f in core_fields if note.get(f) or note.get(f.replace("desc", "description")))
+        field_ratio = filled / max(len(core_fields), 1)
+
+        comment_count = _safe_float(note.get("comments_count", note.get("comment_count", 0)))
+        comment_score = min(comment_count / 20, 1.0)
+
+        has_ocr = bool(note.get("image_list") or note.get("ocr_text") or pipeline.get("ocr"))
+        has_commerce = bool(
+            note.get("goods_tags") or note.get("tag_list")
+            or pipeline.get("commerce_mapping")
+        )
+        benchmark_list = context.get("benchmarks", [])
+        bench_score = min(len(benchmark_list) / 3, 1.0) if isinstance(benchmark_list, list) else 0.0
+
+        return [
+            DimensionScore(name="field_completeness", name_zh="字段完整度",
+                           score=_clamp(field_ratio), weight=0.30,
+                           explanation=f"核心字段填充 {filled}/{len(core_fields)}"),
+            DimensionScore(name="comment_coverage", name_zh="评论信号覆盖度",
+                           score=_clamp(comment_score), weight=0.25,
+                           explanation=f"评论数 {int(comment_count)}，>=20 满分"),
+            DimensionScore(name="commerce_data", name_zh="商品承接信息",
+                           score=0.7 if has_commerce else 0.1, weight=0.20,
+                           explanation="检测到商品标签" if has_commerce else "缺少商品映射"),
+            DimensionScore(name="benchmark_coverage", name_zh="同类样本覆盖度",
+                           score=_clamp(bench_score), weight=0.25,
+                           explanation=f"匹配到 {len(benchmark_list) if isinstance(benchmark_list, list) else 0} 个 benchmark"),
+        ]
+
+
+# ---------------------------------------------------------------------------
 # CardEvaluator
 # ---------------------------------------------------------------------------
 
@@ -207,6 +269,19 @@ class CardEvaluator(BaseStageEvaluator):
             DimensionScore(name="insight_depth", name_zh="洞察深度",
                            score=_clamp(confidence), weight=0.25,
                            explanation=f"基于 confidence={confidence:.2f}，LLM 不可用时使用规则近似"),
+            # V6 扩展维度
+            DimensionScore(name="audience_clarity", name_zh="人群清晰度",
+                           score=0.7 if len(str(card.get("audience", ""))) > 10 else 0.2,
+                           weight=0.15,
+                           explanation="audience 字段充分" if len(str(card.get("audience", ""))) > 10 else "audience 为空或过短"),
+            DimensionScore(name="scene_specificity", name_zh="场景具体性",
+                           score=0.7 if len(str(card.get("scene", ""))) > 10 else 0.2,
+                           weight=0.15,
+                           explanation="scene 字段充分" if len(str(card.get("scene", ""))) > 10 else "scene 为空或过短"),
+            DimensionScore(name="hook_strength", name_zh="钩子强度",
+                           score=0.7 if len(str(card.get("hook", ""))) > 5 else 0.2,
+                           weight=0.15,
+                           explanation="hook 字段有效" if len(str(card.get("hook", ""))) > 5 else "hook 为空或过短"),
         ]
 
 
@@ -264,6 +339,26 @@ class BriefEvaluator(BaseStageEvaluator):
             DimensionScore(name="executability", name_zh="可执行性",
                            score=0.7 if has_goal else 0.3, weight=0.15,
                            explanation="content_goal 已填写" if has_goal else "content_goal 为空"),
+            # V6 扩展维度
+            DimensionScore(name="claim_evidence_alignment", name_zh="主张-证据对齐度",
+                           score=0.7 if (brief.get("core_claim") and brief.get("proof_points")) else 0.2,
+                           weight=0.15,
+                           explanation="core_claim + proof_points 齐全" if (brief.get("core_claim") and brief.get("proof_points")) else "缺少 claim 或 proof_points"),
+            DimensionScore(name="visual_readiness", name_zh="视觉准备度",
+                           score=min(sum([
+                               bool(brief.get("visual_direction")),
+                               bool(brief.get("cover_direction")),
+                               bool(brief.get("image_plan")),
+                           ]) / 3, 1.0),
+                           weight=0.15,
+                           explanation="visual_direction/cover_direction/image_plan 填充情况"),
+            DimensionScore(name="production_completeness", name_zh="生产完整度",
+                           score=min(sum(1 for k in [
+                               "title_directions", "opening_hook", "content_structure",
+                               "cta", "tone", "visual_direction", "cover_direction"
+                           ] if brief.get(k)) / 7, 1.0),
+                           weight=0.15,
+                           explanation="V6 production-ready 字段填充率"),
         ]
 
 
@@ -726,11 +821,84 @@ class PlanEvaluator(BaseStageEvaluator):
 
 
 # ---------------------------------------------------------------------------
+# ScorecardEvaluator (V6)
+# ---------------------------------------------------------------------------
+
+class ScorecardEvaluator(BaseStageEvaluator):
+    """ExpertScorecard 内部一致性评估。"""
+
+    stage = "scorecard"
+
+    def _build_user_prompt(self, opportunity_id: str, context: dict[str, Any]) -> str:
+        scorecard = context.get("scorecard", {})
+        if hasattr(scorecard, "model_dump"):
+            scorecard = scorecard.model_dump()
+        parts = [
+            "## ExpertScorecard",
+            f"- opportunity_id: {opportunity_id}",
+            json.dumps(scorecard, ensure_ascii=False, default=str)[:3000],
+        ]
+        return "\n".join(parts)
+
+    def _rule_based_scores(self, opportunity_id: str, context: dict[str, Any]) -> list[DimensionScore]:
+        scorecard = context.get("scorecard", {})
+        if hasattr(scorecard, "model_dump"):
+            scorecard = scorecard.model_dump()
+
+        dims = scorecard.get("dimensions", [])
+
+        # evidence_backing: 每个维度是否有 evidence
+        evidence_count = sum(1 for d in dims if d.get("evidence_sources"))
+        evidence_ratio = evidence_count / max(len(dims), 1)
+
+        # score_consistency: 总分不应被单一弱维度误导
+        scores = [d.get("score", 0) for d in dims]
+        if scores:
+            mean_s = sum(scores) / len(scores)
+            max_dev = max(abs(s - mean_s) for s in scores)
+            consistency = _clamp(1.0 - max_dev)
+        else:
+            consistency = 0.0
+
+        # recommendation_risk_alignment
+        rec = scorecard.get("recommendation", "observe")
+        risk = _safe_float(scorecard.get("risk_score", 0))
+        if rec == "initiate" and risk > 0.6:
+            rec_risk = 0.3
+        elif rec == "ignore" and risk < 0.3:
+            rec_risk = 0.4
+        else:
+            rec_risk = 0.8
+
+        # confidence_data_match
+        confidence = _safe_float(scorecard.get("confidence", 0))
+        data_fill = evidence_ratio
+        conf_match = _clamp(1.0 - abs(confidence - data_fill))
+
+        return [
+            DimensionScore(name="evidence_backing", name_zh="证据支撑度",
+                           score=_clamp(evidence_ratio), weight=0.30,
+                           explanation=f"{evidence_count}/{len(dims)} 个维度有证据"),
+            DimensionScore(name="score_consistency", name_zh="评分一致性",
+                           score=consistency, weight=0.25,
+                           explanation="维度分数偏差越小，一致性越高"),
+            DimensionScore(name="recommendation_risk_alignment", name_zh="推荐-风险一致性",
+                           score=rec_risk, weight=0.25,
+                           explanation=f"recommendation={rec}, risk={risk:.2f}"),
+            DimensionScore(name="confidence_data_match", name_zh="置信度-数据匹配",
+                           score=conf_match, weight=0.20,
+                           explanation=f"confidence={confidence:.2f} vs data_fill={data_fill:.2f}"),
+        ]
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
 STAGE_EVALUATORS: dict[str, BaseStageEvaluator] = {
+    "ingest": IngestEvaluator(),
     "card": CardEvaluator(),
+    "scorecard": ScorecardEvaluator(),
     "brief": BriefEvaluator(),
     "match": MatchEvaluator(),
     "strategy": StrategyEvaluator(),

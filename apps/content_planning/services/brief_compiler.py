@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from apps.content_planning.schemas.expert_scorecard import ExpertScorecard
 from apps.content_planning.schemas.opportunity_brief import OpportunityBrief
 from apps.intel_hub.projector.label_zh import to_zh, to_zh_list
 from apps.intel_hub.schemas.opportunity import XHSOpportunityCard
@@ -32,6 +33,7 @@ class BriefCompiler:
         card: XHSOpportunityCard,
         parsed_note: dict[str, Any] | None = None,
         review_summary: dict[str, Any] | None = None,
+        scorecard: ExpertScorecard | None = None,
     ) -> OpportunityBrief:
         note_context = (parsed_note or {}).get("note_context", {})
         cross_modal_dict = (parsed_note or {}).get("cross_modal_validation", {})
@@ -83,6 +85,9 @@ class BriefCompiler:
         )
         brief.proof_blocks = self._build_proof_blocks(card, note_context, cross_modal_dict, review_summary)
         brief.planning_direction = self._build_planning_direction(card, brief.target_scene, brief.content_goal)
+
+        if scorecard is not None:
+            self._apply_scorecard(brief, scorecard, card)
 
         return brief
 
@@ -516,3 +521,36 @@ class BriefCompiler:
             return text
         ref_pattern = re.compile(r"\b((?:scene|style|need|risk|audience|visual|material|content_pattern)_[\w]+)")
         return ref_pattern.sub(lambda m: to_zh(m.group(1)), text)
+
+    @staticmethod
+    def _apply_scorecard(
+        brief: OpportunityBrief,
+        scorecard: ExpertScorecard,
+        card: XHSOpportunityCard,
+    ) -> None:
+        """根据 ExpertScorecard 驱动 V6 production-ready 字段。"""
+        brief.scorecard_id = scorecard.scorecard_id
+
+        if scorecard.upgrade_advice and not brief.suggested_direction:
+            brief.suggested_direction = "；".join(scorecard.upgrade_advice[:3])
+
+        dim_map = {d.name: d.score for d in scorecard.dimensions}
+
+        if dim_map.get("visual_potential", 0) >= 0.6 and not brief.visual_direction:
+            styles = card.style_refs[:3] or ["高质感"]
+            brief.visual_direction = f"视觉潜力高，建议{'、'.join(styles)}方向"
+
+        if dim_map.get("commerce_fit", 0) >= 0.6 and not brief.cta:
+            brief.cta = "种草转化型 CTA（具体商品链接/搜索词引导）"
+
+        if not brief.tone and card.audience:
+            brief.tone = f"面向「{card.audience[:30]}」的亲和感口语化"
+
+        if not brief.cover_direction and card.visual_pattern_refs:
+            brief.cover_direction = f"封面方向：{'、'.join(card.visual_pattern_refs[:2])}"
+
+        if not brief.risk_boundaries and scorecard.blocking_risks:
+            brief.risk_boundaries = scorecard.blocking_risks[:3]
+
+        if scorecard.recommendation in ("evaluate", "initiate"):
+            brief.production_readiness_status = "ready_for_review"

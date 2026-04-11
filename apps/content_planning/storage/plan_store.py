@@ -243,6 +243,20 @@ class ContentPlanStore:
                     created_at TEXT NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS expert_scorecards (
+                    scorecard_id TEXT PRIMARY KEY,
+                    card_id TEXT NOT NULL,
+                    opportunity_id TEXT NOT NULL,
+                    total_score REAL,
+                    confidence REAL,
+                    recommendation TEXT,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_scorecards_opp ON expert_scorecards(opportunity_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_scorecards_card ON expert_scorecards(card_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tpl_eff_tpl ON template_effectiveness(template_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_unified_fb_opp ON unified_feedback(opportunity_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_unified_fb_tpl ON unified_feedback(template_id)")
@@ -1078,3 +1092,67 @@ class ContentPlanStore:
              "created_at": row["created_at"]}
             for row in rows
         ]
+
+    # ── V6: Expert Scorecards ──────────────────────────────────
+
+    def save_scorecard(self, scorecard: Any) -> None:
+        now = _utc_now_iso()
+        sid = getattr(scorecard, "scorecard_id", "") or ""
+        cid = getattr(scorecard, "card_id", "") or ""
+        oid = getattr(scorecard, "opportunity_id", "") or ""
+        ts = getattr(scorecard, "total_score", 0.0) or 0.0
+        conf = getattr(scorecard, "confidence", 0.0) or 0.0
+        rec = getattr(scorecard, "recommendation", "observe") or "observe"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO expert_scorecards
+                   (scorecard_id, card_id, opportunity_id, total_score, confidence,
+                    recommendation, payload_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (sid, cid, oid, ts, conf, rec, _serialize(scorecard), now),
+            )
+
+    def load_scorecard(self, scorecard_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM expert_scorecards WHERE scorecard_id = ?",
+                (scorecard_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = _deserialize(row["payload_json"]) or {}
+        payload.update({
+            "scorecard_id": row["scorecard_id"],
+            "card_id": row["card_id"],
+            "opportunity_id": row["opportunity_id"],
+            "total_score": row["total_score"],
+            "confidence": row["confidence"],
+            "recommendation": row["recommendation"],
+            "created_at": row["created_at"],
+        })
+        return payload
+
+    def load_scorecards_by_opportunity(
+        self, opportunity_id: str, *, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM expert_scorecards
+                   WHERE opportunity_id = ?
+                   ORDER BY created_at DESC LIMIT ?""",
+                (opportunity_id, limit),
+            ).fetchall()
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            payload = _deserialize(row["payload_json"]) or {}
+            payload.update({
+                "scorecard_id": row["scorecard_id"],
+                "card_id": row["card_id"],
+                "opportunity_id": row["opportunity_id"],
+                "total_score": row["total_score"],
+                "confidence": row["confidence"],
+                "recommendation": row["recommendation"],
+                "created_at": row["created_at"],
+            })
+            results.append(payload)
+        return results

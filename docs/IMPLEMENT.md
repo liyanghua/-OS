@@ -3,6 +3,55 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## V6 小红书内容生产链重构 (2026-04-11)
+
+### 概述
+
+在现有模型基础上新增 ExpertScorecard（8 维专家评分）+ NoteToCardFlow（上游编排），串联完整的 RawNote → Card(enriched) → Scorecard → Brief 生产链路。每阶段具备门控评估，确保 production-ready 效果。
+
+### 新增文件（5 个）
+
+| 文件 | 说明 |
+|---|---|
+| `apps/content_planning/schemas/expert_scorecard.py` | ExpertScorecard + ScorecardDimension 模型，8 维评分 + 加权汇总 + recommendation 映射 |
+| `apps/content_planning/services/expert_scorer.py` | ExpertScorer 服务，对机会卡进行 8 维规则评分 |
+| `apps/content_planning/services/note_to_card_flow.py` | NoteToCardFlow 上游编排：ingest eval → enrich card → score → scorecard eval |
+| `config/scorecard_weights.yaml` | 评分维度权重 + recommendation 阈值 + confidence 组件配置 |
+| `apps/intel_hub/api/templates/_scorecard_panel.html` | 前端 ExpertScorecard 面板：雷达图 + 维度条 + 证据详情 + 优化建议 |
+
+### 修改文件（7 个）
+
+| 文件 | 改动 |
+|---|---|
+| `apps/intel_hub/schemas/opportunity.py` | XHSOpportunityCard 新增 V6 语义字段组（audience/scene/pain_point/hook/selling_points 等 13 个字段） |
+| `apps/content_planning/schemas/opportunity_brief.py` | OpportunityBrief 新增 V6 production-ready 字段（title_directions/cta/visual_direction 等 15 个字段） |
+| `apps/content_planning/schemas/evaluation.py` | StageEvaluation.stage Literal 扩展为包含 ingest/scorecard |
+| `apps/content_planning/evaluation/stage_evaluator.py` | 新增 IngestEvaluator + ScorecardEvaluator；CardEvaluator 扩展 3 维度；BriefEvaluator 扩展 3 维度 |
+| `apps/content_planning/services/brief_compiler.py` | compile() 支持 scorecard 参数，新增 _apply_scorecard 方法 |
+| `apps/content_planning/storage/plan_store.py` | 新增 expert_scorecards 表 + save_scorecard/load_scorecard/load_scorecards_by_opportunity |
+| `apps/content_planning/api/routes.py` | 新增 7 个 V6 端点（ingest-eval/enrich-card/score/scorecard/compile-brief/run-pipeline/pipeline-status） |
+
+### 前端集成
+
+| 文件 | 改动 |
+|---|---|
+| `apps/intel_hub/api/templates/opportunity_workspace.html` | 嵌入 _scorecard_panel + JS 初始化加载/生成评分卡 |
+| `apps/intel_hub/api/templates/planning_workspace.html` | Brief 编辑表单新增 V6 字段组 + V6 pipeline status 面板 + 一键全链路按钮 |
+
+### V6 API 端点
+
+| 方法 | 路由 | 说明 |
+|---|---|---|
+| POST | `/content-planning/v6/ingest-eval/{id}` | 原始笔记数据完整度评估 |
+| POST | `/content-planning/v6/enrich-card/{id}` | V6 语义字段增强机会卡 |
+| POST | `/content-planning/v6/score/{id}` | 生成 ExpertScorecard |
+| GET | `/content-planning/v6/scorecard/{id}` | 获取 ExpertScorecard |
+| POST | `/content-planning/v6/compile-brief/{id}` | 基于 scorecard 编译 brief |
+| POST | `/content-planning/v6/run-pipeline/{id}` | 一键全链路 |
+| GET | `/content-planning/v6/pipeline-status/{id}` | 链路状态 |
+
+---
+
 ## Council 多角色 SOUL 与圆桌协议 (2026-04-11)
 
 - **SOUL**：`apps/content_planning/agents/souls/{role}/SOUL.md`，`SoulLoader` + Hermes 风格 `soul_context_hermes`（扫描/截断）。

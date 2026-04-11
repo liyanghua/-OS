@@ -815,6 +815,215 @@ async def v5_template_effectiveness(template_id: str) -> dict[str, Any]:
     return {"records": records, "count": len(records)}
 
 
+# ── V6: 内容生产链 APIs ──────────────────────────────────────
+
+
+@router.post("/v6/ingest-eval/{opportunity_id}")
+@_handle_flow_error
+async def v6_ingest_eval(opportunity_id: str) -> dict[str, Any]:
+    """对原始笔记运行数据完整度评估。"""
+    flow = _get_flow()
+    card = flow._adapter.get_card(opportunity_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="机会卡未找到")
+    source_notes = flow._adapter.get_source_notes(card.source_note_ids)
+    note_ctx = source_notes[0] if source_notes else {}
+    eval_result = evaluate_stage("ingest", opportunity_id, {
+        "parsed_note": note_ctx,
+        "pipeline_details": note_ctx.get("pipeline_details", {}),
+        "benchmarks": [],
+    })
+    return {
+        "opportunity_id": opportunity_id,
+        "stage": "ingest",
+        "evaluation": eval_result.model_dump(mode="json"),
+        "passed": eval_result.overall_score >= 0.25,
+        "suggestions": [
+            d.explanation for d in eval_result.dimensions if d.score < 0.4
+        ],
+    }
+
+
+@router.post("/v6/enrich-card/{opportunity_id}")
+@_handle_flow_error
+async def v6_enrich_card(opportunity_id: str) -> dict[str, Any]:
+    """用 V6 语义字段增强现有 card。"""
+    from apps.content_planning.services.note_to_card_flow import NoteToCardFlow
+
+    flow = _get_flow()
+    card = flow._adapter.get_card(opportunity_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="机会卡未找到")
+    source_notes = flow._adapter.get_source_notes(card.source_note_ids)
+    note_ctx = source_notes[0] if source_notes else {}
+    n2c = NoteToCardFlow()
+    enriched = n2c._enrich_card(card, note_ctx, note_ctx.get("pipeline_details", {}))
+    try:
+        flow._adapter._store.update_card(enriched)
+    except Exception:
+        pass
+    return {
+        "opportunity_id": opportunity_id,
+        "enriched_card": enriched.model_dump(mode="json"),
+        "v6_fields": {
+            "audience": enriched.audience,
+            "scene": enriched.scene,
+            "pain_point": enriched.pain_point,
+            "hook": enriched.hook,
+            "selling_points": enriched.selling_points,
+            "card_status": enriched.card_status,
+        },
+    }
+
+
+@router.post("/v6/score/{opportunity_id}")
+@_handle_flow_error
+async def v6_score(opportunity_id: str) -> dict[str, Any]:
+    """生成 ExpertScorecard。"""
+    from apps.content_planning.services.expert_scorer import ExpertScorer
+
+    flow = _get_flow()
+    card = flow._adapter.get_card(opportunity_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="机会卡未找到")
+    source_notes = flow._adapter.get_source_notes(card.source_note_ids)
+    note_ctx = source_notes[0] if source_notes else {}
+    eng = note_ctx.get("note_context", {})
+
+    scorer = ExpertScorer()
+    scorecard = scorer.score(card, eng)
+    flow._plan_store.save_scorecard(scorecard)
+    return {
+        "opportunity_id": opportunity_id,
+        "scorecard": scorecard.model_dump(mode="json"),
+    }
+
+
+@router.get("/v6/scorecard/{opportunity_id}")
+@_handle_flow_error
+async def v6_get_scorecard(opportunity_id: str) -> dict[str, Any]:
+    """获取 scorecard。"""
+    flow = _get_flow()
+    scorecards = flow._plan_store.load_scorecards_by_opportunity(opportunity_id, limit=1)
+    if not scorecards:
+        raise HTTPException(status_code=404, detail="尚无 ExpertScorecard，请先调用 /v6/score")
+    return {
+        "opportunity_id": opportunity_id,
+        "scorecard": scorecards[0],
+    }
+
+
+@router.post("/v6/compile-brief/{opportunity_id}")
+@_handle_flow_error
+async def v6_compile_brief(opportunity_id: str) -> dict[str, Any]:
+    """基于 scorecard 编译 production-ready brief。"""
+    from apps.content_planning.schemas.expert_scorecard import ExpertScorecard
+
+    flow = _get_flow()
+    card = flow._adapter.get_card(opportunity_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="机会卡未找到")
+
+    scorecards = flow._plan_store.load_scorecards_by_opportunity(opportunity_id, limit=1)
+    scorecard_obj = None
+    if scorecards:
+        try:
+            scorecard_obj = ExpertScorecard(**scorecards[0])
+        except Exception:
+            pass
+
+    source_notes = flow._adapter.get_source_notes(card.source_note_ids)
+    parsed = source_notes[0] if source_notes else None
+    review_summary = flow._adapter.get_review_summary(opportunity_id)
+    brief = flow._brief_compiler.compile(card, parsed, review_summary, scorecard=scorecard_obj)
+
+    flow._plan_store.save_session(opportunity_id, brief=brief, session_status="generated")
+
+    return {
+        "opportunity_id": opportunity_id,
+        "brief": brief.model_dump(mode="json"),
+        "scorecard_applied": scorecard_obj is not None,
+        "production_readiness_status": brief.production_readiness_status,
+    }
+
+
+@router.post("/v6/run-pipeline/{opportunity_id}")
+@_handle_flow_error
+async def v6_run_pipeline(opportunity_id: str) -> dict[str, Any]:
+    """一键全链路：ingest eval -> enrich -> score -> brief。"""
+    from apps.content_planning.services.note_to_card_flow import NoteToCardFlow
+    from apps.content_planning.schemas.expert_scorecard import ExpertScorecard
+
+    flow = _get_flow()
+    card = flow._adapter.get_card(opportunity_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="机会卡未找到")
+
+    source_notes = flow._adapter.get_source_notes(card.source_note_ids)
+    note_ctx = source_notes[0] if source_notes else {}
+
+    n2c = NoteToCardFlow()
+    pipeline_result = n2c.run(card, parsed_note=note_ctx, auto_promote=True)
+
+    brief = None
+    scorecard_applied = False
+    if not pipeline_result.blocked and pipeline_result.scorecard:
+        sc = pipeline_result.scorecard
+        flow._plan_store.save_scorecard(sc)
+
+        if sc.recommendation in ("evaluate", "initiate"):
+            review_summary = flow._adapter.get_review_summary(opportunity_id)
+            brief = flow._brief_compiler.compile(card, note_ctx, review_summary, scorecard=sc)
+            flow._plan_store.save_session(opportunity_id, brief=brief, session_status="generated")
+            scorecard_applied = True
+
+    return {
+        "opportunity_id": opportunity_id,
+        "blocked": pipeline_result.blocked,
+        "block_reason": pipeline_result.block_reason,
+        "promoted": pipeline_result.promoted,
+        "gates": [g.model_dump(mode="json") for g in pipeline_result.gates],
+        "scorecard": pipeline_result.scorecard.model_dump(mode="json") if pipeline_result.scorecard else None,
+        "brief": brief.model_dump(mode="json") if brief else None,
+        "scorecard_applied": scorecard_applied,
+    }
+
+
+@router.get("/v6/pipeline-status/{opportunity_id}")
+@_handle_flow_error
+async def v6_pipeline_status(opportunity_id: str) -> dict[str, Any]:
+    """链路状态与各阶段 eval 结果。"""
+    flow = _get_flow()
+    scorecards = flow._plan_store.load_scorecards_by_opportunity(opportunity_id, limit=1)
+    session = flow._plan_store.load_session(opportunity_id)
+    evaluations = flow._plan_store.load_evaluations(opportunity_id, limit=10)
+
+    stage_evals: dict[str, Any] = {}
+    for ev in evaluations:
+        payload = ev.get("payload", {})
+        if isinstance(payload, dict):
+            stage = payload.get("stage", ev.get("eval_type", ""))
+            if stage:
+                stage_evals[stage] = payload
+
+    has_brief = session is not None and session.get("brief") is not None
+    has_scorecard = len(scorecards) > 0
+    recommendation = scorecards[0].get("recommendation", "") if scorecards else ""
+
+    return {
+        "opportunity_id": opportunity_id,
+        "has_scorecard": has_scorecard,
+        "has_brief": has_brief,
+        "recommendation": recommendation,
+        "scorecard_summary": {
+            "total_score": scorecards[0].get("total_score", 0) if scorecards else 0,
+            "confidence": scorecards[0].get("confidence", 0) if scorecards else 0,
+            "recommendation": recommendation,
+        } if scorecards else None,
+        "stage_evaluations": stage_evals,
+    }
+
+
 class BatchCompileRequest(BaseModel):
     opportunity_ids: list[str] = Field(min_length=1)
 

@@ -1,0 +1,21 @@
+dimensions:
+  demand_strength: { weight: 0.18, label: "需求强度" }
+  differentiation: { weight: 0.14, label: "差异化" }
+  commerce_fit: { weight: 0.18, label: "商品适配" }
+  scalability: { weight: 0.12, label: "可规模化" }
+  reusability: { weight: 0.10, label: "可复用性" }
+  visual_potential: { weight: 0.10, label: "视觉潜力" }
+  video_potential: { weight: 0.08, label: "视频潜力" }
+  risk_score: { weight: 0.10, label: "风险", inverse: true }
+
+recommendation_thresholds:
+  initiate: 0.7
+  evaluate: 0.5
+  observe: 0.3
+  # below 0.3 -> ignore
+
+confidence_components:
+  field_completeness: 0.30
+  comment_sample_size: 0.25
+  benchmark_count: 0.25
+  commerce_data: 0.20
