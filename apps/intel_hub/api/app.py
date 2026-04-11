@@ -1004,6 +1004,10 @@ def create_app(
         platform_store=platform_store,
     )
     set_flow(_cp_flow)
+
+    from apps.content_planning.agents.tool_registry import register_builtin_tools
+    register_builtin_tools()
+
     app.include_router(content_planning_router)
     app.include_router(content_planning_router_alias)
 

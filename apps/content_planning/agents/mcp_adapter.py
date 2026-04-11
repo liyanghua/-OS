@@ -125,5 +125,66 @@ class MCPAdapter:
         return len(self._discovered_tools)
 
 
+    def load_config(self, config_path: str | None = None) -> int:
+        """Load MCP server definitions from a YAML config file.
+
+        Expected format:
+            servers:
+              - name: seo_keywords
+                url: http://localhost:3100
+                transport: http
+                enabled: true
+                toolset_name: seo
+        """
+        import os
+        from pathlib import Path
+
+        if config_path is None:
+            root = Path(__file__).resolve().parents[3]
+            config_path = str(root / "config" / "mcp_servers.yaml")
+
+        if not os.path.exists(config_path):
+            logger.debug("MCP config not found at %s, skipping", config_path)
+            return 0
+
+        try:
+            import yaml
+            with open(config_path, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+        except Exception:
+            logger.warning("Failed to load MCP config from %s", config_path, exc_info=True)
+            return 0
+
+        servers = data.get("servers", [])
+        count = 0
+        for item in servers:
+            try:
+                cfg = MCPServerConfig(**item)
+                if cfg.enabled and cfg.name:
+                    self.add_server(cfg)
+                    count += 1
+            except Exception:
+                logger.debug("Skipping invalid MCP server entry: %s", item)
+        logger.info("Loaded %d MCP server configs", count)
+        return count
+
+    def list_servers(self) -> list[dict[str, Any]]:
+        """Return a summary of configured MCP servers."""
+        return [
+            {
+                "name": s.name,
+                "url": s.url or s.command,
+                "transport": s.transport,
+                "enabled": s.enabled,
+                "tools": [
+                    k.split(":", 1)[1]
+                    for k, v in self._discovered_tools.items()
+                    if v.server_name == s.name
+                ],
+            }
+            for s in self._servers.values()
+        ]
+
+
 # Singleton
 mcp_adapter = MCPAdapter()

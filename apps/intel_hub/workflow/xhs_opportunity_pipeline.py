@@ -235,7 +235,9 @@ def main() -> None:
     parser.add_argument("--output-dir", type=str, default=None, help="输出目录")
     args = parser.parse_args()
 
-    jsonl_dir = args.jsonl_dir or str(ROOT / "third_party" / "MediaCrawler" / "data" / "xhs" / "jsonl")
+    _fixtures_dir = ROOT / "data" / "fixtures" / "mediacrawler_output" / "xhs" / "jsonl"
+    _default_dir = ROOT / "third_party" / "MediaCrawler" / "data" / "xhs" / "jsonl"
+    jsonl_dir = args.jsonl_dir or str(_fixtures_dir if _fixtures_dir.exists() else _default_dir)
     output_dir = args.output_dir or str(ROOT / "data" / "output" / "xhs_opportunities")
 
     from apps.intel_hub.parsing.xhs_note_parser import load_and_parse_notes

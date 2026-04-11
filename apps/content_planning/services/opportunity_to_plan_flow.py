@@ -2,11 +2,13 @@
 
 v2: 增加会话缓存 + 局部重生成 + 原子操作方法。
 v3: 持久化到 SQLite + lineage 血缘追踪 + stale_flags。
+v5: 一键编译 + CompilationReport + PublishReadyPackage。
 """
 
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -1125,14 +1127,149 @@ class OpportunityToPlanFlow:
         opportunity_id: str,
         *,
         with_generation: bool = True,
+        with_evaluation: bool = False,
+        with_publish_format: bool = False,
         preferred_template_id: str | None = None,
     ) -> dict[str, Any]:
-        """编排型一键全链路，返回所有中间产物。"""
-        return self.build_note_plan(
+        """编排型一键全链路，返回所有中间产物。
+
+        v5 新增: with_evaluation 附带 CompilationReport，
+                 with_publish_format 附带 PublishReadyPackage。
+        """
+        result = self.build_note_plan(
             opportunity_id,
             with_generation=with_generation,
             preferred_template_id=preferred_template_id,
         )
+        if with_evaluation:
+            report = self._evaluate_compilation(opportunity_id)
+            result["compilation_report"] = report.model_dump(mode="json")
+        if with_publish_format:
+            pkg = self.format_for_publish(opportunity_id)
+            if pkg:
+                result["publish_package"] = pkg.model_dump(mode="json")
+        return result
+
+    # ── V5: 编译质量评估 ──────────────────────────────────────
+
+    def _evaluate_compilation(self, opportunity_id: str):
+        """对已完成的编译流水线各阶段打分，返回 CompilationReport。"""
+        from apps.content_planning.evaluation.stage_evaluator import evaluate_stage
+        from apps.content_planning.schemas.compilation_report import CompilationReport
+
+        session = self._get_session(opportunity_id)
+        report = CompilationReport(
+            opportunity_id=opportunity_id,
+            pipeline_run_id=session.pipeline_run_id,
+        )
+
+        card_data = {}
+        try:
+            card = self._adapter.get_card(opportunity_id)
+            if card:
+                card_data = card.model_dump(mode="json")
+        except Exception:
+            pass
+
+        stages_to_eval: list[tuple[str, dict[str, Any]]] = []
+
+        if session.brief:
+            stages_to_eval.append(("brief", {
+                "card": card_data,
+                "brief": session.brief.model_dump(mode="json"),
+            }))
+        if session.strategy:
+            stages_to_eval.append(("strategy", {
+                "card": card_data,
+                "brief": session.brief.model_dump(mode="json") if session.brief else {},
+                "strategy": session.strategy.model_dump(mode="json"),
+            }))
+        if session.note_plan:
+            stages_to_eval.append(("plan", {
+                "card": card_data,
+                "brief": session.brief.model_dump(mode="json") if session.brief else {},
+                "strategy": session.strategy.model_dump(mode="json") if session.strategy else {},
+                "plan": session.note_plan.model_dump(mode="json"),
+            }))
+        if session.asset_bundle:
+            stages_to_eval.append(("asset", {
+                "card": card_data,
+                "brief": session.brief.model_dump(mode="json") if session.brief else {},
+                "strategy": session.strategy.model_dump(mode="json") if session.strategy else {},
+                "plan": session.note_plan.model_dump(mode="json") if session.note_plan else {},
+                "asset_bundle": session.asset_bundle.model_dump(mode="json"),
+            }))
+
+        degraded: list[str] = []
+        stage_times: dict[str, float] = {}
+        for stage_name, ctx in stages_to_eval:
+            t0 = time.monotonic()
+            try:
+                evaluation = evaluate_stage(stage_name, opportunity_id, ctx)
+                report.stage_scores[stage_name] = evaluation
+                if evaluation.evaluator == "rule":
+                    degraded.append(stage_name)
+            except Exception as exc:
+                logger.warning("Evaluation failed for %s: %s", stage_name, exc)
+            stage_times[stage_name] = round(time.monotonic() - t0, 2)
+
+        report.degraded_stages = degraded
+        report.stage_times = stage_times
+        report.total_time_seconds = sum(stage_times.values())
+        report.compute_pipeline_score()
+
+        warnings: list[str] = []
+        actions: list[str] = []
+        for stage_name, ev in report.stage_scores.items():
+            if ev.overall_score < 0.5:
+                warnings.append(f"{stage_name} 质量偏低 ({ev.overall_score:.2f})")
+                actions.append(f"建议对 {stage_name} 发起 Council 讨论修正")
+            elif ev.overall_score < 0.7:
+                actions.append(f"{stage_name} 有提升空间 ({ev.overall_score:.2f})，可优化")
+
+        if degraded:
+            warnings.append(f"以下阶段 LLM 不可用，使用规则降级: {', '.join(degraded)}")
+
+        if session.titles and session.titles.mode != "llm":
+            degraded.append("titles")
+        if session.body and session.body.mode != "llm":
+            degraded.append("body")
+
+        report.warnings = warnings
+        report.recommended_actions = actions
+
+        if session.asset_bundle:
+            try:
+                from apps.content_planning.services.quality_explainer import QualityExplainer
+                source_notes = self._adapter.get_source_notes(
+                    session.brief.source_note_ids if session.brief else []
+                )
+                source_note = source_notes[0] if source_notes else None
+                source_ctx = (source_note or {}).get("note_context", {})
+                explainer = QualityExplainer()
+                report.quality_explanation = explainer.explain(
+                    source_ctx, session.asset_bundle, session.strategy, session.brief,
+                )
+            except Exception as exc:
+                logger.warning("Quality explanation failed: %s", exc)
+
+        return report
+
+    # ── V5: 发布格式化 ───────────────────────────────────────
+
+    def format_for_publish(self, opportunity_id: str):
+        """将 AssetBundle 格式化为可发布的 PublishReadyPackage。"""
+        from apps.content_planning.schemas.compilation_report import PublishReadyPackage
+        from apps.content_planning.services.publish_formatter import XHSPublishFormatter
+
+        session = self._get_session(opportunity_id)
+        if not session.asset_bundle:
+            logger.warning("No asset_bundle for %s, cannot format for publish", opportunity_id)
+            return None
+
+        formatter = XHSPublishFormatter()
+        pkg = formatter.format(session.asset_bundle, session.strategy)
+        return pkg
 
     def get_session_data(self, opportunity_id: str) -> dict[str, Any]:
         """返回当前会话缓存的所有中间产物（用于 UI 渲染）。"""

@@ -2784,3 +2784,115 @@ image -> image_execution_briefs
 ### 测试状态
 
 148 项测试全部通过，零失败。
+
+---
+
+## V5 内容策划架构升级 — 实施记录 (2026-04-11)
+
+### Wave 1: Production Pipeline MVP
+
+**目标**: 跑通离线 pipeline + 自动晋级 + 一键编译 + 发布格式化
+
+#### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `schemas/compilation_report.py` | `CompilationReport`, `PublishReadyPackage`, `QualityExplanation`, `ImprovementItem` |
+| `services/publish_formatter.py` | `XHSPublishFormatter` — AssetBundle -> 小红书发布格式化 |
+
+#### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `opportunity_promoter.py` | 新增 `auto_promote_for_dev()`, `batch_auto_promote()` |
+| `xhs_opportunity_pipeline.py` | `main()` 默认 JSONL 路径先查 `data/fixtures/` |
+| `opportunity_to_plan_flow.py` | `compile_note_plan()` 新增 `with_evaluation`/`with_publish_format` 参数；新增 `_evaluate_compilation()`, `format_for_publish()` |
+| `routes.py` | 新增 V5 API: `POST /v5/compile/{id}`, `GET /v5/compilation-report/{id}`, `GET /v5/publish-package/{id}`, `POST /v5/auto-promote/{id}`, `POST /v5/batch-auto-promote` |
+
+### Wave 2: 质量与解释
+
+**目标**: QualityExplainer + 质量门控 + 编译报告前端
+
+#### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `services/quality_explainer.py` | `QualityExplainer` — LLM 优先、规则兜底的差异化质量解释 |
+| `templates/_compilation_report.html` | `compilationUI.renderReport()`, `compilationUI.renderPublishPackage()` 前端组件 |
+
+#### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `opportunity_to_plan_flow.py` | `_evaluate_compilation()` 集成 QualityExplainer |
+| `routes.py` | 新增 `GET /v5/quality-explanation/{id}` |
+
+### Wave 3: 工具与技能
+
+**目标**: 激活 ToolRegistry + MCP 真实接入 + Skill 执行链路
+
+#### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `tool_registry.py` | 新增 3 个 V5 工具注册: `format_for_publish`, `explain_quality`, `evaluate_stage`；共 14 个工具注册成功 |
+| `skill_registry.py` | `full_pipeline` 技能更新为 10 步完整链路（含 titles/body/format/evaluate） |
+| `mcp_adapter.py` | 新增 `load_config()` 从 YAML 加载 MCP 服务器定义；新增 `list_servers()` |
+| `app.py` | 在 `create_app` 中调用 `register_builtin_tools()` 激活工具注册 |
+| `routes.py` | 新增 `GET /v5/tools` 列出工具/技能/MCP 服务器 |
+
+### Wave 4: 混合工作台
+
+**目标**: 手机模拟器预览 + 变体对比 + 行内编辑
+
+#### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `templates/_preview_canvas.html` | `previewCanvas.renderPreview()`, `renderVariantCompare()`, `enableInlineEdit()` |
+
+#### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `planning_workspace.html` | 引入 `_compilation_report.html` + `_preview_canvas.html` |
+| `content_assets.html` | 引入 `_compilation_report.html` + `_preview_canvas.html` |
+
+### Wave 5: 数据飞轮
+
+**目标**: 统一反馈 + Pattern 提取 + 模板效果权重 + 记忆增强
+
+#### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `schemas/unified_feedback.py` | `UnifiedFeedback` 统一反馈事实表 |
+| `services/pattern_extractor.py` | `PatternExtractor` — 从反馈中提取 WinningPattern / FailedPattern |
+| `services/feedback_processor.py` | `FeedbackProcessor` — 单一入口触发三路下游 (pattern + template + memory) |
+
+#### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `plan_store.py` | 新增 `template_effectiveness` + `unified_feedback` 表；新增 `save_template_effectiveness()`, `save_unified_feedback()`, `load_unified_feedback()`, `load_template_effectiveness()` |
+| `routes.py` | 新增 V5 飞轮 API: `POST /v5/feedback`, `GET /v5/feedback/{id}`, `GET /v5/patterns`, `GET /v5/template-effectiveness/{id}` |
+
+### 测试状态
+
+148 项测试全部通过，零失败（全部 Waves 完成后验证）。
+
+### 新增 V5 API 总览
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| POST | `/v5/compile/{id}` | 一键编译 + 质量评分 + 发布格式化 |
+| GET | `/v5/compilation-report/{id}` | 获取编译质量报告 |
+| GET | `/v5/quality-explanation/{id}` | 获取差异化质量解释 |
+| GET | `/v5/publish-package/{id}` | 获取可发布格式内容包 |
+| POST | `/v5/auto-promote/{id}` | Dev 快速晋级机会卡 |
+| POST | `/v5/batch-auto-promote` | Dev 批量快速晋级 |
+| GET | `/v5/tools` | 列出已注册工具/技能/MCP |
+| POST | `/v5/feedback` | 统一反馈入口 |
+| GET | `/v5/feedback/{id}` | 获取反馈记录 |
+| GET | `/v5/patterns` | 获取 Winning/Failed Pattern |
+| GET | `/v5/template-effectiveness/{id}` | 获取模板效果记录 |

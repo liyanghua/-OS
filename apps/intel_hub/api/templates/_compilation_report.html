@@ -1,0 +1,245 @@
+{#
+  Compilation Report + Publish Package UI component.
+  Provides: compilationUI.renderReport(data, containerId)
+            compilationUI.renderPublishPackage(data, containerId)
+#}
+<style>
+.comp-report-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: rgba(255,255,255,0.6);
+}
+.comp-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(215,206,191,0.3);
+}
+.comp-stage-row:last-child { border-bottom: none; }
+.comp-score-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.comp-score-good { background: #dcfce7; color: #166534; }
+.comp-score-warn { background: #fef9c3; color: #854d0e; }
+.comp-score-bad { background: #fee2e2; color: #991b1b; }
+.comp-degraded-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+}
+.comp-warning-item {
+  font-size: 12px;
+  color: #b45309;
+  padding: 4px 0;
+  line-height: 1.5;
+}
+.comp-action-item {
+  font-size: 12px;
+  color: var(--accent);
+  padding: 4px 0;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.comp-improvement-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: rgba(255,253,248,0.9);
+}
+.publish-preview-frame {
+  width: 280px;
+  min-height: 400px;
+  border: 2px solid var(--border);
+  border-radius: 24px;
+  padding: 16px 14px;
+  background: #fff;
+  margin: 0 auto;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+.publish-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+.publish-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre-wrap;
+  margin-bottom: 12px;
+}
+.publish-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.publish-tag {
+  font-size: 11px;
+  color: #2563eb;
+  background: rgba(37,99,235,0.08);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+</style>
+<script>
+var compilationUI = (function() {
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  function scoreClass(score) {
+    if (score >= 0.7) return 'comp-score-good';
+    if (score >= 0.5) return 'comp-score-warn';
+    return 'comp-score-bad';
+  }
+
+  var STAGE_LABELS = {
+    brief: 'Brief', strategy: 'Strategy', plan: 'Plan', asset: 'Asset',
+    card: 'Card', match: 'Match', titles: 'Titles', body: 'Body'
+  };
+
+  function renderReport(data, containerId) {
+    var el = document.getElementById(containerId);
+    if (!el || !data) return;
+
+    var report = data;
+    var pipelineScore = report.pipeline_score || 0;
+    var passed = report.quality_gate_passed;
+    var degraded = report.degraded_stages || [];
+    var warnings = report.warnings || [];
+    var actions = report.recommended_actions || [];
+    var stageScores = report.stage_scores || {};
+    var explanation = report.quality_explanation;
+
+    var gateBadge = passed
+      ? '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#dcfce7;color:#166534;">PASS</span>'
+      : '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#fee2e2;color:#991b1b;">WARN</span>';
+
+    var stagesHtml = '';
+    var stageKeys = Object.keys(stageScores);
+    stageKeys.forEach(function(stage) {
+      var ev = stageScores[stage];
+      var score = ev.overall_score || 0;
+      var evaluator = ev.evaluator || 'rule';
+      var isDegraded = degraded.indexOf(stage) >= 0;
+      stagesHtml += '<div class="comp-stage-row">' +
+        '<span style="font-size:12px;font-weight:700;color:var(--ink);min-width:70px;">' + esc(STAGE_LABELS[stage] || stage) + '</span>' +
+        '<span class="comp-score-badge ' + scoreClass(score) + '">' + (score * 100).toFixed(0) + '</span>' +
+        (isDegraded ? '<span class="comp-degraded-tag">规则降级</span>' : '') +
+        '<span style="font-size:11px;color:var(--muted);margin-left:auto;">' + esc(evaluator) + '</span>' +
+      '</div>';
+    });
+
+    var warningsHtml = warnings.map(function(w) {
+      return '<div class="comp-warning-item">&#9888; ' + esc(w) + '</div>';
+    }).join('');
+
+    var actionsHtml = actions.map(function(a) {
+      return '<div class="comp-action-item">&#10148; ' + esc(a) + '</div>';
+    }).join('');
+
+    var explanationHtml = '';
+    if (explanation) {
+      var items = explanation.vs_source_improvements || [];
+      if (items.length) {
+        explanationHtml = '<div style="margin-top:12px;">' +
+          '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:8px;">VS SOURCE IMPROVEMENTS</div>';
+        items.forEach(function(imp) {
+          explanationHtml += '<div class="comp-improvement-card">' +
+            '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px;">' + esc(imp.dimension) + '</div>' +
+            '<div style="display:flex;gap:8px;font-size:11px;">' +
+              '<div style="flex:1;color:var(--muted);"><span style="font-weight:700;">Before:</span> ' + esc(imp.before_label) + '</div>' +
+              '<div style="flex:1;color:var(--ink);"><span style="font-weight:700;color:#166534;">After:</span> ' + esc(imp.after_label) + '</div>' +
+            '</div>' +
+            (imp.explanation ? '<div style="font-size:11px;color:var(--ink);margin-top:4px;">' + esc(imp.explanation) + '</div>' : '') +
+          '</div>';
+        });
+        explanationHtml += '</div>';
+      }
+
+      var factors = explanation.predicted_engagement_factors || [];
+      if (factors.length) {
+        explanationHtml += '<div style="margin-top:8px;font-size:11px;color:var(--muted);"><b>Engagement:</b> ' + factors.map(esc).join(', ') + '</div>';
+      }
+      var suggestions = explanation.optimization_suggestions || [];
+      if (suggestions.length) {
+        explanationHtml += '<div style="margin-top:4px;font-size:11px;color:var(--accent);"><b>Optimize:</b> ' + suggestions.map(esc).join('; ') + '</div>';
+      }
+      var riskFlags = explanation.risk_flags || [];
+      if (riskFlags.length) {
+        explanationHtml += '<div style="margin-top:4px;font-size:11px;color:#dc2626;"><b>Risk:</b> ' + riskFlags.map(esc).join('; ') + '</div>';
+      }
+    }
+
+    el.innerHTML =
+      '<div class="comp-report-card">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+          '<div>' +
+            '<span style="font-size:15px;font-weight:700;color:var(--ink);">Compilation Report</span>' +
+            '<span style="font-size:12px;color:var(--muted);margin-left:8px;">Pipeline ' + (pipelineScore * 100).toFixed(0) + '%</span>' +
+          '</div>' +
+          gateBadge +
+        '</div>' +
+        stagesHtml +
+        (warningsHtml ? '<div style="margin-top:10px;padding:8px;background:rgba(234,179,8,0.08);border-radius:8px;">' + warningsHtml + '</div>' : '') +
+        (actionsHtml ? '<div style="margin-top:8px;">' + actionsHtml + '</div>' : '') +
+        explanationHtml +
+      '</div>';
+  }
+
+  function renderPublishPackage(data, containerId) {
+    var el = document.getElementById(containerId);
+    if (!el || !data) return;
+
+    var title = data.selected_title || '';
+    var body = data.final_body || '';
+    var hashtags = data.hashtags || [];
+    var topics = data.topic_tags || [];
+    var charCount = data.character_count || 0;
+    var coverPrompt = data.cover_image_prompt || '';
+
+    var tagsHtml = hashtags.map(function(t) {
+      return '<span class="publish-tag">' + esc(t) + '</span>';
+    }).join('');
+
+    var topicsHtml = topics.map(function(t) {
+      return '<span class="publish-tag" style="color:#059669;background:rgba(5,150,105,0.08);">' + esc(t) + '</span>';
+    }).join('');
+
+    el.innerHTML =
+      '<div style="text-align:center;margin-bottom:12px;">' +
+        '<span style="font-size:13px;font-weight:700;color:var(--ink);">XHS Preview</span>' +
+        '<span style="font-size:11px;color:var(--muted);margin-left:8px;">' + charCount + ' chars</span>' +
+      '</div>' +
+      '<div class="publish-preview-frame">' +
+        (coverPrompt
+          ? '<div style="height:160px;background:linear-gradient(135deg,rgba(138,75,47,0.08),rgba(255,253,248,0.6));border-radius:12px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;padding:12px;">' +
+              '<span style="font-size:11px;color:var(--muted);text-align:center;line-height:1.5;">' + esc(coverPrompt).substring(0, 80) + '...</span>' +
+            '</div>'
+          : '') +
+        '<div class="publish-title">' + esc(title) + '</div>' +
+        '<div class="publish-body">' + esc(body) + '</div>' +
+        (tagsHtml ? '<div class="publish-tags" style="margin-bottom:8px;">' + tagsHtml + '</div>' : '') +
+        (topicsHtml ? '<div class="publish-tags">' + topicsHtml + '</div>' : '') +
+      '</div>';
+  }
+
+  return {
+    renderReport: renderReport,
+    renderPublishPackage: renderPublishPackage
+  };
+})();
+</script>

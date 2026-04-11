@@ -584,6 +584,237 @@ async def approve_content_object(
     return approval.model_dump(mode="json")
 
 
+# ── V5: Production Pipeline APIs ──────────────────────────────
+
+
+class ProductionCompileRequest(BaseModel):
+    preferred_template_id: str | None = None
+    with_evaluation: bool = True
+    with_publish_format: bool = True
+
+
+@router.post("/v5/compile/{opportunity_id}")
+@_handle_flow_error
+async def v5_compile(
+    opportunity_id: str,
+    request: Request,
+    body: ProductionCompileRequest | None = None,
+) -> dict[str, Any]:
+    """V5 一键编译: Brief -> Strategy -> Plan -> 生成 -> AssetBundle + 质量评分 + 发布格式化。"""
+    flow = _get_flow()
+    _maybe_bind_workspace_context(flow, request, opportunity_id)
+    if body is None:
+        body = ProductionCompileRequest()
+    return flow.compile_note_plan(
+        opportunity_id,
+        with_generation=True,
+        with_evaluation=body.with_evaluation,
+        with_publish_format=body.with_publish_format,
+        preferred_template_id=body.preferred_template_id,
+    )
+
+
+@router.get("/v5/compilation-report/{opportunity_id}")
+@_handle_flow_error
+async def v5_compilation_report(opportunity_id: str) -> dict[str, Any]:
+    """获取已有编译结果的质量评估报告。"""
+    flow = _get_flow()
+    report = flow._evaluate_compilation(opportunity_id)
+    return report.model_dump(mode="json")
+
+
+@router.get("/v5/quality-explanation/{opportunity_id}")
+@_handle_flow_error
+async def v5_quality_explanation(opportunity_id: str) -> dict[str, Any]:
+    """获取生成结果 vs 源笔记的差异化质量解释。"""
+    from apps.content_planning.services.quality_explainer import QualityExplainer
+
+    flow = _get_flow()
+    session = flow.get_session_data(opportunity_id)
+    if not session.get("asset_bundle"):
+        raise HTTPException(status_code=404, detail="尚无 AssetBundle")
+
+    from apps.content_planning.schemas.asset_bundle import AssetBundle
+    bundle = AssetBundle(**session["asset_bundle"])
+    strategy = None
+    if session.get("strategy"):
+        from apps.content_planning.schemas.rewrite_strategy import RewriteStrategy
+        strategy = RewriteStrategy(**session["strategy"])
+    brief = None
+    if session.get("brief"):
+        from apps.content_planning.schemas.opportunity_brief import OpportunityBrief
+        brief = OpportunityBrief(**session["brief"])
+
+    source_notes = flow._adapter.get_source_notes(brief.source_note_ids if brief else [])
+    source_ctx = (source_notes[0] if source_notes else {}).get("note_context", {})
+
+    explainer = QualityExplainer()
+    explanation = explainer.explain(source_ctx, bundle, strategy, brief)
+    return explanation.model_dump(mode="json")
+
+
+@router.get("/v5/publish-package/{opportunity_id}")
+@_handle_flow_error
+async def v5_publish_package(opportunity_id: str) -> dict[str, Any]:
+    """获取 PublishReadyPackage（基于已有 AssetBundle 格式化）。"""
+    flow = _get_flow()
+    pkg = flow.format_for_publish(opportunity_id)
+    if pkg is None:
+        raise HTTPException(status_code=404, detail="尚无 AssetBundle，请先完成编译")
+    return pkg.model_dump(mode="json")
+
+
+@router.get("/v5/tools")
+async def v5_list_tools() -> dict[str, Any]:
+    """列出所有已注册的工具和 MCP 服务器。"""
+    from apps.content_planning.agents.tool_registry import tool_registry
+    from apps.content_planning.agents.mcp_adapter import mcp_adapter
+    from apps.content_planning.agents.skill_registry import skill_registry
+
+    tools = tool_registry.list_tools()
+    skills = skill_registry.list_skills()
+    return {
+        "tools": [{"name": t.name, "description": t.description, "toolset": t.toolset} for t in tools],
+        "tool_count": len(tools),
+        "skills": [{"id": s.skill_id, "name": s.skill_name, "category": s.category, "steps": len(s.executable_steps)} for s in skills],
+        "skill_count": len(skills),
+        "mcp_servers": mcp_adapter.list_servers(),
+        "mcp_server_count": mcp_adapter.server_count,
+    }
+
+
+@router.post("/v5/auto-promote/{opportunity_id}")
+@_handle_flow_error
+async def v5_auto_promote(opportunity_id: str) -> dict[str, Any]:
+    """Dev 环境快速晋级机会卡（跳过人工 review）。"""
+    from apps.intel_hub.services.opportunity_promoter import auto_promote_for_dev
+
+    flow = _get_flow()
+    store = flow._adapter._store
+    new_status = auto_promote_for_dev(store, opportunity_id)
+    if new_status == "not_found":
+        raise HTTPException(status_code=404, detail="机会卡未找到")
+    return {"opportunity_id": opportunity_id, "status": new_status}
+
+
+@router.post("/v5/batch-auto-promote")
+@_handle_flow_error
+async def v5_batch_auto_promote() -> dict[str, Any]:
+    """Dev 环境批量快速晋级所有机会卡。"""
+    from apps.intel_hub.services.opportunity_promoter import batch_auto_promote
+
+    flow = _get_flow()
+    store = flow._adapter._store
+    results = batch_auto_promote(store)
+    return {"promoted": results, "count": len(results)}
+
+
+# ── V5: Data Flywheel APIs ────────────────────────────────────
+
+
+class V5FeedbackRequest(BaseModel):
+    opportunity_id: str
+    asset_bundle_id: str = ""
+    template_id: str = ""
+    strategy_id: str = ""
+    platform: str = "xhs"
+    published_note_id: str = ""
+    like_count: int = 0
+    collect_count: int = 0
+    comment_count: int = 0
+    share_count: int = 0
+    view_count: int = 0
+    human_notes: str = ""
+    human_edits_summary: str = ""
+
+
+@router.post("/v5/feedback")
+@_handle_flow_error
+async def v5_submit_feedback(body: V5FeedbackRequest) -> dict[str, Any]:
+    """V5 统一反馈入口：接受发布效果数据，触发 Pattern 提取 + 模板权重 + 记忆写入。"""
+    from apps.content_planning.schemas.unified_feedback import UnifiedFeedback
+    from apps.content_planning.services.feedback_processor import FeedbackProcessor
+
+    flow = _get_flow()
+    plan_store = flow._plan_store
+
+    session_data = flow.get_session_data(body.opportunity_id)
+    feedback = UnifiedFeedback(
+        opportunity_id=body.opportunity_id,
+        asset_bundle_id=body.asset_bundle_id or session_data.get("asset_bundle", {}).get("asset_bundle_id", ""),
+        template_id=body.template_id or session_data.get("strategy", {}).get("template_id", ""),
+        strategy_id=body.strategy_id or session_data.get("strategy", {}).get("strategy_id", ""),
+        plan_id=session_data.get("note_plan", {}).get("plan_id", ""),
+        brief_id=session_data.get("brief", {}).get("brief_id", ""),
+        workspace_id=session_data.get("workspace_id", ""),
+        brand_id=session_data.get("brand_id", ""),
+        campaign_id=session_data.get("campaign_id", ""),
+        platform=body.platform,
+        published_note_id=body.published_note_id,
+        like_count=body.like_count,
+        collect_count=body.collect_count,
+        comment_count=body.comment_count,
+        share_count=body.share_count,
+        view_count=body.view_count,
+        human_notes=body.human_notes,
+        human_edits_summary=body.human_edits_summary,
+    )
+
+    memory = None
+    try:
+        from apps.content_planning.agents.memory import AgentMemory
+        from apps.intel_hub.config_loader import resolve_repo_path
+        memory = AgentMemory(str(resolve_repo_path("data/agent_memory.sqlite")))
+    except Exception:
+        pass
+
+    processor = FeedbackProcessor(plan_store=plan_store, memory=memory)
+    result = processor.process(feedback)
+
+    plan_store.save_unified_feedback(feedback)
+
+    return result
+
+
+@router.get("/v5/feedback/{opportunity_id}")
+@_handle_flow_error
+async def v5_get_feedback(opportunity_id: str) -> dict[str, Any]:
+    """获取某机会卡的所有反馈记录。"""
+    flow = _get_flow()
+    records = flow._plan_store.load_unified_feedback(opportunity_id=opportunity_id)
+    return {"feedback": records, "count": len(records)}
+
+
+@router.get("/v5/patterns")
+@_handle_flow_error
+async def v5_list_patterns(workspace_id: str = "", brand_id: str = "") -> dict[str, Any]:
+    """获取已提取的 WinningPattern 和 FailedPattern。"""
+    flow = _get_flow()
+    store = flow._plan_store
+    kwargs: dict[str, Any] = {}
+    if workspace_id:
+        kwargs["workspace_id"] = workspace_id
+    if brand_id:
+        kwargs["brand_id"] = brand_id
+    winning = store.load_winning_patterns(**kwargs)
+    failed = store.load_failed_patterns(**kwargs)
+    return {
+        "winning_patterns": winning,
+        "failed_patterns": failed,
+        "winning_count": len(winning),
+        "failed_count": len(failed),
+    }
+
+
+@router.get("/v5/template-effectiveness/{template_id}")
+@_handle_flow_error
+async def v5_template_effectiveness(template_id: str) -> dict[str, Any]:
+    """获取模板效果历史记录。"""
+    flow = _get_flow()
+    records = flow._plan_store.load_template_effectiveness(template_id)
+    return {"records": records, "count": len(records)}
+
+
 class BatchCompileRequest(BaseModel):
     opportunity_ids: list[str] = Field(min_length=1)
 

@@ -219,6 +219,33 @@ class ContentPlanStore:
                     created_at TEXT NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS template_effectiveness (
+                    record_id TEXT PRIMARY KEY,
+                    template_id TEXT NOT NULL,
+                    opportunity_id TEXT NOT NULL,
+                    asset_bundle_id TEXT,
+                    performance_label TEXT,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS unified_feedback (
+                    feedback_id TEXT PRIMARY KEY,
+                    opportunity_id TEXT NOT NULL,
+                    asset_bundle_id TEXT,
+                    template_id TEXT,
+                    strategy_id TEXT,
+                    performance_tier TEXT,
+                    engagement_score REAL DEFAULT 0,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tpl_eff_tpl ON template_effectiveness(template_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_unified_fb_opp ON unified_feedback(opportunity_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_unified_fb_tpl ON unified_feedback(template_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_evaluations_opp ON evaluations(opportunity_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_tasks_opp ON agent_tasks(opportunity_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_runs_opp ON agent_runs(opportunity_id)")
@@ -972,6 +999,82 @@ class ContentPlanStore:
         return [
             {**(_deserialize(row["payload_json"]) or {}),
              "pattern_id": row["pattern_id"],
+             "created_at": row["created_at"]}
+            for row in rows
+        ]
+
+    # ── V5: Template Effectiveness + Unified Feedback ────────────
+
+    def save_template_effectiveness(self, record: Any) -> None:
+        now = _utc_now_iso()
+        rid = getattr(record, "record_id", "") or ""
+        tid = getattr(record, "template_id", "") or ""
+        oid = getattr(record, "opportunity_id", "") or ""
+        abid = getattr(record, "asset_bundle_id", "") or ""
+        perf = getattr(record, "performance_label", "") or ""
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO template_effectiveness
+                   (record_id, template_id, opportunity_id, asset_bundle_id, performance_label, payload_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (rid, tid, oid, abid, perf, _serialize(record), now),
+            )
+
+    def load_template_effectiveness(self, template_id: str, *, limit: int = 20) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM template_effectiveness WHERE template_id = ? ORDER BY created_at DESC LIMIT ?",
+                (template_id, limit),
+            ).fetchall()
+        return [
+            {**(_deserialize(row["payload_json"]) or {}),
+             "record_id": row["record_id"],
+             "created_at": row["created_at"]}
+            for row in rows
+        ]
+
+    def save_unified_feedback(self, feedback: Any) -> None:
+        now = _utc_now_iso()
+        fid = getattr(feedback, "feedback_id", "") or ""
+        oid = getattr(feedback, "opportunity_id", "") or ""
+        abid = getattr(feedback, "asset_bundle_id", "") or ""
+        tid = getattr(feedback, "template_id", "") or ""
+        sid = getattr(feedback, "strategy_id", "") or ""
+        tier = getattr(feedback, "performance_tier", "unknown") or "unknown"
+        score = getattr(feedback, "engagement_score", 0.0) or 0.0
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO unified_feedback
+                   (feedback_id, opportunity_id, asset_bundle_id, template_id, strategy_id,
+                    performance_tier, engagement_score, payload_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (fid, oid, abid, tid, sid, tier, score, _serialize(feedback), now),
+            )
+
+    def load_unified_feedback(self, *, opportunity_id: str | None = None,
+                              template_id: str | None = None,
+                              tier: str | None = None,
+                              limit: int = 50) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if opportunity_id:
+            clauses.append("opportunity_id = ?")
+            params.append(opportunity_id)
+        if template_id:
+            clauses.append("template_id = ?")
+            params.append(template_id)
+        if tier:
+            clauses.append("performance_tier = ?")
+            params.append(tier)
+        where = " AND ".join(clauses) if clauses else "1=1"
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM unified_feedback WHERE {where} ORDER BY created_at DESC LIMIT ?",
+                params + [limit],
+            ).fetchall()
+        return [
+            {**(_deserialize(row["payload_json"]) or {}),
+             "feedback_id": row["feedback_id"],
              "created_at": row["created_at"]}
             for row in rows
         ]

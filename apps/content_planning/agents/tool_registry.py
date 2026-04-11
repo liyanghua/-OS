@@ -342,4 +342,54 @@ def register_builtin_tools() -> None:
         toolset="orchestration",
     )
 
+    try:
+        from apps.content_planning.services.publish_formatter import XHSPublishFormatter
+        _fmt = XHSPublishFormatter()
+        tool_registry.register_function(
+            "format_for_publish",
+            lambda bundle=None, strategy=None: _fmt.format(bundle, strategy).model_dump(mode="json") if bundle else {},
+            description="将 AssetBundle 格式化为可发布的小红书内容包",
+            parameters={"type": "object", "properties": {
+                "bundle": {"type": "object", "description": "AssetBundle 数据"},
+                "strategy": {"type": "object", "description": "改写策略"},
+            }},
+            toolset="content_planning",
+        )
+    except Exception:
+        logger.debug("Failed to register format_for_publish", exc_info=True)
+
+    try:
+        from apps.content_planning.services.quality_explainer import QualityExplainer
+        _exp = QualityExplainer()
+        tool_registry.register_function(
+            "explain_quality",
+            lambda source_note=None, bundle=None, strategy=None, brief=None: _exp.explain(source_note, bundle, strategy, brief).model_dump(mode="json") if bundle else {},
+            description="对比源笔记与生成结果，解释改进点与优化建议",
+            parameters={"type": "object", "properties": {
+                "source_note": {"type": "object"},
+                "bundle": {"type": "object"},
+                "strategy": {"type": "object"},
+                "brief": {"type": "object"},
+            }},
+            toolset="content_planning",
+        )
+    except Exception:
+        logger.debug("Failed to register explain_quality", exc_info=True)
+
+    try:
+        from apps.content_planning.evaluation.stage_evaluator import evaluate_stage
+        tool_registry.register_function(
+            "evaluate_stage",
+            lambda stage="", opportunity_id="", context=None: evaluate_stage(stage, opportunity_id, context or {}).model_dump(mode="json"),
+            description="对指定阶段进行质量评估",
+            parameters={"type": "object", "properties": {
+                "stage": {"type": "string", "description": "阶段名: brief/strategy/plan/asset"},
+                "opportunity_id": {"type": "string"},
+                "context": {"type": "object"},
+            }, "required": ["stage", "opportunity_id"]},
+            toolset="evaluation",
+        )
+    except Exception:
+        logger.debug("Failed to register evaluate_stage", exc_info=True)
+
     logger.info("Registered %d built-in tools", len(tool_registry._tools))

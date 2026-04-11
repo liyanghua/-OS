@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import os
+
 from apps.intel_hub.storage.xhs_review_store import XHSReviewStore
 
 PROMOTION_THRESHOLDS = {
@@ -43,3 +45,31 @@ def evaluate_opportunity_promotion(
         "opportunity_status": new_status,
     })
     return new_status
+
+
+def auto_promote_for_dev(
+    store: XHSReviewStore,
+    opportunity_id: str,
+) -> str:
+    """开发环境一键将机会卡标为 promoted（仅 ENVIRONMENT=dev 时生效）。"""
+    card = store.get_card(opportunity_id)
+    if card is None:
+        return "not_found"
+    if os.environ.get("ENVIRONMENT", "dev") != "dev":
+        return card.opportunity_status
+    store.update_card_review_stats(opportunity_id, {
+        "qualified_opportunity": True,
+        "opportunity_status": "promoted",
+        "manual_quality_score_avg": 8.0,
+        "composite_review_score": 0.85,
+        "review_count": 1,
+    })
+    return "promoted"
+
+
+def batch_auto_promote(store: XHSReviewStore) -> dict[str, str]:
+    """对 store 中全部机会卡依次调用 auto_promote_for_dev，返回 id -> 状态。"""
+    out: dict[str, str] = {}
+    for card in store.list_cards(page_size=10_000)["items"]:
+        out[card.opportunity_id] = auto_promote_for_dev(store, card.opportunity_id)
+    return out

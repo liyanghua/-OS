@@ -1,0 +1,252 @@
+{#
+  XHS Phone Preview Canvas: mobile simulator + variant compare + inline edit.
+  Provides: previewCanvas.renderPreview(data, containerId)
+            previewCanvas.renderVariantCompare(variants, containerId)
+            previewCanvas.enableInlineEdit(containerId, onChangeCallback, options)
+#}
+<style>
+.xhs-phone-frame {
+  width: 300px;
+  min-height: 520px;
+  border: 2px solid var(--border);
+  border-radius: 32px;
+  padding: 12px;
+  background: var(--surface);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12), inset 0 0 0 1px rgba(0,0,0,0.04);
+  position: relative;
+  overflow: hidden;
+}
+.xhs-phone-notch {
+  width: 100px;
+  height: 24px;
+  background: var(--ink);
+  border-radius: 0 0 14px 14px;
+  margin: -12px auto 8px;
+}
+.xhs-phone-screen {
+  border-radius: 20px;
+  overflow-y: auto;
+  max-height: 460px;
+  padding: 0 2px;
+}
+.xhs-cover-placeholder {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(135deg, rgba(138,75,47,0.06), rgba(255,253,248,0.8));
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.xhs-cover-prompt-text {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  padding: 12px;
+  line-height: 1.5;
+  max-height: 100%;
+  overflow: hidden;
+}
+.xhs-preview-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.45;
+  margin-bottom: 10px;
+  padding: 0 4px;
+}
+.xhs-preview-title[contenteditable=true] {
+  outline: none;
+  border-bottom: 2px dashed var(--accent);
+  cursor: text;
+}
+.xhs-preview-body {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  margin-bottom: 12px;
+  padding: 0 4px;
+  opacity: 0.92;
+}
+.xhs-preview-body[contenteditable=true] {
+  outline: none;
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+  cursor: text;
+  opacity: 1;
+}
+.xhs-preview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 4px;
+  margin-bottom: 8px;
+}
+.xhs-preview-tag {
+  font-size: 11px;
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(138,75,47,0.08);
+  border: 1px solid rgba(138,75,47,0.18);
+}
+.xhs-preview-topic {
+  font-size: 11px;
+  color: var(--ink);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(120,113,108,0.08);
+  border: 1px solid var(--border);
+}
+.xhs-preview-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px 0;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}
+.xhs-variant-container {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 8px 0;
+}
+.xhs-variant-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.xhs-edit-hint {
+  font-size: 10px;
+  color: var(--accent);
+  text-align: center;
+  padding: 4px 0;
+  opacity: 0.7;
+}
+</style>
+<script>
+var previewCanvas = (function() {
+  function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  function _renderPhoneContent(data) {
+    var title = data.selected_title || '';
+    var body = data.final_body || '';
+    var coverPrompt = data.cover_image_prompt || '';
+    var hashtags = data.hashtags || [];
+    var topics = data.topic_tags || [];
+    var charCount = data.character_count || body.length;
+    var rationale = data.title_rationale || '';
+
+    var coverHtml = '';
+    if (coverPrompt) {
+      coverHtml = '<div class="xhs-cover-placeholder">' +
+        '<div class="xhs-cover-prompt-text">' + esc(coverPrompt).substring(0, 120) + '</div>' +
+      '</div>';
+    }
+
+    var tagsHtml = '';
+    if (hashtags.length) {
+      tagsHtml = '<div class="xhs-preview-tags">' +
+        hashtags.map(function(t) { return '<span class="xhs-preview-tag">' + esc(t) + '</span>'; }).join('') +
+      '</div>';
+    }
+
+    var topicsHtml = '';
+    if (topics.length) {
+      topicsHtml = '<div class="xhs-preview-tags">' +
+        topics.map(function(t) { return '<span class="xhs-preview-topic">' + esc(t) + '</span>'; }).join('') +
+      '</div>';
+    }
+
+    return coverHtml +
+      '<div class="xhs-preview-title" data-field="title">' + esc(title) + '</div>' +
+      (rationale ? '<div style="font-size:10px;color:var(--muted);padding:0 4px;margin:-6px 0 8px;font-style:italic;">' + esc(rationale) + '</div>' : '') +
+      '<div class="xhs-preview-body" data-field="body">' + esc(body) + '</div>' +
+      tagsHtml +
+      topicsHtml +
+      '<div class="xhs-preview-meta">' +
+        '<span>' + charCount + ' chars</span>' +
+        '<span>XHS Preview</span>' +
+      '</div>';
+  }
+
+  function renderPreview(data, containerId) {
+    var el = document.getElementById(containerId);
+    if (!el || !data) return;
+
+    el.innerHTML =
+      '<div class="xhs-phone-frame">' +
+        '<div class="xhs-phone-notch"></div>' +
+        '<div class="xhs-phone-screen" id="' + containerId + '-screen">' +
+          _renderPhoneContent(data) +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderVariantCompare(variants, containerId) {
+    var el = document.getElementById(containerId);
+    if (!el || !variants || !variants.length) return;
+
+    var labels = ['A', 'B', 'C', 'D', 'E'];
+    var html = '<div class="xhs-variant-container">';
+    variants.forEach(function(v, i) {
+      var sid = containerId + '-v' + i + '-screen';
+      html += '<div style="flex-shrink:0;">' +
+        '<div class="xhs-variant-label">Variant ' + (labels[i] || (i+1)) + '</div>' +
+        '<div class="xhs-phone-frame" style="width:240px;min-height:420px;">' +
+          '<div class="xhs-phone-notch" style="width:80px;height:20px;"></div>' +
+          '<div class="xhs-phone-screen" id="' + sid + '" style="max-height:370px;">' +
+            _renderPhoneContent(v) +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  function enableInlineEdit(containerId, onChangeCallback, options) {
+    options = options || {};
+    var screenId = options.screenId || (containerId + '-screen');
+    var screen = document.getElementById(screenId);
+    if (!screen) return;
+
+    var titleEl = screen.querySelector('[data-field="title"]');
+    var bodyEl = screen.querySelector('[data-field="body"]');
+
+    if (titleEl) {
+      titleEl.setAttribute('contenteditable', 'true');
+      titleEl.addEventListener('blur', function() {
+        if (onChangeCallback) onChangeCallback('title', this.textContent);
+      });
+    }
+    if (bodyEl) {
+      bodyEl.setAttribute('contenteditable', 'true');
+      bodyEl.addEventListener('blur', function() {
+        if (onChangeCallback) onChangeCallback('body', this.textContent);
+      });
+    }
+
+    var hint = document.createElement('div');
+    hint.className = 'xhs-edit-hint';
+    hint.textContent = 'Click title or body to edit inline';
+    screen.parentElement.appendChild(hint);
+  }
+
+  return {
+    renderPreview: renderPreview,
+    renderVariantCompare: renderVariantCompare,
+    enableInlineEdit: enableInlineEdit
+  };
+})();
+</script>
