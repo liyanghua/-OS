@@ -1327,6 +1327,8 @@ def create_app(
         selected_card = None
         selected_notes: list[dict[str, Any]] = []
         selected_review_summary: dict[str, Any] = {}
+        if not selected and page_cards:
+            selected = page_cards[0].get("opportunity_id", "")
         if selected:
             sel_card = review_store.get_card(selected)
             if sel_card is not None:
@@ -1364,6 +1366,35 @@ def create_app(
     async def workspace_home(request: Request) -> HTMLResponse:
         pipeline_stats = {"total": review_store.card_count()}
         return _render("workspace_home.html", {"request": request, "stats": pipeline_stats})
+
+    @app.get("/asset-workspace")
+    async def asset_workspace_page(request: Request) -> Any:
+        """资产工作台入口：展示最近有 asset_bundle 的 promoted 卡列表，或跳转到最近的资产页。"""
+        promoted = review_store.list_cards(opportunity_status="promoted", page=1, page_size=50)
+        promoted_items = promoted.get("items", [])
+        asset_entries: list[dict[str, Any]] = []
+        latest_opp_id: str | None = None
+        for card in promoted_items:
+            opp_id = card.opportunity_id if hasattr(card, "opportunity_id") else card.get("opportunity_id", "")
+            if not opp_id:
+                continue
+            sess = _cp_flow.get_session_data(opp_id)
+            bundle = sess.get("asset_bundle")
+            title = card.title if hasattr(card, "title") else card.get("title", opp_id[:12])
+            entry = {"opportunity_id": opp_id, "title": title, "has_bundle": bool(bundle)}
+            asset_entries.append(entry)
+            if bundle and not latest_opp_id:
+                latest_opp_id = opp_id
+        if _wants_html(request):
+            if latest_opp_id and not asset_entries:
+                from starlette.responses import RedirectResponse
+                return RedirectResponse(f"/content-planning/assets/{latest_opp_id}")
+            return _render("asset_workspace_list.html", {
+                "request": request,
+                "entries": asset_entries,
+                "latest_opp_id": latest_opp_id,
+            })
+        return {"entries": asset_entries, "latest_opp_id": latest_opp_id}
 
     @app.get("/brand-config/{brand_id}", response_class=HTMLResponse)
     async def brand_config_page(request: Request, brand_id: str) -> HTMLResponse:

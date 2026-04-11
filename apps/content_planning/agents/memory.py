@@ -72,6 +72,19 @@ class AgentMemory:
                     nudge_source TEXT NOT NULL DEFAULT ''
                 )
             """)
+            existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(memories)").fetchall()}
+            migrations = {
+                "session_id": "ALTER TABLE memories ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
+                "nudge_source": "ALTER TABLE memories ADD COLUMN nudge_source TEXT NOT NULL DEFAULT ''",
+            }
+            for col, ddl in migrations.items():
+                if col not in existing_cols:
+                    try:
+                        conn.execute(ddl)
+                        logger.info("Migrated memories table: added column %s", col)
+                    except sqlite3.OperationalError:
+                        pass
+
             conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_opp ON memories(opportunity_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_cat ON memories(category)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_session ON memories(session_id)")

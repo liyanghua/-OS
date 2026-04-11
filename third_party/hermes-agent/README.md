@@ -1,7 +1,7 @@
 # hermes-agent (git submodule)
 
 This directory is a git submodule placeholder pointing at
-<https://github.com/Franklin-Zhou/hermes>.
+<https://github.com/NousResearch/hermes-agent>.
 
 To populate it after cloning the parent repo:
 

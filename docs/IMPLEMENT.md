@@ -2514,3 +2514,28 @@ git commit -m "docs: capture agent performance optimization architecture and met
 | `apps/intel_hub/api/templates/content_strategy.html` | 改 — 降级横幅 |
 | `apps/intel_hub/api/templates/content_plan.html` | 改 — 降级横幅 |
 | `tests/e2e/test_workspace_pages.py` | 新增 — E2E 验收测试 |
+
+---
+
+## 六项体验修复升级 (2026-04-11)
+
+### 变更摘要
+
+1. **机会工作台默认选中第一张卡** — `/opportunity-workspace` 路由在无 `selected` 参数时自动选中 `page_cards[0]`，右栏不再为空。
+2. **小红书原始笔记卡片** — 右栏详情区四宫格上方新增小红书风格笔记卡片：封面大图、作者信息、正文、图片画廊、互动数据、热门评论，图片可点击放大。
+3. **导航栏「资产」链接修复** — `base.html` 中「资产」导航改为 `/asset-workspace`；新增 `GET /asset-workspace` 路由和 `asset_workspace_list.html` 模板，展示已 promoted 卡的资产包列表。
+4. **策划台 AI 操作改为抽屉交互** — 「快速分析」「发起委员会」「生成变体」三个按钮均统一改为右侧抽屉交互，分析结果和 Council 讨论全部在抽屉内展示。
+5. **LLM 切换为用户自定义端点** — `.env` 新增 `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` / `LLM_PROVIDER` / `LLM_FALLBACK_CHAIN`，`OpenAIProvider` 显式传入 `base_url` 和 `api_key`。
+6. **Council 多角色讨论完整前端交互** — 抽屉内实现完整 Council UI：阶段选择、讨论主题输入、发起讨论按钮，讨论过程中各角色 Agent 发言卡片实时展示，讨论完成后显示 Proposal diff + 采纳/拒绝操作。
+
+### 文件变更
+
+| 文件 | 操作 |
+|------|------|
+| `apps/intel_hub/api/app.py` | 改 — 机会台默认选中第一张卡 + 新增 /asset-workspace 路由 |
+| `apps/intel_hub/api/templates/base.html` | 改 — 「资产」导航改为 /asset-workspace |
+| `apps/intel_hub/api/templates/opportunity_workspace.html` | 改 — 小红书风格原始笔记卡片(封面+正文+图片+评论) + 图片 lightbox |
+| `apps/intel_hub/api/templates/planning_workspace.html` | 改 — AI 操作统一抽屉 + Council 完整交互 UI |
+| `apps/intel_hub/api/templates/asset_workspace_list.html` | 新增 — 资产工作台列表入口页 |
+| `apps/content_planning/adapters/llm_router.py` | 改 — OpenAIProvider 显式传入 base_url/api_key |
+| `.env` | 改 — 新增 Gemini 自定义端点配置 |

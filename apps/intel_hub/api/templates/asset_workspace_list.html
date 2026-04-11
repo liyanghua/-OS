@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  body .shell { max-width: 960px; }
+  .awl-header { margin-bottom: 20px; }
+  .awl-header h2 { font-size: 20px; font-weight: 800; color: var(--ink); margin: 0 0 4px; }
+  .awl-header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .awl-list { display: flex; flex-direction: column; gap: 10px; }
+  .awl-item {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 14px 18px; text-decoration: none; color: inherit;
+    box-shadow: 0 4px 14px rgba(92,66,39,0.05); transition: box-shadow .15s, border-color .15s;
+  }
+  .awl-item:hover { box-shadow: 0 8px 28px rgba(92,66,39,0.12); border-color: rgba(138,75,47,0.35); }
+  .awl-item-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .awl-item-id { font-size: 11px; color: var(--muted); font-family: monospace; margin-top: 2px; }
+  .awl-pill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .awl-pill--yes { background: #dcfce7; color: #166534; }
+  .awl-pill--no { background: #f5f3f0; color: var(--muted); }
+  .awl-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .awl-empty-icon { font-size: 48px; opacity: 0.2; margin-bottom: 12px; }
+</style>
+
+<div class="awl-header">
+  <h2>资产工作台</h2>
+  <p>已升级的机会卡资产包一览，点击进入对应资产详情页</p>
+</div>
+
+{% if entries %}
+<div class="awl-list">
+  {% for e in entries %}
+  <a class="awl-item" href="/content-planning/assets/{{ e.opportunity_id }}">
+    <div>
+      <div class="awl-item-title">{{ e.title or '—' }}</div>
+      <div class="awl-item-id">{{ e.opportunity_id[:16] }}…</div>
+    </div>
+    <span class="awl-pill {% if e.has_bundle %}awl-pill--yes{% else %}awl-pill--no{% endif %}">
+      {% if e.has_bundle %}已生成{% else %}待生成{% endif %}
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="awl-empty">
+  <div class="awl-empty-icon">📦</div>
+  <div>暂无已升级的机会卡。请先在机会工作台将卡片升级后进入策划流程。</div>
+</div>
+{% endif %}
+
+{% endblock %}

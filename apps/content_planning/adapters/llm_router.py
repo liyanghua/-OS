@@ -155,7 +155,12 @@ class OpenAIProvider(BaseLLMProvider):
              temperature: float = 0.3, max_tokens: int = 2000,
              tools: list[dict] | None = None) -> LLMResponse:
         import openai
-        client = openai.OpenAI()
+        _oa_kwargs: dict[str, Any] = {}
+        if os.environ.get("OPENAI_BASE_URL"):
+            _oa_kwargs["base_url"] = os.environ["OPENAI_BASE_URL"]
+        if os.environ.get("OPENAI_API_KEY"):
+            _oa_kwargs["api_key"] = os.environ["OPENAI_API_KEY"]
+        client = openai.OpenAI(**_oa_kwargs)
         t0 = time.perf_counter()
         used_model = model or os.environ.get("OPENAI_MODEL", "gpt-4o")
         try:
@@ -190,7 +195,12 @@ class OpenAIProvider(BaseLLMProvider):
                     tools: list[dict] | None = None) -> LLMResponse:
         try:
             import openai
-            client = openai.AsyncOpenAI()
+            _oa_kwargs: dict[str, Any] = {}
+            if os.environ.get("OPENAI_BASE_URL"):
+                _oa_kwargs["base_url"] = os.environ["OPENAI_BASE_URL"]
+            if os.environ.get("OPENAI_API_KEY"):
+                _oa_kwargs["api_key"] = os.environ["OPENAI_API_KEY"]
+            client = openai.AsyncOpenAI(**_oa_kwargs)
             t0 = time.perf_counter()
             used_model = model or os.environ.get("OPENAI_MODEL", "gpt-4o")
             kwargs: dict[str, Any] = dict(
@@ -223,7 +233,12 @@ class OpenAIProvider(BaseLLMProvider):
                            tools: list[dict] | None = None) -> AsyncIterator[StreamChunk]:
         try:
             import openai
-            client = openai.AsyncOpenAI()
+            _oa_kwargs: dict[str, Any] = {}
+            if os.environ.get("OPENAI_BASE_URL"):
+                _oa_kwargs["base_url"] = os.environ["OPENAI_BASE_URL"]
+            if os.environ.get("OPENAI_API_KEY"):
+                _oa_kwargs["api_key"] = os.environ["OPENAI_API_KEY"]
+            client = openai.AsyncOpenAI(**_oa_kwargs)
             used_model = model or os.environ.get("OPENAI_MODEL", "gpt-4o")
             kwargs: dict[str, Any] = dict(
                 model=used_model,

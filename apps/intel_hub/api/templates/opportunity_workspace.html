@@ -77,6 +77,34 @@
   .ow-note-title { font-size: 14px; font-weight: 700; line-height: 1.4; margin-bottom: 4px; }
   .ow-note-body { font-size: 12px; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
+  /* --- 小红书原始笔记卡片 --- */
+  .xhs-note-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 4px 16px rgba(92,66,39,0.05); margin-bottom: 18px; }
+  .xhs-note-cover { width: 100%; max-height: 280px; object-fit: cover; display: block; background: #f5f3f0; }
+  .xhs-note-inner { padding: 16px 18px 14px; }
+  .xhs-note-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .xhs-note-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+  .xhs-note-author { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .xhs-note-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #ffe4e1; color: #d63031; }
+  .xhs-note-h1 { font-size: 17px; font-weight: 800; line-height: 1.4; color: var(--ink); margin-bottom: 8px; }
+  .xhs-note-body-full { font-size: 13px; line-height: 1.75; color: var(--ink); white-space: pre-wrap; max-height: 160px; overflow-y: auto; margin-bottom: 10px; }
+  .xhs-note-body-full::-webkit-scrollbar { width: 3px; }
+  .xhs-note-body-full::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .xhs-note-gallery { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; }
+  .xhs-note-gallery::-webkit-scrollbar { height: 3px; }
+  .xhs-note-gallery::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .xhs-note-gallery img { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; flex-shrink: 0; cursor: pointer; background: #f5f3f0; transition: transform .15s; }
+  .xhs-note-gallery img:hover { transform: scale(1.08); }
+  .xhs-note-stats { display: flex; gap: 16px; font-size: 12px; color: var(--muted); font-weight: 600; padding: 8px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+  .xhs-note-stats span { display: flex; align-items: center; gap: 4px; }
+  .xhs-comment-list { list-style: none; padding: 0; margin: 0; }
+  .xhs-comment-item { padding: 8px 0; border-bottom: 1px solid rgba(215,206,191,0.4); font-size: 12px; line-height: 1.55; }
+  .xhs-comment-item:last-child { border-bottom: none; }
+  .xhs-comment-nick { font-weight: 700; color: var(--accent); margin-right: 6px; }
+  .xhs-comment-likes { font-size: 11px; color: var(--muted); float: right; }
+
+  .xhs-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.82); display: flex; align-items: center; justify-content: center; z-index: 9999; cursor: pointer; }
+  .xhs-lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.5); }
+
   .ow-actions { display: flex; gap: 10px; flex-wrap: wrap; padding-top: 8px; }
   .ow-btn { display: inline-block; box-sizing: border-box; border: none; border-radius: 14px; padding: 11px 22px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; text-align: center; text-decoration: none; transition: opacity .15s; }
   .ow-btn:hover { opacity: 0.88; }
@@ -221,6 +249,57 @@
       </div>
     </div>
 
+    {# ── 小红书原始笔记卡片（第一栏参考） ── #}
+    {% if selected_notes %}
+    {% set note = selected_notes[0] %}
+    {% set nctx = note.get('note_context', note) if note is mapping else note %}
+    <div class="xhs-note-card">
+      {% set cover = nctx.cover_image if nctx is mapping else '' %}
+      {% if cover %}
+      <img src="{{ cover }}" alt="封面" class="xhs-note-cover" loading="lazy"
+           onerror="this.style.display='none'" onclick="xhsLightbox(this.src)">
+      {% endif %}
+      <div class="xhs-note-inner">
+        <div class="xhs-note-head">
+          <span class="xhs-note-avatar">{{ (nctx.author_name or '匿')[0] }}</span>
+          <span class="xhs-note-author">{{ nctx.author_name or '小红书用户' }}</span>
+          <span class="xhs-note-badge">小红书</span>
+        </div>
+        <div class="xhs-note-h1">{{ nctx.title or sc.title or '（无标题）' }}</div>
+        {% set body_text = nctx.desc or nctx.body or nctx.content or '' %}
+        {% if body_text %}
+        <div class="xhs-note-body-full">{{ body_text }}</div>
+        {% endif %}
+        {% set imgs = nctx.image_urls or nctx.images or [] %}
+        {% if imgs %}
+        <div class="xhs-note-gallery">
+          {% for img in imgs[:8] %}
+          <img src="{{ img }}" alt="图{{ loop.index }}" loading="lazy"
+               onerror="this.style.display='none'" onclick="xhsLightbox(this.src)">
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="xhs-note-stats">
+          <span>❤️ {{ nctx.liked_count or nctx.likes or 0 }}</span>
+          <span>⭐ {{ nctx.collected_count or nctx.collects or 0 }}</span>
+          <span>💬 {{ nctx.comment_count or nctx.comments or 0 }}</span>
+        </div>
+        {% set top_comments = nctx.top_comments or [] %}
+        {% if top_comments %}
+        <ul class="xhs-comment-list">
+          {% for cm in top_comments[:3] %}
+          <li class="xhs-comment-item">
+            <span class="xhs-comment-nick">{{ cm.nickname or cm.user_nickname or '用户' }}</span>
+            {% if cm.like_count or cm.likes %}<span class="xhs-comment-likes">❤️ {{ cm.like_count or cm.likes }}</span>{% endif %}
+            {{ (cm.content or cm.text or '')[: 120] }}{% if (cm.content or cm.text or '')|length > 120 %}…{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     {# ── 2×2 四宫格 ── #}
     <div class="ow-grid">
 
@@ -316,28 +395,6 @@
       </div>
     </div>
 
-    {# ── 原始笔记预览 (折叠) ── #}
-    {% if selected_notes %}
-    <details class="ow-notes-section">
-      <summary class="ow-notes-summary">原始笔记预览（{{ selected_notes|length }} 条）</summary>
-      {% set note = selected_notes[0] %}
-      {% set ctx = note.note_context if note.note_context is defined and note.note_context else note %}
-      <div class="ow-detail-card" style="margin-top:8px;">
-        <div class="ow-note-preview">
-          {% if ctx.cover_image %}
-          <img src="{{ ctx.cover_image }}" alt="封面" class="ow-note-thumb" loading="lazy"
-               onerror="this.style.display='none'">
-          {% endif %}
-          <div class="ow-note-text">
-            <div class="ow-note-title">{{ ctx.title or '（无标题）' }}</div>
-            {% set body = ctx.desc or ctx.body or ctx.content or '' %}
-            <div class="ow-note-body">{{ body[:200] }}{% if body|length > 200 %}…{% endif %}</div>
-          </div>
-        </div>
-      </div>
-    </details>
-    {% endif %}
-
     {# ── 底部操作区 ── #}
     <div class="ow-actions">
       {% if sc.opportunity_status != 'promoted' %}
@@ -361,6 +418,14 @@
 </div>
 
 <script>
+function xhsLightbox(src) {
+  var box = document.createElement('div');
+  box.className = 'xhs-lightbox';
+  box.innerHTML = '<img src="' + src + '" alt="大图">';
+  box.addEventListener('click', function () { box.remove(); });
+  document.body.appendChild(box);
+}
+
 (function () {
   var promoteBtn = document.getElementById('ow-btn-promote');
   if (!promoteBtn) return;
