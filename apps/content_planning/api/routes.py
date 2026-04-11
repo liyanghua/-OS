@@ -736,7 +736,7 @@ async def v5_submit_feedback(body: V5FeedbackRequest) -> dict[str, Any]:
     from apps.content_planning.services.feedback_processor import FeedbackProcessor
 
     flow = _get_flow()
-    plan_store = flow._plan_store
+    plan_store = flow._store
 
     session_data = flow.get_session_data(body.opportunity_id)
     feedback = UnifiedFeedback(
@@ -781,7 +781,7 @@ async def v5_submit_feedback(body: V5FeedbackRequest) -> dict[str, Any]:
 async def v5_get_feedback(opportunity_id: str) -> dict[str, Any]:
     """获取某机会卡的所有反馈记录。"""
     flow = _get_flow()
-    records = flow._plan_store.load_unified_feedback(opportunity_id=opportunity_id)
+    records = flow._store.load_unified_feedback(opportunity_id=opportunity_id)
     return {"feedback": records, "count": len(records)}
 
 
@@ -790,7 +790,7 @@ async def v5_get_feedback(opportunity_id: str) -> dict[str, Any]:
 async def v5_list_patterns(workspace_id: str = "", brand_id: str = "") -> dict[str, Any]:
     """获取已提取的 WinningPattern 和 FailedPattern。"""
     flow = _get_flow()
-    store = flow._plan_store
+    store = flow._store
     kwargs: dict[str, Any] = {}
     if workspace_id:
         kwargs["workspace_id"] = workspace_id
@@ -811,7 +811,7 @@ async def v5_list_patterns(workspace_id: str = "", brand_id: str = "") -> dict[s
 async def v5_template_effectiveness(template_id: str) -> dict[str, Any]:
     """获取模板效果历史记录。"""
     flow = _get_flow()
-    records = flow._plan_store.load_template_effectiveness(template_id)
+    records = flow._store.load_template_effectiveness(template_id)
     return {"records": records, "count": len(records)}
 
 
@@ -892,7 +892,7 @@ async def v6_score(opportunity_id: str) -> dict[str, Any]:
 
     scorer = ExpertScorer()
     scorecard = scorer.score(card, eng)
-    flow._plan_store.save_scorecard(scorecard)
+    flow._store.save_scorecard(scorecard)
     return {
         "opportunity_id": opportunity_id,
         "scorecard": scorecard.model_dump(mode="json"),
@@ -904,9 +904,9 @@ async def v6_score(opportunity_id: str) -> dict[str, Any]:
 async def v6_get_scorecard(opportunity_id: str) -> dict[str, Any]:
     """获取 scorecard。"""
     flow = _get_flow()
-    scorecards = flow._plan_store.load_scorecards_by_opportunity(opportunity_id, limit=1)
+    scorecards = flow._store.load_scorecards_by_opportunity(opportunity_id, limit=1)
     if not scorecards:
-        raise HTTPException(status_code=404, detail="尚无 ExpertScorecard，请先调用 /v6/score")
+        return {"opportunity_id": opportunity_id, "scorecard": None}
     return {
         "opportunity_id": opportunity_id,
         "scorecard": scorecards[0],
@@ -924,7 +924,7 @@ async def v6_compile_brief(opportunity_id: str) -> dict[str, Any]:
     if card is None:
         raise HTTPException(status_code=404, detail="机会卡未找到")
 
-    scorecards = flow._plan_store.load_scorecards_by_opportunity(opportunity_id, limit=1)
+    scorecards = flow._store.load_scorecards_by_opportunity(opportunity_id, limit=1)
     scorecard_obj = None
     if scorecards:
         try:
@@ -937,7 +937,7 @@ async def v6_compile_brief(opportunity_id: str) -> dict[str, Any]:
     review_summary = flow._adapter.get_review_summary(opportunity_id)
     brief = flow._brief_compiler.compile(card, parsed, review_summary, scorecard=scorecard_obj)
 
-    flow._plan_store.save_session(opportunity_id, brief=brief, session_status="generated")
+    flow._store.save_session(opportunity_id, brief=brief, session_status="generated")
 
     return {
         "opportunity_id": opportunity_id,
@@ -965,17 +965,37 @@ async def v6_run_pipeline(opportunity_id: str) -> dict[str, Any]:
     n2c = NoteToCardFlow()
     pipeline_result = n2c.run(card, parsed_note=note_ctx, auto_promote=True)
 
+    if flow._store is not None:
+        for gate in pipeline_result.gates:
+            if gate.evaluation:
+                ev = gate.evaluation
+                flow._store.save_evaluation(
+                    ev.evaluation_id, opportunity_id, gate.stage,
+                    ev.model_dump(mode="json"),
+                )
+
     brief = None
+    brief_eval = None
     scorecard_applied = False
     if not pipeline_result.blocked and pipeline_result.scorecard:
         sc = pipeline_result.scorecard
-        flow._plan_store.save_scorecard(sc)
+        flow._store.save_scorecard(sc)
 
         if sc.recommendation in ("evaluate", "initiate"):
             review_summary = flow._adapter.get_review_summary(opportunity_id)
             brief = flow._brief_compiler.compile(card, note_ctx, review_summary, scorecard=sc)
-            flow._plan_store.save_session(opportunity_id, brief=brief, session_status="generated")
+            flow._store.save_session(opportunity_id, brief=brief, session_status="generated")
             scorecard_applied = True
+
+            brief_eval = evaluate_stage("brief", opportunity_id, {
+                "brief": brief.model_dump(),
+                "scorecard": sc.model_dump(),
+            })
+            if flow._store is not None:
+                flow._store.save_evaluation(
+                    brief_eval.evaluation_id, opportunity_id, "brief",
+                    brief_eval.model_dump(mode="json"),
+                )
 
     return {
         "opportunity_id": opportunity_id,
@@ -985,6 +1005,7 @@ async def v6_run_pipeline(opportunity_id: str) -> dict[str, Any]:
         "gates": [g.model_dump(mode="json") for g in pipeline_result.gates],
         "scorecard": pipeline_result.scorecard.model_dump(mode="json") if pipeline_result.scorecard else None,
         "brief": brief.model_dump(mode="json") if brief else None,
+        "brief_evaluation": brief_eval.model_dump(mode="json") if brief_eval else None,
         "scorecard_applied": scorecard_applied,
     }
 
@@ -994,9 +1015,9 @@ async def v6_run_pipeline(opportunity_id: str) -> dict[str, Any]:
 async def v6_pipeline_status(opportunity_id: str) -> dict[str, Any]:
     """链路状态与各阶段 eval 结果。"""
     flow = _get_flow()
-    scorecards = flow._plan_store.load_scorecards_by_opportunity(opportunity_id, limit=1)
-    session = flow._plan_store.load_session(opportunity_id)
-    evaluations = flow._plan_store.load_evaluations(opportunity_id, limit=10)
+    scorecards = flow._store.load_scorecards_by_opportunity(opportunity_id, limit=1)
+    session = flow._store.load_session(opportunity_id)
+    evaluations = flow._store.load_evaluations(opportunity_id, limit=10)
 
     stage_evals: dict[str, Any] = {}
     for ev in evaluations:

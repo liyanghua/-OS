@@ -217,7 +217,7 @@ var scorecardUI = (function() {
   function load(opportunityId) {
     fetch('/content-planning/v6/scorecard/' + encodeURIComponent(opportunityId))
     .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(data) { if (data) render(data); })
+    .then(function(data) { if (data && data.scorecard) render(data); })
     .catch(function() {});
   }
 

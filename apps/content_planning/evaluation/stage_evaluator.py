@@ -43,19 +43,47 @@ def _rubric_version(stage: str) -> str:
         return "plan_v1"
     if stage == "asset":
         return "asset_v1"
+    if stage == "ingest":
+        return "ingest_v1"
+    if stage == "scorecard":
+        return "scorecard_v1"
     return ""
 
 
 def _parse_llm_json_payload(raw_text: str) -> dict[str, Any]:
+    import re
     text = raw_text.strip()
-    if text.startswith("```"):
+
+    fence_match = re.search(r"```(?:json)?\s*\n([\s\S]*?)```", text)
+    if fence_match:
+        text = fence_match.group(1).strip()
+    elif text.startswith("```"):
         lines = text.split("\n")
-        end_idx = len(lines) - 1 if lines[-1].strip().startswith("```") else len(lines)
-        text = "\n".join(lines[1:end_idx])
+        text = "\n".join(lines[1:]).rstrip("`").strip()
+
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        return {}
+        pass
+
+    brace_match = re.search(r"\{", text)
+    if brace_match:
+        candidate = text[brace_match.start():]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+        patched = candidate.rstrip().rstrip(",")
+        depth_brace = patched.count("{") - patched.count("}")
+        depth_bracket = patched.count("[") - patched.count("]")
+        patched += '""' if patched.endswith(":") else ""
+        patched += "]" * max(depth_bracket, 0)
+        patched += "}" * max(depth_brace, 0)
+        try:
+            return json.loads(patched)
+        except json.JSONDecodeError:
+            logger.debug("JSON repair failed, patched text: %s", patched[:300])
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -115,10 +143,11 @@ class BaseStageEvaluator(ABC):
 
         dim_names = [d["name"] for d in dim_cfgs]
         output_hint = (
-            "请以 JSON 返回评估结果，格式：\n"
+            "请直接返回纯 JSON（不要用 markdown 代码块包裹），格式：\n"
             '{"scores": {"<dimension>": 0.0-1.0, ...}, '
             '"explanations": {"<dimension>": "简短说明", ...}}\n'
-            f"维度列表：{dim_names}"
+            f"维度列表：{dim_names}\n"
+            "注意：只输出 JSON，不要输出其他文字。"
         )
         full_user = f"{user_prompt}\n\n{output_hint}"
 
@@ -126,7 +155,7 @@ class BaseStageEvaluator(ABC):
             LLMMessage(role="system", content=system_prompt),
             LLMMessage(role="user", content=full_user),
         ]
-        response = llm_router.chat(messages, temperature=0.2, max_tokens=1500)
+        response = llm_router.chat(messages, temperature=0.2, max_tokens=4096)
         if response.degraded or not response.content.strip():
             raise RuntimeError(f"llm_degraded:{response.degraded_reason or 'empty'}")
         result = _parse_llm_json_payload(response.content)
