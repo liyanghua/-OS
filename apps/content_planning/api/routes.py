@@ -1253,6 +1253,24 @@ async def v6_preview_prompts(opportunity_id: str, request: Request) -> dict[str,
     if not rich_prompts:
         raise HTTPException(status_code=400, detail="未找到可生成的图片描述")
 
+    all_ref_urls = ref_urls
+    if not all_ref_urls:
+        try:
+            from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
+            adapter = IntelHubAdapter()
+            card = session.get("card") if session else None
+            note_ids = card.get("source_note_ids", []) if isinstance(card, dict) else []
+            if not note_ids:
+                note_ids = [opportunity_id]
+            notes = adapter.get_source_notes(note_ids)
+            for n in notes:
+                ctx = n.get("note_context", n)
+                cover = ctx.get("cover_image", "")
+                if cover:
+                    all_ref_urls.append(cover)
+        except Exception:
+            pass
+
     gen_history_raw = session.get("generated_images") if session else None
     pref_count = 0
     if isinstance(gen_history_raw, list):
@@ -1267,6 +1285,7 @@ async def v6_preview_prompts(opportunity_id: str, request: Request) -> dict[str,
         "opportunity_id": opportunity_id,
         "gen_mode": gen_mode,
         "ref_images_count": len(ref_urls),
+        "ref_image_urls": all_ref_urls,
         "source": "composed",
         "preferences_applied": pref_count,
         "prompts": [p.model_dump() for p in rich_prompts],

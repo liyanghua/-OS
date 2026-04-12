@@ -133,13 +133,25 @@ class ImageGeneratorService:
 
         if provider == "openrouter":
             if self._is_openrouter_available():
-                return self._generate_openrouter(prompt, opportunity_id, on_progress)
+                result = self._generate_openrouter(prompt, opportunity_id, on_progress)
+                if result.status == "completed":
+                    return result
+                logger.warning("OpenRouter failed for slot=%s: %s, fallback to DashScope", prompt.slot_id, result.error)
+                if self._is_dashscope_available():
+                    return self._generate_dashscope(prompt, opportunity_id, on_progress)
+                return result
             return ImageResult(slot_id=prompt.slot_id, status="failed",
                                error="OpenRouter 不可用（缺少 OPENROUTER_API_KEY）")
 
         if provider == "dashscope":
             if self._is_dashscope_available():
-                return self._generate_dashscope(prompt, opportunity_id, on_progress)
+                result = self._generate_dashscope(prompt, opportunity_id, on_progress)
+                if result.status == "completed":
+                    return result
+                logger.warning("DashScope failed for slot=%s: %s, fallback to OpenRouter", prompt.slot_id, result.error)
+                if self._is_openrouter_available():
+                    return self._generate_openrouter(prompt, opportunity_id, on_progress)
+                return result
             return ImageResult(slot_id=prompt.slot_id, status="failed",
                                error="通义万相不可用（缺少 DASHSCOPE_API_KEY）")
 
@@ -171,14 +183,17 @@ class ImageGeneratorService:
                 api_key=self._openrouter_key,
             )
 
-            text_instruction = f"请根据以下描述生成一张高质量图片，适合作为小红书笔记配图。\n\n描述：{prompt.prompt}"
+            text_instruction = f"Generate a high-quality image for Xiaohongshu (Little Red Book) post.\n\nDescription: {prompt.prompt}"
             if prompt.negative_prompt:
-                text_instruction += f"\n\n避免：{prompt.negative_prompt}"
+                text_instruction += f"\n\nAvoid: {prompt.negative_prompt}"
+
+            logger.info("OpenRouter request: slot=%s, model=%s, has_ref=%s, prompt_len=%d",
+                        prompt.slot_id, self._openrouter_model, bool(prompt.ref_image_url), len(prompt.prompt))
 
             if prompt.ref_image_url:
-                text_instruction = f"请参考这张图片的风格和构图，根据以下描述生成一张新的高质量配图。\n\n描述：{prompt.prompt}"
+                text_instruction = f"Using the attached image as style and composition reference, generate a new high-quality image.\n\nDescription: {prompt.prompt}"
                 if prompt.negative_prompt:
-                    text_instruction += f"\n\n避免：{prompt.negative_prompt}"
+                    text_instruction += f"\n\nAvoid: {prompt.negative_prompt}"
                 user_msg_content: Any = [
                     {"type": "image_url", "image_url": {"url": prompt.ref_image_url}},
                     {"type": "text", "text": text_instruction},

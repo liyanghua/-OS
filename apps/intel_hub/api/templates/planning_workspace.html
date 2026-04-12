@@ -1013,6 +1013,7 @@
       })
       .then(function(d) {
         _piCurrentPrompts = d.prompts || [];
+        _currentRefUrls = d.ref_image_urls || [];
         renderInspectorSlots(_piCurrentPrompts, d.gen_mode, d.ref_images_count);
         piLoading.style.display = 'none';
         piSlots.style.display = 'block';
@@ -1066,9 +1067,28 @@
       }
     }
 
+    var _currentRefUrls = [];
+
     function renderInspectorSlots(prompts, genMode, refCount) {
       var html = '';
-      if (genMode === 'ref_image' && refCount > 0) {
+
+      if (_currentRefUrls.length > 0) {
+        html += '<div style="margin-bottom:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);">';
+        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;">原始笔记参考图 (' + _currentRefUrls.length + ')</div>';
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+        _currentRefUrls.forEach(function(url, i) {
+          html += '<div style="width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer;flex-shrink:0;" onclick="window.open(\'' + esc(url) + '\',\'_blank\')">';
+          html += '<img src="' + esc(url) + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display=\'none\'" loading="lazy">';
+          html += '</div>';
+        });
+        html += '</div>';
+        if (genMode === 'ref_image') {
+          html += '<div style="font-size:10px;color:var(--accent);margin-top:4px;">参考图模式：这些图片将作为风格参考传入生图模型</div>';
+        } else {
+          html += '<div style="font-size:10px;color:var(--muted);margin-top:4px;">切换到「参考图+提示词」模式可将图片作为风格参考</div>';
+        }
+        html += '</div>';
+      } else if (genMode === 'ref_image' && refCount > 0) {
         html += '<div style="background:var(--accent-soft);color:var(--accent);padding:6px 12px;border-radius:6px;font-size:12px;margin-bottom:10px;">参考图模式 | 已关联 ' + refCount + ' 张原始笔记图片</div>';
       }
       prompts.forEach(function(p, idx) {
