@@ -3,6 +3,107 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## 生图提示词可观测性 + 质量升级 (2026-04-12)
+
+### 概述
+
+解决生图提示词不可观测、质量低两个核心问题：新增 Prompt Inspector 面板（查看/编辑最终 prompt + 参考图 + 来源追溯），重构提示词融合管线从策划全链路（Brief + Strategy + Plan + ImageBrief + Template）萃取高价值信息构建富 prompt，新增生成历史面板支持多轮对比。
+
+### 新增文件
+
+| 文件 | 说明 |
+|---|---|
+| `apps/content_planning/services/prompt_composer.py` | PromptComposer 融合层：按 6 层优先级（ImageBrief → Plan → Strategy → Brief → Draft → Template）从策划全链路数据构建结构化富 prompt，支持来源追溯和渐进降级 |
+
+### 新增模型
+
+| 模型 | 文件 | 说明 |
+|---|---|---|
+| `PromptSource` | `image_generator.py` | 追溯单条 prompt 片段的来源（field 路径 + 内容 + 优先级） |
+| `RichImagePrompt` | `image_generator.py` | 融合后的结构化 prompt（正向/负向/风格标签/来源分解/参考图），含 `to_image_prompt()` 转换 |
+
+### 新增 API
+
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/v6/image-gen/{id}/preview-prompts` | POST | 预览融合后的 prompt（不触发生图），供 Prompt Inspector 展示 |
+| `/v6/image-gen/{id}/history` | GET | 返回完整生成历史（每轮含 prompt_log + results + provider + gen_mode） |
+
+### 改造的端点
+
+| 端点 | 改动 |
+|---|---|
+| `POST /v6/image-gen/{id}` | 改用 `_build_rich_prompts` → `compose_image_prompts` 融合管线；支持 `edited_prompts` 覆盖；生成记录追加到历史（带 timestamp） |
+| `GET /v6/image-gen/{id}/status` | 兼容新历史格式（带 timestamp 的多轮记录）和旧格式（slot_id 直接列表） |
+
+### 前端
+
+- **Prompt Inspector 弹窗**：点击"生成配图"→先弹出 Inspector→每个 slot 卡片含：参考图缩略图、可编辑 prompt textarea、negative prompt、来源标签（颜色编码）、风格标签、可展开来源详情→确认后携带编辑结果发送
+- **生成历史面板**：可折叠的历史轮次列表，每轮显示时间戳、provider/mode/编辑标记、成功率、结果缩略图（可点击切换预览）、可展开 prompt 详情
+
+### 融合优先级
+
+1. `image_briefs` (ImageSlotBrief) — subject/composition/props/color_mood/avoid_items
+2. `plan.image_plan` (ImageSlotPlan) — visual_brief/must_include/avoid_elements
+3. `strategy` (RewriteStrategy) — image_strategy/positioning_statement/scene_emphasis/avoid_elements
+4. `brief` (OpportunityBrief) — cover_direction/visual_direction/visual_style_direction/avoid_directions
+5. `draft` (quick_draft) — cover_image_prompt
+6. `match_result` — template_name（风格锚点）
+
+---
+
+## 笔记预览修复 + AI 图片生成 (2026-04-12)
+
+### 概述
+
+修复笔记预览生成 BUG（异常黑洞 + 前端静默失败），新增 DashScope 通义万相文生图能力，支持从策划工作台一键生成配图并通过 SSE 推送实时进度。
+
+### BUG 修复
+
+| 问题 | 修复 |
+|---|---|
+| `_handle_flow_error` 不捕获 Pydantic ValidationError，导致 500 | 增加通用 Exception 兜底 + 显式捕获 ValidationError 返回 400 |
+| 前端 fetch 失败时静默吞掉错误 | 解析 error.detail 展示红色 toast |
+| LLM 降级无感知 | draft 增加 `mode` 字段（llm / rule_fallback），前端显示降级提示 |
+
+### 新增文件（1 个）
+
+| 文件 | 说明 |
+|---|---|
+| `apps/content_planning/services/image_generator.py` | DashScope 通义万相文生图服务：async_call + 轮询 + 文件保存 + 批量生成 + 进度回调 |
+
+### 修改文件（6 个）
+
+| 文件 | 改动 |
+|---|---|
+| `apps/content_planning/api/routes.py` | `_handle_flow_error` 增加通用异常兜底；`v6_quick_draft` 增加 ValidationError 捕获；新增 `POST /v6/image-gen/{id}` + `GET /v6/image-gen/{id}/status` 端点 |
+| `apps/content_planning/services/quick_draft_generator.py` | generate() 和 _rule_fallback() 返回 dict 增加 `mode` 字段 |
+| `apps/content_planning/storage/plan_store.py` | 新增 `generated_images_json` 列映射、JSON 反序列化、ALTER TABLE 迁移 |
+| `apps/intel_hub/api/app.py` | 挂载 `data/generated_images/` 为 `/generated-images/` 静态目录 |
+| `apps/intel_hub/api/templates/_preview_canvas.html` | 升级支持真实图片（cover_image/content_image）、加载动画、updateImage/setImageLoading API |
+| `apps/intel_hub/api/templates/planning_workspace.html` | 增加"生成配图"按钮 + SSE 监听 image_gen_progress/image_gen_complete 事件 + 错误 toast |
+
+### 图片生成架构
+
+- 引擎：DashScope 通义万相 `wanx2.1-t2i-turbo`（fallback `wanx-v1`）+ OpenRouter/Gemini Nano
+- 进度推送：复用 EventBus + SSE，前端 EventSource 监听 image_gen_progress 事件
+- 存储：`data/generated_images/{opportunity_id}/` + FastAPI StaticFiles 挂载
+- 持久化：planning_sessions.generated_images_json + quick_draft.images 关联
+
+### 双模式生图 (2026-04-12)
+
+| 模式 | 参数值 | 说明 |
+|---|---|---|
+| 参考图+提示词 | `gen_mode=ref_image` | 从原始笔记 `note_context.cover_image` / `image_urls` 取参考图，结合 brief 提示词生成新图。DashScope 使用 `wanx2.1-imageedit` + `stylization_all`；OpenRouter/Gemini 使用多模态 `image_url` + text 输入 |
+| 纯提示词 | `gen_mode=prompt_only` | 仅使用 brief 提取的文字描述直接生成（默认行为） |
+
+改动文件：
+- `image_generator.py`：`ImagePrompt` 新增 `ref_image_url` 字段；`_generate_openrouter()` 支持多模态输入（图+文）；`_generate_dashscope()` 有参考图时切 `wanx2.1-imageedit`
+- `routes.py`：`POST /v6/image-gen/{id}` 接受 `gen_mode` 参数；参考图模式自动从 `IntelHubAdapter.get_source_notes()` → `note_context.cover_image` 获取原图 URL
+- `planning_workspace.html`：新增模式选择下拉 `#sel-gen-mode`（参考图+提示词 / 纯提示词），状态提示含参考图数量
+
+---
+
 ## V6 小红书内容生产链重构 (2026-04-11)
 
 ### 概述

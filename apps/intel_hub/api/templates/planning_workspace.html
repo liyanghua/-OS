@@ -536,6 +536,59 @@
         {% endif %}
       </div>
 
+      {# ── 区块 E: 笔记预览 ── #}
+      <div class="pw-section" id="note-preview-section">
+        <div class="pw-section-title">
+          <h3>笔记预览</h3>
+          <button type="button" class="pw-btn pw-btn-primary pw-btn-inline" id="btn-gen-draft">一键生成预览</button>
+        </div>
+        <div id="note-preview-container" style="display:flex; justify-content:center; padding:12px 0;">
+          <div id="note-preview-empty" style="text-align:center; color:var(--muted); font-size:13px; padding:40px 0;">
+            点击「一键生成预览」，从 Brief 快速生成小红书笔记草稿
+          </div>
+          <div id="note-preview-phone" style="display:none;"></div>
+        </div>
+        <div id="note-preview-actions" style="display:none; text-align:center; margin-top:8px; display:flex; justify-content:center; gap:8px; flex-wrap:wrap; align-items:center;">
+          <button type="button" class="pw-btn pw-btn-secondary pw-btn-inline" id="btn-regen-draft" style="font-size:12px;">重新生成</button>
+          <select id="sel-gen-mode" style="font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--ink); cursor:pointer;" title="生图模式">
+            <option value="ref_image">参考图+提示词</option>
+            <option value="prompt_only">纯提示词</option>
+          </select>
+          <select id="sel-image-provider" style="font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--ink); cursor:pointer;" title="生图模型">
+            <option value="openrouter">Gemini Nano</option>
+            <option value="dashscope">通义万相</option>
+            <option value="auto">自动选择</option>
+          </select>
+          <button type="button" class="pw-btn pw-btn-primary pw-btn-inline" id="btn-gen-images" style="font-size:12px;">生成配图</button>
+        </div>
+        <div id="note-image-gen-status" style="display:none; text-align:center; font-size:12px; color:var(--muted); padding:6px 0;">
+          <span id="image-gen-status-text"></span>
+        </div>
+        <div id="gen-history-toggle" style="display:none; text-align:center; margin-top:4px;">
+          <button id="btn-show-history" type="button" style="font-size:11px; color:var(--accent); background:none; border:none; cursor:pointer; text-decoration:underline;">查看生成历史</button>
+        </div>
+        <div id="gen-history-panel" style="display:none; margin-top:8px; border-top:1px solid var(--border); padding-top:10px;">
+          <div style="font-size:12px; font-weight:600; color:var(--ink); margin-bottom:8px;">生成历史</div>
+          <div id="gen-history-list" style="max-height:300px; overflow-y:auto;"></div>
+        </div>
+      </div>
+
+      {# ── Prompt Inspector 弹窗 ── #}
+      <div id="prompt-inspector-overlay" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.45); backdrop-filter:blur(2px);">
+        <div id="prompt-inspector-panel" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:680px; max-width:92vw; max-height:85vh; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; box-shadow:0 8px 32px rgba(0,0,0,.18);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 style="margin:0; font-size:15px; font-weight:600;">Prompt Inspector</h3>
+            <button id="pi-close" type="button" style="background:none; border:none; font-size:18px; cursor:pointer; color:var(--muted); padding:4px 8px;">&times;</button>
+          </div>
+          <div id="pi-loading" style="text-align:center; padding:30px 0; color:var(--muted); font-size:13px;">正在加载提示词…</div>
+          <div id="pi-slots" style="display:none;"></div>
+          <div id="pi-actions" style="display:none; margin-top:16px; text-align:right; display:flex; justify-content:flex-end; gap:10px;">
+            <button id="pi-cancel" type="button" class="pw-btn pw-btn-secondary pw-btn-inline" style="font-size:12px;">取消</button>
+            <button id="pi-confirm" type="button" class="pw-btn pw-btn-primary pw-btn-inline" style="font-size:12px;">确认生成</button>
+          </div>
+        </div>
+      </div>
+
     </main>
 
     {# ═══════════════════ 右栏 ═══════════════════ #}
@@ -793,6 +846,404 @@
         .catch(function() { runBtn.disabled = false; runBtn.textContent = '一键全链路'; });
       });
     }
+  })();
+
+  /* ── 笔记预览 ── */
+  (function notePreviewInit() {
+    if (!opportunityId) return;
+    var phoneEl = document.getElementById('note-preview-phone');
+    var emptyEl = document.getElementById('note-preview-empty');
+    var actionsEl = document.getElementById('note-preview-actions');
+    var genBtn = document.getElementById('btn-gen-draft');
+    var regenBtn = document.getElementById('btn-regen-draft');
+    if (!genBtn) return;
+
+    var currentDraft = null;
+
+    function showDraft(draft) {
+      if (!draft || (!draft.selected_title && !draft.final_body)) return;
+      currentDraft = draft;
+      emptyEl.style.display = 'none';
+      phoneEl.style.display = 'block';
+      actionsEl.style.display = 'block';
+      previewCanvas.renderPreview(draft, 'note-preview-phone');
+      previewCanvas.enableInlineEdit('note-preview-phone', function(field, value) {
+        draft[field === 'title' ? 'selected_title' : 'final_body'] = value;
+        draft.character_count = draft.final_body.length;
+      });
+      var hintEl = document.getElementById('note-preview-mode-hint');
+      if (hintEl) hintEl.remove();
+      if (draft.mode === 'rule_fallback') {
+        var hint = document.createElement('div');
+        hint.id = 'note-preview-mode-hint';
+        hint.style.cssText = 'text-align:center;font-size:11px;color:var(--muted);padding:6px 0;';
+        hint.textContent = 'LLM 暂不可用，已使用规则拼装草稿';
+        phoneEl.parentElement.insertBefore(hint, actionsEl);
+      }
+    }
+
+    function showError(msg) {
+      emptyEl.style.display = 'block';
+      emptyEl.innerHTML = '<span style="color:#c53030;">' + (msg || '生成失败，请稍后重试') + '</span>';
+      setTimeout(function() {
+        emptyEl.textContent = '点击「一键生成预览」，从 Brief 快速生成小红书笔记草稿';
+      }, 5000);
+    }
+
+    function generate(btn) {
+      var origText = btn.textContent;
+      btn.disabled = true; btn.textContent = '生成中…';
+      fetch('/content-planning/v6/quick-draft/' + encodeURIComponent(opportunityId), { method: 'POST' })
+      .then(function(r) {
+        if (r.ok) return r.json();
+        return r.json().then(function(err) { throw new Error(err.detail || ('HTTP ' + r.status)); });
+      })
+      .then(function(d) {
+        btn.disabled = false; btn.textContent = origText;
+        if (d && d.draft) showDraft(d.draft);
+      })
+      .catch(function(e) {
+        btn.disabled = false; btn.textContent = origText;
+        showError(e.message || '生成失败');
+      });
+    }
+
+    fetch('/content-planning/v6/quick-draft/' + encodeURIComponent(opportunityId))
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(d) { if (d && d.draft) showDraft(d.draft); })
+    .catch(function() {});
+
+    genBtn.addEventListener('click', function() { generate(genBtn); });
+    if (regenBtn) regenBtn.addEventListener('click', function() { generate(regenBtn); });
+
+    /* ── 图片生成 ── */
+    var imgGenBtn = document.getElementById('btn-gen-images');
+    var imgStatusEl = document.getElementById('note-image-gen-status');
+    var imgStatusText = document.getElementById('image-gen-status-text');
+
+    var providerSel = document.getElementById('sel-image-provider');
+    var genModeSel = document.getElementById('sel-gen-mode');
+    var providerLabels = { openrouter: 'Gemini Nano', dashscope: '通义万相', auto: '' };
+    var modeLabels = { ref_image: '参考图+提示词', prompt_only: '纯提示词' };
+
+    /* ── Prompt Inspector 逻辑 ── */
+    var piOverlay = document.getElementById('prompt-inspector-overlay');
+    var piSlots = document.getElementById('pi-slots');
+    var piLoading = document.getElementById('pi-loading');
+    var piActions = document.getElementById('pi-actions');
+    var piCloseBtn = document.getElementById('pi-close');
+    var piCancelBtn = document.getElementById('pi-cancel');
+    var piConfirmBtn = document.getElementById('pi-confirm');
+    var _piCurrentPrompts = [];
+
+    var sourceLabels = {
+      'image_briefs': '图片指令',
+      'plan': '策划方案',
+      'strategy': '改写策略',
+      'brief': 'Brief',
+      'draft': '草稿',
+      'match': '模板匹配'
+    };
+
+    function getSourceLabel(field) {
+      var key = (field || '').split('.')[0];
+      return sourceLabels[key] || key;
+    }
+
+    function getSourceColor(field) {
+      var key = (field || '').split('.')[0];
+      var colors = { image_briefs: '#1976d2', plan: '#7b1fa2', strategy: '#388e3c', brief: '#f57c00', draft: '#78909c', match: '#00838f' };
+      return colors[key] || '#666';
+    }
+
+    function openInspector() {
+      if (!imgGenBtn) return;
+      var genMode = genModeSel ? genModeSel.value : 'prompt_only';
+      imgGenBtn.disabled = true;
+      imgGenBtn.textContent = '加载中…';
+      piOverlay.style.display = 'block';
+      piLoading.style.display = 'block';
+      piSlots.style.display = 'none';
+      piActions.style.display = 'none';
+
+      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/preview-prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gen_mode: genMode })
+      })
+      .then(function(r) {
+        if (r.ok) return r.json();
+        return r.json().then(function(err) { throw new Error(err.detail || ('HTTP ' + r.status)); });
+      })
+      .then(function(d) {
+        _piCurrentPrompts = d.prompts || [];
+        renderInspectorSlots(_piCurrentPrompts, d.gen_mode, d.ref_images_count);
+        piLoading.style.display = 'none';
+        piSlots.style.display = 'block';
+        piActions.style.display = 'flex';
+        imgGenBtn.disabled = false;
+        imgGenBtn.textContent = '生成配图';
+      })
+      .catch(function(e) {
+        piLoading.textContent = '加载失败: ' + (e.message || '未知错误');
+        imgGenBtn.disabled = false;
+        imgGenBtn.textContent = '生成配图';
+      });
+    }
+
+    function renderInspectorSlots(prompts, genMode, refCount) {
+      var html = '';
+      if (genMode === 'ref_image' && refCount > 0) {
+        html += '<div style="background:var(--accent-soft);color:var(--accent);padding:6px 12px;border-radius:6px;font-size:12px;margin-bottom:10px;">参考图模式 | 已关联 ' + refCount + ' 张原始笔记图片</div>';
+      }
+      prompts.forEach(function(p, idx) {
+        var slotLabel = p.slot_id === 'cover' ? '封面图' : '配图 ' + p.slot_id.replace('content_', '#');
+        var sourceTags = '';
+        var seenFields = {};
+        (p.sources || []).forEach(function(s) {
+          var label = getSourceLabel(s.field);
+          if (seenFields[label]) return;
+          seenFields[label] = true;
+          sourceTags += '<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;background:' + getSourceColor(s.field) + '22;color:' + getSourceColor(s.field) + ';margin-right:4px;">' + esc(label) + '</span>';
+        });
+        var refThumb = '';
+        if (p.ref_image_url) {
+          refThumb = '<div style="flex-shrink:0;width:56px;height:56px;border-radius:6px;overflow:hidden;border:1px solid var(--border);"><img src="' + esc(p.ref_image_url) + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'<div style=padding:14px;font-size:10px;color:var(--muted);text-align:center>加载失败</div>\'"></div>';
+        }
+        html += '<div class="pi-slot-card" style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--bg);">';
+        html += '<div style="display:flex;align-items:flex-start;gap:10px;">';
+        if (refThumb) html += refThumb;
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><strong style="font-size:13px;">' + esc(slotLabel) + '</strong>' + sourceTags + '</div>';
+        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">正向提示词</div>';
+        html += '<textarea data-slot="' + esc(p.slot_id) + '" data-field="prompt_text" style="width:100%;min-height:54px;font-size:12px;line-height:1.5;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;background:var(--surface);color:var(--ink);font-family:inherit;">' + esc(p.prompt_text || '') + '</textarea>';
+        if (p.negative_prompt) {
+          html += '<div style="font-size:11px;color:var(--muted);margin-top:6px;margin-bottom:4px;">负向提示词（规避项）</div>';
+          html += '<textarea data-slot="' + esc(p.slot_id) + '" data-field="negative_prompt" style="width:100%;min-height:32px;font-size:12px;line-height:1.5;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;background:var(--surface);color:var(--ink);font-family:inherit;">' + esc(p.negative_prompt) + '</textarea>';
+        }
+        if (p.style_tags && p.style_tags.length) {
+          html += '<div style="margin-top:6px;">';
+          p.style_tags.forEach(function(t) { html += '<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(138,75,47,0.08);color:var(--ink);margin-right:4px;">' + esc(t) + '</span>'; });
+          html += '</div>';
+        }
+        html += '</div></div>';
+        /* source detail expandable */
+        if (p.sources && p.sources.length) {
+          html += '<details style="margin-top:8px;"><summary style="font-size:11px;color:var(--muted);cursor:pointer;">查看来源详情 (' + p.sources.length + ' 条)</summary>';
+          html += '<div style="margin-top:4px;max-height:120px;overflow-y:auto;">';
+          p.sources.forEach(function(s) {
+            var isNeg = s.content && s.content.indexOf('[negative]') === 0;
+            html += '<div style="font-size:11px;padding:2px 0;color:' + (isNeg ? '#c62828' : 'var(--ink)') + ';"><code style="font-size:10px;background:var(--surface);padding:1px 4px;border-radius:3px;">' + esc(s.field) + '</code> ' + esc(s.content) + '</div>';
+          });
+          html += '</div></details>';
+        }
+        html += '</div>';
+      });
+      piSlots.innerHTML = html;
+    }
+
+    function closeInspector() {
+      piOverlay.style.display = 'none';
+      _piCurrentPrompts = [];
+    }
+
+    function confirmGenerate() {
+      var areas = piSlots.querySelectorAll('textarea');
+      var edits = {};
+      areas.forEach(function(ta) {
+        var slot = ta.getAttribute('data-slot');
+        var field = ta.getAttribute('data-field');
+        if (!edits[slot]) edits[slot] = { slot_id: slot };
+        edits[slot][field] = ta.value;
+      });
+      var editedPrompts = Object.values(edits);
+      closeInspector();
+      startImageGen(editedPrompts);
+    }
+
+    if (piCloseBtn) piCloseBtn.addEventListener('click', closeInspector);
+    if (piCancelBtn) piCancelBtn.addEventListener('click', closeInspector);
+    if (piConfirmBtn) piConfirmBtn.addEventListener('click', confirmGenerate);
+    if (piOverlay) piOverlay.addEventListener('click', function(e) { if (e.target === piOverlay) closeInspector(); });
+
+    /* ── 实际生图提交 ── */
+    function startImageGen(editedPrompts) {
+      if (!imgGenBtn) return;
+      var provider = providerSel ? providerSel.value : 'auto';
+      var genMode = genModeSel ? genModeSel.value : 'prompt_only';
+      var label = providerLabels[provider] || '';
+      var modeLabel = modeLabels[genMode] || genMode;
+      imgGenBtn.disabled = true;
+      imgGenBtn.textContent = '生成中…';
+      imgStatusEl.style.display = 'block';
+      imgStatusText.textContent = '正在提交图片生成任务 [' + modeLabel + ']' + (label ? ' (' + label + ')' : '') + '…';
+
+      var payload = { provider: provider, gen_mode: genMode };
+      if (editedPrompts && editedPrompts.length) payload.edited_prompts = editedPrompts;
+
+      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(function(r) {
+        if (r.ok) return r.json();
+        return r.json().then(function(err) { throw new Error(err.detail || ('HTTP ' + r.status)); });
+      })
+      .then(function(d) {
+        var total = d.total_images || 0;
+        var prov = d.provider || provider;
+        var pLabel = providerLabels[prov] || prov;
+        var refCount = d.ref_images_count || 0;
+        var statusLine = '已提交 ' + total + ' 张图片' + (pLabel ? ' (' + pLabel + ')' : '');
+        if (d.gen_mode === 'ref_image') statusLine += ' | 参考图 ' + refCount + ' 张';
+        statusLine += '，请等待…';
+        imgStatusText.textContent = statusLine;
+        if (d.prompts) {
+          d.prompts.forEach(function(p) {
+            var hint = p.has_ref ? '参考图+' : '';
+            previewCanvas.setImageLoading('note-preview-phone', p.slot_id, hint + '生成中: ' + p.prompt.substring(0, 30) + '…');
+          });
+        }
+      })
+      .catch(function(e) {
+        imgGenBtn.disabled = false;
+        imgGenBtn.textContent = '生成配图';
+        imgStatusText.textContent = '图片生成失败: ' + (e.message || '未知错误');
+        setTimeout(function() { imgStatusEl.style.display = 'none'; }, 5000);
+      });
+    }
+
+    if (imgGenBtn) {
+      imgGenBtn.addEventListener('click', openInspector);
+    }
+
+    /* SSE 监听图片生成进度 */
+    var sseSource = null;
+    try {
+      sseSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
+    } catch(e) {}
+
+    if (sseSource) {
+      sseSource.addEventListener('image_gen_progress', function(ev) {
+        try {
+          var d = JSON.parse(ev.data);
+          var p = d.payload || d;
+          var slotId = p.slot_id;
+          var status = p.status;
+          if (status === 'completed' && p.image_url) {
+            previewCanvas.updateImage('note-preview-phone', slotId, p.image_url);
+            if (currentDraft) {
+              if (!currentDraft.images) currentDraft.images = [];
+              currentDraft.images.push({ slot_id: slotId, image_url: p.image_url, status: 'completed' });
+            }
+            imgStatusText.textContent = slotId + ' 已完成';
+          } else if (status === 'generating') {
+            previewCanvas.setImageLoading('note-preview-phone', slotId, '生成中: ' + (p.prompt || '').substring(0, 30) + '…');
+          } else if (status === 'failed') {
+            imgStatusText.textContent = slotId + ' 生成失败: ' + (p.error || '');
+          }
+        } catch(e) {}
+      });
+
+      sseSource.addEventListener('image_gen_complete', function(ev) {
+        try {
+          var d = JSON.parse(ev.data);
+          var p = d.payload || d;
+          imgGenBtn.disabled = false;
+          imgGenBtn.textContent = '重新生成配图';
+          imgStatusText.textContent = '图片生成完成：' + (p.completed || 0) + '/' + (p.total || 0) + ' 张成功';
+          setTimeout(function() { imgStatusEl.style.display = 'none'; }, 8000);
+          loadGenHistory();
+        } catch(e) {}
+      });
+    }
+
+    /* ── 生成历史 ── */
+    var historyToggle = document.getElementById('gen-history-toggle');
+    var historyPanel = document.getElementById('gen-history-panel');
+    var historyList = document.getElementById('gen-history-list');
+    var historyBtn = document.getElementById('btn-show-history');
+    var _historyVisible = false;
+
+    function loadGenHistory() {
+      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/history')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (!d || !d.history || !d.history.length) {
+          historyToggle.style.display = 'none';
+          return;
+        }
+        historyToggle.style.display = 'block';
+        historyBtn.textContent = '查看生成历史 (' + d.total_rounds + ' 轮)';
+        renderHistory(d.history);
+      })
+      .catch(function() {});
+    }
+
+    function renderHistory(history) {
+      var html = '';
+      history.slice().reverse().forEach(function(round, idx) {
+        var ts = round.timestamp ? new Date(round.timestamp).toLocaleString('zh-CN') : '';
+        var provLabel = providerLabels[round.provider] || round.provider || '';
+        var mLabel = modeLabels[round.gen_mode] || round.gen_mode || '';
+        var successCount = 0;
+        var totalCount = (round.results || []).length;
+        (round.results || []).forEach(function(r) { if (r.status === 'completed') successCount++; });
+
+        html += '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg);">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+        html += '<div style="font-size:12px;font-weight:600;">第 ' + (history.length - idx) + ' 轮</div>';
+        html += '<div style="font-size:11px;color:var(--muted);">' + esc(ts) + '</div>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
+        if (provLabel) html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent);">' + esc(provLabel) + '</span>';
+        if (mLabel) html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(138,75,47,0.08);color:var(--ink);">' + esc(mLabel) + '</span>';
+        if (round.user_edited) html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:#e3f2fd;color:#1565c0;">已编辑</span>';
+        html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:' + (successCount === totalCount ? '#e8f5e9' : '#fff3e0') + ';color:' + (successCount === totalCount ? '#2e7d32' : '#e65100') + ';">' + successCount + '/' + totalCount + ' 成功</span>';
+        html += '</div>';
+
+        /* results thumbnails */
+        var completed = (round.results || []).filter(function(r) { return r.status === 'completed' && r.image_url; });
+        if (completed.length) {
+          html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
+          completed.forEach(function(r) {
+            html += '<div style="width:48px;height:48px;border-radius:4px;overflow:hidden;border:1px solid var(--border);cursor:pointer;" title="' + esc(r.slot_id) + '" onclick="previewCanvas.updateImage(\'note-preview-phone\',\'' + esc(r.slot_id) + '\',\'' + esc(r.image_url) + '\')"><img src="' + esc(r.image_url) + '" style="width:100%;height:100%;object-fit:cover;"></div>';
+          });
+          html += '</div>';
+        }
+
+        /* prompt log expandable */
+        if (round.prompt_log && round.prompt_log.length) {
+          html += '<details><summary style="font-size:11px;color:var(--muted);cursor:pointer;">查看提示词</summary>';
+          round.prompt_log.forEach(function(pl) {
+            html += '<div style="font-size:11px;margin-top:4px;padding:4px 6px;background:var(--surface);border-radius:4px;">';
+            html += '<strong>' + esc(pl.slot_id) + '</strong>';
+            if (pl.has_ref) html += ' <span style="color:var(--accent);font-size:10px;">[参考图]</span>';
+            html += '<div style="color:var(--ink);margin-top:2px;">' + esc((pl.final_prompt || '').substring(0, 120)) + (pl.final_prompt && pl.final_prompt.length > 120 ? '…' : '') + '</div>';
+            if (pl.final_negative) html += '<div style="color:#c62828;margin-top:2px;">规避: ' + esc(pl.final_negative.substring(0, 80)) + '</div>';
+            if (pl.style_tags && pl.style_tags.length) {
+              html += '<div style="margin-top:2px;">';
+              pl.style_tags.forEach(function(t) { html += '<span style="font-size:9px;padding:0 4px;border-radius:3px;background:rgba(138,75,47,0.08);color:var(--ink);margin-right:3px;">' + esc(t) + '</span>'; });
+              html += '</div>';
+            }
+            html += '</div>';
+          });
+          html += '</details>';
+        }
+        html += '</div>';
+      });
+      historyList.innerHTML = html;
+    }
+
+    if (historyBtn) {
+      historyBtn.addEventListener('click', function() {
+        _historyVisible = !_historyVisible;
+        historyPanel.style.display = _historyVisible ? 'block' : 'none';
+      });
+    }
+
+    loadGenHistory();
   })();
 
   /* ── 快速分析（抽屉） ── */

@@ -1,8 +1,10 @@
 {#
-  XHS Phone Preview Canvas: mobile simulator + variant compare + inline edit.
+  XHS Phone Preview Canvas: mobile simulator + variant compare + inline edit + image gen.
   Provides: previewCanvas.renderPreview(data, containerId)
             previewCanvas.renderVariantCompare(variants, containerId)
             previewCanvas.enableInlineEdit(containerId, onChangeCallback, options)
+            previewCanvas.updateImage(containerId, slotId, imageUrl)
+            previewCanvas.setImageLoading(containerId, slotId, text)
 #}
 <style>
 .xhs-phone-frame {
@@ -50,6 +52,45 @@
   line-height: 1.5;
   max-height: 100%;
   overflow: hidden;
+}
+.xhs-cover-image {
+  width: 100%;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  display: block;
+  object-fit: cover;
+}
+.xhs-content-image {
+  width: 100%;
+  border-radius: 8px;
+  margin: 8px 0;
+  display: block;
+  object-fit: cover;
+}
+.xhs-img-loading {
+  width: 100%;
+  height: 200px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(138,75,47,0.04), rgba(200,190,180,0.08));
+  border: 1px dashed var(--border);
+}
+.xhs-img-spinner {
+  width: 24px; height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: xhsSpin 0.8s linear infinite;
+}
+@keyframes xhsSpin { to { transform: rotate(360deg); } }
+.xhs-img-loading-text {
+  font-size: 11px;
+  color: var(--muted);
 }
 .xhs-preview-title {
   font-size: 16px;
@@ -138,21 +179,45 @@
 var previewCanvas = (function() {
   function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
+  function _renderCover(data) {
+    var images = data.images || [];
+    var coverImg = null;
+    for (var i = 0; i < images.length; i++) {
+      if (images[i].slot_id === 'cover' && images[i].image_url) { coverImg = images[i]; break; }
+    }
+    if (coverImg) {
+      return '<img class="xhs-cover-image" data-slot="cover" src="' + esc(coverImg.image_url) + '" alt="cover" />';
+    }
+    var coverPrompt = data.cover_image_prompt || '';
+    if (coverPrompt) {
+      return '<div class="xhs-cover-placeholder" data-slot="cover">' +
+        '<div class="xhs-cover-prompt-text">' + esc(coverPrompt).substring(0, 120) + '</div>' +
+      '</div>';
+    }
+    return '';
+  }
+
+  function _renderContentImages(data) {
+    var images = data.images || [];
+    var html = '';
+    for (var i = 0; i < images.length; i++) {
+      if (images[i].slot_id !== 'cover' && images[i].image_url) {
+        html += '<img class="xhs-content-image" data-slot="' + esc(images[i].slot_id) + '" src="' + esc(images[i].image_url) + '" alt="' + esc(images[i].slot_id) + '" />';
+      }
+    }
+    return html;
+  }
+
   function _renderPhoneContent(data) {
     var title = data.selected_title || '';
     var body = data.final_body || '';
-    var coverPrompt = data.cover_image_prompt || '';
     var hashtags = data.hashtags || [];
     var topics = data.topic_tags || [];
     var charCount = data.character_count || body.length;
     var rationale = data.title_rationale || '';
 
-    var coverHtml = '';
-    if (coverPrompt) {
-      coverHtml = '<div class="xhs-cover-placeholder">' +
-        '<div class="xhs-cover-prompt-text">' + esc(coverPrompt).substring(0, 120) + '</div>' +
-      '</div>';
-    }
+    var coverHtml = _renderCover(data);
+    var contentImgHtml = _renderContentImages(data);
 
     var tagsHtml = '';
     if (hashtags.length) {
@@ -172,11 +237,12 @@ var previewCanvas = (function() {
       '<div class="xhs-preview-title" data-field="title">' + esc(title) + '</div>' +
       (rationale ? '<div style="font-size:10px;color:var(--muted);padding:0 4px;margin:-6px 0 8px;font-style:italic;">' + esc(rationale) + '</div>' : '') +
       '<div class="xhs-preview-body" data-field="body">' + esc(body) + '</div>' +
+      contentImgHtml +
       tagsHtml +
       topicsHtml +
       '<div class="xhs-preview-meta">' +
-        '<span>' + charCount + ' chars</span>' +
-        '<span>XHS Preview</span>' +
+        '<span>' + charCount + ' 字</span>' +
+        '<span>小红书预览</span>' +
       '</div>';
   }
 
@@ -191,6 +257,46 @@ var previewCanvas = (function() {
           _renderPhoneContent(data) +
         '</div>' +
       '</div>';
+  }
+
+  function updateImage(containerId, slotId, imageUrl) {
+    var screen = document.getElementById(containerId + '-screen');
+    if (!screen) return;
+    var existing = screen.querySelector('[data-slot="' + slotId + '"]');
+    if (existing) {
+      var img = document.createElement('img');
+      img.className = slotId === 'cover' ? 'xhs-cover-image' : 'xhs-content-image';
+      img.setAttribute('data-slot', slotId);
+      img.src = imageUrl;
+      img.alt = slotId;
+      existing.replaceWith(img);
+    } else {
+      var bodyEl = screen.querySelector('[data-field="body"]');
+      if (bodyEl && slotId !== 'cover') {
+        var img2 = document.createElement('img');
+        img2.className = 'xhs-content-image';
+        img2.setAttribute('data-slot', slotId);
+        img2.src = imageUrl;
+        img2.alt = slotId;
+        bodyEl.insertAdjacentElement('afterend', img2);
+      }
+    }
+  }
+
+  function setImageLoading(containerId, slotId, text) {
+    var screen = document.getElementById(containerId + '-screen');
+    if (!screen) return;
+    var existing = screen.querySelector('[data-slot="' + slotId + '"]');
+    var loadingHtml = '<div class="xhs-img-loading" data-slot="' + esc(slotId) + '">' +
+      '<div class="xhs-img-spinner"></div>' +
+      '<div class="xhs-img-loading-text">' + esc(text || '生成中...') + '</div>' +
+    '</div>';
+    if (existing) {
+      existing.outerHTML = loadingHtml;
+    } else if (slotId === 'cover') {
+      var titleEl = screen.querySelector('[data-field="title"]');
+      if (titleEl) titleEl.insertAdjacentHTML('beforebegin', loadingHtml);
+    }
   }
 
   function renderVariantCompare(variants, containerId) {
@@ -239,14 +345,16 @@ var previewCanvas = (function() {
 
     var hint = document.createElement('div');
     hint.className = 'xhs-edit-hint';
-    hint.textContent = 'Click title or body to edit inline';
+    hint.textContent = '点击标题或正文可直接编辑';
     screen.parentElement.appendChild(hint);
   }
 
   return {
     renderPreview: renderPreview,
     renderVariantCompare: renderVariantCompare,
-    enableInlineEdit: enableInlineEdit
+    enableInlineEdit: enableInlineEdit,
+    updateImage: updateImage,
+    setImageLoading: setImageLoading
   };
 })();
 </script>

@@ -8,9 +8,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -321,6 +324,8 @@ def _handle_flow_error(fn):
     async def wrapper(*args, **kwargs):
         try:
             return await fn(*args, **kwargs)
+        except HTTPException:
+            raise
         except OpportunityNotPromotedError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except StageApplyConflictError as exc:
@@ -334,6 +339,9 @@ def _handle_flow_error(fn):
             ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.error("Unhandled error in %s: %s", fn.__name__, exc, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"内部错误: {type(exc).__name__}: {exc}") from exc
 
     return wrapper
 
@@ -1042,6 +1050,409 @@ async def v6_pipeline_status(opportunity_id: str) -> dict[str, Any]:
             "recommendation": recommendation,
         } if scorecards else None,
         "stage_evaluations": stage_evals,
+    }
+
+
+@router.post("/v6/quick-draft/{opportunity_id}")
+@_handle_flow_error
+async def v6_quick_draft(opportunity_id: str) -> dict[str, Any]:
+    """从 V6 Brief + Scorecard 快速生成笔记草稿。"""
+    from apps.content_planning.services.quick_draft_generator import QuickDraftGenerator
+    from apps.content_planning.schemas.opportunity_brief import OpportunityBrief
+    from apps.content_planning.schemas.expert_scorecard import ExpertScorecard
+
+    flow = _get_flow()
+    card = flow._adapter.get_card(opportunity_id)
+
+    session = flow._store.load_session(opportunity_id) if flow._store else None
+    brief_raw = session.get("brief") if session else None
+    if not isinstance(brief_raw, dict):
+        raise HTTPException(status_code=400, detail="Brief 尚未生成，请先完成策划")
+    try:
+        brief = OpportunityBrief(**brief_raw)
+    except Exception as exc:
+        logger.warning("Brief validation failed for %s: %s", opportunity_id, exc)
+        raise HTTPException(status_code=400, detail=f"Brief 数据格式异常: {exc}") from exc
+
+    scorecard_obj = None
+    if flow._store:
+        sc_rows = flow._store.load_scorecards_by_opportunity(opportunity_id, limit=1)
+        if sc_rows:
+            try:
+                scorecard_obj = ExpertScorecard(**sc_rows[0])
+            except Exception:
+                pass
+
+    gen = QuickDraftGenerator()
+    draft = gen.generate(brief, scorecard=scorecard_obj, card=card)
+
+    if flow._store:
+        flow._store.update_field(opportunity_id, "quick_draft", draft)
+
+    return {
+        "opportunity_id": opportunity_id,
+        "draft": draft,
+    }
+
+
+@router.get("/v6/quick-draft/{opportunity_id}")
+@_handle_flow_error
+async def v6_get_quick_draft(opportunity_id: str) -> dict[str, Any]:
+    """获取已生成的笔记草稿。"""
+    flow = _get_flow()
+    session = flow._store.load_session(opportunity_id) if flow._store else None
+    draft = session.get("quick_draft") if session else None
+    return {
+        "opportunity_id": opportunity_id,
+        "draft": draft,
+    }
+
+
+# ── 图片生成端点 ──────────────────────────────────────────────────────
+
+_image_gen_tasks: dict[str, dict[str, Any]] = {}
+
+
+class ImageGenRequest(BaseModel):
+    provider: str = "auto"
+
+
+def _build_rich_prompts(
+    opportunity_id: str,
+    session: dict[str, Any] | None,
+    gen_mode: str = "prompt_only",
+) -> tuple[list["RichImagePrompt"], list[str]]:
+    """从 session 加载全链路数据，融合为 RichImagePrompt 列表。返回 (prompts, ref_urls)。"""
+    from apps.content_planning.services.prompt_composer import compose_image_prompts
+    from apps.content_planning.schemas.opportunity_brief import OpportunityBrief
+    from apps.content_planning.schemas.rewrite_strategy import RewriteStrategy
+    from apps.content_planning.schemas.note_plan import NewNotePlan
+    from apps.content_planning.schemas.content_generation import ImageSlotBrief
+
+    draft = session.get("quick_draft") if session else None
+    if not draft:
+        raise HTTPException(status_code=400, detail="请先生成笔记草稿")
+
+    brief = None
+    brief_raw = session.get("brief") if session else None
+    if isinstance(brief_raw, dict):
+        try:
+            brief = OpportunityBrief(**brief_raw)
+        except Exception:
+            pass
+
+    strategy = None
+    strat_raw = session.get("strategy") if session else None
+    if isinstance(strat_raw, dict):
+        try:
+            strategy = RewriteStrategy(**strat_raw)
+        except Exception:
+            pass
+    elif isinstance(strat_raw, list) and strat_raw:
+        try:
+            strategy = RewriteStrategy(**strat_raw[-1])
+        except Exception:
+            pass
+
+    note_plan = None
+    plan_raw = session.get("plan") if session else None
+    if isinstance(plan_raw, dict):
+        try:
+            note_plan = NewNotePlan(**plan_raw)
+        except Exception:
+            pass
+
+    image_briefs_list: list[ImageSlotBrief] = []
+    ib_raw = session.get("image_briefs") if session else None
+    if isinstance(ib_raw, dict):
+        slots_raw = ib_raw.get("slot_briefs", [])
+        for sb in (slots_raw or []):
+            if isinstance(sb, dict):
+                try:
+                    image_briefs_list.append(ImageSlotBrief(**sb))
+                except Exception:
+                    pass
+    elif isinstance(ib_raw, list):
+        for sb in ib_raw:
+            if isinstance(sb, dict):
+                try:
+                    image_briefs_list.append(ImageSlotBrief(**sb))
+                except Exception:
+                    pass
+
+    match_result = session.get("match_result") if session else None
+
+    ref_image_urls: list[str] = []
+    if gen_mode == "ref_image":
+        try:
+            from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
+            adapter = IntelHubAdapter()
+            card = session.get("card") if session else None
+            note_ids = card.get("source_note_ids", []) if isinstance(card, dict) else []
+            if not note_ids:
+                note_ids = [opportunity_id]
+            notes = adapter.get_source_notes(note_ids)
+            for n in notes:
+                ctx = n.get("note_context", n)
+                cover = ctx.get("cover_image", "")
+                if cover:
+                    ref_image_urls.append(cover)
+                for img in ctx.get("image_urls", []):
+                    if img and img != cover:
+                        ref_image_urls.append(img)
+        except Exception as e:
+            logger.warning("获取参考图失败, 降级为纯提示词模式: %s", e)
+
+    rich = compose_image_prompts(
+        draft=draft,
+        brief=brief,
+        strategy=strategy,
+        note_plan=note_plan,
+        image_briefs=image_briefs_list or None,
+        match_result=match_result,
+        ref_image_urls=ref_image_urls if gen_mode == "ref_image" else None,
+    )
+    return rich, ref_image_urls
+
+
+@router.post("/v6/image-gen/{opportunity_id}/preview-prompts")
+@_handle_flow_error
+async def v6_preview_prompts(opportunity_id: str, request: Request) -> dict[str, Any]:
+    """预览即将发送的图片 prompt（不触发生图），供 Prompt Inspector 展示 + 编辑。"""
+    gen_mode = "prompt_only"
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            gen_mode = body.get("gen_mode", "prompt_only")
+    except Exception:
+        pass
+
+    flow = _get_flow()
+    session = flow._store.load_session(opportunity_id) if flow._store else None
+    rich_prompts, ref_urls = _build_rich_prompts(opportunity_id, session, gen_mode)
+
+    if not rich_prompts:
+        raise HTTPException(status_code=400, detail="未找到可生成的图片描述")
+
+    return {
+        "opportunity_id": opportunity_id,
+        "gen_mode": gen_mode,
+        "ref_images_count": len(ref_urls),
+        "prompts": [p.model_dump() for p in rich_prompts],
+    }
+
+
+@router.post("/v6/image-gen/{opportunity_id}")
+@_handle_flow_error
+async def v6_start_image_gen(opportunity_id: str, request: Request) -> dict[str, Any]:
+    """启动后台图片生成任务。支持 edited_prompts 覆盖融合结果。"""
+    import threading
+    import uuid as _uuid
+    from apps.content_planning.services.image_generator import (
+        ImageGeneratorService,
+        ImagePrompt,
+        RichImagePrompt,
+    )
+
+    provider = "auto"
+    gen_mode = "prompt_only"
+    edited_prompts: list[dict[str, Any]] | None = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            provider = body.get("provider", "auto")
+            gen_mode = body.get("gen_mode", "prompt_only")
+            edited_prompts = body.get("edited_prompts")
+    except Exception:
+        pass
+
+    flow = _get_flow()
+    session = flow._store.load_session(opportunity_id) if flow._store else None
+    draft = session.get("quick_draft") if session else None
+    if not draft:
+        raise HTTPException(status_code=400, detail="请先生成笔记草稿")
+
+    rich_prompts, ref_image_urls = _build_rich_prompts(opportunity_id, session, gen_mode)
+
+    if edited_prompts and isinstance(edited_prompts, list):
+        edit_map = {ep["slot_id"]: ep for ep in edited_prompts if isinstance(ep, dict) and "slot_id" in ep}
+        for rp in rich_prompts:
+            if rp.slot_id in edit_map:
+                ep = edit_map[rp.slot_id]
+                if "prompt_text" in ep:
+                    rp.prompt_text = ep["prompt_text"]
+                if "negative_prompt" in ep:
+                    rp.negative_prompt = ep["negative_prompt"]
+
+    prompts = [rp.to_image_prompt() for rp in rich_prompts]
+    if not prompts:
+        raise HTTPException(status_code=400, detail="未找到可生成的图片描述")
+
+    user_edited = bool(edited_prompts)
+    prompt_log = [
+        {
+            "slot_id": rp.slot_id,
+            "final_prompt": rp.prompt_text,
+            "final_negative": rp.negative_prompt,
+            "style_tags": rp.style_tags,
+            "sources": [s.model_dump() for s in rp.sources],
+            "has_ref": bool(rp.ref_image_url),
+            "user_edited": user_edited,
+        }
+        for rp in rich_prompts
+    ]
+
+    svc = ImageGeneratorService()
+    if not svc.is_available():
+        raise HTTPException(status_code=503, detail="图片生成服务不可用（缺少 API Key 或 SDK）")
+
+    task_id = _uuid.uuid4().hex[:12]
+    task_state: dict[str, Any] = {
+        "task_id": task_id,
+        "opportunity_id": opportunity_id,
+        "total": len(prompts),
+        "completed": 0,
+        "results": [],
+        "status": "running",
+    }
+    _image_gen_tasks[task_id] = task_state
+
+    def _on_progress(slot_id: str, status: str, data: dict[str, Any]) -> None:
+        from apps.content_planning.gateway.event_bus import event_bus, ObjectEvent
+        event_bus.publish_sync(ObjectEvent(
+            event_type="image_gen_progress",
+            opportunity_id=opportunity_id,
+            payload={"task_id": task_id, "slot_id": slot_id, "status": status, **data},
+        ))
+
+    def _run() -> None:
+        try:
+            results = svc.generate_batch(prompts, opportunity_id, on_progress=_on_progress, provider=provider)
+            for r, rp in zip(results, rich_prompts):
+                r.final_prompt = rp.prompt_text
+                r.final_negative_prompt = rp.negative_prompt
+                r.gen_mode = gen_mode
+                r.user_edited = user_edited
+            task_state["results"] = [r.model_dump() for r in results]
+            task_state["completed"] = sum(1 for r in results if r.status == "completed")
+            task_state["status"] = "done"
+
+            gen_record = {
+                "timestamp": __import__("datetime").datetime.now().isoformat(),
+                "task_id": task_id,
+                "provider": provider,
+                "gen_mode": gen_mode,
+                "user_edited": user_edited,
+                "prompt_log": prompt_log,
+                "results": task_state["results"],
+            }
+
+            images_data = [r.model_dump() for r in results if r.status == "completed"]
+            if flow._store:
+                existing_history = []
+                try:
+                    prev = flow._store.load_session(opportunity_id)
+                    if prev and isinstance(prev.get("generated_images"), list):
+                        for item in prev["generated_images"]:
+                            if isinstance(item, dict) and "timestamp" in item:
+                                existing_history.append(item)
+                except Exception:
+                    pass
+                existing_history.append(gen_record)
+                flow._store.update_field(opportunity_id, "generated_images", existing_history)
+                existing_draft = draft.copy() if draft else {}
+                existing_draft["images"] = images_data
+                flow._store.update_field(opportunity_id, "quick_draft", existing_draft)
+
+            from apps.content_planning.gateway.event_bus import event_bus, ObjectEvent
+            event_bus.publish_sync(ObjectEvent(
+                event_type="image_gen_complete",
+                opportunity_id=opportunity_id,
+                payload={
+                    "task_id": task_id,
+                    "total": len(prompts),
+                    "completed": task_state["completed"],
+                    "results": task_state["results"],
+                },
+            ))
+        except Exception as exc:
+            logger.error("Image gen task %s failed: %s", task_id, exc, exc_info=True)
+            task_state["status"] = "failed"
+            task_state["error"] = str(exc)
+
+    thread = threading.Thread(target=_run, daemon=True, name=f"image-gen-{task_id}")
+    thread.start()
+
+    return {
+        "task_id": task_id,
+        "opportunity_id": opportunity_id,
+        "total_images": len(prompts),
+        "prompts": [{"slot_id": p.slot_id, "prompt": p.prompt[:80], "has_ref": bool(p.ref_image_url)} for p in prompts],
+        "provider": provider,
+        "gen_mode": gen_mode,
+        "ref_images_count": len(ref_image_urls),
+        "status": "started",
+    }
+
+
+@router.get("/v6/image-gen/{opportunity_id}/status")
+@_handle_flow_error
+async def v6_image_gen_status(opportunity_id: str) -> dict[str, Any]:
+    """查询图片生成状态（含最近一轮结果）。"""
+    matching = [t for t in _image_gen_tasks.values() if t["opportunity_id"] == opportunity_id]
+    if not matching:
+        flow = _get_flow()
+        session = flow._store.load_session(opportunity_id) if flow._store else None
+        raw = session.get("generated_images") if session else None
+        if isinstance(raw, list) and raw:
+            if isinstance(raw[-1], dict) and "timestamp" in raw[-1]:
+                latest = raw[-1]
+                return {
+                    "opportunity_id": opportunity_id,
+                    "status": "done",
+                    "results": latest.get("results", []),
+                    "history_count": len(raw),
+                }
+            if isinstance(raw[0], dict) and "slot_id" in raw[0]:
+                return {
+                    "opportunity_id": opportunity_id,
+                    "status": "done",
+                    "results": raw,
+                    "history_count": 0,
+                }
+        return {
+            "opportunity_id": opportunity_id,
+            "status": "idle",
+            "results": [],
+        }
+    task = matching[-1]
+    return {
+        "opportunity_id": opportunity_id,
+        "task_id": task["task_id"],
+        "status": task["status"],
+        "total": task.get("total", 0),
+        "completed": task.get("completed", 0),
+        "results": task.get("results", []),
+        "error": task.get("error", ""),
+    }
+
+
+@router.get("/v6/image-gen/{opportunity_id}/history")
+@_handle_flow_error
+async def v6_image_gen_history(opportunity_id: str) -> dict[str, Any]:
+    """返回完整的图片生成历史（含每轮 prompt_log + results）。"""
+    flow = _get_flow()
+    session = flow._store.load_session(opportunity_id) if flow._store else None
+    raw = session.get("generated_images") if session else None
+    history: list[dict[str, Any]] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict) and "timestamp" in item:
+                history.append(item)
+    return {
+        "opportunity_id": opportunity_id,
+        "total_rounds": len(history),
+        "history": history,
     }
 
 

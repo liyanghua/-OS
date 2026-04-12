@@ -149,6 +149,10 @@ def create_app(
     if _intel_hub_static.is_dir():
         app.mount("/static", StaticFiles(directory=str(_intel_hub_static)), name="intel_hub_static")
 
+    _generated_images_dir = Path(__file__).resolve().parents[3] / "data" / "generated_images"
+    _generated_images_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/generated-images", StaticFiles(directory=str(_generated_images_dir)), name="generated_images")
+
     def list_payload(
         table_name: str,
         page: int,

@@ -42,6 +42,10 @@ _FIELD_TO_COLUMN: dict[str, str] = {
     "stale_flags_json": "stale_flags_json",
     "agent_actions": "agent_actions_json",
     "agent_actions_json": "agent_actions_json",
+    "quick_draft": "quick_draft_json",
+    "quick_draft_json": "quick_draft_json",
+    "generated_images": "generated_images_json",
+    "generated_images_json": "generated_images_json",
 }
 
 _JSON_COLUMNS = frozenset(
@@ -56,6 +60,8 @@ _JSON_COLUMNS = frozenset(
         "asset_bundle_json",
         "stale_flags_json",
         "agent_actions_json",
+        "quick_draft_json",
+        "generated_images_json",
     }
 )
 
@@ -295,6 +301,8 @@ class ContentPlanStore:
                 "plan_versions_json": "TEXT",
                 "asset_bundle_versions_json": "TEXT",
                 "agent_actions_json": "TEXT",
+                "quick_draft_json": "TEXT",
+                "generated_images_json": "TEXT",
             }.items():
                 if column not in existing_columns:
                     conn.execute(f"ALTER TABLE planning_sessions ADD COLUMN {column} {ddl}")
@@ -445,8 +453,8 @@ class ContentPlanStore:
                        titles_json, body_json, image_briefs_json,
                        brief_versions_json, strategy_versions_json, plan_versions_json, asset_bundle_versions_json,
                        asset_bundle_json,
-                       pipeline_run_id, stale_flags_json, agent_actions_json,
-                       created_at, updated_at
+                       pipeline_run_id, stale_flags_json, agent_actions_json, quick_draft_json,
+                       generated_images_json, created_at, updated_at
                 FROM planning_sessions WHERE opportunity_id = ?
                 """,
                 (opportunity_id,),
@@ -480,6 +488,8 @@ class ContentPlanStore:
             "pipeline_run_id": row["pipeline_run_id"],
             "stale_flags": _deserialize(row["stale_flags_json"]),
             "agent_actions": _deserialize(row["agent_actions_json"]),
+            "quick_draft": _deserialize(row["quick_draft_json"]),
+            "generated_images": _deserialize(row["generated_images_json"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }

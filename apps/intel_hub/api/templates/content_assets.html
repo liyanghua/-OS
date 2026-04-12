@@ -100,6 +100,7 @@
         <button type="button" class="aw-tab active" data-tab="tab-titles" role="tab">标题候选</button>
         <button type="button" class="aw-tab" data-tab="tab-body" role="tab">正文</button>
         <button type="button" class="aw-tab" data-tab="tab-images" role="tab">图片执行 Brief</button>
+        <button type="button" class="aw-tab" data-tab="tab-phone" role="tab">手机预览</button>
         <button type="button" class="aw-tab" data-tab="tab-variants" role="tab">变体</button>
       </div>
 
@@ -139,6 +140,12 @@
         {% else %}
         <div class="aw-card" style="text-align: center; color: var(--muted);">暂无图片执行指令</div>
         {% endif %}
+      </div>
+
+      <div id="tab-phone" class="aw-tab-panel" role="tabpanel">
+        <div style="display:flex; justify-content:center; padding:16px 0;">
+          <div id="asset-phone-preview"></div>
+        </div>
       </div>
 
       <div id="tab-variants" class="aw-tab-panel" role="tabpanel">
@@ -340,6 +347,69 @@
       document.getElementById(btn.getAttribute('data-rtab')).classList.add('active');
     });
   });
+
+  (function assetPhonePreviewInit() {
+    var rendered = false;
+    var bundleData = {{ bundle | tojson }};
+    var strategyData = {{ strategy | tojson }};
+
+    function renderPhonePreview() {
+      if (rendered || !bundleData) return;
+      rendered = true;
+      var titles = bundleData.title_candidates || [];
+      var bestTitle = '';
+      if (titles.length) bestTitle = titles[0].title_text || titles[0].text || '';
+      var body = bundleData.body_draft || '';
+      var imageBriefs = bundleData.image_execution_briefs || [];
+      var coverPrompt = '';
+      if (imageBriefs.length) {
+        var first = imageBriefs[0];
+        coverPrompt = first.visual_brief || first.subject || first.role || '';
+      }
+      var hashtags = [];
+      var topics = [];
+      if (strategyData) {
+        var hs = strategyData.hashtag_suggestions || strategyData.hashtags || [];
+        if (hs.length) hashtags = hs;
+        var ts = strategyData.topic_tags || [];
+        if (ts.length) topics = ts;
+      }
+
+      var images = [];
+      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/status')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (d && d.results) {
+          d.results.forEach(function(img) {
+            if (img.status === 'completed' && img.image_url) images.push(img);
+          });
+        }
+      })
+      .catch(function() {})
+      .finally(function() {
+        var data = {
+          selected_title: bestTitle,
+          title_rationale: titles.length > 0 ? (titles[0].rationale || titles[0].axis || '') : '',
+          final_body: body,
+          cover_image_prompt: coverPrompt,
+          hashtags: hashtags,
+          topic_tags: topics,
+          character_count: body.length,
+          images: images
+        };
+        if (typeof previewCanvas !== 'undefined') {
+          previewCanvas.renderPreview(data, 'asset-phone-preview');
+        }
+      });
+    }
+
+    var observer = new MutationObserver(function() {
+      var panel = document.getElementById('tab-phone');
+      if (panel && panel.classList.contains('active')) renderPhonePreview();
+    });
+    var mid = document.querySelector('.aw-mid');
+    if (mid) observer.observe(mid, { attributes: true, subtree: true, attributeFilter: ['class'] });
+  })();
 
   document.getElementById('aw-btn-export-json').addEventListener('click', function(){
     window.location.href = '/content-planning/asset-bundle/' + encodeURIComponent(opportunityId) + '/export?format=json';
