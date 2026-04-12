@@ -3046,3 +3046,70 @@ image -> image_execution_briefs
 | GET | `/v5/feedback/{id}` | 获取反馈记录 |
 | GET | `/v5/patterns` | 获取 Winning/Failed Pattern |
 | GET | `/v5/template-effectiveness/{id}` | 获取模板效果记录 |
+
+---
+
+## 生图体验升级 V2 (Phase A-G)
+
+### 完成日期
+2026-04-11
+
+### 概要
+从 7 个维度全面升级生图体验，覆盖 prompt 质量、用户交互、数据闭环和智能化。
+
+### Phase A: 快速修复
+- **A1**: `RichImagePrompt.to_image_prompt()` 将 `style_tags` 拼入实际 prompt（`风格：tag1、tag2`）
+- **A2**: `prompt_composer` 补采 `text_overlay`（图上文字）、`target_user`/`target_scene`/`content_goal`（场景约束）
+- **A3**: 前端负向 prompt textarea 始终渲染，空时有 placeholder 引导
+- **A4**: 封面图默认尺寸改为 `1024*1365`（3:4 竖图），内容图保持 `1024*1024`
+
+### Phase B: 原图展示 + 对比
+- **B1**: 来源笔记卡片展示原始封面图（`cover_image`）
+- **B2**: 生成完成后支持"原图 vs 生成图"并排对比（调用 `renderVariantCompare`）
+
+### Phase C: 结构化 Prompt Builder
+- **C1**: 替换遮罩弹窗为内联折叠面板 `#prompt-builder-panel`
+- **C2**: 每个 slot 拆为 5 个模块：主体描述、风格/色调（chips）、必含元素（chips）、规避项（chips）、参考图
+- **C3**: Prompt 质量分实时计算（主体 30 + 风格 20 + 必含 15 + 规避 15 + 参考图 10 = 90 满分）
+
+### Phase D: Prompt 保存与复用
+- **D1**: `plan_store.py` 新增 `saved_prompts_json` 列
+- **D2**: 保存按钮 + `POST /v6/image-gen/{id}/save-prompts` + `preview-prompts` 优先加载已保存版本
+- **D3**: 生成历史面板"复用此提示词"按钮，一键加载到 Builder
+
+### Phase E: 质量信号 + 反馈闭环
+- **E1**: 每张生成图增加评价按钮（👍 👎），`POST /v6/image-gen/{id}/feedback`
+- **E2**: 确认生成前显示 diff 提示（修改了哪些字段/数量变化）
+
+### Phase F: 基于用户编辑的自进化
+- **F1**: `apply_user_preferences()` 从历史中提取 `user_edited=True && rating=good` 的偏好，合并到新 prompt
+- **F2**: Builder 顶部显示偏好应用提示
+
+### Phase G: Skill 驱动的 Prompt 优化
+- **G1**: 新建 `apps/content_planning/skills/prompt_optimizer.py`，调用 LLM 优化结构化 prompt
+- **G2**: `POST /v6/image-gen/{id}/optimize-prompt` + 前端"AI 优化提示词"按钮
+
+### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `apps/content_planning/skills/__init__.py` | Skills 包初始化 |
+| `apps/content_planning/skills/prompt_optimizer.py` | LLM prompt 优化 Skill |
+
+### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `services/image_generator.py` | `RichImagePrompt` 增加 `subject`/`must_include`/`avoid_items` 字段，`compose_prompt_text()` 方法，`to_image_prompt()` 组装逻辑 |
+| `services/prompt_composer.py` | `_SlotAccumulator` 增加结构化字段收集，补采 `text_overlay`/`target_user`/`target_scene`/`content_goal`，封面尺寸默认 `1024*1365`，新增 `apply_user_preferences()` |
+| `storage/plan_store.py` | 新增 `saved_prompts_json` 列映射和迁移 |
+| `api/routes.py` | 新增 `save-prompts`/`feedback`/`optimize-prompt` 端点，`preview-prompts` 支持 saved 优先加载和偏好应用计数，`edited_prompts` 处理增加结构化字段，`prompt_log` 增加 `subject`/`must_include`/`avoid_items` |
+| `planning_workspace.html` | 内联 Prompt Builder 替代弹窗，结构化模块编辑（chips），质量分实时计算，保存/复用/AI优化按钮，评价按钮，diff 提示，原图对比视图，偏好提示，来源笔记封面图 |
+
+### 新增 V6 API
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| POST | `/v6/image-gen/{id}/save-prompts` | 保存结构化 prompt |
+| POST | `/v6/image-gen/{id}/feedback` | 图片评价（good/ok/bad） |
+| POST | `/v6/image-gen/{id}/optimize-prompt` | AI 优化 prompt |

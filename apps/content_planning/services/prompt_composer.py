@@ -62,10 +62,12 @@ def compose_image_prompts(
     image_briefs: list[Any] | None = None,
     match_result: dict[str, Any] | None = None,
     ref_image_urls: list[str] | None = None,
+    generated_images_history: list[dict[str, Any]] | None = None,
 ) -> list[RichImagePrompt]:
     """从策划全链路数据融合生成 RichImagePrompt 列表。
 
     数据优先级（高→低）:
+    0.5. user preferences (from history with good rating)
     1. image_briefs (ImageSlotBrief) — 逐槽精细指令
     2. note_plan.image_plan (ImageSlotPlan) — 结构化 visual_brief
     3. strategy (RewriteStrategy) — 全局策略方向
@@ -98,7 +100,8 @@ def compose_image_prompts(
         ref_url = refs[idx] if idx < len(refs) else (refs[0] if refs else "")
         results.append(acc.build(ref_image_url=ref_url))
 
-    return results
+    applied = apply_user_preferences(results, generated_images_history)
+    return results if not applied else results
 
 
 class _SlotAccumulator:
@@ -110,6 +113,24 @@ class _SlotAccumulator:
         self._negatives: list[tuple[str, str, int]] = []
         self._style_tags: list[str] = []
         self._sources: list[PromptSource] = []
+        self._subject: str = ""
+        self._must_include: list[str] = []
+        self._avoid_items: list[str] = []
+
+    def set_subject(self, text: str) -> None:
+        text = text.strip()
+        if text and not self._subject:
+            self._subject = text
+
+    def add_must_include(self, item: str) -> None:
+        item = item.strip()
+        if item and item not in self._must_include:
+            self._must_include.append(item)
+
+    def add_avoid_item(self, item: str) -> None:
+        item = item.strip()
+        if item and item not in self._avoid_items:
+            self._avoid_items.append(item)
 
     def add_positive(self, text: str, field: str, priority: int) -> None:
         text = text.strip()
@@ -137,13 +158,18 @@ class _SlotAccumulator:
         neg_segments = _dedup_segments([t[0] for t in neg_sorted])
         negative_prompt = "，".join(neg_segments)
 
+        size = "1024*1365" if self.slot_id == "cover" else "1024*1024"
         return RichImagePrompt(
             slot_id=self.slot_id,
             prompt_text=prompt_text,
             negative_prompt=negative_prompt,
             style_tags=self._style_tags,
+            subject=self._subject,
+            must_include=self._must_include,
+            avoid_items=self._avoid_items,
             ref_image_url=ref_image_url,
             sources=self._sources,
+            size=size,
         )
 
 
@@ -180,18 +206,25 @@ def _collect_from_image_briefs(
         props = _safe_list(getattr(sb, "props", []))
         color_mood = _safe_str(getattr(sb, "color_mood", ""))
         avoid = _safe_list(getattr(sb, "avoid_items", []))
+        text_overlay = _safe_str(getattr(sb, "text_overlay", ""))
 
         if subject:
+            acc.set_subject(subject)
             acc.add_positive(subject, "image_briefs.subject", 1)
         if composition:
             acc.add_positive(composition, "image_briefs.composition", 1)
         if props:
             acc.add_positive("，".join(props), "image_briefs.props", 1)
+            for p in props:
+                acc.add_must_include(p)
         if color_mood:
             acc.add_style(color_mood)
             acc.add_positive(color_mood, "image_briefs.color_mood", 1)
+        if text_overlay:
+            acc.add_positive(f"图上文字：{text_overlay}", "image_briefs.text_overlay", 1)
         for a in avoid:
             acc.add_negative(a, "image_briefs.avoid_items", 1)
+            acc.add_avoid_item(a)
 
 
 def _collect_from_plan(
@@ -220,13 +253,17 @@ def _collect_from_plan(
         avoid = _safe_list(getattr(sp, "avoid_elements", []))
 
         if visual_brief:
+            acc.set_subject(visual_brief)
             acc.add_positive(visual_brief, "plan.image_slots.visual_brief", 2)
         if intent:
             acc.add_positive(intent, "plan.image_slots.intent", 2)
         if must_include:
             acc.add_positive("，".join(must_include), "plan.image_slots.must_include", 2)
+            for m in must_include:
+                acc.add_must_include(m)
         for a in avoid:
             acc.add_negative(a, "plan.image_slots.avoid_elements", 2)
+            acc.add_avoid_item(a)
 
     if global_notes:
         for acc in slots.values():
@@ -287,9 +324,20 @@ def _collect_from_brief(
     visual_dir = _safe_str(getattr(brief, "visual_direction", ""))
     avoid_dirs = _safe_list(getattr(brief, "avoid_directions", []))
     constraints = _safe_list(getattr(brief, "constraints", []))
+    target_user = _safe_str(getattr(brief, "target_user", ""))
+    target_scene = _safe_str(getattr(brief, "target_scene", ""))
+    content_goal = _safe_str(getattr(brief, "content_goal", ""))
 
     if not slots:
         slots["cover"] = _SlotAccumulator(slot_id="cover")
+
+    if target_user or target_scene:
+        scene_ctx = "、".join(filter(None, [target_user, target_scene]))
+        for acc in slots.values():
+            acc.add_positive(f"目标受众/场景：{scene_ctx}", "brief.target_user_scene", 4)
+    if content_goal:
+        for acc in slots.values():
+            acc.add_positive(content_goal, "brief.content_goal", 4)
 
     for tag in visual_styles:
         for acc in slots.values():
@@ -345,3 +393,67 @@ def _collect_from_match(
         if tname:
             for acc in slots.values():
                 acc.add_style(f"模板: {tname}")
+
+
+# ── F1: 基于用户编辑历史的自进化 ─────────────────────────────────
+
+def apply_user_preferences(
+    slots: list[RichImagePrompt],
+    history: list[dict[str, Any]] | None,
+) -> bool:
+    """从生成历史中提取用户编辑偏好并应用到当前 prompt。
+
+    - 遍历 user_edited=True 且含 rating="good" 的轮次
+    - 提取用户添加的风格标签 → 合并到当前 slot
+    - 提取用户添加的必含/规避项 → 合并
+
+    Returns True if any preference was applied.
+    """
+    if not history or not isinstance(history, list) or not slots:
+        return False
+
+    good_rounds = [
+        r for r in history
+        if isinstance(r, dict) and r.get("user_edited") and any(
+            res.get("rating") == "good"
+            for res in r.get("results", [])
+            if isinstance(res, dict)
+        )
+    ]
+    if not good_rounds:
+        return False
+
+    slot_map = {s.slot_id: s for s in slots}
+    applied = False
+
+    for rnd in good_rounds:
+        for pl in rnd.get("prompt_log", []):
+            if not isinstance(pl, dict):
+                continue
+            sid = pl.get("slot_id", "")
+            target = slot_map.get(sid)
+            if not target:
+                continue
+
+            for tag in pl.get("style_tags", []):
+                tag = tag.strip()
+                if tag and tag not in target.style_tags:
+                    target.style_tags.append(tag)
+                    applied = True
+
+            for mi in pl.get("must_include", []):
+                mi = mi.strip()
+                if mi and mi not in target.must_include:
+                    target.must_include.append(mi)
+                    applied = True
+
+            for ai in pl.get("avoid_items", []):
+                ai = ai.strip()
+                if ai and ai not in target.avoid_items:
+                    target.avoid_items.append(ai)
+                    applied = True
+
+    if applied:
+        logger.info("apply_user_preferences: applied edits from %d good round(s)", len(good_rounds))
+
+    return applied

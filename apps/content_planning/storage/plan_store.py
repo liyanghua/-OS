@@ -46,6 +46,8 @@ _FIELD_TO_COLUMN: dict[str, str] = {
     "quick_draft_json": "quick_draft_json",
     "generated_images": "generated_images_json",
     "generated_images_json": "generated_images_json",
+    "saved_prompts": "saved_prompts_json",
+    "saved_prompts_json": "saved_prompts_json",
 }
 
 _JSON_COLUMNS = frozenset(
@@ -62,6 +64,7 @@ _JSON_COLUMNS = frozenset(
         "agent_actions_json",
         "quick_draft_json",
         "generated_images_json",
+        "saved_prompts_json",
     }
 )
 
@@ -303,6 +306,7 @@ class ContentPlanStore:
                 "agent_actions_json": "TEXT",
                 "quick_draft_json": "TEXT",
                 "generated_images_json": "TEXT",
+                "saved_prompts_json": "TEXT",
             }.items():
                 if column not in existing_columns:
                     conn.execute(f"ALTER TABLE planning_sessions ADD COLUMN {column} {ddl}")

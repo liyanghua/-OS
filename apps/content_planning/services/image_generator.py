@@ -54,19 +54,34 @@ class PromptSource(BaseModel):
 
 
 class RichImagePrompt(BaseModel):
-    """融合多数据源后的结构化 prompt，供 Inspector 展示 + 编辑。"""
+    """融合多数据源后的结构化 prompt，供 Prompt Builder 展示 + 编辑。"""
     slot_id: str
-    prompt_text: str = Field(description="融合后的完整正向 prompt")
+    prompt_text: str = Field(default="", description="融合后的完整正向 prompt（只读计算字段）")
     negative_prompt: str = Field(default="", description="融合后的负向 prompt")
     style_tags: list[str] = Field(default_factory=list, description="风格标签")
+    subject: str = Field(default="", description="主体描述")
+    must_include: list[str] = Field(default_factory=list, description="必含元素")
+    avoid_items: list[str] = Field(default_factory=list, description="规避元素")
     ref_image_url: str = ""
     sources: list[PromptSource] = Field(default_factory=list, description="可追溯的来源分解")
     size: str = "1024*1024"
 
+    def compose_prompt_text(self) -> str:
+        """从结构化字段重新组装完整 prompt 文本。"""
+        parts: list[str] = []
+        if self.subject:
+            parts.append(self.subject)
+        if self.must_include:
+            parts.append("必含元素：" + "、".join(self.must_include))
+        if self.style_tags:
+            parts.append("风格：" + "、".join(self.style_tags))
+        return "，".join(parts) if parts else self.prompt_text
+
     def to_image_prompt(self) -> "ImagePrompt":
+        full_prompt = self.compose_prompt_text() or self.prompt_text
         return ImagePrompt(
             slot_id=self.slot_id,
-            prompt=self.prompt_text,
+            prompt=full_prompt,
             negative_prompt=self.negative_prompt,
             size=self.size,
             ref_image_url=self.ref_image_url,

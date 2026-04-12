@@ -1203,6 +1203,13 @@ def _build_rich_prompts(
         except Exception as e:
             logger.warning("获取参考图失败, 降级为纯提示词模式: %s", e)
 
+    gen_history_raw = session.get("generated_images") if session else None
+    gen_history: list[dict[str, Any]] = []
+    if isinstance(gen_history_raw, list):
+        for item in gen_history_raw:
+            if isinstance(item, dict) and "timestamp" in item:
+                gen_history.append(item)
+
     rich = compose_image_prompts(
         draft=draft,
         brief=brief,
@@ -1211,6 +1218,7 @@ def _build_rich_prompts(
         image_briefs=image_briefs_list or None,
         match_result=match_result,
         ref_image_urls=ref_image_urls if gen_mode == "ref_image" else None,
+        generated_images_history=gen_history or None,
     )
     return rich, ref_image_urls
 
@@ -1218,7 +1226,7 @@ def _build_rich_prompts(
 @router.post("/v6/image-gen/{opportunity_id}/preview-prompts")
 @_handle_flow_error
 async def v6_preview_prompts(opportunity_id: str, request: Request) -> dict[str, Any]:
-    """预览即将发送的图片 prompt（不触发生图），供 Prompt Inspector 展示 + 编辑。"""
+    """预览即将发送的图片 prompt（不触发生图），供 Prompt Builder 展示 + 编辑。"""
     gen_mode = "prompt_only"
     try:
         body = await request.json()
@@ -1229,17 +1237,56 @@ async def v6_preview_prompts(opportunity_id: str, request: Request) -> dict[str,
 
     flow = _get_flow()
     session = flow._store.load_session(opportunity_id) if flow._store else None
+
+    saved = session.get("saved_prompts") if session else None
+    if saved and isinstance(saved, list) and len(saved) > 0:
+        return {
+            "opportunity_id": opportunity_id,
+            "gen_mode": gen_mode,
+            "ref_images_count": 0,
+            "source": "saved",
+            "prompts": saved,
+        }
+
     rich_prompts, ref_urls = _build_rich_prompts(opportunity_id, session, gen_mode)
 
     if not rich_prompts:
         raise HTTPException(status_code=400, detail="未找到可生成的图片描述")
 
+    gen_history_raw = session.get("generated_images") if session else None
+    pref_count = 0
+    if isinstance(gen_history_raw, list):
+        pref_count = sum(
+            1 for r in gen_history_raw
+            if isinstance(r, dict) and r.get("user_edited") and any(
+                res.get("rating") == "good" for res in r.get("results", []) if isinstance(res, dict)
+            )
+        )
+
     return {
         "opportunity_id": opportunity_id,
         "gen_mode": gen_mode,
         "ref_images_count": len(ref_urls),
+        "source": "composed",
+        "preferences_applied": pref_count,
         "prompts": [p.model_dump() for p in rich_prompts],
     }
+
+
+@router.post("/v6/image-gen/{opportunity_id}/save-prompts")
+@_handle_flow_error
+async def v6_save_prompts(opportunity_id: str, request: Request) -> dict[str, Any]:
+    """保存用户编辑后的结构化 prompt 以便下次复用。"""
+    body = await request.json()
+    prompts = body.get("prompts")
+    if not prompts or not isinstance(prompts, list):
+        raise HTTPException(status_code=400, detail="缺少 prompts 数据")
+
+    flow = _get_flow()
+    if flow._store:
+        flow._store.update_field(opportunity_id, "saved_prompts", prompts)
+
+    return {"status": "saved", "count": len(prompts)}
 
 
 @router.post("/v6/image-gen/{opportunity_id}")
@@ -1279,10 +1326,18 @@ async def v6_start_image_gen(opportunity_id: str, request: Request) -> dict[str,
         for rp in rich_prompts:
             if rp.slot_id in edit_map:
                 ep = edit_map[rp.slot_id]
+                if "subject" in ep:
+                    rp.subject = ep["subject"]
                 if "prompt_text" in ep:
                     rp.prompt_text = ep["prompt_text"]
                 if "negative_prompt" in ep:
                     rp.negative_prompt = ep["negative_prompt"]
+                if "style_tags" in ep and isinstance(ep["style_tags"], list):
+                    rp.style_tags = ep["style_tags"]
+                if "must_include" in ep and isinstance(ep["must_include"], list):
+                    rp.must_include = ep["must_include"]
+                if "avoid_items" in ep and isinstance(ep["avoid_items"], list):
+                    rp.avoid_items = ep["avoid_items"]
 
     prompts = [rp.to_image_prompt() for rp in rich_prompts]
     if not prompts:
@@ -1292,9 +1347,12 @@ async def v6_start_image_gen(opportunity_id: str, request: Request) -> dict[str,
     prompt_log = [
         {
             "slot_id": rp.slot_id,
-            "final_prompt": rp.prompt_text,
+            "final_prompt": rp.compose_prompt_text() or rp.prompt_text,
             "final_negative": rp.negative_prompt,
+            "subject": rp.subject,
             "style_tags": rp.style_tags,
+            "must_include": rp.must_include,
+            "avoid_items": rp.avoid_items,
             "sources": [s.model_dump() for s in rp.sources],
             "has_ref": bool(rp.ref_image_url),
             "user_edited": user_edited,
@@ -1454,6 +1512,52 @@ async def v6_image_gen_history(opportunity_id: str) -> dict[str, Any]:
         "total_rounds": len(history),
         "history": history,
     }
+
+
+@router.post("/v6/image-gen/{opportunity_id}/optimize-prompt")
+@_handle_flow_error
+async def v6_optimize_prompt(opportunity_id: str, request: Request) -> dict[str, Any]:
+    """用 LLM 优化一个 slot 的结构化 prompt。"""
+    body = await request.json()
+    slot_data = body.get("prompt")
+    if not slot_data or not isinstance(slot_data, dict):
+        raise HTTPException(status_code=400, detail="缺少 prompt 数据")
+
+    from apps.content_planning.skills.prompt_optimizer import optimize_prompt
+    result = await optimize_prompt(slot_data)
+    return {"slot_id": slot_data.get("slot_id", ""), "result": result}
+
+
+@router.post("/v6/image-gen/{opportunity_id}/feedback")
+@_handle_flow_error
+async def v6_image_gen_feedback(opportunity_id: str, request: Request) -> dict[str, Any]:
+    """对某轮某张生成图进行评价（good/ok/bad）。"""
+    body = await request.json()
+    round_idx = body.get("round_idx")
+    slot_id = body.get("slot_id")
+    rating = body.get("rating")
+    if round_idx is None or not slot_id or rating not in ("good", "ok", "bad"):
+        raise HTTPException(status_code=400, detail="需要 round_idx, slot_id, rating(good/ok/bad)")
+
+    flow = _get_flow()
+    session = flow._store.load_session(opportunity_id) if flow._store else None
+    raw = session.get("generated_images") if session else None
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=404, detail="未找到生成历史")
+
+    history = [item for item in raw if isinstance(item, dict) and "timestamp" in item]
+    if round_idx < 0 or round_idx >= len(history):
+        raise HTTPException(status_code=400, detail="round_idx 越界")
+
+    record = history[round_idx]
+    for r in record.get("results", []):
+        if r.get("slot_id") == slot_id:
+            r["rating"] = rating
+            break
+
+    if flow._store:
+        flow._store.update_field(opportunity_id, "generated_images", raw)
+    return {"status": "ok", "round_idx": round_idx, "slot_id": slot_id, "rating": rating}
 
 
 class BatchCompileRequest(BaseModel):

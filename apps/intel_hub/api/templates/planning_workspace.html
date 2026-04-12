@@ -256,8 +256,12 @@
         <div class="pw-card" style="margin-top: 6px;">
           {% for sn in source_notes[:5] %}
           {% set nc = sn.get('note_context', {}) if sn is mapping else {} %}
+          {% set cover = nc.get('cover_image', '') %}
           <div style="padding: 6px 0; border-bottom: 1px solid rgba(138,75,47,0.08); font-size: 12px; color: var(--ink);">
-            {{ nc.get('title', '') or '来源笔记 #' ~ loop.index }}
+            {% if cover %}
+            <img src="{{ cover }}" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-bottom:4px;" onerror="this.style.display='none'" loading="lazy">
+            {% endif %}
+            <div>{{ nc.get('title', '') or '来源笔记 #' ~ loop.index }}</div>
           </div>
           {% endfor %}
           {% if source_notes|length > 5 %}
@@ -573,20 +577,40 @@
         </div>
       </div>
 
-      {# ── Prompt Inspector 弹窗 ── #}
-      <div id="prompt-inspector-overlay" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.45); backdrop-filter:blur(2px);">
-        <div id="prompt-inspector-panel" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:680px; max-width:92vw; max-height:85vh; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; box-shadow:0 8px 32px rgba(0,0,0,.18);">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <h3 style="margin:0; font-size:15px; font-weight:600;">Prompt Inspector</h3>
-            <button id="pi-close" type="button" style="background:none; border:none; font-size:18px; cursor:pointer; color:var(--muted); padding:4px 8px;">&times;</button>
+      {# ── 内联 Prompt Builder 面板 ── #}
+      <div id="prompt-builder-panel" style="display:none; margin-top:10px; border:1px solid var(--border); border-radius:10px; background:var(--surface); overflow:hidden;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:rgba(138,75,47,0.04); border-bottom:1px solid var(--border); cursor:pointer;" id="pb-header" onclick="togglePromptBuilder()">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:14px; font-weight:600; color:var(--ink);">Prompt Builder</span>
+            <span id="pb-quality-badge" style="font-size:10px; padding:1px 8px; border-radius:10px; background:#e8f5e9; color:#2e7d32; display:none;">--</span>
           </div>
-          <div id="pi-loading" style="text-align:center; padding:30px 0; color:var(--muted); font-size:13px;">正在加载提示词…</div>
+          <span id="pb-toggle-icon" style="font-size:16px; color:var(--muted); transition:transform .2s;">&#9662;</span>
+        </div>
+        <div id="pb-body" style="padding:14px;">
+          <div id="pi-loading" style="text-align:center; padding:24px 0; color:var(--muted); font-size:13px;">正在加载提示词…</div>
           <div id="pi-slots" style="display:none;"></div>
-          <div id="pi-actions" style="display:none; margin-top:16px; text-align:right; display:flex; justify-content:flex-end; gap:10px;">
-            <button id="pi-cancel" type="button" class="pw-btn pw-btn-secondary pw-btn-inline" style="font-size:12px;">取消</button>
+          <div id="pb-quality-bar" style="display:none; margin-top:12px; padding:10px 12px; border-radius:8px; background:var(--bg); border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <span style="font-size:11px; font-weight:600; color:var(--ink);">Prompt 质量评估</span>
+              <span id="pb-score-text" style="font-size:12px; font-weight:700;"></span>
+            </div>
+            <div style="height:6px; border-radius:3px; background:var(--border); overflow:hidden;">
+              <div id="pb-score-fill" style="height:100%; border-radius:3px; transition:width .3s, background .3s;"></div>
+            </div>
+            <div id="pb-score-detail" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; font-size:10px; color:var(--muted);"></div>
+          </div>
+          <div id="pb-source-hint" style="display:none; font-size:11px; color:var(--accent); margin-top:8px; padding:4px 8px; background:var(--accent-soft); border-radius:6px;"></div>
+          <div id="pi-actions" style="display:none; margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
+            <button id="pi-save-prompts" type="button" class="pw-btn pw-btn-secondary pw-btn-inline" style="font-size:12px;">保存提示词</button>
+            <button id="pi-cancel" type="button" class="pw-btn pw-btn-secondary pw-btn-inline" style="font-size:12px;">收起</button>
             <button id="pi-confirm" type="button" class="pw-btn pw-btn-primary pw-btn-inline" style="font-size:12px;">确认生成</button>
           </div>
         </div>
+      </div>
+      {# ── 原图 vs 生成图对比区 ── #}
+      <div id="note-compare-view" style="display:none; margin-top:10px;"></div>
+      <div id="note-compare-toggle" style="display:none; text-align:center; margin-top:6px;">
+        <button id="btn-toggle-compare" type="button" style="font-size:11px; color:var(--accent); background:none; border:none; cursor:pointer; text-decoration:underline;">切换原图对比</button>
       </div>
 
     </main>
@@ -926,15 +950,17 @@
     var providerLabels = { openrouter: 'Gemini Nano', dashscope: '通义万相', auto: '' };
     var modeLabels = { ref_image: '参考图+提示词', prompt_only: '纯提示词' };
 
-    /* ── Prompt Inspector 逻辑 ── */
-    var piOverlay = document.getElementById('prompt-inspector-overlay');
+    /* ── Prompt Builder 逻辑 ── */
+    var pbPanel = document.getElementById('prompt-builder-panel');
+    var pbBody = document.getElementById('pb-body');
+    var pbToggleIcon = document.getElementById('pb-toggle-icon');
     var piSlots = document.getElementById('pi-slots');
     var piLoading = document.getElementById('pi-loading');
     var piActions = document.getElementById('pi-actions');
-    var piCloseBtn = document.getElementById('pi-close');
     var piCancelBtn = document.getElementById('pi-cancel');
     var piConfirmBtn = document.getElementById('pi-confirm');
     var _piCurrentPrompts = [];
+    var _pbExpanded = true;
 
     var sourceLabels = {
       'image_briefs': '图片指令',
@@ -956,12 +982,22 @@
       return colors[key] || '#666';
     }
 
+    function togglePromptBuilder() {
+      if (!pbBody) return;
+      _pbExpanded = !_pbExpanded;
+      pbBody.style.display = _pbExpanded ? 'block' : 'none';
+      if (pbToggleIcon) pbToggleIcon.style.transform = _pbExpanded ? '' : 'rotate(-90deg)';
+    }
+
     function openInspector() {
       if (!imgGenBtn) return;
       var genMode = genModeSel ? genModeSel.value : 'prompt_only';
       imgGenBtn.disabled = true;
       imgGenBtn.textContent = '加载中…';
-      piOverlay.style.display = 'block';
+      pbPanel.style.display = 'block';
+      _pbExpanded = true;
+      pbBody.style.display = 'block';
+      if (pbToggleIcon) pbToggleIcon.style.transform = '';
       piLoading.style.display = 'block';
       piSlots.style.display = 'none';
       piActions.style.display = 'none';
@@ -983,12 +1019,51 @@
         piActions.style.display = 'flex';
         imgGenBtn.disabled = false;
         imgGenBtn.textContent = '生成配图';
+        showSourceHint(d.source || 'composed');
+        if (d.preferences_applied && d.preferences_applied > 0) {
+          if (sourceHint) {
+            sourceHint.style.display = 'block';
+            sourceHint.textContent = '基于你的 ' + d.preferences_applied + ' 次编辑偏好，已自动调整提示词';
+          }
+        }
+        updateQualityScore();
       })
       .catch(function(e) {
         piLoading.textContent = '加载失败: ' + (e.message || '未知错误');
         imgGenBtn.disabled = false;
         imgGenBtn.textContent = '生成配图';
       });
+    }
+
+    function _renderChips(items, slotId, field, placeholder) {
+      var html = '<div class="pb-chips-wrap" data-slot="' + esc(slotId) + '" data-field="' + esc(field) + '" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">';
+      (items || []).forEach(function(t, i) {
+        html += '<span class="pb-chip" style="display:inline-flex;align-items:center;gap:2px;font-size:11px;padding:2px 8px;border-radius:12px;background:rgba(138,75,47,0.08);color:var(--ink);">'
+          + esc(t) + '<span class="pb-chip-x" style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1;margin-left:2px;" onclick="removeChip(this)">&times;</span></span>';
+      });
+      html += '<input type="text" class="pb-chip-input" placeholder="' + esc(placeholder) + '" style="flex:1;min-width:60px;font-size:11px;border:none;background:transparent;outline:none;color:var(--ink);padding:2px 0;" onkeydown="chipKeydown(event,this)">';
+      html += '</div>';
+      return html;
+    }
+
+    function removeChip(xEl) {
+      var chipEl = xEl.parentElement;
+      chipEl.parentElement.removeChild(chipEl);
+      updateQualityScore();
+    }
+
+    function chipKeydown(ev, inputEl) {
+      if (ev.key === 'Enter' && inputEl.value.trim()) {
+        ev.preventDefault();
+        var val = inputEl.value.trim();
+        var chip = document.createElement('span');
+        chip.className = 'pb-chip';
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:2px;font-size:11px;padding:2px 8px;border-radius:12px;background:rgba(138,75,47,0.08);color:var(--ink);';
+        chip.innerHTML = esc(val) + '<span class="pb-chip-x" style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1;margin-left:2px;" onclick="removeChip(this)">&times;</span>';
+        inputEl.parentElement.insertBefore(chip, inputEl);
+        inputEl.value = '';
+        updateQualityScore();
+      }
     }
 
     function renderInspectorSlots(prompts, genMode, refCount) {
@@ -998,6 +1073,7 @@
       }
       prompts.forEach(function(p, idx) {
         var slotLabel = p.slot_id === 'cover' ? '封面图' : '配图 ' + p.slot_id.replace('content_', '#');
+        var sizeLabel = (p.size || '1024*1024').replace('*', ' x ');
         var sourceTags = '';
         var seenFields = {};
         (p.sources || []).forEach(function(s) {
@@ -1006,30 +1082,57 @@
           seenFields[label] = true;
           sourceTags += '<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;background:' + getSourceColor(s.field) + '22;color:' + getSourceColor(s.field) + ';margin-right:4px;">' + esc(label) + '</span>';
         });
-        var refThumb = '';
-        if (p.ref_image_url) {
-          refThumb = '<div style="flex-shrink:0;width:56px;height:56px;border-radius:6px;overflow:hidden;border:1px solid var(--border);"><img src="' + esc(p.ref_image_url) + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'<div style=padding:14px;font-size:10px;color:var(--muted);text-align:center>加载失败</div>\'"></div>';
-        }
+
         html += '<div class="pi-slot-card" style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--bg);">';
-        html += '<div style="display:flex;align-items:flex-start;gap:10px;">';
-        if (refThumb) html += refThumb;
-        html += '<div style="flex:1;min-width:0;">';
-        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><strong style="font-size:13px;">' + esc(slotLabel) + '</strong>' + sourceTags + '</div>';
-        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">正向提示词</div>';
-        html += '<textarea data-slot="' + esc(p.slot_id) + '" data-field="prompt_text" style="width:100%;min-height:54px;font-size:12px;line-height:1.5;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;background:var(--surface);color:var(--ink);font-family:inherit;">' + esc(p.prompt_text || '') + '</textarea>';
-        if (p.negative_prompt) {
-          html += '<div style="font-size:11px;color:var(--muted);margin-top:6px;margin-bottom:4px;">负向提示词（规避项）</div>';
-          html += '<textarea data-slot="' + esc(p.slot_id) + '" data-field="negative_prompt" style="width:100%;min-height:32px;font-size:12px;line-height:1.5;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;background:var(--surface);color:var(--ink);font-family:inherit;">' + esc(p.negative_prompt) + '</textarea>';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+        html += '<div style="display:flex;align-items:center;gap:6px;"><strong style="font-size:13px;">' + esc(slotLabel) + '</strong>' + sourceTags + '</div>';
+        html += '<span style="font-size:10px;color:var(--muted);">' + sizeLabel + '</span>';
+        html += '</div>';
+
+        /* 主体描述 */
+        html += '<div style="margin-bottom:8px;">';
+        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">主体描述</div>';
+        html += '<textarea data-slot="' + esc(p.slot_id) + '" data-field="subject" oninput="updateQualityScore()" placeholder="描述图片主要内容，如：精致的下午茶场景，桌上摆放着…" style="width:100%;min-height:42px;font-size:12px;line-height:1.5;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;background:var(--surface);color:var(--ink);font-family:inherit;">' + esc(p.subject || p.prompt_text || '') + '</textarea>';
+        html += '</div>';
+
+        /* 风格/色调 */
+        html += '<div style="margin-bottom:8px;">';
+        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">风格 / 色调</div>';
+        html += _renderChips(p.style_tags, p.slot_id, 'style_tags', '+添加风格');
+        html += '</div>';
+
+        /* 必含元素 */
+        html += '<div style="margin-bottom:8px;">';
+        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">必含元素</div>';
+        html += _renderChips(p.must_include, p.slot_id, 'must_include', '+添加元素');
+        html += '</div>';
+
+        /* 规避项 */
+        html += '<div style="margin-bottom:8px;">';
+        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">规避项</div>';
+        html += _renderChips(p.avoid_items, p.slot_id, 'avoid_items', '+添加规避项');
+        html += '</div>';
+
+        /* 负向 prompt */
+        html += '<div style="margin-bottom:8px;">';
+        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">负向提示词（补充）</div>';
+        html += '<textarea data-slot="' + esc(p.slot_id) + '" data-field="negative_prompt" oninput="updateQualityScore()" placeholder="输入规避项，如：模糊、暗色调、低质量" style="width:100%;min-height:28px;font-size:12px;line-height:1.5;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;background:var(--surface);color:var(--ink);font-family:inherit;">' + esc(p.negative_prompt || '') + '</textarea>';
+        html += '</div>';
+
+        /* 参考图 */
+        if (p.ref_image_url) {
+          html += '<div style="margin-bottom:4px;">';
+          html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">参考图</div>';
+          html += '<div style="width:120px;height:120px;border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer;" onclick="window.open(\'' + esc(p.ref_image_url) + '\',\'_blank\')">';
+          html += '<img src="' + esc(p.ref_image_url) + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'<div style=padding:30px;font-size:10px;color:var(--muted);text-align:center>加载失败</div>\'">';
+          html += '</div></div>';
         }
-        if (p.style_tags && p.style_tags.length) {
-          html += '<div style="margin-top:6px;">';
-          p.style_tags.forEach(function(t) { html += '<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(138,75,47,0.08);color:var(--ink);margin-right:4px;">' + esc(t) + '</span>'; });
-          html += '</div>';
-        }
-        html += '</div></div>';
-        /* source detail expandable */
+
+        /* AI 优化按钮 + 来源详情 */
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">';
+        html += '<button type="button" class="pb-ai-optimize" data-slot="' + esc(p.slot_id) + '" style="font-size:11px;padding:3px 10px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft);color:var(--accent);cursor:pointer;" onclick="aiOptimizeSlot(this)">AI 优化提示词</button>';
         if (p.sources && p.sources.length) {
-          html += '<details style="margin-top:8px;"><summary style="font-size:11px;color:var(--muted);cursor:pointer;">查看来源详情 (' + p.sources.length + ' 条)</summary>';
+          html += '<details style="flex:1;margin-left:10px;"><summary style="font-size:11px;color:var(--muted);cursor:pointer;">来源详情 (' + p.sources.length + ')</summary>';
           html += '<div style="margin-top:4px;max-height:120px;overflow-y:auto;">';
           p.sources.forEach(function(s) {
             var isNeg = s.content && s.content.indexOf('[negative]') === 0;
@@ -1038,13 +1141,25 @@
           html += '</div></details>';
         }
         html += '</div>';
+        html += '</div>';
       });
       piSlots.innerHTML = html;
     }
 
     function closeInspector() {
-      piOverlay.style.display = 'none';
+      if (pbPanel) pbPanel.style.display = 'none';
       _piCurrentPrompts = [];
+    }
+
+    function _collectChips(wrap) {
+      var chips = wrap.querySelectorAll('.pb-chip');
+      var values = [];
+      chips.forEach(function(c) {
+        var text = c.childNodes[0];
+        if (text && text.nodeType === 3) values.push(text.textContent.trim());
+        else if (text && text.nodeType === 1 && !text.classList.contains('pb-chip-x')) values.push(text.textContent.trim());
+      });
+      return values;
     }
 
     function confirmGenerate() {
@@ -1056,15 +1171,279 @@
         if (!edits[slot]) edits[slot] = { slot_id: slot };
         edits[slot][field] = ta.value;
       });
+      var chipWraps = piSlots.querySelectorAll('.pb-chips-wrap');
+      chipWraps.forEach(function(w) {
+        var slot = w.getAttribute('data-slot');
+        var field = w.getAttribute('data-field');
+        if (!edits[slot]) edits[slot] = { slot_id: slot };
+        edits[slot][field] = _collectChips(w);
+      });
       var editedPrompts = Object.values(edits);
+
+      /* E2: diff 提示 */
+      var diffHints = [];
+      _piCurrentPrompts.forEach(function(orig) {
+        var ed = edits[orig.slot_id];
+        if (!ed) return;
+        var label = orig.slot_id === 'cover' ? '封面图' : '配图 ' + orig.slot_id.replace('content_', '#');
+        if (ed.subject && ed.subject !== (orig.subject || orig.prompt_text || '')) diffHints.push(label + '：主体描述已修改');
+        var origStyleCount = (orig.style_tags || []).length;
+        var edStyleCount = (ed.style_tags || []).length;
+        if (edStyleCount !== origStyleCount) diffHints.push(label + '：风格标签 ' + origStyleCount + ' → ' + edStyleCount);
+        var origMustCount = (orig.must_include || []).length;
+        var edMustCount = (ed.must_include || []).length;
+        if (edMustCount !== origMustCount) diffHints.push(label + '：必含元素 ' + origMustCount + ' → ' + edMustCount);
+      });
+      if (diffHints.length > 0 && !confirm('本次修改概要：\n' + diffHints.join('\n') + '\n\n确认生成？')) {
+        return;
+      }
+
       closeInspector();
       startImageGen(editedPrompts);
     }
 
-    if (piCloseBtn) piCloseBtn.addEventListener('click', closeInspector);
+    /* C3: 质量分计算 */
+    function updateQualityScore() {
+      if (!_piCurrentPrompts.length) return;
+      var totalScore = 0;
+      var details = [];
+      var slots = piSlots.querySelectorAll('.pi-slot-card');
+      var slotCount = slots.length || 1;
+
+      slots.forEach(function(slotEl) {
+        var subjectTa = slotEl.querySelector('[data-field="subject"]');
+        var subjectLen = (subjectTa ? subjectTa.value.trim().length : 0);
+        var subjectScore = Math.min(30, Math.round(subjectLen / 3));
+        totalScore += subjectScore;
+
+        var styleWrap = slotEl.querySelector('[data-field="style_tags"]');
+        var styleCount = styleWrap ? styleWrap.querySelectorAll('.pb-chip').length : 0;
+        var styleScore = Math.min(20, styleCount * 10);
+        totalScore += styleScore;
+
+        var mustWrap = slotEl.querySelector('[data-field="must_include"]');
+        var mustCount = mustWrap ? mustWrap.querySelectorAll('.pb-chip').length : 0;
+        var mustScore = Math.min(15, mustCount * 5);
+        totalScore += mustScore;
+
+        var avoidWrap = slotEl.querySelector('[data-field="avoid_items"]');
+        var avoidCount = avoidWrap ? avoidWrap.querySelectorAll('.pb-chip').length : 0;
+        var negTa = slotEl.querySelector('[data-field="negative_prompt"]');
+        var negLen = (negTa ? negTa.value.trim().length : 0);
+        var avoidScore = Math.min(15, avoidCount * 5 + (negLen > 0 ? 5 : 0));
+        totalScore += avoidScore;
+
+        var refImg = slotEl.querySelector('img[src]');
+        var refScore = refImg ? 10 : 0;
+        totalScore += refScore;
+      });
+
+      var avgScore = Math.round(totalScore / slotCount);
+      var maxPossible = 90;
+      var pct = Math.min(100, Math.round(avgScore / maxPossible * 100));
+      var color = pct >= 70 ? '#2e7d32' : (pct >= 40 ? '#f57c00' : '#c62828');
+      var bg = pct >= 70 ? '#e8f5e9' : (pct >= 40 ? '#fff3e0' : '#ffebee');
+
+      var badge = document.getElementById('pb-quality-badge');
+      var scoreFill = document.getElementById('pb-score-fill');
+      var scoreText = document.getElementById('pb-score-text');
+      var qualityBar = document.getElementById('pb-quality-bar');
+
+      if (badge) { badge.textContent = avgScore + ' 分'; badge.style.display = 'inline-block'; badge.style.background = bg; badge.style.color = color; }
+      if (scoreFill) { scoreFill.style.width = pct + '%'; scoreFill.style.background = color; }
+      if (scoreText) { scoreText.textContent = avgScore + ' / ' + maxPossible; scoreText.style.color = color; }
+      if (qualityBar) qualityBar.style.display = 'block';
+    }
+
     if (piCancelBtn) piCancelBtn.addEventListener('click', closeInspector);
     if (piConfirmBtn) piConfirmBtn.addEventListener('click', confirmGenerate);
-    if (piOverlay) piOverlay.addEventListener('click', function(e) { if (e.target === piOverlay) closeInspector(); });
+
+    /* D2: 保存提示词 */
+    var savePromptsBtn = document.getElementById('pi-save-prompts');
+    if (savePromptsBtn) {
+      savePromptsBtn.addEventListener('click', function() {
+        var collected = _collectAllSlots();
+        savePromptsBtn.disabled = true;
+        savePromptsBtn.textContent = '保存中…';
+        fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/save-prompts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompts: collected })
+        })
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+        .then(function(d) {
+          savePromptsBtn.disabled = false;
+          savePromptsBtn.textContent = '已保存 ✓';
+          setTimeout(function() { savePromptsBtn.textContent = '保存提示词'; }, 2000);
+        })
+        .catch(function() {
+          savePromptsBtn.disabled = false;
+          savePromptsBtn.textContent = '保存提示词';
+          showError('保存失败');
+        });
+      });
+    }
+
+    function _collectAllSlots() {
+      var areas = piSlots.querySelectorAll('textarea');
+      var edits = {};
+      areas.forEach(function(ta) {
+        var slot = ta.getAttribute('data-slot');
+        var field = ta.getAttribute('data-field');
+        if (!edits[slot]) edits[slot] = { slot_id: slot };
+        edits[slot][field] = ta.value;
+      });
+      var chipWraps = piSlots.querySelectorAll('.pb-chips-wrap');
+      chipWraps.forEach(function(w) {
+        var slot = w.getAttribute('data-slot');
+        var field = w.getAttribute('data-field');
+        if (!edits[slot]) edits[slot] = { slot_id: slot };
+        edits[slot][field] = _collectChips(w);
+      });
+      return Object.values(edits);
+    }
+
+    /* source hint */
+    var sourceHint = document.getElementById('pb-source-hint');
+    function showSourceHint(source) {
+      if (!sourceHint) return;
+      if (source === 'saved') {
+        sourceHint.style.display = 'block';
+        sourceHint.textContent = '已加载上次保存的提示词，可继续编辑';
+      } else {
+        sourceHint.style.display = 'none';
+      }
+    }
+
+    /* E1: 评价按钮 */
+    function submitFeedback(roundIdx, slotId, rating, btnEl) {
+      btnEl.disabled = true;
+      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ round_idx: roundIdx, slot_id: slotId, rating: rating })
+      })
+      .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+      .then(function() {
+        var parent = btnEl.parentElement;
+        if (parent) {
+          parent.querySelectorAll('button').forEach(function(b) {
+            b.style.opacity = '0.4'; b.disabled = true;
+          });
+          btnEl.style.opacity = '1';
+        }
+      })
+      .catch(function() { btnEl.disabled = false; });
+    }
+
+    /* D3: 历史复用 */
+    function reuseHistoryPrompts(roundIdx) {
+      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/history')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (!d || !d.history) return;
+        var history = d.history;
+        if (roundIdx < 0 || roundIdx >= history.length) return;
+        var round = history[roundIdx];
+        if (!round.prompt_log || !round.prompt_log.length) return;
+        var fakePrompts = round.prompt_log.map(function(pl) {
+          return {
+            slot_id: pl.slot_id,
+            subject: pl.subject || pl.final_prompt || '',
+            prompt_text: pl.final_prompt || '',
+            negative_prompt: pl.final_negative || '',
+            style_tags: pl.style_tags || [],
+            must_include: pl.must_include || [],
+            avoid_items: pl.avoid_items || [],
+            ref_image_url: pl.has_ref ? '(参考图)' : '',
+            sources: pl.sources || [],
+            size: '1024*1024'
+          };
+        });
+        pbPanel.style.display = 'block';
+        _pbExpanded = true;
+        pbBody.style.display = 'block';
+        _piCurrentPrompts = fakePrompts;
+        renderInspectorSlots(fakePrompts, '', 0);
+        piSlots.style.display = 'block';
+        piActions.style.display = 'flex';
+        piLoading.style.display = 'none';
+        showSourceHint('reused');
+        if (sourceHint) { sourceHint.textContent = '已从第 ' + (roundIdx + 1) + ' 轮历史加载提示词'; sourceHint.style.display = 'block'; }
+        updateQualityScore();
+      });
+    }
+
+    /* G2: AI 优化提示词 */
+    function aiOptimizeSlot(btnEl) {
+      var slotId = btnEl.getAttribute('data-slot');
+      var card = btnEl.closest('.pi-slot-card');
+      if (!card) return;
+
+      var subjectTa = card.querySelector('[data-field="subject"]');
+      var negTa = card.querySelector('[data-field="negative_prompt"]');
+      var styleWrap = card.querySelector('[data-field="style_tags"]');
+      var mustWrap = card.querySelector('[data-field="must_include"]');
+      var avoidWrap = card.querySelector('[data-field="avoid_items"]');
+
+      var promptData = {
+        slot_id: slotId,
+        subject: subjectTa ? subjectTa.value : '',
+        style_tags: styleWrap ? _collectChips(styleWrap) : [],
+        must_include: mustWrap ? _collectChips(mustWrap) : [],
+        avoid_items: avoidWrap ? _collectChips(avoidWrap) : [],
+      };
+
+      btnEl.disabled = true;
+      btnEl.textContent = '优化中…';
+
+      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/optimize-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptData })
+      })
+      .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+      .then(function(d) {
+        btnEl.disabled = false;
+        btnEl.textContent = 'AI 优化提示词';
+        var res = d.result;
+        if (!res || !res.optimized) {
+          showError(res.explanation || '优化失败');
+          return;
+        }
+        if (subjectTa && res.subject) subjectTa.value = res.subject;
+        if (negTa && res.avoid_items && res.avoid_items.length) {
+          negTa.value = res.avoid_items.join('、');
+        }
+        _replaceChips(styleWrap, res.style_tags || []);
+        _replaceChips(mustWrap, res.must_include || []);
+        _replaceChips(avoidWrap, res.avoid_items || []);
+        updateQualityScore();
+        if (res.explanation) {
+          alert('AI 优化说明：\n' + res.explanation);
+        }
+      })
+      .catch(function() {
+        btnEl.disabled = false;
+        btnEl.textContent = 'AI 优化提示词';
+        showError('AI 优化请求失败');
+      });
+    }
+
+    function _replaceChips(wrap, values) {
+      if (!wrap) return;
+      var chips = wrap.querySelectorAll('.pb-chip');
+      chips.forEach(function(c) { c.parentElement.removeChild(c); });
+      var input = wrap.querySelector('.pb-chip-input');
+      (values || []).forEach(function(v) {
+        var chip = document.createElement('span');
+        chip.className = 'pb-chip';
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:2px;font-size:11px;padding:2px 8px;border-radius:12px;background:rgba(138,75,47,0.08);color:var(--ink);';
+        chip.innerHTML = esc(v) + '<span class="pb-chip-x" style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1;margin-left:2px;" onclick="removeChip(this)">&times;</span>';
+        if (input) wrap.insertBefore(chip, input);
+        else wrap.appendChild(chip);
+      });
+    }
 
     /* ── 实际生图提交 ── */
     function startImageGen(editedPrompts) {
@@ -1155,6 +1534,7 @@
           imgStatusText.textContent = '图片生成完成：' + (p.completed || 0) + '/' + (p.total || 0) + ' 张成功';
           setTimeout(function() { imgStatusEl.style.display = 'none'; }, 8000);
           loadGenHistory();
+          enableCompareView();
         } catch(e) {}
       });
     }
@@ -1203,15 +1583,29 @@
         html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:' + (successCount === totalCount ? '#e8f5e9' : '#fff3e0') + ';color:' + (successCount === totalCount ? '#2e7d32' : '#e65100') + ';">' + successCount + '/' + totalCount + ' 成功</span>';
         html += '</div>';
 
-        /* results thumbnails */
+        /* results thumbnails with ratings (E1) */
+        var realIdx = history.length - 1 - idx;
         var completed = (round.results || []).filter(function(r) { return r.status === 'completed' && r.image_url; });
         if (completed.length) {
           html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
           completed.forEach(function(r) {
+            var currentRating = r.rating || '';
+            html += '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">';
             html += '<div style="width:48px;height:48px;border-radius:4px;overflow:hidden;border:1px solid var(--border);cursor:pointer;" title="' + esc(r.slot_id) + '" onclick="previewCanvas.updateImage(\'note-preview-phone\',\'' + esc(r.slot_id) + '\',\'' + esc(r.image_url) + '\')"><img src="' + esc(r.image_url) + '" style="width:100%;height:100%;object-fit:cover;"></div>';
+            html += '<div style="display:flex;gap:1px;">';
+            ['good','ok','bad'].forEach(function(rt) {
+              var icons = { good: '👍', ok: '➖', bad: '👎' };
+              var active = currentRating === rt ? 'opacity:1' : 'opacity:0.3';
+              html += '<button type="button" style="font-size:10px;border:none;background:none;cursor:pointer;padding:0 2px;' + active + '" onclick="submitFeedback(' + realIdx + ',\'' + esc(r.slot_id) + '\',\'' + rt + '\',this)" title="' + rt + '">' + icons[rt] + '</button>';
+            });
+            html += '</div></div>';
           });
           html += '</div>';
         }
+        /* D3: 复用按钮 */
+        html += '<div style="display:flex;gap:6px;margin-bottom:4px;">';
+        html += '<button type="button" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--accent);cursor:pointer;" onclick="reuseHistoryPrompts(' + realIdx + ')">复用此提示词</button>';
+        html += '</div>';
 
         /* prompt log expandable */
         if (round.prompt_log && round.prompt_log.length) {
@@ -1240,6 +1634,46 @@
       historyBtn.addEventListener('click', function() {
         _historyVisible = !_historyVisible;
         historyPanel.style.display = _historyVisible ? 'block' : 'none';
+      });
+    }
+
+    /* ── B2: 原图 vs 生成图对比 ── */
+    var compareView = document.getElementById('note-compare-view');
+    var compareToggle = document.getElementById('note-compare-toggle');
+    var compareBtn = document.getElementById('btn-toggle-compare');
+    var _compareVisible = false;
+
+    function enableCompareView() {
+      if (!compareToggle || !currentDraft) return;
+      compareToggle.style.display = 'block';
+    }
+
+    if (compareBtn) {
+      compareBtn.addEventListener('click', function() {
+        _compareVisible = !_compareVisible;
+        compareBtn.textContent = _compareVisible ? '切换单图预览' : '切换原图对比';
+        if (_compareVisible && currentDraft) {
+          compareView.style.display = 'block';
+          var variantA = {
+            title: '原始笔记',
+            cover_image: '',
+            body: ''
+          };
+          {% if source_notes %}
+          {% set first_nc = source_notes[0].get('note_context', {}) if source_notes[0] is mapping else {} %}
+          variantA.title = {{ (first_nc.get('title', '原始笔记') | tojson) }};
+          variantA.cover_image = {{ (first_nc.get('cover_image', '') | tojson) }};
+          variantA.body = {{ (first_nc.get('desc', '') | tojson) }};
+          {% endif %}
+          var variantB = {
+            title: currentDraft.title || '生成笔记',
+            cover_image: (currentDraft.images && currentDraft.images.length && currentDraft.images[0].image_url) || '',
+            body: currentDraft.body || ''
+          };
+          previewCanvas.renderVariantCompare([variantA, variantB], 'note-compare-view');
+        } else {
+          compareView.style.display = 'none';
+        }
       });
     }
 
