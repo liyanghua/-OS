@@ -1183,7 +1183,16 @@ def _build_rich_prompts(
     match_result = session.get("match_result") if session else None
 
     ref_image_urls: list[str] = []
-    if gen_mode == "ref_image":
+    source_images = session.get("source_images") if session else None
+    if isinstance(source_images, list) and source_images:
+        for si in source_images:
+            cover = si.get("cover_image", "") if isinstance(si, dict) else ""
+            if cover:
+                ref_image_urls.append(cover)
+            for img in (si.get("image_urls", []) if isinstance(si, dict) else []):
+                if img and img != cover:
+                    ref_image_urls.append(img)
+    if gen_mode == "ref_image" and not ref_image_urls:
         try:
             from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
             adapter = IntelHubAdapter()

@@ -44,6 +44,8 @@ class ImageResult(BaseModel):
     final_negative_prompt: str = ""
     gen_mode: str = ""
     user_edited: bool = False
+    prompt_sent: str = Field(default="", description="实际发送给模型的完整提示词")
+    ref_image_sent: str = Field(default="", description="实际发送的参考图 URL")
 
 
 class PromptSource(BaseModel):
@@ -155,18 +157,29 @@ class ImageGeneratorService:
             return ImageResult(slot_id=prompt.slot_id, status="failed",
                                error="通义万相不可用（缺少 DASHSCOPE_API_KEY）")
 
-        if self._is_openrouter_available():
-            result = self._generate_openrouter(prompt, opportunity_id, on_progress)
+        # auto 模式：DashScope 优先（更稳定），OpenRouter 备用
+        if self._is_dashscope_available():
+            result = self._generate_dashscope(prompt, opportunity_id, on_progress)
             if result.status == "completed":
                 return result
-            logger.warning("OpenRouter failed for slot=%s: %s, trying DashScope", prompt.slot_id, result.error)
+            logger.warning("DashScope failed for slot=%s: %s, trying OpenRouter", prompt.slot_id, result.error)
 
-        if self._is_dashscope_available():
-            return self._generate_dashscope(prompt, opportunity_id, on_progress)
+        if self._is_openrouter_available():
+            return self._generate_openrouter(prompt, opportunity_id, on_progress)
 
         return ImageResult(slot_id=prompt.slot_id, status="failed", error="所有图片生成通道不可用")
 
     # ── OpenRouter / Gemini ──────────────────────────────────────────
+
+    @staticmethod
+    def _sanitize_prompt_for_openrouter(text: str) -> str:
+        """Clean prompt text to reduce ToS false-positive rejections."""
+        import re
+        cleaned = text.strip()
+        cleaned = re.sub(r'[^\w\s，。、：；！？""''（）\-,.:;!?\'"()\[\]{}#@&+=/\n]', '', cleaned)
+        if len(cleaned) > 600:
+            cleaned = cleaned[:600]
+        return cleaned
 
     def _generate_openrouter(
         self,
@@ -183,17 +196,31 @@ class ImageGeneratorService:
                 api_key=self._openrouter_key,
             )
 
-            text_instruction = f"Generate a high-quality image for Xiaohongshu (Little Red Book) post.\n\nDescription: {prompt.prompt}"
-            if prompt.negative_prompt:
-                text_instruction += f"\n\nAvoid: {prompt.negative_prompt}"
+            safe_prompt = self._sanitize_prompt_for_openrouter(prompt.prompt)
+            safe_negative = self._sanitize_prompt_for_openrouter(prompt.negative_prompt) if prompt.negative_prompt else ""
+
+            text_instruction = (
+                "Generate a beautiful, high-quality photograph or illustration. "
+                "This is for a lifestyle social media post.\n\n"
+                f"Scene description: {safe_prompt}"
+            )
+            if safe_negative:
+                text_instruction += f"\n\nPlease avoid: {safe_negative}"
+
+            _prompt_sent = text_instruction
 
             logger.info("OpenRouter request: slot=%s, model=%s, has_ref=%s, prompt_len=%d",
-                        prompt.slot_id, self._openrouter_model, bool(prompt.ref_image_url), len(prompt.prompt))
+                        prompt.slot_id, self._openrouter_model, bool(prompt.ref_image_url), len(safe_prompt))
 
             if prompt.ref_image_url:
-                text_instruction = f"Using the attached image as style and composition reference, generate a new high-quality image.\n\nDescription: {prompt.prompt}"
-                if prompt.negative_prompt:
-                    text_instruction += f"\n\nAvoid: {prompt.negative_prompt}"
+                text_instruction = (
+                    "Using the attached image as a style and composition reference, "
+                    "generate a new beautiful photograph or illustration for a lifestyle post.\n\n"
+                    f"Scene description: {safe_prompt}"
+                )
+                if safe_negative:
+                    text_instruction += f"\n\nPlease avoid: {safe_negative}"
+                _prompt_sent = text_instruction
                 user_msg_content: Any = [
                     {"type": "image_url", "image_url": {"url": prompt.ref_image_url}},
                     {"type": "text", "text": text_instruction},
@@ -207,6 +234,7 @@ class ImageGeneratorService:
                     {"role": "user", "content": user_msg_content},
                 ],
                 max_tokens=4096,
+                extra_body={"provider": {"allow_fallbacks": True}},
             )
 
             raw_json = json.loads(raw_response.text.strip())
@@ -233,8 +261,9 @@ class ImageGeneratorService:
                             logger.info("OpenRouter image (via images[]): slot=%s elapsed=%dms", prompt.slot_id, elapsed)
                             if on_progress:
                                 on_progress(prompt.slot_id, "completed", {"image_url": serve_url, "provider": "openrouter"})
+                            _trace = dict(prompt_sent=_prompt_sent, ref_image_sent=prompt.ref_image_url)
                             return ImageResult(slot_id=prompt.slot_id, status="completed",
-                                               image_url=serve_url, elapsed_ms=elapsed, provider="openrouter")
+                                               image_url=serve_url, elapsed_ms=elapsed, provider="openrouter", **_trace)
 
             content = msg.get("content") or ""
             if content:
@@ -245,8 +274,9 @@ class ImageGeneratorService:
                     logger.info("OpenRouter image (via content): slot=%s elapsed=%dms", prompt.slot_id, elapsed)
                     if on_progress:
                         on_progress(prompt.slot_id, "completed", {"image_url": serve_url, "provider": "openrouter"})
+                    _trace = dict(prompt_sent=_prompt_sent, ref_image_sent=prompt.ref_image_url)
                     return ImageResult(slot_id=prompt.slot_id, status="completed",
-                                       image_url=serve_url, elapsed_ms=elapsed, provider="openrouter")
+                                       image_url=serve_url, elapsed_ms=elapsed, provider="openrouter", **_trace)
 
             image_path = self._extract_multipart_image(msg, opportunity_id, prompt.slot_id)
             if image_path:
@@ -254,18 +284,22 @@ class ImageGeneratorService:
                 serve_url = f"/generated-images/{opportunity_id}/{image_path.name}"
                 if on_progress:
                     on_progress(prompt.slot_id, "completed", {"image_url": serve_url, "provider": "openrouter"})
+                _trace = dict(prompt_sent=_prompt_sent, ref_image_sent=prompt.ref_image_url)
                 return ImageResult(slot_id=prompt.slot_id, status="completed",
-                                   image_url=serve_url, elapsed_ms=elapsed, provider="openrouter")
+                                   image_url=serve_url, elapsed_ms=elapsed, provider="openrouter", **_trace)
 
             elapsed = int((time.perf_counter() - t0) * 1000)
             return ImageResult(slot_id=prompt.slot_id, status="failed",
-                               error="OpenRouter 响应中未找到图片数据", elapsed_ms=elapsed, provider="openrouter")
+                               error="OpenRouter 响应中未找到图片数据", elapsed_ms=elapsed, provider="openrouter",
+                               prompt_sent=_prompt_sent, ref_image_sent=prompt.ref_image_url)
 
         except Exception as exc:
             elapsed = int((time.perf_counter() - t0) * 1000)
             logger.warning("OpenRouter image gen error: %s", exc, exc_info=True)
             return ImageResult(slot_id=prompt.slot_id, status="failed",
-                               error=f"OpenRouter: {exc}", elapsed_ms=elapsed, provider="openrouter")
+                               error=f"OpenRouter: {exc}", elapsed_ms=elapsed, provider="openrouter",
+                               prompt_sent=locals().get("_prompt_sent", prompt.prompt),
+                               ref_image_sent=prompt.ref_image_url)
 
     def _extract_and_save_image(self, content: str, opportunity_id: str, slot_id: str) -> Path | None:
         """从响应内容中提取 base64 图片或 URL 并保存。"""
@@ -334,6 +368,7 @@ class ImageGeneratorService:
     ) -> ImageResult:
         from dashscope import ImageSynthesis
 
+        _ds_trace = dict(prompt_sent=prompt.prompt, ref_image_sent=prompt.ref_image_url)
         t0 = time.perf_counter()
         try:
             if prompt.ref_image_url:
@@ -380,7 +415,7 @@ class ImageGeneratorService:
                 elapsed = int((time.perf_counter() - t0) * 1000)
                 err_msg = f"提交任务失败: {rsp.get('code', '')} {rsp.get('message', '')}"
                 return ImageResult(slot_id=prompt.slot_id, status="failed",
-                                   error=err_msg, elapsed_ms=elapsed, provider="dashscope")
+                                   error=err_msg, elapsed_ms=elapsed, provider="dashscope", **_ds_trace)
 
             task_id = rsp.output.get("task_id", "")
             logger.info("DashScope task submitted: slot=%s task_id=%s", prompt.slot_id, task_id)
@@ -402,7 +437,7 @@ class ImageGeneratorService:
                             if on_progress:
                                 on_progress(prompt.slot_id, "completed", {"image_url": serve_url, "provider": "dashscope"})
                             return ImageResult(slot_id=prompt.slot_id, status="completed",
-                                               image_url=serve_url, elapsed_ms=elapsed, provider="dashscope")
+                                               image_url=serve_url, elapsed_ms=elapsed, provider="dashscope", **_ds_trace)
                     break
 
                 if task_status in ("FAILED", "UNKNOWN"):
@@ -411,11 +446,11 @@ class ImageGeneratorService:
                     if on_progress:
                         on_progress(prompt.slot_id, "failed", {"error": err})
                     return ImageResult(slot_id=prompt.slot_id, status="failed",
-                                       error=err, elapsed_ms=elapsed, provider="dashscope")
+                                       error=err, elapsed_ms=elapsed, provider="dashscope", **_ds_trace)
 
             elapsed = int((time.perf_counter() - t0) * 1000)
             return ImageResult(slot_id=prompt.slot_id, status="failed",
-                               error="DashScope 生成超时", elapsed_ms=elapsed, provider="dashscope")
+                               error="DashScope 生成超时", elapsed_ms=elapsed, provider="dashscope", **_ds_trace)
 
         except Exception as exc:
             elapsed = int((time.perf_counter() - t0) * 1000)
@@ -423,7 +458,7 @@ class ImageGeneratorService:
             if on_progress:
                 on_progress(prompt.slot_id, "failed", {"error": str(exc)})
             return ImageResult(slot_id=prompt.slot_id, status="failed",
-                               error=str(exc), elapsed_ms=elapsed, provider="dashscope")
+                               error=str(exc), elapsed_ms=elapsed, provider="dashscope", **_ds_trace)
 
     # ── 共用工具 ─────────────────────────────────────────────────────
 

@@ -40,24 +40,47 @@ class QuickDraftGenerator:
             LLMMessage(role="user", content=full_user),
         ]
 
+        import time as _time
+        t0 = _time.perf_counter()
+        trace: dict[str, Any] = {
+            "operation": "quick_draft",
+            "model": getattr(llm_router, "_model", "unknown"),
+            "input_messages": [{"role": m.role, "content": m.content[:500]} for m in messages],
+            "status": "pending",
+        }
         try:
             response = llm_router.chat(
                 messages, temperature=0.55, max_tokens=4096,
             )
+            elapsed = int((_time.perf_counter() - t0) * 1000)
+            trace["latency_ms"] = elapsed
+            trace["output_raw"] = response.content[:1000] if response.content else ""
+            trace["status"] = "degraded" if response.degraded else "success"
+
             if response.degraded or not response.content.strip():
                 logger.warning("LLM degraded for quick_draft, falling back to rules")
-                return self._rule_fallback(brief, card)
+                result = self._rule_fallback(brief, card)
+                result["llm_trace"] = trace
+                return result
 
             draft = self._parse_response(response.content)
             if not draft.get("selected_title") and not draft.get("final_body"):
-                return self._rule_fallback(brief, card)
+                result = self._rule_fallback(brief, card)
+                result["llm_trace"] = trace
+                return result
             draft.setdefault("character_count", len(draft.get("final_body", "")))
             draft["mode"] = "llm"
+            draft["llm_trace"] = trace
             return draft
 
         except Exception:
+            elapsed = int((_time.perf_counter() - t0) * 1000)
+            trace["latency_ms"] = elapsed
+            trace["status"] = "error"
             logger.warning("QuickDraft LLM failed, falling back", exc_info=True)
-            return self._rule_fallback(brief, card)
+            result = self._rule_fallback(brief, card)
+            result["llm_trace"] = trace
+            return result
 
     def _build_user_prompt(
         self,

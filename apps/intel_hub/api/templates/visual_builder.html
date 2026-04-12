@@ -1,0 +1,705 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set _card = card if card is not none else {} %}
+{% set _brief = brief if brief is not none else {} %}
+{% set _strategy = strategy if strategy is not none else {} %}
+{% set _si = source_images if source_images is not none else [] %}
+
+<style>
+  body .shell { max-width: 1680px; }
+  .vb-topbar { display:flex; align-items:center; gap:10px; padding:10px 16px; margin-bottom:14px; background:var(--surface); border:1px solid var(--border); border-radius:14px; }
+  .vb-topbar h2 { font-size:15px; font-weight:700; color:var(--ink); margin:0; }
+  .vb-topbar .vb-back { font-size:12px; color:var(--accent); text-decoration:none; }
+  .vb-topbar .vb-back:hover { text-decoration:underline; }
+  .vb-layout { display:grid; grid-template-columns:280px 1fr 380px; gap:14px; min-height:80vh; padding-bottom:44px; }
+  @media(max-width:1100px) { .vb-layout { grid-template-columns:1fr; } }
+
+  .vb-panel { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; overflow-y:auto; max-height:85vh; }
+  .vb-panel h3 { font-size:13px; font-weight:700; color:var(--ink); margin:0 0 10px; }
+  .vb-panel h4 { font-size:12px; font-weight:600; color:var(--ink); margin:8px 0 6px; }
+  .vb-label { font-size:11px; color:var(--muted); margin-bottom:2px; }
+  .vb-text { font-size:12px; color:var(--ink); line-height:1.6; margin-bottom:8px; word-break:break-all; }
+
+  .vb-ref-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-bottom:10px; }
+  .vb-ref-img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:8px; border:1px solid var(--border); cursor:pointer; transition:transform 0.15s; }
+  .vb-ref-img:hover { transform:scale(1.04); }
+  .vb-ref-main { grid-column:1/3; aspect-ratio:auto; max-height:220px; }
+  .vb-brief-card { background:rgba(138,75,47,0.04); border:1px solid rgba(138,75,47,0.12); border-radius:10px; padding:10px; margin-bottom:10px; }
+
+  .vb-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:10px 0; }
+  .vb-btn { font-size:12px; padding:6px 14px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--ink); cursor:pointer; }
+  .vb-btn:hover { background:rgba(138,75,47,0.06); }
+  .vb-btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .vb-btn-primary:hover { opacity:0.9; }
+  .vb-sel { font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--ink); cursor:pointer; }
+
+  .vb-preview-area { display:flex; flex-direction:column; align-items:center; }
+  .vb-compare-row { display:flex; gap:16px; justify-content:center; overflow-x:auto; padding:8px 0; }
+
+  /* floating log panel */
+  .vb-log-dock { position:fixed; bottom:0; left:0; right:0; z-index:900; display:flex; flex-direction:column; background:var(--surface); border-top:2px solid var(--accent); box-shadow:0 -2px 12px rgba(0,0,0,0.08); transition:height 0.15s ease; }
+  .vb-log-dock.collapsed { height:36px !important; }
+  .vb-log-titlebar { display:flex; align-items:center; gap:8px; padding:6px 16px; cursor:ns-resize; user-select:none; flex-shrink:0; border-bottom:1px solid var(--border); background:rgba(138,75,47,0.03); }
+  .vb-log-titlebar h4 { font-size:12px; font-weight:700; margin:0; color:var(--ink); flex:1; }
+  .vb-log-titlebar button { font-size:11px; padding:2px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--ink); cursor:pointer; }
+  .vb-log-titlebar button:hover { background:rgba(138,75,47,0.06); }
+  .vb-log-body { flex:1; overflow-y:auto; padding:8px 16px; }
+  .vb-log-empty { font-size:11px; color:var(--muted); padding:8px; }
+
+  .vb-trace-card { background:rgba(0,0,0,0.02); border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin-bottom:6px; font-size:11px; }
+  .vb-trace-header { display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+  .vb-trace-badge { font-size:10px; padding:1px 6px; border-radius:999px; font-weight:600; }
+  .vb-trace-badge-ok { background:#dcfce7; color:#166534; }
+  .vb-trace-badge-err { background:#fee2e2; color:#991b1b; }
+  .vb-trace-badge-pending { background:#fef9c4; color:#92400e; }
+  .vb-trace-body { display:none; margin-top:6px; border-top:1px solid var(--border); padding-top:6px; }
+  .vb-trace-body.open { display:block; }
+  .vb-trace-pre { font-family:monospace; font-size:10px; white-space:pre-wrap; word-break:break-all; background:rgba(0,0,0,0.03); border-radius:4px; padding:6px; max-height:180px; overflow-y:auto; }
+
+  .vb-pb-slot { background:rgba(138,75,47,0.03); border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:8px; }
+  .vb-pb-field-label { font-size:10px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:3px; }
+  .vb-pb-textarea { width:100%; font-size:11px; border:1px solid var(--border); border-radius:6px; padding:6px; background:var(--surface); color:var(--ink); resize:vertical; min-height:40px; }
+  .vb-chips-wrap { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .vb-chip { display:inline-flex; align-items:center; gap:2px; font-size:11px; padding:2px 8px; border-radius:12px; background:rgba(138,75,47,0.08); color:var(--ink); }
+  .vb-chip-x { cursor:pointer; color:var(--muted); font-size:14px; line-height:1; margin-left:2px; }
+  .vb-chip-input { flex:1; min-width:60px; font-size:11px; border:none; background:transparent; outline:none; color:var(--ink); padding:2px 0; }
+
+  .vb-quality-bar { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin:6px 0 4px; }
+  .vb-quality-fill { height:100%; background:var(--accent); border-radius:3px; transition:width 0.3s; }
+  .vb-quality-text { font-size:10px; color:var(--muted); text-align:right; }
+
+  .vb-history-card { background:rgba(0,0,0,0.02); border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:6px; }
+  .vb-history-thumbs { display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }
+  .vb-history-thumb { width:48px; height:48px; border-radius:4px; overflow:hidden; border:1px solid var(--border); cursor:pointer; }
+  .vb-history-thumb img { width:100%; height:100%; object-fit:cover; }
+  .vb-fb-btn { font-size:10px; border:none; background:none; cursor:pointer; padding:0 2px; }
+
+  .vb-empty { text-align:center; padding:40px 20px; color:var(--muted); font-size:13px; }
+</style>
+
+<div class="vb-topbar">
+  <a href="{{ back_url }}" class="vb-back">&larr; 返回策划台</a>
+  <h2>视觉工作台</h2>
+  <span style="font-size:11px;color:var(--muted);">{{ _card.get('opportunity_title','') or _card.get('title','') }}</span>
+</div>
+
+<div class="vb-layout">
+  {# ═══ 左栏：来源与证据 ═══ #}
+  <div class="vb-panel" id="vb-left">
+    <h3>来源笔记</h3>
+    {% for si in _si[:5] %}
+    <div style="margin-bottom:10px;">
+      {% if si.get('title') %}<div class="vb-label">{{ si.title }}</div>{% endif %}
+      <div class="vb-ref-grid">
+        {% if si.get('cover_image') %}
+        <img class="vb-ref-img vb-ref-main" src="{{ si.cover_image }}" alt="封面" loading="lazy" onclick="window.open(this.src)">
+        {% endif %}
+        {% for img_url in (si.get('image_urls') or [])[:6] %}
+          {% if img_url != si.get('cover_image','') %}
+          <img class="vb-ref-img" src="{{ img_url }}" alt="参考图" loading="lazy" onclick="window.open(this.src)">
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    {% if not _si %}<div class="vb-empty">暂无来源笔记图片</div>{% endif %}
+
+    <h3 style="margin-top:14px;">Brief 摘要</h3>
+    <div class="vb-brief-card">
+      {% if _brief.get('visual_direction') %}<div class="vb-label">视觉方向</div><div class="vb-text">{{ _brief.visual_direction }}</div>{% endif %}
+      {% if _brief.get('cover_direction') %}<div class="vb-label">封面方向</div><div class="vb-text">{{ _brief.cover_direction }}</div>{% endif %}
+      {% if _brief.get('target_user') %}<div class="vb-label">目标用户</div><div class="vb-text">{{ _brief.target_user }}</div>{% endif %}
+      {% if _brief.get('target_scene') %}<div class="vb-label">目标场景</div><div class="vb-text">{{ _brief.target_scene if _brief.target_scene is string else ', '.join(_brief.target_scene) }}</div>{% endif %}
+      {% if _brief.get('content_goal') %}<div class="vb-label">内容目标</div><div class="vb-text">{{ _brief.content_goal }}</div>{% endif %}
+    </div>
+
+    {% if _strategy %}
+    <h3>策略摘要</h3>
+    <div class="vb-brief-card">
+      {% if _strategy is mapping %}
+        {% if _strategy.get('summary') %}<div class="vb-text">{{ _strategy.summary }}</div>{% endif %}
+        {% if _strategy.get('image_strategy') %}<div class="vb-label">图片策略</div><div class="vb-text">{{ _strategy.image_strategy }}</div>{% endif %}
+      {% elif _strategy is iterable %}
+        {% set last_s = _strategy[-1] if _strategy else {} %}
+        {% if last_s is mapping %}
+          {% if last_s.get('summary') %}<div class="vb-text">{{ last_s.summary }}</div>{% endif %}
+          {% if last_s.get('image_strategy') %}<div class="vb-label">图片策略</div><div class="vb-text">{{ last_s.image_strategy }}</div>{% endif %}
+        {% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# ═══ 中栏：预览画布 + 操作 ═══ #}
+  <div class="vb-panel" id="vb-center">
+    <h3>笔记预览</h3>
+    <div class="vb-actions">
+      <button class="vb-btn vb-btn-primary" id="vb-btn-gen-draft">一键生成预览</button>
+      <button class="vb-btn" id="vb-btn-regen" style="display:none;">重新生成</button>
+      <select id="vb-sel-mode" class="vb-sel" title="生图模式">
+        <option value="ref_image">参考图+提示词</option>
+        <option value="prompt_only">纯提示词</option>
+      </select>
+      <select id="vb-sel-provider" class="vb-sel" title="生图模型">
+        <option value="dashscope" selected>通义万相</option>
+        <option value="openrouter">Gemini Nano</option>
+        <option value="auto">自动选择</option>
+      </select>
+      <button class="vb-btn" id="vb-btn-gen-images" style="display:none;">生成配图</button>
+    </div>
+    <div id="vb-preview-area" class="vb-preview-area">
+      <div id="vb-preview-empty" class="vb-empty">点击「一键生成预览」开始</div>
+      <div id="vb-preview-phone" style="display:none;"></div>
+    </div>
+    <div id="vb-image-status" style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px;"></div>
+    <div id="vb-compare-area" style="display:none;">
+      <button class="vb-btn" id="vb-btn-compare" style="margin:8px auto;display:block;">切换原图对比</button>
+      <div id="vb-compare-view"></div>
+    </div>
+  </div>
+
+  {# ═══ 右栏：Prompt 编辑 + LLM 日志 + 历史 ═══ #}
+  <div class="vb-panel" id="vb-right">
+    {# ── LLM 日志入口（详情在底部浮动面板） ── #}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <button class="vb-btn" id="vb-open-log-btn" onclick="vbToggleLogDock()" style="font-size:11px;padding:4px 12px;">
+        LLM 日志 <span id="vb-trace-count-inline" style="font-weight:700;">(0)</span>
+      </button>
+      <span id="vb-trace-last-status" style="font-size:10px;color:var(--muted);"></span>
+    </div>
+
+    {# ── Prompt Builder ── #}
+    <h3 style="margin-top:14px;">Prompt Builder <span id="vb-pb-pref-hint" style="font-size:10px;color:var(--accent);display:none;"></span></h3>
+    <div id="vb-pb-slots"></div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:6px;">
+      <div style="flex:1;">
+        <div class="vb-quality-bar"><div class="vb-quality-fill" id="vb-quality-fill" style="width:0%;"></div></div>
+        <div class="vb-quality-text" id="vb-quality-text">质量评分: --</div>
+      </div>
+      <button class="vb-btn" id="vb-btn-save-prompts" style="display:none;">保存提示词</button>
+      <button class="vb-btn vb-btn-primary" id="vb-btn-confirm-gen" style="display:none;">确认生成</button>
+    </div>
+
+    {# ── 生成历史 ── #}
+    <h3 style="margin-top:14px;">生成历史</h3>
+    <div id="vb-history-panel"></div>
+  </div>
+</div>
+
+{# ═══ 底部浮动日志面板 ═══ #}
+<div class="vb-log-dock collapsed" id="vb-log-dock" style="height:36px;">
+  <div class="vb-log-titlebar" id="vb-log-titlebar">
+    <h4>LLM 调用日志 <span id="vb-trace-count" style="font-size:10px;color:var(--muted);">(0)</span></h4>
+    <button onclick="vbClearTraces()">清除</button>
+    <button onclick="vbToggleLogDock()" id="vb-log-toggle-btn">展开</button>
+  </div>
+  <div class="vb-log-body" id="vb-trace-panel">
+    <div class="vb-log-empty">暂无调用记录</div>
+  </div>
+</div>
+
+{% include "_preview_canvas.html" %}
+
+<script>
+(function() {
+  var oid = '{{ opportunity_id }}';
+  var API = '/content-planning';
+  var currentDraft = null;
+  var _inspectorPrompts = [];
+  var _traceEntries = [];
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  function showError(msg) { alert(msg); }
+
+  // ── LLM Trace 浮动面板 ──
+  var _logDock = document.getElementById('vb-log-dock');
+  var _logDockHeight = 260;
+
+  function addTrace(trace) {
+    if (!trace || !trace.operation) return;
+    trace._ts = new Date().toLocaleTimeString();
+    _traceEntries.push(trace);
+    renderTraces();
+    if (_logDock.classList.contains('collapsed')) vbToggleLogDock();
+  }
+
+  function renderTraces() {
+    var panel = document.getElementById('vb-trace-panel');
+    var countEl = document.getElementById('vb-trace-count');
+    var countInline = document.getElementById('vb-trace-count-inline');
+    var lastStatus = document.getElementById('vb-trace-last-status');
+    if (!panel) return;
+    var cnt = '(' + _traceEntries.length + ')';
+    if (countEl) countEl.textContent = cnt;
+    if (countInline) countInline.textContent = cnt;
+    if (lastStatus && _traceEntries.length) {
+      var last = _traceEntries[_traceEntries.length - 1];
+      var lbl = { success:'完成', error:'失败', parse_error:'解析失败', degraded:'降级', pending:'进行中' }[last.status] || last.status;
+      lastStatus.textContent = last.operation + ' ' + lbl + (last.latency_ms ? ' ' + last.latency_ms + 'ms' : '');
+    }
+    var html = '';
+    for (var i = _traceEntries.length - 1; i >= 0; i--) {
+      var t = _traceEntries[i];
+      var statusCls = t.status === 'success' ? 'vb-trace-badge-ok' : (t.status === 'error' || t.status === 'parse_error' ? 'vb-trace-badge-err' : 'vb-trace-badge-pending');
+      var statusLabel = { success:'完成', error:'失败', parse_error:'解析失败', degraded:'降级', pending:'进行中' }[t.status] || t.status;
+      html += '<div class="vb-trace-card">';
+      html += '<div class="vb-trace-header" onclick="this.nextElementSibling.classList.toggle(\'open\')">';
+      html += '<span><strong>' + esc(t.operation) + '</strong> <span style="color:var(--muted);font-size:10px;">' + esc(t._ts) + '</span></span>';
+      html += '<span><span class="vb-trace-badge ' + statusCls + '">' + statusLabel + '</span>';
+      if (t.latency_ms) html += ' <span style="color:var(--muted);">' + t.latency_ms + 'ms</span>';
+      html += '</span></div>';
+      html += '<div class="vb-trace-body">';
+      if (t.model) html += '<div class="vb-label">模型: ' + esc(t.model) + '</div>';
+      if (t.input_messages) {
+        html += '<div class="vb-label">输入</div><div class="vb-trace-pre">';
+        t.input_messages.forEach(function(m) {
+          html += '[' + esc(m.role) + '] ' + esc(m.content) + '\n\n';
+        });
+        html += '</div>';
+      }
+      if (t.prompt_sent) {
+        html += '<div class="vb-label">发送给模型的 Prompt</div><div class="vb-trace-pre">' + esc(t.prompt_sent) + '</div>';
+      }
+      if (t.ref_image_sent) {
+        html += '<div class="vb-label">参考图</div><div class="vb-text"><img src="' + esc(t.ref_image_sent) + '" style="max-width:120px;border-radius:4px;"></div>';
+      }
+      if (t.output_raw) {
+        html += '<div class="vb-label">输出</div><div class="vb-trace-pre">' + esc(t.output_raw) + '</div>';
+      }
+      if (t.error) html += '<div style="color:#991b1b;">错误: ' + esc(t.error) + '</div>';
+      html += '</div></div>';
+    }
+    panel.innerHTML = html || '<div class="vb-log-empty">暂无调用记录</div>';
+  }
+
+  window.vbToggleLogDock = function() {
+    var dock = _logDock;
+    var btn = document.getElementById('vb-log-toggle-btn');
+    if (dock.classList.contains('collapsed')) {
+      dock.classList.remove('collapsed');
+      dock.style.height = _logDockHeight + 'px';
+      if (btn) btn.textContent = '收起';
+    } else {
+      dock.classList.add('collapsed');
+      dock.style.height = '36px';
+      if (btn) btn.textContent = '展开';
+    }
+  };
+
+  window.vbClearTraces = function() {
+    _traceEntries = [];
+    renderTraces();
+  };
+
+  // drag-to-resize titlebar
+  (function() {
+    var titlebar = document.getElementById('vb-log-titlebar');
+    var dragging = false, startY = 0, startH = 0;
+    titlebar.addEventListener('mousedown', function(e) {
+      if (e.target.tagName === 'BUTTON') return;
+      dragging = true; startY = e.clientY; startH = _logDock.offsetHeight;
+      document.body.style.cursor = 'ns-resize';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!dragging) return;
+      var newH = Math.max(80, Math.min(window.innerHeight * 0.6, startH + (startY - e.clientY)));
+      _logDockHeight = newH;
+      _logDock.style.height = newH + 'px';
+      _logDock.classList.remove('collapsed');
+      document.getElementById('vb-log-toggle-btn').textContent = '收起';
+    });
+    document.addEventListener('mouseup', function() {
+      if (dragging) { dragging = false; document.body.style.cursor = ''; }
+    });
+  })();
+
+  // ── 一键生成预览 ──
+  var genDraftBtn = document.getElementById('vb-btn-gen-draft');
+  var regenBtn = document.getElementById('vb-btn-regen');
+  var phoneEl = document.getElementById('vb-preview-phone');
+  var emptyEl = document.getElementById('vb-preview-empty');
+  var genImgBtn = document.getElementById('vb-btn-gen-images');
+
+  function showDraft(draft) {
+    currentDraft = draft;
+    emptyEl.style.display = 'none';
+    phoneEl.style.display = '';
+    regenBtn.style.display = '';
+    genImgBtn.style.display = '';
+    previewCanvas.renderPreview(draft, 'vb-preview-phone');
+    previewCanvas.enableInlineEdit('vb-preview-phone', function(field, value) {
+      draft[field === 'title' ? 'selected_title' : 'final_body'] = value;
+    });
+    if (draft.llm_trace) addTrace(draft.llm_trace);
+  }
+
+  function generate() {
+    genDraftBtn.disabled = true;
+    if (regenBtn) regenBtn.disabled = true;
+    emptyEl.innerHTML = '<div style="padding:20px;color:var(--muted);">正在生成笔记草稿…</div>';
+    emptyEl.style.display = '';
+    phoneEl.style.display = 'none';
+
+    fetch(API + '/v6/quick-draft/' + oid, { method: 'POST' })
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data) {
+        genDraftBtn.disabled = false;
+        if (regenBtn) regenBtn.disabled = false;
+        var draft = data.draft || data;
+        showDraft(draft);
+      })
+      .catch(function(e) {
+        genDraftBtn.disabled = false;
+        if (regenBtn) regenBtn.disabled = false;
+        emptyEl.innerHTML = '<div class="vb-empty">生成失败: ' + esc(e.message) + '</div>';
+      });
+  }
+
+  genDraftBtn.addEventListener('click', generate);
+  if (regenBtn) regenBtn.addEventListener('click', generate);
+
+  // 加载已有草稿
+  fetch(API + '/v6/quick-draft/' + oid)
+    .then(function(r) { if (!r.ok) return null; return r.json(); })
+    .then(function(data) {
+      if (!data) return;
+      var d = data.draft || data;
+      if (d && d.selected_title) showDraft(d);
+    });
+
+  // ── Prompt Builder ──
+  function renderChips(items, slotId, field, placeholder) {
+    var html = '<div class="vb-chips-wrap" data-slot="' + esc(slotId) + '" data-field="' + esc(field) + '">';
+    (items || []).forEach(function(t) {
+      html += '<span class="vb-chip">' + esc(t) + '<span class="vb-chip-x" onclick="vbRemoveChip(this)">&times;</span></span>';
+    });
+    html += '<input type="text" class="vb-chip-input" placeholder="' + esc(placeholder) + '" onkeydown="vbChipKeydown(event,this)">';
+    html += '</div>';
+    return html;
+  }
+
+  function renderPbSlots(prompts) {
+    _inspectorPrompts = prompts;
+    var container = document.getElementById('vb-pb-slots');
+    if (!container) return;
+    if (!prompts || !prompts.length) { container.innerHTML = '<div class="vb-empty">暂无可编辑的 prompt</div>'; return; }
+
+    var html = '';
+    prompts.forEach(function(p) {
+      html += '<div class="vb-pb-slot" data-slot="' + esc(p.slot_id) + '">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+      html += '<strong style="font-size:12px;">' + esc(p.slot_id) + '</strong>';
+      html += '<button class="vb-btn" style="font-size:10px;padding:2px 8px;" onclick="vbAiOptimize(\'' + esc(p.slot_id) + '\')">AI 优化</button>';
+      html += '</div>';
+      html += '<div class="vb-pb-field-label">主体描述</div>';
+      html += '<textarea class="vb-pb-textarea" data-slot="' + esc(p.slot_id) + '" data-field="subject" rows="2" oninput="vbUpdateQuality()">' + esc(p.subject || '') + '</textarea>';
+      html += '<div class="vb-pb-field-label">风格标签</div>' + renderChips(p.style_tags, p.slot_id, 'style_tags', '添加风格…');
+      html += '<div class="vb-pb-field-label">必含元素</div>' + renderChips(p.must_include, p.slot_id, 'must_include', '添加元素…');
+      html += '<div class="vb-pb-field-label">规避项</div>' + renderChips(p.avoid_items, p.slot_id, 'avoid_items', '添加规避…');
+      html += '<div class="vb-pb-field-label">负向提示词</div>';
+      html += '<textarea class="vb-pb-textarea" data-slot="' + esc(p.slot_id) + '" data-field="negative_prompt" rows="1" placeholder="低质量, 模糊, 畸变…" oninput="vbUpdateQuality()">' + esc(p.negative_prompt || '') + '</textarea>';
+      if (p.sources && p.sources.length) {
+        html += '<details style="margin-top:4px;"><summary style="font-size:10px;color:var(--muted);cursor:pointer;">来源追溯 (' + p.sources.length + ')</summary>';
+        html += '<div style="font-size:10px;color:var(--muted);padding:4px;">';
+        p.sources.forEach(function(s) { html += '<div>[P' + s.priority + '] ' + esc(s.field) + ': ' + esc(s.content.substring(0, 80)) + '</div>'; });
+        html += '</div></details>';
+      }
+      html += '</div>';
+    });
+    container.innerHTML = html;
+    document.getElementById('vb-btn-save-prompts').style.display = '';
+    document.getElementById('vb-btn-confirm-gen').style.display = '';
+    vbUpdateQuality();
+  }
+
+  function collectPrompts() {
+    var result = [];
+    _inspectorPrompts.forEach(function(p) {
+      var slot = p.slot_id;
+      var el = document.querySelector('.vb-pb-slot[data-slot="' + slot + '"]');
+      if (!el) { result.push(p); return; }
+      var subjectTa = el.querySelector('textarea[data-field="subject"]');
+      var negTa = el.querySelector('textarea[data-field="negative_prompt"]');
+      var styleTags = collectChipValues(el, 'style_tags');
+      var mustInclude = collectChipValues(el, 'must_include');
+      var avoidItems = collectChipValues(el, 'avoid_items');
+      result.push({
+        slot_id: slot,
+        subject: subjectTa ? subjectTa.value : (p.subject || ''),
+        style_tags: styleTags,
+        must_include: mustInclude,
+        avoid_items: avoidItems,
+        negative_prompt: negTa ? negTa.value : (p.negative_prompt || ''),
+        ref_image_url: p.ref_image_url || '',
+        size: p.size || '1024*1024',
+      });
+    });
+    return result;
+  }
+  function collectChipValues(slotEl, field) {
+    var wrap = slotEl.querySelector('.vb-chips-wrap[data-field="' + field + '"]');
+    if (!wrap) return [];
+    var chips = wrap.querySelectorAll('.vb-chip');
+    var vals = [];
+    chips.forEach(function(c) { var t = c.firstChild.textContent.trim(); if (t) vals.push(t); });
+    return vals;
+  }
+
+  // ── 生成配图 ──
+  genImgBtn.addEventListener('click', function() {
+    var mode = document.getElementById('vb-sel-mode').value;
+    fetch(API + '/v6/image-gen/' + oid + '/preview-prompts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gen_mode: mode }),
+    })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data) {
+      renderPbSlots(data.prompts || []);
+      if (data.preferences_applied > 0) {
+        var hint = document.getElementById('vb-pb-pref-hint');
+        if (hint) { hint.style.display = ''; hint.textContent = '已应用 ' + data.preferences_applied + ' 次偏好'; }
+      }
+    })
+    .catch(function(e) { showError('加载 prompt 失败: ' + e.message); });
+  });
+
+  // 确认生成
+  document.getElementById('vb-btn-confirm-gen').addEventListener('click', function() {
+    var btn = this;
+    btn.disabled = true;
+    var provider = document.getElementById('vb-sel-provider').value;
+    var mode = document.getElementById('vb-sel-mode').value;
+    var edited = collectPrompts();
+
+    var statusEl = document.getElementById('vb-image-status');
+    statusEl.textContent = '正在生成配图…';
+
+    fetch(API + '/v6/image-gen/' + oid, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: provider, gen_mode: mode, edited_prompts: edited }),
+    })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data) {
+      statusEl.textContent = '配图生成已启动 (' + (data.total_images || 0) + ' 张)';
+      if (data.prompts) {
+        data.prompts.forEach(function(p) {
+          previewCanvas.setImageLoading('vb-preview-phone', p.slot_id, (p.has_ref ? '参考图+' : '') + '生成中: ' + (p.prompt || '').substring(0, 30) + '…');
+        });
+      }
+    })
+    .catch(function(e) { btn.disabled = false; statusEl.textContent = '生成失败: ' + e.message; });
+  });
+
+  // 保存提示词
+  document.getElementById('vb-btn-save-prompts').addEventListener('click', function() {
+    var prompts = collectPrompts();
+    fetch(API + '/v6/image-gen/' + oid + '/save-prompts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompts: prompts }),
+    })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function() { var btn = document.getElementById('vb-btn-save-prompts'); btn.textContent = '已保存 ✓'; setTimeout(function(){ btn.textContent = '保存提示词'; }, 2000); })
+    .catch(function(e) { showError('保存失败: ' + e.message); });
+  });
+
+  // ── SSE 实时更新 ──
+  var evtSource = new EventSource(API + '/stream/' + oid);
+  evtSource.addEventListener('image_gen_progress', function(e) {
+    try {
+      var d = JSON.parse(e.data);
+      var statusEl = document.getElementById('vb-image-status');
+      if (d.status === 'completed' && d.image_url) {
+        previewCanvas.updateImage('vb-preview-phone', d.slot_id, d.image_url);
+        if (currentDraft) {
+          if (!currentDraft.images) currentDraft.images = [];
+          currentDraft.images.push({ slot_id: d.slot_id, image_url: d.image_url, status: 'completed' });
+        }
+        statusEl.textContent = d.slot_id + ' 已完成';
+        addTrace({ operation: 'image_gen (' + d.slot_id + ')', status: 'success', latency_ms: d.elapsed_ms || 0, prompt_sent: d.prompt_sent || '', ref_image_sent: d.ref_image_sent || '', _ts: new Date().toLocaleTimeString() });
+      } else if (d.status === 'generating') {
+        previewCanvas.setImageLoading('vb-preview-phone', d.slot_id, '生成中: ' + (d.prompt || '').substring(0, 30) + '…');
+      } else if (d.status === 'failed') {
+        statusEl.textContent = d.slot_id + ' 失败: ' + (d.error || '');
+        addTrace({ operation: 'image_gen (' + d.slot_id + ')', status: 'error', error: d.error || '', prompt_sent: d.prompt_sent || '', _ts: new Date().toLocaleTimeString() });
+      }
+    } catch(ex) {}
+  });
+  evtSource.addEventListener('image_gen_complete', function(e) {
+    try {
+      var d = JSON.parse(e.data);
+      var statusEl = document.getElementById('vb-image-status');
+      var btn = document.getElementById('vb-btn-confirm-gen');
+      btn.disabled = false;
+      btn.textContent = '重新生成配图';
+      var ok = (d.results || []).filter(function(r) { return r.status === 'completed'; }).length;
+      statusEl.textContent = '生成完成: ' + ok + '/' + (d.results || []).length + ' 张成功';
+      (d.results || []).forEach(function(r) {
+        if (r.prompt_sent || r.ref_image_sent) {
+          addTrace({ operation: 'image_gen_result (' + r.slot_id + ')', status: r.status, latency_ms: r.elapsed_ms || 0, prompt_sent: r.prompt_sent || '', ref_image_sent: r.ref_image_sent || '' });
+        }
+      });
+      loadHistory();
+    } catch(ex) {}
+  });
+
+  // ── 生成历史 ──
+  function loadHistory() {
+    fetch(API + '/v6/image-gen/' + oid + '/history')
+      .then(function(r) { return r.json(); })
+      .then(function(data) { renderHistory(data.history || []); })
+      .catch(function() {});
+  }
+  function renderHistory(history) {
+    var panel = document.getElementById('vb-history-panel');
+    if (!panel) return;
+    if (!history.length) { panel.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px;">暂无历史</div>'; return; }
+    var html = '';
+    history.slice().reverse().forEach(function(round, idx) {
+      var realIdx = history.length - 1 - idx;
+      var ts = round.timestamp ? new Date(round.timestamp).toLocaleString() : '';
+      html += '<div class="vb-history-card">';
+      html += '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);">';
+      html += '<span>#' + (realIdx + 1) + ' ' + (round.provider || '') + ' ' + (round.gen_mode || '') + '</span>';
+      html += '<span>' + ts + '</span></div>';
+      html += '<div class="vb-history-thumbs">';
+      (round.results || []).forEach(function(r) {
+        if (r.image_url) {
+          html += '<div class="vb-history-thumb" onclick="previewCanvas.updateImage(\'vb-preview-phone\',\'' + esc(r.slot_id) + '\',\'' + esc(r.image_url) + '\')">';
+          html += '<img src="' + esc(r.image_url) + '"></div>';
+        }
+      });
+      html += '</div>';
+      if (round.prompt_log && round.prompt_log.length) {
+        html += '<button class="vb-btn" style="font-size:10px;margin-top:4px;padding:2px 8px;" onclick="vbReusePrompts(' + realIdx + ')">复用提示词</button>';
+      }
+      html += '</div>';
+    });
+    panel.innerHTML = html;
+  }
+  loadHistory();
+
+  // ── AI 优化 ──
+  window.vbAiOptimize = function(slotId) {
+    var el = document.querySelector('.vb-pb-slot[data-slot="' + slotId + '"]');
+    if (!el) return;
+    var data = {
+      slot_id: slotId,
+      subject: (el.querySelector('textarea[data-field="subject"]') || {}).value || '',
+      style_tags: collectChipValues(el, 'style_tags'),
+      must_include: collectChipValues(el, 'must_include'),
+      avoid_items: collectChipValues(el, 'avoid_items'),
+    };
+    fetch(API + '/v6/image-gen/' + oid + '/optimize-prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: data }),
+    })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(res) {
+      var r = res.result || res;
+      if (r.llm_trace) addTrace(r.llm_trace);
+      if (!r.optimized) { showError(r.explanation || '优化失败'); return; }
+      var subTa = el.querySelector('textarea[data-field="subject"]');
+      if (subTa && r.subject) subTa.value = r.subject;
+      ['style_tags','must_include','avoid_items'].forEach(function(f) {
+        if (r[f]) replaceChips(el, f, r[f]);
+      });
+      vbUpdateQuality();
+    })
+    .catch(function(e) { showError('AI 优化失败: ' + e.message); });
+  };
+
+  function replaceChips(slotEl, field, items) {
+    var wrap = slotEl.querySelector('.vb-chips-wrap[data-field="' + field + '"]');
+    if (!wrap) return;
+    wrap.querySelectorAll('.vb-chip').forEach(function(c) { c.remove(); });
+    var input = wrap.querySelector('.vb-chip-input');
+    (items || []).forEach(function(t) {
+      var span = document.createElement('span');
+      span.className = 'vb-chip';
+      span.innerHTML = esc(t) + '<span class="vb-chip-x" onclick="vbRemoveChip(this)">&times;</span>';
+      wrap.insertBefore(span, input);
+    });
+  }
+
+  // ── Chip 管理 ──
+  window.vbRemoveChip = function(x) {
+    x.parentElement.remove();
+    vbUpdateQuality();
+  };
+  window.vbChipKeydown = function(e, input) {
+    if (e.key !== 'Enter' && e.key !== ',') return;
+    e.preventDefault();
+    var val = input.value.trim().replace(/,$/,'');
+    if (!val) return;
+    var span = document.createElement('span');
+    span.className = 'vb-chip';
+    span.innerHTML = esc(val) + '<span class="vb-chip-x" onclick="vbRemoveChip(this)">&times;</span>';
+    input.parentElement.insertBefore(span, input);
+    input.value = '';
+    vbUpdateQuality();
+  };
+
+  // ── 质量分 ──
+  window.vbUpdateQuality = function() {
+    var slots = document.querySelectorAll('.vb-pb-slot');
+    if (!slots.length) return;
+    var totalScore = 0;
+    slots.forEach(function(el) {
+      var s = 0;
+      var subTa = el.querySelector('textarea[data-field="subject"]');
+      if (subTa && subTa.value.trim().length > 5) s += 30;
+      else if (subTa && subTa.value.trim().length > 0) s += 15;
+      var tags = el.querySelectorAll('.vb-chips-wrap[data-field="style_tags"] .vb-chip');
+      s += Math.min(tags.length * 10, 20);
+      var must = el.querySelectorAll('.vb-chips-wrap[data-field="must_include"] .vb-chip');
+      s += Math.min(must.length * 8, 20);
+      var avoid = el.querySelectorAll('.vb-chips-wrap[data-field="avoid_items"] .vb-chip');
+      s += Math.min(avoid.length * 5, 15);
+      var neg = el.querySelector('textarea[data-field="negative_prompt"]');
+      if (neg && neg.value.trim().length > 3) s += 15;
+      totalScore += Math.min(s, 100);
+    });
+    var avg = Math.round(totalScore / slots.length);
+    document.getElementById('vb-quality-fill').style.width = avg + '%';
+    document.getElementById('vb-quality-text').textContent = '质量评分: ' + avg + '/100';
+  };
+
+  // ── 复用历史提示词 ──
+  window.vbReusePrompts = function(idx) {
+    fetch(API + '/v6/image-gen/' + oid + '/history')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var h = (data.history || [])[idx];
+        if (!h || !h.prompt_log) return;
+        renderPbSlots(h.prompt_log);
+      });
+  };
+
+  // ── 对比视图 ──
+  var compareBtn = document.getElementById('vb-btn-compare');
+  if (compareBtn) {
+    compareBtn.addEventListener('click', function() {
+      var area = document.getElementById('vb-compare-area');
+      var view = document.getElementById('vb-compare-view');
+      if (!currentDraft) return;
+      area.style.display = '';
+      var origNote = {};
+      {% if _si and _si[0] %}
+      origNote = {
+        selected_title: '{{ (_si[0].get("title","") if _si[0] is mapping else "")|e }}',
+        final_body: '',
+        images: [{% if _si[0] is mapping and _si[0].get('cover_image') %}{ slot_id:'cover', image_url:'{{ _si[0].cover_image|e }}' }{% endif %}],
+      };
+      {% endif %}
+      previewCanvas.renderVariantCompare([origNote, currentDraft], 'vb-compare-view');
+    });
+  }
+})();
+</script>
+{% endblock %}

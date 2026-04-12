@@ -48,6 +48,8 @@ _FIELD_TO_COLUMN: dict[str, str] = {
     "generated_images_json": "generated_images_json",
     "saved_prompts": "saved_prompts_json",
     "saved_prompts_json": "saved_prompts_json",
+    "source_images": "source_images_json",
+    "source_images_json": "source_images_json",
 }
 
 _JSON_COLUMNS = frozenset(
@@ -65,6 +67,7 @@ _JSON_COLUMNS = frozenset(
         "quick_draft_json",
         "generated_images_json",
         "saved_prompts_json",
+        "source_images_json",
     }
 )
 
@@ -307,6 +310,7 @@ class ContentPlanStore:
                 "quick_draft_json": "TEXT",
                 "generated_images_json": "TEXT",
                 "saved_prompts_json": "TEXT",
+                "source_images_json": "TEXT",
             }.items():
                 if column not in existing_columns:
                     conn.execute(f"ALTER TABLE planning_sessions ADD COLUMN {column} {ddl}")
@@ -458,7 +462,8 @@ class ContentPlanStore:
                        brief_versions_json, strategy_versions_json, plan_versions_json, asset_bundle_versions_json,
                        asset_bundle_json,
                        pipeline_run_id, stale_flags_json, agent_actions_json, quick_draft_json,
-                       generated_images_json, created_at, updated_at
+                       generated_images_json, saved_prompts_json, source_images_json,
+                       created_at, updated_at
                 FROM planning_sessions WHERE opportunity_id = ?
                 """,
                 (opportunity_id,),
@@ -494,6 +499,8 @@ class ContentPlanStore:
             "agent_actions": _deserialize(row["agent_actions_json"]),
             "quick_draft": _deserialize(row["quick_draft_json"]),
             "generated_images": _deserialize(row["generated_images_json"]),
+            "saved_prompts": _deserialize(row["saved_prompts_json"]),
+            "source_images": _deserialize(row["source_images_json"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }

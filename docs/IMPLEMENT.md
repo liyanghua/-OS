@@ -3113,3 +3113,38 @@ image -> image_execution_briefs
 | POST | `/v6/image-gen/{id}/save-prompts` | 保存结构化 prompt |
 | POST | `/v6/image-gen/{id}/feedback` | 图片评价（good/ok/bad） |
 | POST | `/v6/image-gen/{id}/optimize-prompt` | AI 优化 prompt |
+
+---
+
+## Visual Builder 独立页升级（2026-04-12）
+
+### 核心变更
+
+1. **封面图传递修复**：新增 `source_images_json` 列，首次加载策划台时持久化来源笔记图片到 session，后续图片生成不再每次查 pipeline_details
+2. **Visual Builder 独立页**：`GET /planning/{id}/visual-builder` 三栏布局（来源证据 / 预览画布 / Prompt 编辑 + LLM 日志）
+3. **LLM 调用可观测**：`quick_draft_generator`/`prompt_optimizer`/`image_generator` 返回 `llm_trace`；前端右栏实时展示调用链
+4. **策划台精简**：原笔记预览区从全功能区精简为只读缩略预览 + "进入视觉工作台"跳转按钮
+
+### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `apps/intel_hub/api/templates/visual_builder.html` | 视觉工作台独立页模板 |
+
+### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `storage/plan_store.py` | 新增 `source_images_json` 列映射、JSON 列集合、ALTER TABLE 迁移、load_session 返回 |
+| `intel_hub/api/app.py` | 新增 `_persist_source_images` + `visual_builder_page` 路由 |
+| `api/routes.py` | `_build_rich_prompts` 优先从 session.source_images 读取参考图 |
+| `services/quick_draft_generator.py` | 返回 `llm_trace`（model / input / output / latency） |
+| `skills/prompt_optimizer.py` | 返回 `llm_trace` |
+| `services/image_generator.py` | `ImageResult` 增加 `prompt_sent` / `ref_image_sent` 字段 |
+| `planning_workspace.html` | 笔记预览区精简，移除 Prompt Builder / 生图操作 / 历史面板 |
+
+### 新增路由
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| GET | `/planning/{id}/visual-builder` | 视觉工作台独立页 |

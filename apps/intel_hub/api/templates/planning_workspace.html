@@ -540,77 +540,19 @@
         {% endif %}
       </div>
 
-      {# ── 区块 E: 笔记预览 ── #}
+      {# ── 区块 E: 笔记预览（精简版 - 完整功能请进入视觉工作台） ── #}
       <div class="pw-section" id="note-preview-section">
         <div class="pw-section-title">
           <h3>笔记预览</h3>
-          <button type="button" class="pw-btn pw-btn-primary pw-btn-inline" id="btn-gen-draft">一键生成预览</button>
+          <a href="/planning/{{ opportunity_id }}/visual-builder" class="pw-btn pw-btn-primary pw-btn-inline" style="font-size:12px; text-decoration:none;">进入视觉工作台 &rarr;</a>
         </div>
         <div id="note-preview-container" style="display:flex; justify-content:center; padding:12px 0;">
-          <div id="note-preview-empty" style="text-align:center; color:var(--muted); font-size:13px; padding:40px 0;">
-            点击「一键生成预览」，从 Brief 快速生成小红书笔记草稿
+          <div id="note-preview-empty" style="text-align:center; color:var(--muted); font-size:13px; padding:20px 0;">
+            <div style="margin-bottom:10px;">在视觉工作台中生成和编辑小红书笔记预览</div>
+            <a href="/planning/{{ opportunity_id }}/visual-builder" style="font-size:13px; color:var(--accent);">打开视觉工作台</a>
           </div>
           <div id="note-preview-phone" style="display:none;"></div>
         </div>
-        <div id="note-preview-actions" style="display:none; text-align:center; margin-top:8px; display:flex; justify-content:center; gap:8px; flex-wrap:wrap; align-items:center;">
-          <button type="button" class="pw-btn pw-btn-secondary pw-btn-inline" id="btn-regen-draft" style="font-size:12px;">重新生成</button>
-          <select id="sel-gen-mode" style="font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--ink); cursor:pointer;" title="生图模式">
-            <option value="ref_image">参考图+提示词</option>
-            <option value="prompt_only">纯提示词</option>
-          </select>
-          <select id="sel-image-provider" style="font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--ink); cursor:pointer;" title="生图模型">
-            <option value="openrouter">Gemini Nano</option>
-            <option value="dashscope">通义万相</option>
-            <option value="auto">自动选择</option>
-          </select>
-          <button type="button" class="pw-btn pw-btn-primary pw-btn-inline" id="btn-gen-images" style="font-size:12px;">生成配图</button>
-        </div>
-        <div id="note-image-gen-status" style="display:none; text-align:center; font-size:12px; color:var(--muted); padding:6px 0;">
-          <span id="image-gen-status-text"></span>
-        </div>
-        <div id="gen-history-toggle" style="display:none; text-align:center; margin-top:4px;">
-          <button id="btn-show-history" type="button" style="font-size:11px; color:var(--accent); background:none; border:none; cursor:pointer; text-decoration:underline;">查看生成历史</button>
-        </div>
-        <div id="gen-history-panel" style="display:none; margin-top:8px; border-top:1px solid var(--border); padding-top:10px;">
-          <div style="font-size:12px; font-weight:600; color:var(--ink); margin-bottom:8px;">生成历史</div>
-          <div id="gen-history-list" style="max-height:300px; overflow-y:auto;"></div>
-        </div>
-      </div>
-
-      {# ── 内联 Prompt Builder 面板 ── #}
-      <div id="prompt-builder-panel" style="display:none; margin-top:10px; border:1px solid var(--border); border-radius:10px; background:var(--surface); overflow:hidden;">
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:rgba(138,75,47,0.04); border-bottom:1px solid var(--border); cursor:pointer;" id="pb-header" onclick="togglePromptBuilder()">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:14px; font-weight:600; color:var(--ink);">Prompt Builder</span>
-            <span id="pb-quality-badge" style="font-size:10px; padding:1px 8px; border-radius:10px; background:#e8f5e9; color:#2e7d32; display:none;">--</span>
-          </div>
-          <span id="pb-toggle-icon" style="font-size:16px; color:var(--muted); transition:transform .2s;">&#9662;</span>
-        </div>
-        <div id="pb-body" style="padding:14px;">
-          <div id="pi-loading" style="text-align:center; padding:24px 0; color:var(--muted); font-size:13px;">正在加载提示词…</div>
-          <div id="pi-slots" style="display:none;"></div>
-          <div id="pb-quality-bar" style="display:none; margin-top:12px; padding:10px 12px; border-radius:8px; background:var(--bg); border:1px solid var(--border);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <span style="font-size:11px; font-weight:600; color:var(--ink);">Prompt 质量评估</span>
-              <span id="pb-score-text" style="font-size:12px; font-weight:700;"></span>
-            </div>
-            <div style="height:6px; border-radius:3px; background:var(--border); overflow:hidden;">
-              <div id="pb-score-fill" style="height:100%; border-radius:3px; transition:width .3s, background .3s;"></div>
-            </div>
-            <div id="pb-score-detail" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; font-size:10px; color:var(--muted);"></div>
-          </div>
-          <div id="pb-source-hint" style="display:none; font-size:11px; color:var(--accent); margin-top:8px; padding:4px 8px; background:var(--accent-soft); border-radius:6px;"></div>
-          <div id="pi-actions" style="display:none; margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-            <button id="pi-save-prompts" type="button" class="pw-btn pw-btn-secondary pw-btn-inline" style="font-size:12px;">保存提示词</button>
-            <button id="pi-cancel" type="button" class="pw-btn pw-btn-secondary pw-btn-inline" style="font-size:12px;">收起</button>
-            <button id="pi-confirm" type="button" class="pw-btn pw-btn-primary pw-btn-inline" style="font-size:12px;">确认生成</button>
-          </div>
-        </div>
-      </div>
-      {# ── 原图 vs 生成图对比区 ── #}
-      <div id="note-compare-view" style="display:none; margin-top:10px;"></div>
-      <div id="note-compare-toggle" style="display:none; text-align:center; margin-top:6px;">
-        <button id="btn-toggle-compare" type="button" style="font-size:11px; color:var(--accent); background:none; border:none; cursor:pointer; text-decoration:underline;">切换原图对比</button>
       </div>
 
     </main>
@@ -872,14 +814,30 @@
     }
   })();
 
-  /* ── 笔记预览 ── */
+  /* ── 笔记预览（精简 - 只读缩略预览，完整功能在 Visual Builder） ── */
   (function notePreviewInit() {
     if (!opportunityId) return;
     var phoneEl = document.getElementById('note-preview-phone');
     var emptyEl = document.getElementById('note-preview-empty');
-    var actionsEl = document.getElementById('note-preview-actions');
-    var genBtn = document.getElementById('btn-gen-draft');
-    var regenBtn = document.getElementById('btn-regen-draft');
+    if (!phoneEl) return;
+
+    fetch('/content-planning/v6/quick-draft/' + opportunityId)
+      .then(function(r) { if (!r.ok) return null; return r.json(); })
+      .then(function(data) {
+        if (data && data.selected_title) {
+          emptyEl.style.display = 'none';
+          phoneEl.style.display = 'block';
+          previewCanvas.renderPreview(data, 'note-preview-phone');
+        }
+      })
+      .catch(function() {});
+  })();
+
+  /* ── [LEGACY] 笔记预览旧代码已迁移到 visual_builder.html ── */
+  (function _legacyNotePreviewStub() {
+    return; // 以下代码保留但不执行，防止引用错误
+    /* eslint-disable */
+    var genBtn = null, regenBtn = null, actionsEl = null, phoneEl = null, emptyEl = null;
     if (!genBtn) return;
 
     var currentDraft = null;

@@ -40,9 +40,8 @@ async def optimize_prompt(prompt_data: dict[str, Any]) -> dict[str, Any]:
     Returns:
         优化后的结构化数据 + explanation
     """
-    from apps.content_planning.agents.llm_router import get_llm_router
-
-    router = get_llm_router()
+    import time as _time
+    from apps.content_planning.adapters.llm_router import llm_router, LLMMessage
 
     user_msg = (
         f"请优化以下图片生成提示词：\n\n"
@@ -54,18 +53,28 @@ async def optimize_prompt(prompt_data: dict[str, Any]) -> dict[str, Any]:
 
     ref_url = prompt_data.get("ref_image_url", "")
     if ref_url:
-        user_msg += f"参考图: 有 (会作为参考风格)\n"
+        user_msg += "参考图: 有 (会作为参考风格)\n"
 
+    msgs = [
+        LLMMessage(role="system", content=_SYSTEM_PROMPT),
+        LLMMessage(role="user", content=user_msg),
+    ]
+    trace: dict[str, Any] = {
+        "operation": "optimize_prompt",
+        "model": getattr(llm_router, "_model", "unknown"),
+        "input_messages": [{"role": m.role, "content": m.content[:500]} for m in msgs],
+        "status": "pending",
+    }
+
+    t0 = _time.perf_counter()
     try:
-        result = await router.chat(
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": user_msg},
-            ],
-            temperature=0.7,
-            max_tokens=800,
-        )
-        text = result.get("content", "") if isinstance(result, dict) else str(result)
+        result = await llm_router.achat(messages=msgs, temperature=0.7, max_tokens=800)
+        elapsed = int((_time.perf_counter() - t0) * 1000)
+        text = result.content if hasattr(result, "content") else str(result)
+        trace["latency_ms"] = elapsed
+        trace["output_raw"] = text[:1000]
+        trace["status"] = "success"
+
         start = text.find("{")
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
@@ -77,12 +86,20 @@ async def optimize_prompt(prompt_data: dict[str, Any]) -> dict[str, Any]:
                 "avoid_items": parsed.get("avoid_items", prompt_data.get("avoid_items", [])),
                 "explanation": parsed.get("explanation", ""),
                 "optimized": True,
+                "llm_trace": trace,
             }
+        trace["status"] = "parse_error"
+        logger.warning("prompt_optimizer: no JSON found in LLM response: %s", text[:200])
     except Exception as e:
-        logger.warning("prompt_optimizer LLM call failed: %s", e)
+        elapsed = int((_time.perf_counter() - t0) * 1000)
+        trace["latency_ms"] = elapsed
+        trace["status"] = "error"
+        trace["error"] = str(e)
+        logger.warning("prompt_optimizer LLM call failed: %s", e, exc_info=True)
 
     return {
         **prompt_data,
         "explanation": "LLM 优化失败，返回原始提示词",
         "optimized": False,
+        "llm_trace": trace,
     }

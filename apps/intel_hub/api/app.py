@@ -1223,6 +1223,26 @@ def create_app(
 
     # ── 四工作台极简化路由 ──────────────────────────────────
 
+    def _persist_source_images(opportunity_id: str, source_notes: list) -> None:
+        """首次加载时把来源笔记图片写入 session，后续 Visual Builder / 生图直接读取。"""
+        try:
+            existing = _cp_flow.get_session_data(opportunity_id)
+            if existing.get("source_images"):
+                return
+            imgs: list[dict[str, Any]] = []
+            for sn in source_notes:
+                nc = sn.get("note_context", sn) if isinstance(sn, dict) else {}
+                imgs.append({
+                    "note_id": nc.get("note_id", "") or sn.get("note_id", ""),
+                    "cover_image": nc.get("cover_image", ""),
+                    "image_urls": nc.get("image_urls", []),
+                    "title": nc.get("title", "") or sn.get("title", ""),
+                })
+            if imgs and hasattr(_cp_flow, "_store") and _cp_flow._store:
+                _cp_flow._store.update_field(opportunity_id, "source_images", imgs)
+        except Exception:
+            pass
+
     @app.get("/planning/{opportunity_id}")
     async def planning_workspace_page(request: Request, opportunity_id: str) -> Any:
         """策划台聚合 API：汇总机会卡 + brief + 策略 + 笔记计划 + 资产包。"""
@@ -1237,6 +1257,8 @@ def create_app(
         for sn in source_notes[:1]:
             ctx = {"note_context": sn} if isinstance(sn, dict) else {"note_context": {}}
             source_ctx.append(ctx)
+
+        _persist_source_images(opportunity_id, source_notes)
 
         review_summary = _cp_adapter.get_review_summary(opportunity_id)
 
@@ -1291,6 +1313,49 @@ def create_app(
             response.headers["X-Render-Timing-Ms"] = str(int((time.perf_counter() - t0) * 1000))
             return response
         return {k: v for k, v in ctx.items() if k not in ("request", "vm")}
+
+    @app.get("/planning/{opportunity_id}/visual-builder")
+    async def visual_builder_page(request: Request, opportunity_id: str) -> Any:
+        """视觉工作台独立页：三栏布局，来源证据 + 预览画布 + Prompt 编辑。"""
+        t0 = time.perf_counter()
+        card = review_store.get_card(opportunity_id)
+        if card is None:
+            raise HTTPException(status_code=404, detail="机会卡未找到")
+        card_dict = card.model_dump(mode="json") if hasattr(card, "model_dump") else card
+
+        source_notes = _cp_adapter.get_source_notes(card.source_note_ids) if card.source_note_ids else []
+        _persist_source_images(opportunity_id, source_notes)
+
+        session_data = _cp_flow.get_session_data(opportunity_id)
+        brief_dict = session_data.get("brief", {})
+        strategy = session_data.get("strategy", {})
+        source_images = session_data.get("source_images", [])
+        if not source_images:
+            source_images = []
+            for sn in source_notes:
+                nc = sn.get("note_context", sn) if isinstance(sn, dict) else {}
+                source_images.append({
+                    "note_id": nc.get("note_id", ""),
+                    "cover_image": nc.get("cover_image", ""),
+                    "image_urls": nc.get("image_urls", []),
+                    "title": nc.get("title", "") or sn.get("title", ""),
+                })
+
+        ctx = {
+            "request": request,
+            "opportunity_id": opportunity_id,
+            "card": card_dict,
+            "brief": brief_dict,
+            "strategy": strategy,
+            "source_images": source_images,
+            "back_url": f"/planning/{opportunity_id}",
+        }
+
+        if _wants_html(request):
+            response = _render("visual_builder.html", ctx)
+            response.headers["X-Render-Timing-Ms"] = str(int((time.perf_counter() - t0) * 1000))
+            return response
+        return {k: v for k, v in ctx.items() if k != "request"}
 
     @app.get("/opportunity-workspace")
     async def opportunity_workspace_page(
