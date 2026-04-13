@@ -153,6 +153,10 @@ def create_app(
     _generated_images_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/generated-images", StaticFiles(directory=str(_generated_images_dir)), name="generated_images")
 
+    _source_images_dir = Path(__file__).resolve().parents[3] / "data" / "source_images"
+    _source_images_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/source-images", StaticFiles(directory=str(_source_images_dir)), name="source_images")
+
     def list_payload(
         table_name: str,
         page: int,
@@ -1223,25 +1227,82 @@ def create_app(
 
     # ── 四工作台极简化路由 ──────────────────────────────────
 
-    def _persist_source_images(opportunity_id: str, source_notes: list) -> None:
-        """首次加载时把来源笔记图片写入 session，后续 Visual Builder / 生图直接读取。"""
+    def _download_image(url: str, dest: Path) -> bool:
+        """下载单张图片到本地，返回是否成功。"""
+        import urllib.request
+        if not url or not url.startswith("http"):
+            return False
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "Referer": "https://www.xiaohongshu.com/",
+            })
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                dest.write_bytes(resp.read())
+            return dest.stat().st_size > 500
+        except Exception:
+            return False
+
+    def _persist_source_images(opportunity_id: str, source_notes: list) -> list[dict[str, Any]]:
+        """首次加载时把来源笔记图片下载到本地并写入 session。返回 source_images 列表。"""
         try:
             existing = _cp_flow.get_session_data(opportunity_id)
-            if existing.get("source_images"):
-                return
+            cached = existing.get("source_images")
+            if cached:
+                return cached  # type: ignore[return-value]
+
+            out_dir = _source_images_dir / opportunity_id
+            out_dir.mkdir(parents=True, exist_ok=True)
+
             imgs: list[dict[str, Any]] = []
             for sn in source_notes:
                 nc = sn.get("note_context", sn) if isinstance(sn, dict) else {}
+                note_id = nc.get("note_id", "") or sn.get("note_id", "") or "unknown"
+                original_cover = nc.get("cover_image", "")
+                original_urls = nc.get("image_urls", [])
+
+                local_cover = ""
+                if original_cover:
+                    suffix = ".jpg"
+                    if ".png" in original_cover:
+                        suffix = ".png"
+                    elif ".webp" in original_cover:
+                        suffix = ".webp"
+                    cover_path = out_dir / f"cover_{note_id[:12]}{suffix}"
+                    if _download_image(original_cover, cover_path):
+                        local_cover = str(cover_path)
+
+                local_urls: list[str] = []
+                for idx, img_url in enumerate(original_urls[:6]):
+                    if img_url == original_cover:
+                        if local_cover:
+                            local_urls.append(local_cover)
+                        continue
+                    suffix = ".jpg"
+                    if ".png" in img_url:
+                        suffix = ".png"
+                    elif ".webp" in img_url:
+                        suffix = ".webp"
+                    img_path = out_dir / f"img_{note_id[:12]}_{idx}{suffix}"
+                    if _download_image(img_url, img_path):
+                        local_urls.append(str(img_path))
+
                 imgs.append({
-                    "note_id": nc.get("note_id", "") or sn.get("note_id", ""),
-                    "cover_image": nc.get("cover_image", ""),
-                    "image_urls": nc.get("image_urls", []),
+                    "note_id": note_id,
+                    "cover_image": local_cover or original_cover,
+                    "image_urls": local_urls if local_urls else original_urls,
+                    "original_cover_url": original_cover,
+                    "original_image_urls": original_urls,
                     "title": nc.get("title", "") or sn.get("title", ""),
                 })
             if imgs and hasattr(_cp_flow, "_store") and _cp_flow._store:
+                existing_row = _cp_flow._store.load_session(opportunity_id)
+                if existing_row is None:
+                    _cp_flow._store.save_session(opportunity_id)
                 _cp_flow._store.update_field(opportunity_id, "source_images", imgs)
+            return imgs
         except Exception:
-            pass
+            return []
 
     @app.get("/planning/{opportunity_id}")
     async def planning_workspace_page(request: Request, opportunity_id: str) -> Any:
@@ -1324,12 +1385,13 @@ def create_app(
         card_dict = card.model_dump(mode="json") if hasattr(card, "model_dump") else card
 
         source_notes = _cp_adapter.get_source_notes(card.source_note_ids) if card.source_note_ids else []
-        _persist_source_images(opportunity_id, source_notes)
+        source_images = _persist_source_images(opportunity_id, source_notes)
 
         session_data = _cp_flow.get_session_data(opportunity_id)
         brief_dict = session_data.get("brief", {})
         strategy = session_data.get("strategy", {})
-        source_images = session_data.get("source_images", [])
+        if not source_images:
+            source_images = session_data.get("source_images", [])
         if not source_images:
             source_images = []
             for sn in source_notes:
@@ -1341,13 +1403,31 @@ def create_app(
                     "title": nc.get("title", "") or sn.get("title", ""),
                 })
 
+        def _to_web_url(path_or_url: str) -> str:
+            if not path_or_url:
+                return ""
+            if path_or_url.startswith("http"):
+                return path_or_url
+            src_dir_str = str(_source_images_dir)
+            if path_or_url.startswith(src_dir_str):
+                return "/source-images" + path_or_url[len(src_dir_str):]
+            return path_or_url
+
+        display_images = []
+        for si in source_images:
+            display_images.append({
+                **si,
+                "cover_image": _to_web_url(si.get("cover_image", "")),
+                "image_urls": [_to_web_url(u) for u in si.get("image_urls", [])],
+            })
+
         ctx = {
             "request": request,
             "opportunity_id": opportunity_id,
             "card": card_dict,
             "brief": brief_dict,
             "strategy": strategy,
-            "source_images": source_images,
+            "source_images": display_images,
             "back_url": f"/planning/{opportunity_id}",
         }
 

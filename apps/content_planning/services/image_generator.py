@@ -16,6 +16,22 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+def _ensure_env() -> None:
+    """Ensure .env is loaded – always reads the file to fill any missing keys."""
+    env_file = Path(__file__).resolve().parents[3] / ".env"
+    if not env_file.is_file():
+        return
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key, val = key.strip(), val.strip().strip('"').strip("'")
+        if key and val:
+            os.environ.setdefault(key, val)
+
+_ensure_env()
+
 _GENERATED_DIR = Path(__file__).resolve().parents[3] / "data" / "generated_images"
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -94,6 +110,7 @@ class ImageGeneratorService:
     """多通道文生图服务：OpenRouter Gemini 优先，DashScope 通义万相 fallback。"""
 
     def __init__(self) -> None:
+        _ensure_env()
         self._openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
         self._openrouter_model = os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-3.1-flash-image-preview")
         self._dashscope_key = os.environ.get("DASHSCOPE_API_KEY", "")
@@ -172,6 +189,23 @@ class ImageGeneratorService:
     # ── OpenRouter / Gemini ──────────────────────────────────────────
 
     @staticmethod
+    def _local_path_to_data_uri(file_path: str) -> str:
+        """将本地图片文件转为 base64 data URI，供 OpenRouter multimodal 调用。"""
+        p = Path(file_path)
+        if not p.is_file():
+            logger.warning("Local ref image not found: %s", file_path)
+            return ""
+        mime = "image/jpeg"
+        ext = p.suffix.lower()
+        if ext == ".png":
+            mime = "image/png"
+        elif ext == ".webp":
+            mime = "image/webp"
+        raw = p.read_bytes()
+        b64 = base64.b64encode(raw).decode()
+        return f"data:{mime};base64,{b64}"
+
+    @staticmethod
     def _sanitize_prompt_for_openrouter(text: str) -> str:
         """Clean prompt text to reduce ToS false-positive rejections."""
         import re
@@ -221,8 +255,11 @@ class ImageGeneratorService:
                 if safe_negative:
                     text_instruction += f"\n\nPlease avoid: {safe_negative}"
                 _prompt_sent = text_instruction
+                ref_url = prompt.ref_image_url
+                if not ref_url.startswith("http"):
+                    ref_url = self._local_path_to_data_uri(ref_url)
                 user_msg_content: Any = [
-                    {"type": "image_url", "image_url": {"url": prompt.ref_image_url}},
+                    {"type": "image_url", "image_url": {"url": ref_url}},
                     {"type": "text", "text": text_instruction},
                 ]
             else:
@@ -382,7 +419,8 @@ class ImageGeneratorService:
                     api_key=self._dashscope_key,
                 )
                 if rsp.status_code != 200:
-                    logger.warning("DashScope imageedit failed (%s), falling back to text-only", rsp.get("message", ""))
+                    _err_detail = getattr(rsp, 'message', '') or getattr(rsp, 'code', '') or str(rsp.status_code)
+                    logger.warning("DashScope imageedit failed (%s), falling back to text-only", _err_detail)
                     rsp = ImageSynthesis.async_call(
                         model=_DASHSCOPE_DEFAULT_MODEL,
                         prompt=prompt.prompt,
@@ -413,12 +451,16 @@ class ImageGeneratorService:
 
             if rsp.status_code != 200:
                 elapsed = int((time.perf_counter() - t0) * 1000)
-                err_msg = f"提交任务失败: {rsp.get('code', '')} {rsp.get('message', '')}"
+                _code = getattr(rsp, 'code', '') or ''
+                _msg = getattr(rsp, 'message', '') or ''
+                err_msg = f"提交任务失败: {_code} {_msg}"
+                logger.warning("DashScope all models failed: slot=%s code=%s msg=%s", prompt.slot_id, _code, _msg)
                 return ImageResult(slot_id=prompt.slot_id, status="failed",
                                    error=err_msg, elapsed_ms=elapsed, provider="dashscope", **_ds_trace)
 
             task_id = rsp.output.get("task_id", "")
-            logger.info("DashScope task submitted: slot=%s task_id=%s", prompt.slot_id, task_id)
+            logger.warning("DashScope task submitted: slot=%s task_id=%s has_ref=%s",
+                           prompt.slot_id, task_id, bool(prompt.ref_image_url))
 
             deadline = time.perf_counter() + _MAX_POLL_SECONDS
             while time.perf_counter() < deadline:
@@ -434,6 +476,7 @@ class ImageGeneratorService:
                         if local_path:
                             elapsed = int((time.perf_counter() - t0) * 1000)
                             serve_url = f"/generated-images/{opportunity_id}/{local_path.name}"
+                            logger.warning("DashScope image OK: slot=%s elapsed=%dms", prompt.slot_id, elapsed)
                             if on_progress:
                                 on_progress(prompt.slot_id, "completed", {"image_url": serve_url, "provider": "dashscope"})
                             return ImageResult(slot_id=prompt.slot_id, status="completed",
@@ -443,12 +486,14 @@ class ImageGeneratorService:
                 if task_status in ("FAILED", "UNKNOWN"):
                     err = status_rsp.output.get("message", "任务失败")
                     elapsed = int((time.perf_counter() - t0) * 1000)
+                    logger.warning("DashScope task %s for slot=%s: %s", task_status, prompt.slot_id, err)
                     if on_progress:
                         on_progress(prompt.slot_id, "failed", {"error": err})
                     return ImageResult(slot_id=prompt.slot_id, status="failed",
                                        error=err, elapsed_ms=elapsed, provider="dashscope", **_ds_trace)
 
             elapsed = int((time.perf_counter() - t0) * 1000)
+            logger.warning("DashScope polling timeout: slot=%s task_id=%s after %dms", prompt.slot_id, task_id, elapsed)
             return ImageResult(slot_id=prompt.slot_id, status="failed",
                                error="DashScope 生成超时", elapsed_ms=elapsed, provider="dashscope", **_ds_trace)
 

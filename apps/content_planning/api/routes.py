@@ -1403,12 +1403,27 @@ async def v6_start_image_gen(opportunity_id: str, request: Request) -> dict[str,
     }
     _image_gen_tasks[task_id] = task_state
 
+    _prompt_trace_map = {
+        rp.slot_id: {
+            "prompt_sent": rp.compose_prompt_text() or rp.prompt_text,
+            "ref_image_sent": rp.ref_image_url or "",
+        }
+        for rp in rich_prompts
+    }
+
     def _on_progress(slot_id: str, status: str, data: dict[str, Any]) -> None:
         from apps.content_planning.gateway.event_bus import event_bus, ObjectEvent
+        trace_ctx = _prompt_trace_map.get(slot_id, {})
         event_bus.publish_sync(ObjectEvent(
             event_type="image_gen_progress",
             opportunity_id=opportunity_id,
-            payload={"task_id": task_id, "slot_id": slot_id, "status": status, **data},
+            payload={
+                "task_id": task_id, "slot_id": slot_id, "status": status,
+                "provider": provider, "gen_mode": gen_mode,
+                "prompt_sent": trace_ctx.get("prompt_sent", ""),
+                "ref_image_sent": trace_ctx.get("ref_image_sent", ""),
+                **data,
+            },
         ))
 
     def _run() -> None:

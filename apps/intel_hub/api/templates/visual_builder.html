@@ -513,19 +513,27 @@
     try {
       var d = JSON.parse(e.data);
       var statusEl = document.getElementById('vb-image-status');
+      var provLabel = (d.provider || '') + (d.gen_mode ? '/' + d.gen_mode : '');
       if (d.status === 'completed' && d.image_url) {
         previewCanvas.updateImage('vb-preview-phone', d.slot_id, d.image_url);
         if (currentDraft) {
           if (!currentDraft.images) currentDraft.images = [];
           currentDraft.images.push({ slot_id: d.slot_id, image_url: d.image_url, status: 'completed' });
         }
-        statusEl.textContent = d.slot_id + ' 已完成';
-        addTrace({ operation: 'image_gen (' + d.slot_id + ')', status: 'success', latency_ms: d.elapsed_ms || 0, prompt_sent: d.prompt_sent || '', ref_image_sent: d.ref_image_sent || '', _ts: new Date().toLocaleTimeString() });
+        statusEl.textContent = d.slot_id + ' 已完成 (' + provLabel + ')';
+        addTrace({ operation: 'image_gen (' + d.slot_id + ')', status: 'success', provider: provLabel, latency_ms: d.elapsed_ms || 0, prompt_sent: d.prompt_sent || '', ref_image_sent: d.ref_image_sent || '' });
+      } else if (d.status === 'queued') {
+        statusEl.textContent = d.slot_id + ' 排队中 (' + (d.index + 1) + '/' + d.total + ')';
+        addTrace({ operation: 'image_gen (' + d.slot_id + ')', status: 'queued', provider: provLabel, prompt_sent: d.prompt_sent || '', ref_image_sent: d.ref_image_sent || '', detail: '排队 ' + (d.index + 1) + '/' + d.total });
       } else if (d.status === 'generating') {
-        previewCanvas.setImageLoading('vb-preview-phone', d.slot_id, '生成中: ' + (d.prompt || '').substring(0, 30) + '…');
+        previewCanvas.setImageLoading('vb-preview-phone', d.slot_id, (provLabel ? '[' + provLabel + '] ' : '') + '生成中: ' + (d.prompt || '').substring(0, 30) + '…');
+        statusEl.textContent = d.slot_id + ' 生成中 (' + provLabel + ')';
+        addTrace({ operation: 'image_gen (' + d.slot_id + ')', status: 'generating', provider: provLabel, prompt_sent: d.prompt_sent || '', ref_image_sent: d.ref_image_sent || '' });
       } else if (d.status === 'failed') {
         statusEl.textContent = d.slot_id + ' 失败: ' + (d.error || '');
-        addTrace({ operation: 'image_gen (' + d.slot_id + ')', status: 'error', error: d.error || '', prompt_sent: d.prompt_sent || '', _ts: new Date().toLocaleTimeString() });
+        addTrace({ operation: 'image_gen (' + d.slot_id + ')', status: 'error', provider: provLabel, error: d.error || '', prompt_sent: d.prompt_sent || '', ref_image_sent: d.ref_image_sent || '' });
+      } else {
+        addTrace({ operation: 'image_gen (' + d.slot_id + ')', status: d.status || 'unknown', provider: provLabel, detail: JSON.stringify(d).substring(0, 200) });
       }
     } catch(ex) {}
   });
