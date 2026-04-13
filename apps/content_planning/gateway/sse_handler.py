@@ -40,8 +40,13 @@ async def _event_generator(
 
 
 def _format_sse(event: ObjectEvent) -> str:
-    """Format an ObjectEvent as an SSE message."""
-    data = event.model_dump(mode="json")
+    """Format an ObjectEvent as an SSE message.
+
+    Only the payload dict is sent as data so that frontend consumers
+    can access fields (slot_id, status, provider, ...) at the top level
+    without unwrapping an ObjectEvent wrapper.
+    """
+    data = event.payload
     lines = [
         f"id: {event.event_id}",
         f"event: {event.event_type}",
