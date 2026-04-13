@@ -23,5 +23,10 @@ llm-all = ["openai>=1.0,<2.0", "anthropic>=0.40,<1.0"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: real API calls requiring .env keys and network",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["apps"]
