@@ -786,8 +786,8 @@ def test_plan_workspace_renders_council_and_scorecard_sections(stage_client: Tes
         headers={"accept": "text/html"},
     )
     assert response.status_code == 200
-    assert "Ask the Council" in response.text
-    assert "Baseline vs Current Scorecard" in response.text
+    assert "咨询委员会" in response.text
+    assert "基线 vs 当前评分对比" in response.text
 
 
 def test_stage_discussion_creates_persisted_asset_proposal(
@@ -1146,5 +1146,5 @@ def test_asset_workspace_renders_council_and_scorecard_sections(stage_client: Te
         headers={"accept": "text/html"},
     )
     assert response.status_code == 200
-    assert "Council" in response.text
-    assert "Baseline vs Current Scorecard" in response.text
+    assert "委员会" in response.text
+    assert "基线 vs 当前评分对比" in response.text

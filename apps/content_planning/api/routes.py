@@ -1403,10 +1403,19 @@ async def v6_start_image_gen(opportunity_id: str, request: Request) -> dict[str,
     }
     _image_gen_tasks[task_id] = task_state
 
+    def _local_to_web(path: str) -> str:
+        if not path or path.startswith("http") or path.startswith("/source-images"):
+            return path
+        marker = "/data/source_images/"
+        idx = path.find(marker)
+        if idx >= 0:
+            return "/source-images/" + path[idx + len(marker):]
+        return path
+
     _prompt_trace_map = {
         rp.slot_id: {
             "prompt_sent": rp.compose_prompt_text() or rp.prompt_text,
-            "ref_image_sent": rp.ref_image_url or "",
+            "ref_image_sent": _local_to_web(rp.ref_image_url or ""),
         }
         for rp in rich_prompts
     }

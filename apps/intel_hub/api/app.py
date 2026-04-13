@@ -466,7 +466,7 @@ def create_app(
                 "collection.html",
                 {
                     "request": request,
-                    "title": "Signals / 信号列表",
+                    "title": "信号列表",
                     "collection_name": "Signals",
                     "payload": payload,
                 },
@@ -501,7 +501,7 @@ def create_app(
                 "collection.html",
                 {
                     "request": request,
-                    "title": "Opportunities / 机会卡",
+                    "title": "机会卡",
                     "collection_name": "Opportunity",
                     "payload": payload,
                 },
@@ -544,7 +544,7 @@ def create_app(
                 "collection.html",
                 {
                     "request": request,
-                    "title": "Risks / 风险卡",
+                    "title": "风险卡",
                     "collection_name": "Risk",
                     "payload": payload,
                 },
@@ -1668,7 +1668,7 @@ def create_app(
                 "collection.html",
                 {
                     "request": request,
-                    "title": "Watchlists / 监控列表",
+                    "title": "监控列表",
                     "collection_name": "Watchlist",
                     "payload": payload,
                 },

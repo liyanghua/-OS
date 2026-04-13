@@ -172,13 +172,13 @@
       <div class="aw-card" style="padding:0;">
         <div class="aw-tabs" role="tablist" style="padding:12px 16px 0;margin-bottom:0;border-bottom:1px solid var(--border);">
           <button type="button" class="aw-tab aw-rtab active" data-rtab="rtab-review" role="tab">AI 评审</button>
-          <button type="button" class="aw-tab aw-rtab" data-rtab="rtab-council" role="tab">Council</button>
+          <button type="button" class="aw-tab aw-rtab" data-rtab="rtab-council" role="tab">委员会</button>
           <button type="button" class="aw-tab aw-rtab" data-rtab="rtab-collab" role="tab">协同</button>
         </div>
 
         {# ── Tab 1: AI 评审 ── #}
         <div id="rtab-review" class="aw-tab-panel active" role="tabpanel" style="padding:14px 16px;">
-          <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Baseline vs Current Scorecard</div>
+          <div style="font-size:12px;font-weight:700;margin-bottom:8px;">基线 vs 当前评分对比</div>
           <div id="aw-scorecard" style="font-size:12px;color:var(--muted);">暂无评分</div>
           <button type="button" class="aw-btn secondary" id="aw-btn-scorecard" style="margin-top:10px;margin-bottom:0;">刷新 Asset 评分</button>
         </div>
@@ -199,7 +199,7 @@
           </div>
           <label style="display:block;font-size:11px;font-weight:700;margin-bottom:4px;" for="aw-council-question">围绕 Asset 提问</label>
           <textarea id="aw-council-question" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;border-radius:10px;border:1px solid var(--border);font-family:inherit;font-size:12px;" placeholder="例如：请把资产包调成更适合早餐桌景高收藏发布的版本"></textarea>
-          <button type="button" class="aw-btn secondary" id="aw-btn-council" style="margin-top:8px;margin-bottom:0;font-size:12px;">发起 Council</button>
+          <button type="button" class="aw-btn secondary" id="aw-btn-council" style="margin-top:8px;margin-bottom:0;font-size:12px;">发起讨论</button>
           <div id="aw-council-thread" style="margin-top:12px;max-height:45vh;overflow-y:auto;"></div>
           <div id="aw-council-proposal" style="margin-top:10px;"></div>
         </div>

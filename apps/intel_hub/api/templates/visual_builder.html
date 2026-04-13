@@ -224,6 +224,13 @@
     if (_logDock.classList.contains('collapsed')) vbToggleLogDock();
   }
 
+  function _fixRefUrl(url) {
+    if (!url) return url;
+    var m = url.indexOf('/data/source_images/');
+    if (m >= 0) return '/source-images/' + url.substring(m + '/data/source_images/'.length);
+    return url;
+  }
+
   function renderTraces() {
     var panel = document.getElementById('vb-trace-panel');
     var countEl = document.getElementById('vb-trace-count');
@@ -262,7 +269,7 @@
         html += '<div class="vb-label">发送给模型的 Prompt</div><div class="vb-trace-pre">' + esc(t.prompt_sent) + '</div>';
       }
       if (t.ref_image_sent) {
-        html += '<div class="vb-label">参考图</div><div class="vb-text"><img src="' + esc(t.ref_image_sent) + '" style="max-width:120px;border-radius:4px;"></div>';
+        html += '<div class="vb-label">参考图</div><div class="vb-text"><img src="' + esc(_fixRefUrl(t.ref_image_sent)) + '" style="max-width:120px;border-radius:4px;"></div>';
       }
       if (t.output_raw) {
         html += '<div class="vb-label">输出</div><div class="vb-trace-pre">' + esc(t.output_raw) + '</div>';
