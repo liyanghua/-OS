@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>主图裂变工作台 — 增长实验室</title>
+  <style>
+    :root {
+      --primary: #4F46E5; --primary-light: #EEF2FF;
+      --accent-pos: #10B981; --accent-neg: #EF4444; --accent-warn: #F59E0B;
+      --bg: #F9FAFB; --surface: #FFFFFF; --border: #E5E7EB;
+      --ink: #111827; --muted: #6B7280; --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+
+    .topnav {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center; height: 52px; gap: 4px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topnav .brand { font-weight: 700; font-size: 15px; color: var(--primary); margin-right: 20px; white-space: nowrap; }
+    .topnav a {
+      font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none;
+      padding: 6px 12px; border-radius: 8px; transition: all .15s;
+    }
+    .topnav a:hover { background: var(--primary-light); color: var(--primary); }
+    .topnav a.active { background: var(--primary); color: #fff; font-weight: 600; }
+
+    .shell { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; font-weight: 700; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; font-family: inherit;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { opacity: .9; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+    .btn-ghost:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-accent { background: var(--accent-pos); color: #fff; }
+
+    .two-col { display: grid; grid-template-columns: 360px 1fr; gap: 20px; min-height: calc(100vh - 140px); }
+    @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px; overflow-y: auto;
+    }
+    .panel-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+
+    /* ── form ─────────────────────────────────── */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-family: inherit; outline: none; resize: vertical; background: var(--bg);
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+      border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79,70,229,.12);
+    }
+
+    /* ── dimension row ───────────────────────── */
+    .dim-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .dim-row select { width: 120px; flex-shrink: 0; }
+    .dim-row input { flex: 1; }
+
+    /* ── variable matrix ─────────────────────── */
+    .var-matrix { margin: 12px 0; }
+    .var-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 8px; background: var(--primary-light); color: var(--primary);
+      font-size: 11px; font-weight: 600; margin: 2px 4px 2px 0;
+    }
+    .var-chip .remove { cursor: pointer; opacity: .6; }
+    .var-chip .remove:hover { opacity: 1; }
+
+    /* ── variant grid ────────────────────────── */
+    .variant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+    .variant-cell {
+      border: 2px solid var(--border); border-radius: var(--radius); overflow: hidden;
+      cursor: pointer; transition: all .15s; position: relative;
+    }
+    .variant-cell:hover { border-color: var(--primary); box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .variant-cell.selected { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
+    .variant-thumb {
+      width: 100%; aspect-ratio: 1; background: var(--bg);
+      display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px;
+      overflow: hidden;
+    }
+    .variant-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .variant-info { padding: 10px; font-size: 12px; }
+    .variant-info .labels { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 10px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-pending { background: #FEF3C7; color: #92400E; }
+    .badge-generating { background: #DBEAFE; color: #1D4ED8; }
+    .badge-done { background: #D1FAE5; color: #065F46; }
+    .badge-failed { background: #FEE2E2; color: #991B1B; }
+    .badge-dim { background: #F3F4F6; color: var(--muted); }
+
+    .batch-status {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: 8px; background: #DBEAFE;
+      font-size: 12px; font-weight: 500; color: #1D4ED8; margin-bottom: 16px;
+    }
+    .batch-status.hidden { display: none; }
+
+    .empty-hint { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13px; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: #fff; background: #1F2937;
+      box-shadow: 0 4px 20px rgba(0,0,0,.15); z-index: 9999; opacity: 0; transform: translateY(10px); transition: all .3s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/" style="font-size:12px;color:var(--muted);text-decoration:none;margin-right:8px;">← 内容平台</a>
+  <span class="brand">增长实验室</span>
+  <a href="/growth-lab/radar">热点雷达</a>
+  <a href="/growth-lab/compiler">卖点编译器</a>
+  <a href="/growth-lab/lab" class="active">主图工作台</a>
+  <a href="/growth-lab/first3s">前3秒工作台</a>
+  <a href="/growth-lab/board">测试放大板</a>
+  <a href="/growth-lab/assets">资产图谱</a>
+</nav>
+
+<div class="shell">
+  <div class="page-header">
+    <h1>主图裂变工作台</h1>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-accent btn-sm" id="btn-test" onclick="createTestTask()" style="display:none;">创建测试任务</button>
+    </div>
+  </div>
+
+  <div id="batch-status" class="batch-status hidden">
+    <span class="spinner"></span> <span id="batch-msg">批量生成进行中…</span>
+  </div>
+
+  <div class="two-col">
+    <!-- left: controls -->
+    <div class="panel" style="max-height: calc(100vh - 140px);">
+      <!-- selling point reference (populated by spec_id param) -->
+      <div id="spec-ref-panel" style="display:none;margin-bottom:16px;padding:12px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:12px;font-weight:700;color:#4F46E5;">来源卖点</span>
+          <button onclick="document.getElementById('spec-ref-detail').style.display=document.getElementById('spec-ref-detail').style.display==='none'?'block':'none'" style="background:none;border:none;cursor:pointer;font-size:11px;color:#4F46E5;">展开/收起</button>
+        </div>
+        <div id="spec-ref-claim" style="font-size:13px;font-weight:600;margin-bottom:4px;"></div>
+        <div id="spec-ref-meta" style="font-size:11px;color:#6B7280;"></div>
+        <div id="spec-ref-detail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #C7D2FE;font-size:12px;color:#374151;line-height:1.7;"></div>
+      </div>
+
+      <div class="panel-title">变量控制面板</div>
+
+      <div id="dim-inputs">
+        <div class="dim-row">
+          <select class="dim-select">
+            <option value="模特">模特</option><option value="构图">构图</option><option value="场景">场景</option>
+            <option value="字卡">字卡</option><option value="色彩">色彩</option><option value="风格">风格</option>
+          </select>
+          <input type="text" class="dim-value" placeholder="输入变量值…" />
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:4px;" onclick="addDimRow()">+ 添加维度行</button>
+
+      <div class="var-matrix" id="var-matrix"></div>
+      <button class="btn btn-ghost btn-sm" onclick="addVarCombo()">添加变量组合</button>
+
+      <div class="form-group" style="margin-top:18px;">
+        <label>基础 Prompt</label>
+        <textarea id="base-prompt" rows="3" placeholder="描述主图基础风格…"></textarea>
+      </div>
+      <div class="form-group">
+        <label>负向 Prompt</label>
+        <textarea id="neg-prompt" rows="2" placeholder="需要排除的元素…"></textarea>
+      </div>
+      <div class="form-group">
+        <label>参考图 URL</label>
+        <input type="text" id="ref-image" placeholder="https://..." />
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;margin-top:12px;" id="btn-generate" onclick="generateBatch()">批量生成</button>
+    </div>
+
+    <!-- right: variant grid -->
+    <div class="panel" style="max-height: calc(100vh - 140px);">
+      <div class="panel-title">版本网格 <span id="variant-count" style="font-weight:400;color:var(--muted);font-size:12px;"></span></div>
+      <div id="variant-grid" class="variant-grid"></div>
+      <div id="variant-empty" class="empty-hint">暂无版本。在左侧配置变量后点击「批量生成」。</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let varCombos = [];
+let variants = [];
+let selectedVariantIds = new Set();
+
+const STATUS_BADGE = { pending: 'badge-pending', generating: 'badge-generating', done: 'badge-done', failed: 'badge-failed' };
+const STATUS_LABEL = { pending: '待生成', generating: '生成中', done: '已完成', failed: '失败' };
+
+function toast(msg, dur) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur || 2500);
+}
+
+function addDimRow() {
+  const container = document.getElementById('dim-inputs');
+  const row = document.createElement('div');
+  row.className = 'dim-row';
+  row.innerHTML = `
+    <select class="dim-select">
+      <option value="模特">模特</option><option value="构图">构图</option><option value="场景">场景</option>
+      <option value="字卡">字卡</option><option value="色彩">色彩</option><option value="风格">风格</option>
+    </select>
+    <input type="text" class="dim-value" placeholder="输入变量值…" />`;
+  container.appendChild(row);
+}
+
+function addVarCombo() {
+  const rows = document.querySelectorAll('#dim-inputs .dim-row');
+  const combo = {};
+  rows.forEach(r => {
+    const dim = r.querySelector('.dim-select').value;
+    const val = r.querySelector('.dim-value').value.trim();
+    if (val) combo[dim] = val;
+  });
+  if (!Object.keys(combo).length) { toast('请至少填写一个维度值'); return; }
+  varCombos.push(combo);
+  renderMatrix();
+  rows.forEach(r => r.querySelector('.dim-value').value = '');
+}
+
+function removeCombo(idx) { varCombos.splice(idx, 1); renderMatrix(); }
+
+function renderMatrix() {
+  const el = document.getElementById('var-matrix');
+  if (!varCombos.length) { el.innerHTML = ''; return; }
+  el.innerHTML = varCombos.map((c, i) => {
+    const chips = Object.entries(c).map(([k,v]) => `<span class="var-chip">${k}:${v} <span class="remove" onclick="removeCombo(${i})">×</span></span>`).join('');
+    return `<div style="margin-bottom:6px;">${chips}</div>`;
+  }).join('');
+}
+
+function renderVariants() {
+  const grid = document.getElementById('variant-grid');
+  const empty = document.getElementById('variant-empty');
+  const count = document.getElementById('variant-count');
+  count.textContent = variants.length ? `(${variants.length})` : '';
+  if (!variants.length) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  grid.innerHTML = variants.map(v => {
+    const sel = selectedVariantIds.has(v.variant_id);
+    const st = v.status || 'pending';
+    const dims = Object.entries(v.variable_values || {}).map(([k,val]) => `<span class="badge badge-dim">${k}:${val}</span>`).join('');
+    const thumb = v.image_url
+      ? `<img src="${v.image_url}" alt="" />`
+      : '<span>暂无图片</span>';
+    return `
+      <div class="variant-cell ${sel ? 'selected' : ''}" onclick="toggleVariant('${v.variant_id}')">
+        <div class="variant-thumb">${thumb}</div>
+        <div class="variant-info">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="badge ${STATUS_BADGE[st] || 'badge-pending'}">${STATUS_LABEL[st] || st}</span>
+          </div>
+          <div class="labels">${dims}</div>
+        </div>
+      </div>`;
+  }).join('');
+  document.getElementById('btn-test').style.display = selectedVariantIds.size ? 'inline-flex' : 'none';
+}
+
+function toggleVariant(id) {
+  if (selectedVariantIds.has(id)) selectedVariantIds.delete(id); else selectedVariantIds.add(id);
+  renderVariants();
+}
+
+async function generateBatch() {
+  if (!varCombos.length) { toast('请先添加变量组合'); return; }
+  const btn = document.getElementById('btn-generate');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 生成中…';
+  document.getElementById('batch-status').classList.remove('hidden');
+  try {
+    const res = await fetch('/growth-lab/api/lab/generate-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        variable_combos: varCombos,
+        base_prompt: document.getElementById('base-prompt').value,
+        negative_prompt: document.getElementById('neg-prompt').value,
+        reference_image_url: document.getElementById('ref-image').value,
+      }),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    toast('批量任务已提交，共 ' + (data.count ?? varCombos.length) + ' 个版本');
+    await loadVariants();
+  } catch (e) { toast('生成失败：' + e.message); }
+  finally {
+    btn.disabled = false; btn.textContent = '批量生成';
+    document.getElementById('batch-status').classList.add('hidden');
+  }
+}
+
+async function createTestTask() {
+  const ids = [...selectedVariantIds];
+  if (!ids.length) { toast('请先选择版本'); return; }
+  try {
+    for (const vid of ids) {
+      await fetch('/growth-lab/api/board/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant_id: vid, variant_type: 'main_image' }),
+      });
+    }
+    toast('已为 ' + ids.length + ' 个版本创建测试任务');
+    selectedVariantIds.clear(); renderVariants();
+  } catch (e) { toast('创建失败：' + e.message); }
+}
+
+async function loadVariants() {
+  try {
+    const res = await fetch('/growth-lab/api/lab/variants');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    variants = data.items || data || [];
+    renderVariants();
+  } catch (e) { document.getElementById('variant-empty').innerHTML = '<span style="color:var(--accent-neg);">加载失败</span>'; }
+}
+
+async function loadSpecContext() {
+  const params = new URLSearchParams(location.search);
+  const specId = params.get('spec_id');
+  if (!specId) return;
+  try {
+    const res = await fetch('/growth-lab/api/compiler/specs/' + specId);
+    if (!res.ok) return;
+    const s = await res.json();
+
+    document.getElementById('spec-ref-panel').style.display = 'block';
+    document.getElementById('spec-ref-claim').textContent = s.core_claim || '—';
+
+    const people = (s.target_people || []).join('、');
+    const scenarios = (s.target_scenarios || []).join('、');
+    document.getElementById('spec-ref-meta').textContent =
+      (people ? '人群：' + people : '') + (scenarios ? '　场景：' + scenarios : '');
+
+    let detail = '';
+    if (s.supporting_claims && s.supporting_claims.length)
+      detail += '<div><strong>支撑论据：</strong>' + s.supporting_claims.join('、') + '</div>';
+    if (s.differentiation_notes)
+      detail += '<div><strong>差异化：</strong>' + s.differentiation_notes + '</div>';
+    const shelf = s.shelf_expression;
+    if (shelf && typeof shelf === 'object' && shelf.headline) {
+      detail += '<div><strong>货架表达：</strong>' + shelf.headline;
+      if (shelf.sub_copy) detail += ' / ' + shelf.sub_copy;
+      detail += '</div>';
+    }
+    const f3s = s.first3s_expression;
+    if (f3s && typeof f3s === 'object' && f3s.headline) {
+      detail += '<div><strong>前3秒表达：</strong>' + f3s.headline;
+      if (f3s.sub_copy) detail += ' / ' + f3s.sub_copy;
+      detail += '</div>';
+    }
+    document.getElementById('spec-ref-detail').innerHTML = detail;
+
+    const promptEl = document.getElementById('base-prompt');
+    if (!promptEl.value.trim()) {
+      const parts = ['产品主图'];
+      if (s.core_claim) parts.push(s.core_claim);
+      if (people) parts.push('目标人群：' + people);
+      if (scenarios) parts.push('场景：' + scenarios);
+      if (shelf && typeof shelf === 'object') {
+        if (shelf.visual_direction) parts.push('视觉方向：' + shelf.visual_direction);
+        if (shelf.tone) parts.push('风格：' + shelf.tone);
+      }
+      promptEl.value = parts.join('，');
+    }
+  } catch (_) {}
+}
+
+loadSpecContext();
+loadVariants();
+</script>
+</body>
+</html>

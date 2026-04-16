@@ -3,6 +3,74 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## 热点驱动裂变系统 growth_lab (2026-04-16)
+
+### 概述
+
+新建 `apps/growth_lab/` 模块，实现「热点驱动主图/前3秒裂变与测款放大系统」。
+产品主链：TrendSignal → Opportunity → SellingPointSpec → VariantSpec → TestTask → ResultSnapshot → AmplificationPlan → AssetGraph。
+与原 content_planning（Expert 模式）并存，路由前缀 `/growth-lab/*`。
+
+### 新增模块结构
+
+| 目录 | 说明 |
+|---|---|
+| `apps/growth_lab/schemas/` | 6 个 schema 文件：TrendOpportunity, SellingPointSpec, MainImageVariant, First3sVariant, TestTask, AssetPerformance |
+| `apps/growth_lab/services/` | 7 个 service：SellingPointCompiler, MainImageVariantCompiler, VariantBatchQueue, First3sVariantCompiler, AmplificationPlanner, VideoProcessor, AssetGraphService |
+| `apps/growth_lab/adapters/` | 2 个 adapter：opportunity_adapter (XHS→TrendOpp 映射), invokeai_provider (InvokeAI 本地推理骨架+mock) |
+| `apps/growth_lab/storage/` | GrowthLabStore (SQLite, 9 张表, 自迁移) |
+| `apps/growth_lab/api/routes.py` | 36 个路由 (6 页面 + 30 API) |
+| `apps/growth_lab/templates/` | 6 个 HTML 页面：radar, compiler, main_image_lab, first3s_lab, board, asset_graph |
+
+### 新增 Schemas (10 个核心对象)
+
+| 对象 | 文件 | 说明 |
+|---|---|---|
+| `TrendOpportunity` | `schemas/trend_opportunity.py` | 统一机会对象，含 freshness/relevance/actionability 三维评分 |
+| `SellingPointSpec` | `schemas/selling_point_spec.py` | 结构化卖点+多平台表达(PlatformExpressionSpec) |
+| `MainImageVariant` | `schemas/main_image_variant.py` | 主图裂变版本，含 VariantVariable + ImageVariantSpec |
+| `VariantVariable` | `schemas/main_image_variant.py` | 9 维裂变变量（模特/构图/场景/字卡/色彩/风格...） |
+| `First3sVariant` | `schemas/first3s_variant.py` | 前3秒裂变版本，含 HookPattern + HookScript + ClipAssemblyPlan |
+| `TestTask` | `schemas/test_task.py` | 测试任务管理单元 |
+| `ResultSnapshot` | `schemas/test_task.py` | 结果快照（CTR/流量/转化率/退款率） |
+| `AmplificationPlan` | `schemas/test_task.py` | 放大计划（放大/再裂变/换方向） |
+| `AssetPerformanceCard` | `schemas/asset_performance.py` | 带业绩绑定的资产卡 |
+| `PatternTemplate` | `schemas/asset_performance.py` | 可复用模式模板 |
+
+### 新增 API (36 路由)
+
+| 前缀 | 端点数 | 核心功能 |
+|---|---|---|
+| `/growth-lab/radar` | 6 | 机会列表/详情/创建/收藏/晋升/intel_hub同步 |
+| `/growth-lab/compiler` | 4 | 卖点列表/详情/创建/LLM编译 |
+| `/growth-lab/lab` | 5 | 主图变体CRUD + 批量生成 + 批次状态 |
+| `/growth-lab/first3s` | 3 | 前3秒变体列表/详情/钩子生成 |
+| `/growth-lab/board` | 5 | 测试任务CRUD + 结果录入 + 放大建议 |
+| `/growth-lab/assets` | 7 | 资产卡/模板列表 + 高表现沉淀 + 模式提取 + 推荐 + 视频处理 |
+| `/growth-lab/loop` | 1 | 资产→Radar反馈闭环 |
+| 页面路由 | 6 | radar/compiler/lab/first3s/board/asset_graph |
+
+### 关键设计决策
+
+| 编号 | 决策 |
+|---|---|
+| D-030 | 新链路命名空间 `/growth-lab/*`，与 `/content-planning/*` 并存 |
+| D-031 | 新模块 `apps/growth_lab/`，独立 schemas/services/routes |
+| D-032 | 存储继续 SQLite, `data/growth_lab.sqlite` |
+| D-033 | 批量生成队列 VariantBatchQueue (ThreadPoolExecutor + 内存状态) |
+| D-034 | InvokeAI adapter 模式，不 fork 源码，通过 REST API 调用 |
+| D-035 | 视频处理 Phase 3 引入 ffmpeg + whisper，优雅降级 |
+| D-036 | 前端继续 Jinja2 + 原生 JS/CSS |
+| D-037 | TrendOpportunity 与 XHSOpportunityCard 通过 adapter 映射，不改原对象 |
+
+### 改动的文件
+
+| 文件 | 改动 |
+|---|---|
+| `apps/intel_hub/api/app.py` | 挂载 growth_lab_router |
+
+---
+
 ## 生图提示词可观测性 + 质量升级 (2026-04-12)
 
 ### 概述
@@ -3148,3 +3216,50 @@ image -> image_execution_briefs
 | 方法 | 路径 | 功能 |
 |------|------|------|
 | GET | `/planning/{id}/visual-builder` | 视觉工作台独立页 |
+
+---
+
+## 卖点编译器体验升级（2026-04-16）
+
+### 概述
+
+针对卖点编译器的 6 个体验问题进行系统性升级：参考上下文缺失、编译过程黑盒、字段覆盖不全、平台表达无参考、专家参与不足、缺少评估与衔接。
+
+### 改造清单
+
+| # | 改造 | 状态 |
+|---|------|------|
+| 6 | 修复右栏 `[object Object]`、未传 workspace_id、规则兜底缺 first3s_expression | ✅ 完成 |
+| 1 | TrendOpportunity 新增 rich_context、adapter 打包语义字段、compiler 扩充上下文、左栏卡片详情展开 | ✅ 完成 |
+| 2 | 三阶段 SSE 编译流 + 前端过程面板（thinking dots + reasoning cards） | ✅ 完成 |
+| 3 | 右栏结构化展示 + 货架/前3秒参考案例 | ✅ 完成 |
+| 4 | ExpertAnnotation schema + 存储 + 批注 UI + 历史经验注入 LLM | ✅ 完成 |
+| 5 | SellingPointEvaluator + 质量报告卡片 + 下一步引导 | ✅ 完成 |
+
+### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `apps/growth_lab/services/selling_point_evaluator.py` | 规则驱动的卖点质量评估器（6维度打分 + 下一步建议） |
+
+### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `schemas/trend_opportunity.py` | 新增 `rich_context: dict` 字段 |
+| `schemas/selling_point_spec.py` | 新增 `ExpertAnnotation` 模型 |
+| `schemas/__init__.py` | 导出 `ExpertAnnotation` |
+| `adapters/opportunity_adapter.py` | 打包 pain_point/desire/hook/selling_points 等语义字段到 rich_context |
+| `services/selling_point_compiler.py` | 三阶段 SSE 编译流（洞察提炼→卖点构建→平台表达）、rich_context 注入 LLM prompt、专家批注历史注入、规则兜底补齐 first3s_expression |
+| `storage/growth_lab_store.py` | 新增 expert_annotations 表 + CRUD 方法 |
+| `api/routes.py` | 新增 SSE compile-stream 端点、annotations CRUD 端点、references 参考案例端点 |
+| `templates/compiler.html` | 全面升级：左栏卡片详情展开、SSE 编译过程面板、结构化表达渲染、专家批注 UI、质量评估报告、下一步引导按钮、参考案例区 |
+
+### 新增路由
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| POST | `/growth-lab/api/compiler/compile-stream` | SSE 三阶段编译流 |
+| POST | `/growth-lab/api/compiler/annotations` | 创建专家批注 |
+| GET | `/growth-lab/api/compiler/annotations` | 查询批注列表 |
+| GET | `/growth-lab/api/compiler/references` | 获取货架/前3秒参考案例 |

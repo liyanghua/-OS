@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>资产图谱 — 增长实验室</title>
+  <style>
+    :root {
+      --primary: #4F46E5; --primary-light: #EEF2FF;
+      --accent-pos: #10B981; --accent-neg: #EF4444; --accent-warn: #F59E0B;
+      --bg: #F9FAFB; --surface: #FFFFFF; --border: #E5E7EB;
+      --ink: #111827; --muted: #6B7280; --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+
+    .topnav {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center; height: 52px; gap: 4px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topnav .brand { font-weight: 700; font-size: 15px; color: var(--primary); margin-right: 20px; white-space: nowrap; }
+    .topnav a {
+      font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none;
+      padding: 6px 12px; border-radius: 8px; transition: all .15s;
+    }
+    .topnav a:hover { background: var(--primary-light); color: var(--primary); }
+    .topnav a.active { background: var(--primary); color: #fff; font-weight: 600; }
+
+    .shell { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .page-header h1 { font-size: 22px; font-weight: 700; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; font-family: inherit;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+    .btn-ghost:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* ── filter bar ──────────────────────────── */
+    .filter-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .filter-bar select, .filter-bar input {
+      padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; background: var(--surface); color: var(--ink); outline: none;
+    }
+    .filter-bar select:focus, .filter-bar input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79,70,229,.12); }
+
+    /* ── asset card grid ─────────────────────── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .asset-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; transition: box-shadow .2s;
+    }
+    .asset-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+    .asset-thumb {
+      width: 100%; height: 180px; background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 13px; overflow: hidden;
+    }
+    .asset-thumb img, .asset-thumb video { width: 100%; height: 100%; object-fit: cover; }
+    .asset-body { padding: 14px; }
+    .asset-body .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+    .badge {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-image { background: #DBEAFE; color: #1D4ED8; }
+    .badge-video { background: #FEF3C7; color: #92400E; }
+    .badge-copy { background: #EDE9FE; color: #5B21B6; }
+    .badge-template { background: #D1FAE5; color: #065F46; }
+    .badge-active { background: #D1FAE5; color: #065F46; }
+    .badge-archived { background: #F3F4F6; color: var(--muted); }
+    .badge-draft { background: #FEF3C7; color: #92400E; }
+
+    /* ── metrics row ─────────────────────────── */
+    .metrics-row { display: flex; gap: 16px; margin: 10px 0; font-size: 12px; }
+    .metric { text-align: center; }
+    .metric .val { font-size: 18px; font-weight: 700; color: var(--ink); }
+    .metric .label { color: var(--muted); margin-top: 2px; }
+
+    /* ── tags ─────────────────────────────────── */
+    .tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #F3F4F6; color: var(--muted); }
+
+    /* ── reuse directions ────────────────────── */
+    .reuse-dir { margin-top: 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .reuse-dir strong { color: var(--ink); }
+
+    /* ── section ──────────────────────────────── */
+    .section-title { font-size: 18px; font-weight: 700; margin: 36px 0 16px; padding-top: 20px; border-top: 1px solid var(--border); }
+
+    /* ── template cards ──────────────────────── */
+    .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .tpl-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; transition: box-shadow .2s;
+    }
+    .tpl-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .tpl-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .tpl-meta { font-size: 12px; color: var(--muted); display: flex; gap: 14px; margin-top: 6px; }
+    .tpl-meta strong { color: var(--ink); }
+
+    .empty-hint { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13px; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: #fff; background: #1F2937;
+      box-shadow: 0 4px 20px rgba(0,0,0,.15); z-index: 9999; opacity: 0; transform: translateY(10px); transition: all .3s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/" style="font-size:12px;color:var(--muted);text-decoration:none;margin-right:8px;">← 内容平台</a>
+  <span class="brand">增长实验室</span>
+  <a href="/growth-lab/radar">热点雷达</a>
+  <a href="/growth-lab/compiler">卖点编译器</a>
+  <a href="/growth-lab/lab">主图工作台</a>
+  <a href="/growth-lab/first3s">前3秒工作台</a>
+  <a href="/growth-lab/board">测试放大板</a>
+  <a href="/growth-lab/assets" class="active">资产图谱</a>
+</nav>
+
+<div class="shell">
+  <div class="page-header">
+    <h1>资产图谱</h1>
+  </div>
+
+  <div class="filter-bar">
+    <select id="filter-type" onchange="applyFilters()">
+      <option value="">全部类型</option>
+      <option value="image">图片</option>
+      <option value="video">视频</option>
+      <option value="copy">文案</option>
+    </select>
+    <select id="filter-status" onchange="applyFilters()">
+      <option value="">全部状态</option>
+      <option value="active">使用中</option>
+      <option value="archived">已归档</option>
+      <option value="draft">草稿</option>
+    </select>
+    <input type="text" id="filter-search" placeholder="搜索资产…" oninput="applyFilters()" style="flex:1;max-width:320px;" />
+  </div>
+
+  <div id="loading" style="text-align:center;padding:40px;"><span class="spinner"></span> 加载中…</div>
+  <div id="asset-grid" class="card-grid" style="display:none;"></div>
+  <div id="empty-state" class="empty-hint" style="display:none;">暂无资产。在测试放大板中验证通过的版本会自动沉淀为资产。</div>
+
+  <h2 class="section-title" id="tpl-section" style="display:none;">模式模板</h2>
+  <div id="tpl-grid" class="template-grid" style="display:none;"></div>
+  <div id="tpl-empty" class="empty-hint" style="display:none;">暂无模式模板。</div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let allAssets = [];
+let allTemplates = [];
+
+const TYPE_CLS = { image: 'badge-image', video: 'badge-video', copy: 'badge-copy', template: 'badge-template' };
+const TYPE_LABEL = { image: '图片', video: '视频', copy: '文案', template: '模板' };
+const STATUS_CLS = { active: 'badge-active', archived: 'badge-archived', draft: 'badge-draft' };
+const STATUS_LABEL = { active: '使用中', archived: '已归档', draft: '草稿' };
+
+function toast(msg, dur) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur || 2500);
+}
+
+function renderAssetCard(a) {
+  const typeCls = TYPE_CLS[a.asset_type] || 'badge-image';
+  const typeLabel = TYPE_LABEL[a.asset_type] || a.asset_type;
+  const stCls = STATUS_CLS[a.status] || 'badge-draft';
+  const stLabel = STATUS_LABEL[a.status] || a.status;
+
+  let thumb = '<span>暂无预览</span>';
+  if (a.thumbnail_url || a.image_url) {
+    const url = a.thumbnail_url || a.image_url;
+    if (a.asset_type === 'video') {
+      thumb = `<video src="${url}" muted></video>`;
+    } else {
+      thumb = `<img src="${url}" alt="" />`;
+    }
+  }
+
+  const metrics = a.key_metrics || {};
+  const metricsHtml = Object.entries(metrics).slice(0, 4).map(([k, v]) =>
+    `<div class="metric"><div class="val">${typeof v === 'number' ? v.toFixed(v < 1 ? 2 : 0) : v}</div><div class="label">${k}</div></div>`
+  ).join('');
+
+  const tags = (a.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
+  const reuse = (a.reuse_directions || []).map(d => `<strong>→</strong> ${d}`).join('<br/>');
+
+  return `
+    <div class="asset-card">
+      <div class="asset-thumb">${thumb}</div>
+      <div class="asset-body">
+        <div class="top-row">
+          <span class="badge ${typeCls}">${typeLabel}</span>
+          <span class="badge ${stCls}">${stLabel}</span>
+        </div>
+        ${metricsHtml ? '<div class="metrics-row">' + metricsHtml + '</div>' : ''}
+        ${a.usage_count != null ? '<div style="font-size:12px;color:var(--muted);">复用次数：<strong style="color:var(--ink);">' + a.usage_count + '</strong></div>' : ''}
+        ${tags ? '<div class="tag-row">' + tags + '</div>' : ''}
+        ${reuse ? '<div class="reuse-dir">' + reuse + '</div>' : ''}
+      </div>
+    </div>`;
+}
+
+function applyFilters() {
+  const type = document.getElementById('filter-type').value;
+  const status = document.getElementById('filter-status').value;
+  const q = document.getElementById('filter-search').value.toLowerCase();
+  const filtered = allAssets.filter(a => {
+    if (type && a.asset_type !== type) return false;
+    if (status && a.status !== status) return false;
+    if (q) {
+      const haystack = ((a.tags || []).join(' ') + ' ' + (a.title || '') + ' ' + (a.description || '')).toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+  const grid = document.getElementById('asset-grid');
+  const empty = document.getElementById('empty-state');
+  if (!filtered.length) { grid.style.display = 'none'; empty.style.display = 'block'; }
+  else { empty.style.display = 'none'; grid.style.display = 'grid'; grid.innerHTML = filtered.map(renderAssetCard).join(''); }
+}
+
+function renderTemplates() {
+  const section = document.getElementById('tpl-section');
+  const grid = document.getElementById('tpl-grid');
+  const empty = document.getElementById('tpl-empty');
+  if (!allTemplates.length) {
+    section.style.display = 'block'; grid.style.display = 'none'; empty.style.display = 'block';
+    return;
+  }
+  section.style.display = 'block'; empty.style.display = 'none'; grid.style.display = 'grid';
+  grid.innerHTML = allTemplates.map(t => `
+    <div class="tpl-card">
+      <div style="margin-bottom:6px;"><span class="badge badge-template">${TYPE_LABEL[t.type] || t.type || '模板'}</span></div>
+      <h4>${t.name || '未命名'}</h4>
+      <div class="tpl-meta">
+        ${t.avg_performance != null ? '<span>平均表现 <strong>' + (t.avg_performance * 100).toFixed(0) + '%</strong></span>' : ''}
+        ${t.usage_count != null ? '<span>使用次数 <strong>' + t.usage_count + '</strong></span>' : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function loadAll() {
+  try {
+    const [cardsRes, tplRes] = await Promise.all([
+      fetch('/growth-lab/api/assets/cards'),
+      fetch('/growth-lab/api/assets/templates'),
+    ]);
+    if (cardsRes.ok) {
+      const data = await cardsRes.json();
+      allAssets = data.items || data || [];
+    }
+    if (tplRes.ok) {
+      const data = await tplRes.json();
+      allTemplates = data.items || data || [];
+    }
+    document.getElementById('loading').style.display = 'none';
+    applyFilters();
+    renderTemplates();
+  } catch (e) {
+    document.getElementById('loading').innerHTML = '<span style="color:var(--accent-neg);">加载失败：' + e.message + '</span>';
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>

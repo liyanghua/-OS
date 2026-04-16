@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>热点雷达 — 增长实验室</title>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-light: #EEF2FF;
+      --accent-pos: #10B981;
+      --accent-neg: #EF4444;
+      --accent-warn: #F59E0B;
+      --bg: #F9FAFB;
+      --surface: #FFFFFF;
+      --border: #E5E7EB;
+      --ink: #111827;
+      --muted: #6B7280;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+
+    /* ── nav ─────────────────────────────────── */
+    .topnav {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center; height: 52px; gap: 4px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topnav .brand { font-weight: 700; font-size: 15px; color: var(--primary); margin-right: 20px; white-space: nowrap; }
+    .topnav a {
+      font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none;
+      padding: 6px 12px; border-radius: 8px; transition: all .15s;
+    }
+    .topnav a:hover { background: var(--primary-light); color: var(--primary); }
+    .topnav a.active { background: var(--primary); color: #fff; font-weight: 600; }
+
+    /* ── layout ──────────────────────────────── */
+    .shell { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .page-header h1 { font-size: 22px; font-weight: 700; }
+
+    /* ── filter bar ──────────────────────────── */
+    .filter-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .filter-bar select, .filter-bar input {
+      padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; background: var(--surface); color: var(--ink); outline: none;
+    }
+    .filter-bar select:focus, .filter-bar input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79,70,229,.12); }
+
+    /* ── buttons ─────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s;
+      font-family: inherit;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { opacity: .9; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+    .btn-ghost:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* ── card grid ────────────────────────────── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+    .opp-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px; transition: box-shadow .2s;
+    }
+    .opp-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+    .opp-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; line-height: 1.4; }
+    .opp-card .summary { font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 12px; }
+
+    /* ── badges ───────────────────────────────── */
+    .badge {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-platform { background: #DBEAFE; color: #1D4ED8; }
+    .badge-new { background: #D1FAE5; color: #065F46; }
+    .badge-bookmarked { background: #FEF3C7; color: #92400E; }
+    .badge-promoted { background: #EDE9FE; color: #5B21B6; }
+    .badge-dismissed { background: #F3F4F6; color: #6B7280; }
+
+    /* ── score bars ──────────────────────────── */
+    .score-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .score-label { font-size: 11px; color: var(--muted); width: 56px; flex-shrink: 0; }
+    .score-track { flex: 1; height: 6px; background: #F3F4F6; border-radius: 3px; overflow: hidden; }
+    .score-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+    .score-val { font-size: 11px; font-weight: 600; width: 28px; text-align: right; }
+
+    /* ── tags ─────────────────────────────────── */
+    .tag-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+    .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #F3F4F6; color: var(--muted); }
+
+    /* ── actions row ──────────────────────────── */
+    .actions-row { display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+
+    /* ── empty state ──────────────────────────── */
+    .empty-state {
+      text-align: center; padding: 60px 24px; color: var(--muted);
+      border: 2px dashed var(--border); border-radius: var(--radius); background: var(--surface);
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; max-width: 360px; margin: 0 auto; line-height: 1.6; }
+
+    /* ── loading / toast ──────────────────────── */
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: #fff; background: #1F2937; box-shadow: 0 4px 20px rgba(0,0,0,.15);
+      z-index: 9999; opacity: 0; transform: translateY(10px); transition: all .3s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/" style="font-size:12px;color:var(--muted);text-decoration:none;margin-right:8px;">← 内容平台</a>
+  <span class="brand">增长实验室</span>
+  <a href="/growth-lab/radar" class="active">热点雷达</a>
+  <a href="/growth-lab/compiler">卖点编译器</a>
+  <a href="/growth-lab/lab">主图工作台</a>
+  <a href="/growth-lab/first3s">前3秒工作台</a>
+  <a href="/growth-lab/board">测试放大板</a>
+  <a href="/growth-lab/assets">资产图谱</a>
+</nav>
+
+<div class="shell">
+  <div class="page-header">
+    <h1>热点雷达</h1>
+    <button class="btn btn-primary" id="btn-sync" onclick="syncFromIntelHub()">
+      从情报中枢同步
+    </button>
+  </div>
+
+  <div class="filter-bar">
+    <select id="filter-status" onchange="applyFilters()">
+      <option value="">全部状态</option>
+      <option value="new">新发现</option>
+      <option value="bookmarked">已收藏</option>
+      <option value="promoted">已晋升</option>
+    </select>
+    <input type="text" id="filter-search" placeholder="搜索标题或摘要…" oninput="applyFilters()" style="flex:1;max-width:320px;" />
+  </div>
+
+  <div id="loading" style="text-align:center;padding:40px;"><span class="spinner"></span> 加载中…</div>
+  <div id="card-grid" class="card-grid" style="display:none;"></div>
+  <div id="empty-state" class="empty-state" style="display:none;">
+    <div class="icon">📡</div>
+    <p>暂无趋势机会。点击上方「从情报中枢同步」按钮获取最新热点数据，或等待系统自动发现新趋势。</p>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let allOpportunities = [];
+
+const STATUS_MAP = { new: '新发现', bookmarked: '已收藏', promoted: '已晋升', dismissed: '已忽略' };
+const STATUS_CLASS = { new: 'badge-new', bookmarked: 'badge-bookmarked', promoted: 'badge-promoted', dismissed: 'badge-dismissed' };
+
+function toast(msg, dur) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur || 2500);
+}
+
+function scoreColor(v) {
+  if (v >= 0.7) return 'var(--accent-pos)';
+  if (v >= 0.4) return 'var(--accent-warn)';
+  return 'var(--accent-neg)';
+}
+
+function renderCard(o) {
+  const summaryTrunc = (o.summary || '').length > 100 ? o.summary.slice(0, 100) + '…' : (o.summary || '');
+  const statusLabel = STATUS_MAP[o.status] || o.status || '未知';
+  const statusCls = STATUS_CLASS[o.status] || 'badge-new';
+  const scores = [
+    { label: '新鲜度', val: o.freshness_score ?? 0 },
+    { label: '相关性', val: o.relevance_score ?? 0 },
+    { label: '可执行度', val: o.actionability_score ?? 0 },
+  ];
+  const scoreBars = scores.map(s => `
+    <div class="score-row">
+      <span class="score-label">${s.label}</span>
+      <div class="score-track"><div class="score-fill" style="width:${(s.val * 100).toFixed(0)}%;background:${scoreColor(s.val)};"></div></div>
+      <span class="score-val">${(s.val * 100).toFixed(0)}</span>
+    </div>`).join('');
+  const tags = (o.suggested_actions || []).map(a => `<span class="tag">${a}</span>`).join('');
+  return `
+    <div class="opp-card" data-id="${o.opportunity_id}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <span class="badge badge-platform">${o.source_platform || '未知来源'}</span>
+        <span class="badge ${statusCls}">${statusLabel}</span>
+      </div>
+      <h3>${o.title || '无标题'}</h3>
+      <div class="summary">${summaryTrunc}</div>
+      ${scoreBars}
+      ${tags ? '<div class="tag-list">' + tags + '</div>' : ''}
+      <div class="actions-row">
+        ${o.status !== 'bookmarked' ? `<button class="btn btn-ghost btn-sm" onclick="setStatus('${o.opportunity_id}','bookmarked')">收藏</button>` : ''}
+        ${o.status !== 'promoted' ? `<button class="btn btn-primary btn-sm" onclick="setStatus('${o.opportunity_id}','promoted')">晋升到编译器</button>` : ''}
+      </div>
+    </div>`;
+}
+
+function applyFilters() {
+  const status = document.getElementById('filter-status').value;
+  const q = document.getElementById('filter-search').value.toLowerCase();
+  const filtered = allOpportunities.filter(o => {
+    if (status && o.status !== status) return false;
+    if (q && !(o.title || '').toLowerCase().includes(q) && !(o.summary || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const grid = document.getElementById('card-grid');
+  const empty = document.getElementById('empty-state');
+  if (filtered.length === 0) {
+    grid.style.display = 'none'; empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none'; grid.style.display = 'grid';
+    grid.innerHTML = filtered.map(renderCard).join('');
+  }
+}
+
+async function loadData() {
+  try {
+    const res = await fetch('/growth-lab/api/radar/opportunities');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    allOpportunities = data.items || data || [];
+    document.getElementById('loading').style.display = 'none';
+    applyFilters();
+  } catch (e) {
+    document.getElementById('loading').innerHTML = '<span style="color:var(--accent-neg);">加载失败：' + e.message + '</span>';
+  }
+}
+
+async function syncFromIntelHub() {
+  const btn = document.getElementById('btn-sync');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 同步中…';
+  try {
+    const res = await fetch('/growth-lab/api/radar/sync-from-intel-hub', { method: 'POST' });
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    toast('同步完成，新增 ' + (data.synced ?? 0) + ' 条，来源共 ' + (data.total_source ?? 0) + ' 条');
+    await loadData();
+  } catch (e) {
+    toast('同步失败：' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '从情报中枢同步';
+  }
+}
+
+async function setStatus(id, status) {
+  const action = status === 'bookmarked' ? 'bookmark' : 'promote';
+  try {
+    const res = await fetch('/growth-lab/api/radar/opportunities/' + id + '/' + action, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    const item = allOpportunities.find(o => o.opportunity_id === id);
+    if (item) item.status = status;
+    toast(STATUS_MAP[status] || status);
+    applyFilters();
+  } catch (e) { toast('操作失败：' + e.message); }
+}
+
+loadData();
+</script>
+</body>
+</html>

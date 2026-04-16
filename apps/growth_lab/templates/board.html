@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>测试放大板 — 增长实验室</title>
+  <style>
+    :root {
+      --primary: #4F46E5; --primary-light: #EEF2FF;
+      --accent-pos: #10B981; --accent-neg: #EF4444; --accent-warn: #F59E0B;
+      --bg: #F9FAFB; --surface: #FFFFFF; --border: #E5E7EB;
+      --ink: #111827; --muted: #6B7280; --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+
+    .topnav {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center; height: 52px; gap: 4px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topnav .brand { font-weight: 700; font-size: 15px; color: var(--primary); margin-right: 20px; white-space: nowrap; }
+    .topnav a {
+      font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none;
+      padding: 6px 12px; border-radius: 8px; transition: all .15s;
+    }
+    .topnav a:hover { background: var(--primary-light); color: var(--primary); }
+    .topnav a.active { background: var(--primary); color: #fff; font-weight: 600; }
+
+    .shell { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; font-weight: 700; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; font-family: inherit;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { opacity: .9; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+    .btn-ghost:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-accent { background: var(--accent-pos); color: #fff; }
+    .btn-accent:hover { opacity: .9; }
+
+    /* ── tabs ─────────────────────────────────── */
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+    .tab-bar button {
+      padding: 8px 18px; border: none; background: none; font-size: 13px; font-weight: 500;
+      color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+      margin-bottom: -1px; font-family: inherit; transition: all .15s;
+    }
+    .tab-bar button:hover { color: var(--ink); }
+    .tab-bar button.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+    /* ── task card ────────────────────────────── */
+    .task-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; margin-bottom: 12px; transition: box-shadow .2s;
+    }
+    .task-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; }
+    .task-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .task-meta span { display: inline-flex; align-items: center; gap: 3px; }
+
+    .badge {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-main_image { background: #DBEAFE; color: #1D4ED8; }
+    .badge-first3s { background: #FEF3C7; color: #92400E; }
+    .badge-running { background: #D1FAE5; color: #065F46; }
+    .badge-completed { background: #E0E7FF; color: #3730A3; }
+    .badge-pending { background: #F3F4F6; color: var(--muted); }
+
+    /* ── inline form ─────────────────────────── */
+    .result-form {
+      display: none; margin-top: 12px; padding: 14px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 10px;
+    }
+    .result-form.open { display: block; }
+    .result-form .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 10px; }
+    .result-form label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 3px; }
+    .result-form input, .result-form textarea {
+      width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: 12px; font-family: inherit; outline: none;
+    }
+    .result-form input:focus, .result-form textarea:focus { border-color: var(--primary); }
+
+    /* ── results timeline ─────────────────────── */
+    .results-timeline { margin-top: 12px; padding-left: 16px; border-left: 2px solid var(--border); }
+    .result-item { padding: 8px 0 8px 12px; font-size: 12px; position: relative; }
+    .result-item::before {
+      content: ''; position: absolute; left: -21px; top: 12px;
+      width: 8px; height: 8px; border-radius: 50%; background: var(--primary);
+    }
+    .result-item .date { font-weight: 600; color: var(--ink); }
+    .result-metrics { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+    .result-metrics span { color: var(--muted); }
+    .result-metrics strong { color: var(--ink); }
+
+    /* ── create task modal (inline) ───────────── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 500;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface); border-radius: 16px; padding: 24px; width: 460px; max-width: 95vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,.15);
+    }
+    .modal-box h2 { font-size: 18px; margin-bottom: 16px; }
+    .modal-box .form-group { margin-bottom: 12px; }
+    .modal-box label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+    .modal-box input, .modal-box select {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-family: inherit; outline: none; background: var(--bg);
+    }
+    .modal-box input:focus, .modal-box select:focus { border-color: var(--primary); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    .empty-hint { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13px; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: #fff; background: #1F2937;
+      box-shadow: 0 4px 20px rgba(0,0,0,.15); z-index: 9999; opacity: 0; transform: translateY(10px); transition: all .3s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/" style="font-size:12px;color:var(--muted);text-decoration:none;margin-right:8px;">← 内容平台</a>
+  <span class="brand">增长实验室</span>
+  <a href="/growth-lab/radar">热点雷达</a>
+  <a href="/growth-lab/compiler">卖点编译器</a>
+  <a href="/growth-lab/lab">主图工作台</a>
+  <a href="/growth-lab/first3s">前3秒工作台</a>
+  <a href="/growth-lab/board" class="active">测试放大板</a>
+  <a href="/growth-lab/assets">资产图谱</a>
+</nav>
+
+<div class="shell">
+  <div class="page-header">
+    <h1>测试放大板</h1>
+    <button class="btn btn-primary" onclick="openModal()">新建测试任务</button>
+  </div>
+
+  <div class="tab-bar">
+    <button class="active" onclick="setTab('running', this)">进行中</button>
+    <button onclick="setTab('completed', this)">已完成</button>
+    <button onclick="setTab('all', this)">全部</button>
+  </div>
+
+  <div id="loading" style="text-align:center;padding:40px;"><span class="spinner"></span> 加载中…</div>
+  <div id="task-list"></div>
+  <div id="empty-state" class="empty-hint" style="display:none;">暂无测试任务。点击上方「新建测试任务」开始。</div>
+</div>
+
+<!-- create-task modal -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal-box">
+    <h2>新建测试任务</h2>
+    <div class="form-group"><label>版本 ID (variant_id)</label><input type="text" id="m-variant-id" placeholder="从工作台复制版本 ID" /></div>
+    <div class="form-group"><label>版本类型</label>
+      <select id="m-variant-type"><option value="main_image">主图</option><option value="first3s">前3秒</option></select>
+    </div>
+    <div class="form-group"><label>平台</label><input type="text" id="m-platform" placeholder="如：天猫、抖音" /></div>
+    <div class="form-group"><label>店铺 ID</label><input type="text" id="m-store" /></div>
+    <div class="form-group"><label>SKU ID</label><input type="text" id="m-sku" /></div>
+    <div class="form-group"><label>测试周期（天）</label><input type="number" id="m-window" value="7" min="1" /></div>
+    <div class="form-group"><label>负责人</label><input type="text" id="m-owner" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="m-submit" onclick="submitTask()">创建</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let allTasks = [];
+let currentTab = 'running';
+
+function toast(msg, dur) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur || 2500);
+}
+
+function openModal() { document.getElementById('create-modal').classList.add('open'); }
+function closeModal() { document.getElementById('create-modal').classList.remove('open'); }
+
+function setTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTasks();
+}
+
+function filtered() {
+  if (currentTab === 'all') return allTasks;
+  return allTasks.filter(t => {
+    if (currentTab === 'running') return t.status === 'running' || t.status === 'pending';
+    if (currentTab === 'completed') return t.status === 'completed';
+    return true;
+  });
+}
+
+function renderTasks() {
+  const list = document.getElementById('task-list');
+  const empty = document.getElementById('empty-state');
+  const tasks = filtered();
+  if (!tasks.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  list.innerHTML = tasks.map(t => {
+    const typeCls = t.variant_type === 'main_image' ? 'badge-main_image' : 'badge-first3s';
+    const typeLabel = t.variant_type === 'main_image' ? '主图' : '前3秒';
+    const stCls = 'badge-' + (t.status || 'pending');
+    const stLabel = { running: '进行中', completed: '已完成', pending: '待开始' }[t.status] || t.status;
+    const results = (t.results || []).map(r => `
+      <div class="result-item">
+        <div class="date">${r.date || '—'}</div>
+        <div class="result-metrics">
+          <span>CTR <strong>${r.ctr != null ? (r.ctr * 100).toFixed(1) + '%' : '—'}</strong></span>
+          <span>流量 <strong>${r.traffic ?? '—'}</strong></span>
+          <span>转化率 <strong>${r.conversion_rate != null ? (r.conversion_rate * 100).toFixed(1) + '%' : '—'}</strong></span>
+          <span>退款率 <strong>${r.refund_rate != null ? (r.refund_rate * 100).toFixed(1) + '%' : '—'}</strong></span>
+          <span>收藏率 <strong>${r.save_rate != null ? (r.save_rate * 100).toFixed(1) + '%' : '—'}</strong></span>
+        </div>
+        ${r.notes ? '<div style="margin-top:4px;color:var(--muted);font-size:11px;">' + r.notes + '</div>' : ''}
+      </div>`).join('');
+    return `
+      <div class="task-card" data-id="${t.task_id}">
+        <div class="task-header">
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span class="badge ${typeCls}">${typeLabel}</span>
+            <span class="badge ${stCls}">${stLabel}</span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="toggleResultForm('${t.task_id}')">录入结果</button>
+            <button class="btn btn-accent btn-sm" onclick="amplify('${t.task_id}')">生成放大建议</button>
+          </div>
+        </div>
+        <div class="task-meta">
+          ${t.platform ? '<span>平台：' + t.platform + '</span>' : ''}
+          ${t.store_id ? '<span>店铺：' + t.store_id + '</span>' : ''}
+          ${t.sku_id ? '<span>SKU：' + t.sku_id + '</span>' : ''}
+          ${t.owner ? '<span>负责人：' + t.owner + '</span>' : ''}
+          ${t.test_window_days ? '<span>周期：' + t.test_window_days + '天</span>' : ''}
+        </div>
+        <div class="result-form" id="rf-${t.task_id}">
+          <div class="form-row">
+            <div><label>日期</label><input type="date" id="rf-date-${t.task_id}" /></div>
+            <div><label>CTR</label><input type="number" step="0.001" id="rf-ctr-${t.task_id}" placeholder="0.05" /></div>
+            <div><label>流量</label><input type="number" id="rf-traffic-${t.task_id}" placeholder="1000" /></div>
+            <div><label>转化率</label><input type="number" step="0.001" id="rf-conv-${t.task_id}" placeholder="0.03" /></div>
+          </div>
+          <div class="form-row">
+            <div><label>退款率</label><input type="number" step="0.001" id="rf-refund-${t.task_id}" placeholder="0.01" /></div>
+            <div><label>收藏率</label><input type="number" step="0.001" id="rf-save-${t.task_id}" placeholder="0.08" /></div>
+          </div>
+          <div style="margin-bottom:8px;"><label>备注</label><textarea id="rf-notes-${t.task_id}" rows="2" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;outline:none;resize:vertical;"></textarea></div>
+          <button class="btn btn-primary btn-sm" onclick="submitResult('${t.task_id}')">提交结果</button>
+        </div>
+        ${results ? '<div class="results-timeline">' + results + '</div>' : ''}
+      </div>`;
+  }).join('');
+}
+
+function toggleResultForm(id) {
+  document.getElementById('rf-' + id).classList.toggle('open');
+}
+
+async function submitResult(taskId) {
+  const payload = {
+    date: document.getElementById('rf-date-' + taskId).value || new Date().toISOString().slice(0, 10),
+    ctr: parseFloat(document.getElementById('rf-ctr-' + taskId).value) || null,
+    traffic: parseInt(document.getElementById('rf-traffic-' + taskId).value) || null,
+    conversion_rate: parseFloat(document.getElementById('rf-conv-' + taskId).value) || null,
+    refund_rate: parseFloat(document.getElementById('rf-refund-' + taskId).value) || null,
+    save_rate: parseFloat(document.getElementById('rf-save-' + taskId).value) || null,
+    notes: document.getElementById('rf-notes-' + taskId).value || '',
+  };
+  try {
+    const res = await fetch('/growth-lab/api/board/tasks/' + taskId + '/results', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    toast('结果已录入');
+    await loadTasks();
+  } catch (e) { toast('提交失败：' + e.message); }
+}
+
+async function amplify(taskId) {
+  try {
+    const res = await fetch('/growth-lab/api/board/tasks/' + taskId + '/amplify', { method: 'POST' });
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    alert('放大建议：\n\n' + (data.recommendation || JSON.stringify(data, null, 2)));
+  } catch (e) { toast('生成失败：' + e.message); }
+}
+
+async function submitTask() {
+  const payload = {
+    variant_id: document.getElementById('m-variant-id').value,
+    variant_type: document.getElementById('m-variant-type').value,
+    platform: document.getElementById('m-platform').value,
+    store_id: document.getElementById('m-store').value,
+    sku_id: document.getElementById('m-sku').value,
+    window_days: parseInt(document.getElementById('m-window').value) || 7,
+    owner: document.getElementById('m-owner').value,
+  };
+  const btn = document.getElementById('m-submit');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/growth-lab/api/board/tasks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    toast('任务已创建'); closeModal(); await loadTasks();
+  } catch (e) { toast('创建失败：' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function loadTasks() {
+  try {
+    const res = await fetch('/growth-lab/api/board/tasks');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    allTasks = data.items || data || [];
+    document.getElementById('loading').style.display = 'none';
+    renderTasks();
+  } catch (e) { document.getElementById('loading').innerHTML = '<span style="color:var(--accent-neg);">加载失败</span>'; }
+}
+
+document.getElementById('create-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+loadTasks();
+</script>
+</body>
+</html>

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>前3秒裂变工作台 — 增长实验室</title>
+  <style>
+    :root {
+      --primary: #4F46E5; --primary-light: #EEF2FF;
+      --accent-pos: #10B981; --accent-neg: #EF4444; --accent-warn: #F59E0B;
+      --bg: #F9FAFB; --surface: #FFFFFF; --border: #E5E7EB;
+      --ink: #111827; --muted: #6B7280; --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+
+    .topnav {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center; height: 52px; gap: 4px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topnav .brand { font-weight: 700; font-size: 15px; color: var(--primary); margin-right: 20px; white-space: nowrap; }
+    .topnav a {
+      font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none;
+      padding: 6px 12px; border-radius: 8px; transition: all .15s;
+    }
+    .topnav a:hover { background: var(--primary-light); color: var(--primary); }
+    .topnav a.active { background: var(--primary); color: #fff; font-weight: 600; }
+
+    .shell { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .page-header h1 { font-size: 22px; font-weight: 700; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; font-family: inherit;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { opacity: .9; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+    .btn-ghost:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-accent { background: var(--accent-pos); color: #fff; }
+
+    .two-col { display: grid; grid-template-columns: 340px 1fr; gap: 20px; min-height: calc(100vh - 140px); }
+    @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px; overflow-y: auto;
+    }
+    .panel-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+    .form-group select, .form-group input {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-family: inherit; outline: none; background: var(--bg);
+    }
+    .form-group select:focus, .form-group input:focus {
+      border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79,70,229,.12);
+    }
+
+    /* ── checkbox grid ───────────────────────── */
+    .hook-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+    .hook-type-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      cursor: pointer; transition: all .15s; font-size: 13px; user-select: none;
+    }
+    .hook-type-item:hover { border-color: var(--primary); background: var(--primary-light); }
+    .hook-type-item input { accent-color: var(--primary); }
+    .hook-type-item.checked { border-color: var(--primary); background: var(--primary-light); }
+
+    /* ── hook cards ───────────────────────────── */
+    .hook-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; margin-bottom: 12px; transition: box-shadow .2s;
+    }
+    .hook-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .hook-card .opening { font-size: 16px; font-weight: 700; line-height: 1.5; margin-bottom: 8px; }
+    .hook-card .supporting { font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 8px; }
+    .hook-card .cta { font-size: 13px; font-weight: 600; color: var(--primary); margin-bottom: 10px; }
+    .hook-card .tag-row { display: flex; flex-wrap: wrap; gap: 4px; }
+
+    .badge {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-hook { background: #FEF3C7; color: #92400E; }
+    .badge-tone { background: #EDE9FE; color: #5B21B6; }
+    .badge-platform { background: #DBEAFE; color: #1D4ED8; }
+
+    .empty-hint { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13px; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: #fff; background: #1F2937;
+      box-shadow: 0 4px 20px rgba(0,0,0,.15); z-index: 9999; opacity: 0; transform: translateY(10px); transition: all .3s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/" style="font-size:12px;color:var(--muted);text-decoration:none;margin-right:8px;">← 内容平台</a>
+  <span class="brand">增长实验室</span>
+  <a href="/growth-lab/radar">热点雷达</a>
+  <a href="/growth-lab/compiler">卖点编译器</a>
+  <a href="/growth-lab/lab">主图工作台</a>
+  <a href="/growth-lab/first3s" class="active">前3秒工作台</a>
+  <a href="/growth-lab/board">测试放大板</a>
+  <a href="/growth-lab/assets">资产图谱</a>
+</nav>
+
+<div class="shell">
+  <div class="page-header">
+    <h1>前3秒裂变工作台</h1>
+  </div>
+
+  <div class="two-col">
+    <!-- left: controls -->
+    <div class="panel" style="max-height: calc(100vh - 140px);">
+      <div class="panel-title">钩子生成控制</div>
+
+      <div class="form-group">
+        <label>选择卖点规格</label>
+        <select id="spec-select">
+          <option value="">加载中…</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>钩子类型</label>
+      </div>
+      <div class="hook-types" id="hook-types">
+        <label class="hook-type-item"><input type="checkbox" value="提问" checked /> 提问</label>
+        <label class="hook-type-item"><input type="checkbox" value="震惊" /> 震惊</label>
+        <label class="hook-type-item"><input type="checkbox" value="反差" /> 反差</label>
+        <label class="hook-type-item"><input type="checkbox" value="痛点" checked /> 痛点</label>
+        <label class="hook-type-item"><input type="checkbox" value="利益" /> 利益</label>
+        <label class="hook-type-item"><input type="checkbox" value="好奇" /> 好奇</label>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;margin-top:16px;" id="btn-generate" onclick="generateHooks()">
+        生成钩子脚本
+      </button>
+    </div>
+
+    <!-- right: hook list -->
+    <div class="panel" style="max-height: calc(100vh - 140px);">
+      <div class="panel-title">钩子版本列表 <span id="hook-count" style="font-weight:400;color:var(--muted);font-size:12px;"></span></div>
+      <div id="hook-list"></div>
+      <div id="hook-empty" class="empty-hint">暂无钩子版本。选择卖点规格和钩子类型后点击「生成钩子脚本」。</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let hookVariants = [];
+
+function toast(msg, dur) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur || 2500);
+}
+
+document.querySelectorAll('.hook-type-item').forEach(item => {
+  const cb = item.querySelector('input');
+  if (cb.checked) item.classList.add('checked');
+  cb.addEventListener('change', () => item.classList.toggle('checked', cb.checked));
+});
+
+function renderHooks() {
+  const container = document.getElementById('hook-list');
+  const empty = document.getElementById('hook-empty');
+  const count = document.getElementById('hook-count');
+  count.textContent = hookVariants.length ? `(${hookVariants.length})` : '';
+  if (!hookVariants.length) { container.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  container.innerHTML = hookVariants.map(h => {
+    const toneTag = h.tone ? `<span class="badge badge-tone">${h.tone}</span>` : '';
+    const platTag = h.platform ? `<span class="badge badge-platform">${h.platform}</span>` : '';
+    return `
+      <div class="hook-card">
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <span class="badge badge-hook">${h.hook_type || '—'}</span>
+          ${toneTag}${platTag}
+        </div>
+        <div class="opening">${h.opening_line || '—'}</div>
+        <div class="supporting">${h.supporting_line || ''}</div>
+        ${h.cta ? '<div class="cta">' + h.cta + '</div>' : ''}
+        <div style="display:flex;justify-content:flex-end;">
+          <button class="btn btn-accent btn-sm" onclick="createTestFromHook('${h.variant_id}')">创建测试任务</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadSpecs() {
+  try {
+    const res = await fetch('/growth-lab/api/compiler/specs');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    const specs = data.items || data || [];
+    const sel = document.getElementById('spec-select');
+    if (!specs.length) {
+      sel.innerHTML = '<option value="">暂无卖点规格 — 请先在编译器中创建</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">请选择…</option>' +
+      specs.map(s => `<option value="${s.spec_id}">${s.core_claim || '未命名'}</option>`).join('');
+  } catch (e) {
+    document.getElementById('spec-select').innerHTML = '<option value="">加载失败</option>';
+  }
+}
+
+async function loadHooks() {
+  try {
+    const res = await fetch('/growth-lab/api/first3s/variants');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    hookVariants = data.items || data || [];
+    renderHooks();
+  } catch (e) { document.getElementById('hook-empty').innerHTML = '<span style="color:var(--accent-neg);">加载失败</span>'; }
+}
+
+async function generateHooks() {
+  const specId = document.getElementById('spec-select').value;
+  if (!specId) { toast('请先选择卖点规格'); return; }
+  const types = [...document.querySelectorAll('#hook-types input:checked')].map(cb => cb.value);
+  if (!types.length) { toast('请至少选择一种钩子类型'); return; }
+
+  const btn = document.getElementById('btn-generate');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 生成中…';
+  try {
+    const res = await fetch('/growth-lab/api/first3s/generate-hooks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec_id: specId, hook_types: types }),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    toast('生成完成，共 ' + (data.count ?? types.length) + ' 个钩子');
+    await loadHooks();
+  } catch (e) { toast('生成失败：' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '生成钩子脚本'; }
+}
+
+async function createTestFromHook(hookId) {
+  try {
+    const res = await fetch('/growth-lab/api/board/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ variant_id: hookId, variant_type: 'first3s' }),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    toast('测试任务已创建');
+  } catch (e) { toast('创建失败：' + e.message); }
+}
+
+loadSpecs();
+loadHooks();
+</script>
+</body>
+</html>

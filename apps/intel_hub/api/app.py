@@ -842,6 +842,7 @@ def create_app(
                 "is_promoted": card_dict.get("opportunity_status") == "promoted",
                 "opportunity_id": opportunity_id,
             })
+        card_dict["source_notes"] = source_notes
         return card_dict
 
     @app.get("/xhs-opportunities")
@@ -1018,6 +1019,10 @@ def create_app(
 
     app.include_router(content_planning_router)
     app.include_router(content_planning_router_alias)
+
+    # ── growth_lab 路由挂载（裂变系统） ─────────────────────────
+    from apps.growth_lab.api.routes import router as growth_lab_router
+    app.include_router(growth_lab_router)
 
     # ── 内容策划工作台页面路由 ─────────────────────────────────
     @app.get("/content-planning/stream/{opportunity_id}")

@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>卖点编译器 — 增长实验室</title>
+  <style>
+    :root {
+      --primary: #4F46E5; --primary-light: #EEF2FF;
+      --accent-pos: #10B981; --accent-neg: #EF4444; --accent-warn: #F59E0B;
+      --bg: #F9FAFB; --surface: #FFFFFF; --border: #E5E7EB;
+      --ink: #111827; --muted: #6B7280; --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+
+    .topnav {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center; height: 52px; gap: 4px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topnav .brand { font-weight: 700; font-size: 15px; color: var(--primary); margin-right: 20px; white-space: nowrap; }
+    .topnav a {
+      font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none;
+      padding: 6px 12px; border-radius: 8px; transition: all .15s;
+    }
+    .topnav a:hover { background: var(--primary-light); color: var(--primary); }
+    .topnav a.active { background: var(--primary); color: #fff; font-weight: 600; }
+
+    .shell { max-width: 1440px; margin: 0 auto; padding: 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .page-header h1 { font-size: 22px; font-weight: 700; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; font-family: inherit;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { opacity: .9; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+    .btn-ghost:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-success { background: var(--accent-pos); color: #fff; }
+    .btn-success:hover { opacity: .9; }
+
+    .compiler-layout { display: grid; grid-template-columns: 260px 1fr 320px; gap: 16px; min-height: calc(100vh - 140px); }
+    @media (max-width: 1100px) { .compiler-layout { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; overflow-y: auto;
+    }
+    .panel-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: var(--ink); display: flex; justify-content: space-between; align-items: center; }
+
+    .opp-item {
+      padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
+      cursor: pointer; transition: all .15s; font-size: 13px;
+    }
+    .opp-item:hover { border-color: var(--primary); background: var(--primary-light); }
+    .opp-item.selected { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 0 0 2px rgba(79,70,229,.15); }
+    .opp-item h4 { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+    .opp-item .meta { font-size: 11px; color: var(--muted); }
+
+    .spec-form label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; margin-top: 14px; }
+    .spec-form label:first-child { margin-top: 0; }
+    .spec-form input, .spec-form textarea {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-family: inherit; outline: none; resize: vertical; background: var(--bg);
+    }
+    .spec-form input:focus, .spec-form textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79,70,229,.12); }
+
+    .spec-list-item {
+      padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
+      cursor: pointer; transition: border-color .15s;
+    }
+    .spec-list-item:hover { border-color: var(--primary); }
+    .spec-list-item.active { border-color: var(--primary); background: var(--primary-light); }
+    .spec-list-item h4 { font-size: 13px; font-weight: 600; }
+    .spec-list-item .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .expr-block { margin-bottom: 16px; }
+    .expr-block h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .expr-content {
+      padding: 12px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border);
+      font-size: 13px; line-height: 1.6; min-height: 60px;
+    }
+    .expr-field { margin-bottom: 6px; }
+    .expr-field strong { color: var(--muted); font-size: 11px; font-weight: 600; }
+
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .badge-promoted { background: #EDE9FE; color: #5B21B6; }
+    .badge-stage { background: var(--primary-light); color: var(--primary); }
+
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: #fff; background: #1F2937;
+      box-shadow: 0 4px 20px rgba(0,0,0,.15); z-index: 9999; opacity: 0; transform: translateY(10px); transition: all .3s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .empty-hint { text-align: center; padding: 30px 16px; color: var(--muted); font-size: 13px; }
+
+    /* compile process panel */
+    .compile-process { margin-bottom: 16px; }
+    .stage-card {
+      padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px;
+      transition: all .3s; background: var(--surface);
+    }
+    .stage-card.running { border-color: var(--primary); background: var(--primary-light); }
+    .stage-card.done { border-color: var(--accent-pos); background: #F0FDF4; }
+    .stage-header { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+    .stage-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+    .stage-icon.pending { background: var(--border); color: var(--muted); }
+    .stage-icon.running { background: var(--primary); color: #fff; }
+    .stage-icon.done { background: var(--accent-pos); color: #fff; }
+    .stage-body { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .stage-reasoning { margin-top: 6px; padding: 8px; background: rgba(79,70,229,.05); border-radius: 6px; font-size: 12px; color: var(--ink); line-height: 1.5; }
+    .thinking-dots { display: inline-flex; gap: 3px; margin-left: 6px; }
+    .thinking-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); animation: dot-pulse 1.2s ease-in-out infinite; }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot-pulse { 0%,80%,100% { opacity: .3; } 40% { opacity: 1; } }
+
+    /* expert annotation */
+    .annotation-trigger { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--primary); cursor: pointer; padding: 2px 6px; border-radius: 4px; border: 1px solid transparent; transition: all .15s; }
+    .annotation-trigger:hover { background: var(--primary-light); border-color: var(--primary); }
+    .annotation-panel { margin-top: 8px; padding: 10px; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; }
+    .annotation-panel textarea { width: 100%; padding: 6px 8px; border: 1px solid #FDE68A; border-radius: 6px; font-size: 12px; font-family: inherit; outline: none; resize: vertical; min-height: 50px; }
+    .annotation-panel select { padding: 4px 8px; border: 1px solid #FDE68A; border-radius: 6px; font-size: 12px; font-family: inherit; }
+    .annotation-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+    .annotation-badge.insight { background: #DBEAFE; color: #1E40AF; }
+    .annotation-badge.correction { background: #FEE2E2; color: #991B1B; }
+    .annotation-badge.risk { background: #FEF3C7; color: #92400E; }
+    .annotation-badge.template { background: #D1FAE5; color: #065F46; }
+
+    /* quality eval */
+    .eval-card { padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-top: 16px; }
+    .eval-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+    .eval-dimension { margin-bottom: 10px; }
+    .eval-dimension .dim-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+    .eval-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .eval-bar-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+    .eval-bar-fill.high { background: var(--accent-pos); }
+    .eval-bar-fill.mid { background: var(--accent-warn); }
+    .eval-bar-fill.low { background: var(--accent-neg); }
+    .eval-hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .next-steps { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+    /* references */
+    .ref-section { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
+    .ref-section h5 { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .ref-item { padding: 6px 8px; background: var(--bg); border-radius: 6px; margin-bottom: 4px; font-size: 12px; line-height: 1.5; }
+
+    /* opportunity detail modal */
+    .opp-modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity .2s; pointer-events: none;
+    }
+    .opp-modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .opp-modal {
+      background: var(--surface); border-radius: 16px; width: 860px; max-width: 94vw;
+      max-height: 88vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.18);
+      padding: 0; position: relative;
+    }
+    .opp-modal-close {
+      position: absolute; top: 14px; right: 16px; background: rgba(255,255,255,.85); border: none;
+      font-size: 18px; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 6px;
+      z-index: 2; backdrop-filter: blur(4px);
+    }
+    .opp-modal-close:hover { background: var(--bg); color: var(--ink); }
+    .opp-modal-header { padding: 20px 24px 0; }
+    .opp-modal-header h2 { font-size: 17px; font-weight: 700; margin: 0; padding-right: 32px; }
+    .opp-modal-body { padding: 16px 24px 24px; }
+    .opp-modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 700px) { .opp-modal-grid { grid-template-columns: 1fr; } }
+    .opp-modal-section h3 { font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .opp-modal-row { margin-bottom: 8px; font-size: 12px; line-height: 1.6; }
+    .opp-modal-row strong { color: var(--muted); font-weight: 600; display: inline-block; min-width: 64px; }
+    .opp-modal-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .opp-modal-tag { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--primary-light); color: var(--primary); }
+    .opp-modal-score { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .opp-modal-score-label { font-size: 11px; color: var(--muted); width: 56px; }
+    .opp-modal-score-bar { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .opp-modal-score-fill { height: 100%; border-radius: 3px; background: var(--primary); }
+    .opp-modal-score-val { font-size: 11px; font-weight: 600; width: 28px; text-align: right; }
+
+    /* note card inside modal */
+    .opp-modal-note {
+      background: linear-gradient(135deg, #FFF5F5 0%, #FFF0F6 100%);
+      border: 1px solid #FECDD3; border-radius: 14px; overflow: hidden; margin-bottom: 16px;
+    }
+    .opp-modal-note-cover { width: 100%; max-height: 320px; object-fit: cover; display: block; }
+    .opp-modal-note-body { padding: 14px 16px; }
+    .opp-modal-note-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .opp-modal-note-author { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .opp-modal-note-author a { color: #E55; text-decoration: none; margin-left: 6px; font-size: 11px; }
+    .opp-modal-note-text { font-size: 12px; line-height: 1.7; color: #333; max-height: 120px; overflow-y: auto; margin-bottom: 10px; white-space: pre-wrap; }
+    .opp-modal-note-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+    .opp-modal-note-tag { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: #FFF0F0; color: #E55; }
+    .opp-modal-engagement {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+      padding: 10px 0; border-top: 1px solid #FECDD3; border-bottom: 1px solid #FECDD3; margin-bottom: 10px;
+    }
+    .opp-modal-engagement-item { text-align: center; }
+    .opp-modal-engagement-val { font-size: 16px; font-weight: 700; }
+    .opp-modal-engagement-label { font-size: 10px; color: var(--muted); }
+    .opp-modal-comments { margin-top: 6px; }
+    .opp-modal-comment { padding: 5px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
+    .opp-modal-comment-author { font-weight: 600; color: #555; }
+    .opp-modal-comment-likes { color: var(--muted); margin-left: 4px; font-size: 11px; }
+    .opp-modal-comment-text { margin-top: 2px; color: #333; line-height: 1.5; }
+    .opp-modal-note-images { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; }
+    .opp-modal-note-images img { height: 80px; border-radius: 6px; flex-shrink: 0; cursor: pointer; border: 2px solid transparent; transition: border-color .15s; }
+    .opp-modal-note-images img:hover { border-color: #E55; }
+
+    /* xhs extra card */
+    .opp-modal-xhs { margin-top: 16px; padding: 14px; background: #FFF7ED; border: 1px solid #FDBA74; border-radius: 10px; }
+    .opp-modal-xhs h4 { font-size: 12px; font-weight: 700; color: #C2410C; margin-bottom: 8px; }
+
+    /* evidence detail */
+    .opp-modal-evidence { margin-top: 8px; }
+    .opp-modal-ev-item { padding: 5px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+    .opp-modal-ev-kind { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: var(--primary-light); color: var(--primary); }
+    .opp-modal-ev-conf { color: var(--muted); margin-left: 4px; font-size: 11px; }
+    .opp-modal-ev-snippet { margin-top: 2px; color: var(--muted); line-height: 1.5; }
+
+    /* compile result preview modal */
+    .cr-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 210;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity .2s; pointer-events: none;
+    }
+    .cr-backdrop.open { opacity: 1; pointer-events: auto; }
+    .cr-modal {
+      background: var(--surface); border-radius: 16px; width: 680px; max-width: 92vw;
+      max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2);
+      padding: 0; position: relative;
+    }
+    .cr-header {
+      position: sticky; top: 0; background: var(--surface); z-index: 1;
+      padding: 20px 24px 12px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .cr-header h2 { font-size: 16px; font-weight: 700; margin: 0; }
+    .cr-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 6px; }
+    .cr-close:hover { background: var(--bg); color: var(--ink); }
+    .cr-body { padding: 16px 24px 8px; }
+    .cr-field { margin-bottom: 14px; }
+    .cr-field-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: .3px; }
+    .cr-claim { font-size: 18px; font-weight: 700; line-height: 1.4; color: var(--ink); padding: 10px 14px; background: linear-gradient(135deg, var(--primary-light), #E0E7FF); border-radius: 10px; }
+    .cr-list { list-style: none; padding: 0; }
+    .cr-list li { padding: 4px 0; font-size: 13px; line-height: 1.5; }
+    .cr-list li::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); margin-right: 8px; vertical-align: middle; }
+    .cr-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .cr-tag { padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; background: var(--primary-light); color: var(--primary); }
+    .cr-expr { padding: 12px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border); font-size: 13px; line-height: 1.6; }
+    .cr-expr-row { margin-bottom: 4px; }
+    .cr-expr-row strong { color: var(--muted); font-size: 11px; font-weight: 600; display: inline-block; width: 60px; }
+    .cr-footer {
+      position: sticky; bottom: 0; background: var(--surface); z-index: 1;
+      padding: 12px 24px 16px; border-top: 1px solid var(--border);
+      display: flex; gap: 10px; justify-content: flex-end;
+    }
+    .cr-debug { margin-top: 12px; padding: 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; font-size: 12px; color: #991B1B; }
+    .cr-debug pre { margin-top: 6px; font-size: 11px; max-height: 120px; overflow: auto; white-space: pre-wrap; word-break: break-all; color: #555; }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/" style="font-size:12px;color:var(--muted);text-decoration:none;margin-right:8px;">← 内容平台</a>
+  <span class="brand">增长实验室</span>
+  <a href="/growth-lab/radar">热点雷达</a>
+  <a href="/growth-lab/compiler" class="active">卖点编译器</a>
+  <a href="/growth-lab/lab">主图工作台</a>
+  <a href="/growth-lab/first3s">前3秒工作台</a>
+  <a href="/growth-lab/board">测试放大板</a>
+  <a href="/growth-lab/assets">资产图谱</a>
+</nav>
+
+<div class="shell">
+  <div class="page-header">
+    <h1>卖点编译器</h1>
+    <button class="btn btn-primary" id="btn-compile" onclick="compileSpec()">AI 编译卖点</button>
+  </div>
+
+  <div class="compiler-layout">
+    <!-- left: sources -->
+    <div class="panel" style="max-height: calc(100vh - 140px);">
+      <div class="panel-title">来源机会 <span class="badge badge-promoted">已晋升</span></div>
+      <div id="opp-list"><div class="empty-hint"><span class="spinner"></span> 加载中…</div></div>
+    </div>
+
+    <!-- center: editor + process -->
+    <div class="panel" style="max-height: calc(100vh - 140px);">
+      <!-- compile process panel -->
+      <div id="compile-process" class="compile-process" style="display:none;">
+        <div class="panel-title">编译过程 <span class="badge badge-stage" id="process-status">准备中</span></div>
+        <div id="stage-cards"></div>
+      </div>
+
+      <div class="panel-title">卖点编辑区</div>
+      <div class="spec-form" id="spec-editor">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label style="flex:1;margin:0;">核心主张</label>
+          <span class="annotation-trigger" onclick="openAnnotation('core_claim')">💡 专家批注</span>
+        </div>
+        <textarea id="f-core-claim" rows="3" placeholder="一句话卖点主张…"></textarea>
+        <div id="ann-core_claim" style="display:none;"></div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px;">
+          <label style="flex:1;margin:0;">支撑论据</label>
+          <span class="annotation-trigger" onclick="openAnnotation('supporting_claims')">💡 专家批注</span>
+        </div>
+        <textarea id="f-supporting" rows="3" placeholder="每行一个支撑点…"></textarea>
+        <div id="ann-supporting_claims" style="display:none;"></div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px;">
+          <label style="flex:1;margin:0;">目标人群</label>
+          <span class="annotation-trigger" onclick="openAnnotation('target_people')">💡 专家批注</span>
+        </div>
+        <input type="text" id="f-people" placeholder="如：年轻妈妈、宿舍学生…" />
+        <div id="ann-target_people" style="display:none;"></div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px;">
+          <label style="flex:1;margin:0;">目标场景</label>
+          <span class="annotation-trigger" onclick="openAnnotation('target_scenarios')">💡 专家批注</span>
+        </div>
+        <input type="text" id="f-scenarios" placeholder="如：客厅聚餐、露营野餐…" />
+        <div id="ann-target_scenarios" style="display:none;"></div>
+
+        <div style="margin-top: 16px; display: flex; gap: 8px;">
+          <button class="btn btn-ghost btn-sm" onclick="saveSpec()">保存卖点</button>
+        </div>
+      </div>
+
+      <!-- quality evaluation -->
+      <div id="eval-panel" style="display:none;"></div>
+
+      <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px;">
+        <div class="panel-title">已有卖点规格</div>
+        <div id="spec-list"><div class="empty-hint">暂无</div></div>
+      </div>
+    </div>
+
+    <!-- right: expressions + references -->
+    <div class="panel" style="max-height: calc(100vh - 140px);">
+      <div class="panel-title">平台表达</div>
+      <div class="expr-block">
+        <h4>🏪 货架表达</h4>
+        <div class="expr-content" id="expr-shelf">选择或编译卖点后显示</div>
+        <div class="ref-section" id="ref-shelf" style="display:none;">
+          <h5>📚 参考案例</h5>
+          <div id="ref-shelf-items"></div>
+        </div>
+      </div>
+      <div class="expr-block">
+        <h4>🎬 前3秒表达</h4>
+        <div class="expr-content" id="expr-first3s">选择或编译卖点后显示</div>
+        <div class="ref-section" id="ref-first3s" style="display:none;">
+          <h5>📚 参考案例</h5>
+          <div id="ref-first3s-items"></div>
+        </div>
+      </div>
+
+      <!-- annotation history -->
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+        <div class="panel-title">专家批注记录</div>
+        <div id="annotation-history"><div class="empty-hint" style="font-size:12px;">暂无批注</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="opp-modal-backdrop" id="opp-modal-backdrop" onclick="if(event.target===this)closeOppDetail()">
+  <div class="opp-modal">
+    <button class="opp-modal-close" onclick="closeOppDetail()">&times;</button>
+    <div id="opp-modal-content"></div>
+  </div>
+</div>
+
+<div class="cr-backdrop" id="cr-backdrop" onclick="if(event.target===this)closeCompileResult()">
+  <div class="cr-modal">
+    <div class="cr-header">
+      <h2>AI 编译结果预览</h2>
+      <button class="cr-close" onclick="closeCompileResult()">&times;</button>
+    </div>
+    <div class="cr-body" id="cr-body"></div>
+    <div class="cr-footer" id="cr-footer"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let opportunities = [];
+let specs = [];
+let selectedOppIds = new Set();
+let activeSpecId = null;
+let currentAnnotations = [];
+let pendingSpec = null;
+let debugSseLines = [];
+
+function toast(msg, dur) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur || 2500);
+}
+
+/* ── left: opportunity list ── */
+
+function renderOppList() {
+  const container = document.getElementById('opp-list');
+  if (!opportunities.length) { container.innerHTML = '<div class="empty-hint">暂无已晋升的机会。请先在热点雷达中晋升机会。</div>'; return; }
+  container.innerHTML = opportunities.map(o => {
+    const ctx = o.rich_context || {};
+    const hint = ctx.pain_point || ctx.hook || '';
+    return `
+    <div class="opp-item ${selectedOppIds.has(o.opportunity_id) ? 'selected' : ''}" onclick="toggleOpp('${o.opportunity_id}')">
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <h4 style="flex:1;">${o.title || '无标题'}</h4>
+        <button onclick="event.stopPropagation();showOppDetail('${o.opportunity_id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--primary);padding:2px 4px;white-space:nowrap;">详情</button>
+      </div>
+      <div class="meta">${(o.summary || '').slice(0, 60)}${(o.summary || '').length > 60 ? '…' : ''}</div>
+      ${hint ? `<div class="meta" style="margin-top:3px;color:var(--primary);font-style:italic;">${hint.slice(0,40)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function toggleOpp(id) { if (selectedOppIds.has(id)) selectedOppIds.delete(id); else selectedOppIds.add(id); renderOppList(); }
+
+/* ── opportunity detail modal ── */
+
+function _scoreBar(label, val) {
+  const pct = Math.round((val || 0) * 100);
+  return `<div class="opp-modal-score">
+    <span class="opp-modal-score-label">${label}</span>
+    <div class="opp-modal-score-bar"><div class="opp-modal-score-fill" style="width:${pct}%"></div></div>
+    <span class="opp-modal-score-val">${pct}</span>
+  </div>`;
+}
+
+function _row(label, val) {
+  if (!val) return '';
+  if (Array.isArray(val)) { val = val.join('、'); if (!val) return ''; }
+  return `<div class="opp-modal-row"><strong>${label}</strong>${val}</div>`;
+}
+
+const OPP_TYPE_MAP = { visual: '视觉机会', demand: '需求机会', product: '产品机会', content: '内容机会', scene: '场景机会' };
+const EV_KIND_MAP = { title: '标题', body: '正文', tag: '标签', image: '图片', comment: '评论', llm: 'AI分析' };
+
+function _fmtNum(n) {
+  if (n == null) return '—';
+  if (n >= 10000) return (n / 10000).toFixed(1) + '万';
+  return String(n);
+}
+
+function showOppDetail(oppId) {
+  const o = opportunities.find(x => x.opportunity_id === oppId);
+  if (!o) return;
+  const ctx = o.rich_context || {};
+  const el = document.getElementById('opp-modal-content');
+
+  el.innerHTML = `
+    <div class="opp-modal-header"><h2>${o.title || '无标题'}</h2></div>
+    <div class="opp-modal-body">
+      <div id="opp-modal-note-area">
+        <div style="text-align:center;padding:24px 0;color:var(--muted);font-size:13px;">
+          <span class="spinner"></span> 加载原始笔记中…
+        </div>
+      </div>
+
+      <div class="opp-modal-grid">
+        <div class="opp-modal-section">
+          <h3>机会语义分析</h3>
+          ${_row('摘要', o.summary)}
+          ${_row('用户痛点', ctx.pain_point)}
+          ${_row('用户诉求', ctx.desire)}
+          ${_row('内容钩子', ctx.hook)}
+          ${_row('卖点线索', ctx.selling_points)}
+          ${_row('内容角度', ctx.content_angle)}
+          ${_row('格式建议', ctx.format_suggestion)}
+          ${_row('为何现在做', ctx.why_now)}
+          ${_row('值得做的理由', ctx.why_worth_doing)}
+          ${_row('核心洞察', ctx.insight_statement)}
+          ${_row('互动洞察', ctx.engagement_insight)}
+          ${_row('行动建议', ctx.action_recommendation)}
+        </div>
+        <div class="opp-modal-section">
+          <h3>机会评估</h3>
+          ${_row('机会类型', OPP_TYPE_MAP[o.source_opportunity_type] || OPP_TYPE_MAP[o.source_type] || o.source_opportunity_type || o.source_type || '—')}
+          ${_scoreBar('新鲜度', o.freshness_score)}
+          ${_scoreBar('相关度', o.relevance_score)}
+          ${_scoreBar('可执行度', o.actionability_score)}
+          ${o.linked_topics && o.linked_topics.length ? `<div class="opp-modal-row"><strong>话题标签</strong><div class="opp-modal-tags">${o.linked_topics.slice(0,8).map(t => `<span class="opp-modal-tag">${t}</span>`).join('')}</div></div>` : ''}
+          ${o.linked_people && o.linked_people.length ? `<div class="opp-modal-row"><strong>目标人群</strong><div class="opp-modal-tags">${o.linked_people.slice(0,6).map(t => `<span class="opp-modal-tag">${t}</span>`).join('')}</div></div>` : ''}
+          ${o.linked_scenarios && o.linked_scenarios.length ? `<div class="opp-modal-row"><strong>适用场景</strong><div class="opp-modal-tags">${o.linked_scenarios.slice(0,6).map(t => `<span class="opp-modal-tag">${t}</span>`).join('')}</div></div>` : ''}
+          ${o.suggested_actions && o.suggested_actions.length ? _row('建议动作', o.suggested_actions) : ''}
+        </div>
+      </div>
+
+      <div id="opp-modal-xhs-extra"></div>
+    </div>
+  `;
+
+  document.getElementById('opp-modal-backdrop').classList.add('open');
+
+  if (o.source_opportunity_id) {
+    fetchXhsCard(o.source_opportunity_id);
+  } else {
+    document.getElementById('opp-modal-note-area').innerHTML =
+      '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px;">该机会无关联的原始笔记</div>';
+  }
+}
+
+function _renderNoteCard(note) {
+  const cover = note.cover_image
+    ? `<img class="opp-modal-note-cover" src="${note.cover_image}" alt="封面" onerror="this.style.display='none'" loading="lazy">`
+    : '';
+
+  const tags = (note.tag_list || []).slice(0, 8)
+    .map(t => `<span class="opp-modal-note-tag">#${t}</span>`).join('');
+
+  const images = (note.image_urls || []).length > 1
+    ? `<div style="margin-bottom:8px;font-size:11px;color:var(--muted);">笔记图片 (${note.image_urls.length})</div>
+       <div class="opp-modal-note-images">${note.image_urls.map(u => `<img src="${u}" loading="lazy" onerror="this.style.display='none'">`).join('')}</div>`
+    : '';
+
+  const comments = (note.top_comments || []).map(c => `
+    <div class="opp-modal-comment">
+      <span class="opp-modal-comment-author">${c.nickname || '匿名'}</span>
+      <span class="opp-modal-comment-likes">${c.like_count || 0} 赞</span>
+      <div class="opp-modal-comment-text">${(c.content || '').slice(0, 120)}${(c.content || '').length > 120 ? '…' : ''}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="opp-modal-note">
+      ${cover}
+      <div class="opp-modal-note-body">
+        <div class="opp-modal-note-title">${note.title || '—'}</div>
+        <div class="opp-modal-note-author">
+          @${note.author_name || '未知作者'}
+          ${note.note_url ? `<a href="${note.note_url}" target="_blank">查看原文 ↗</a>` : ''}
+        </div>
+        ${note.body ? `<div class="opp-modal-note-text">${note.body}</div>` : ''}
+        ${tags ? `<div class="opp-modal-note-tags">${tags}</div>` : ''}
+        <div class="opp-modal-engagement">
+          <div class="opp-modal-engagement-item"><div class="opp-modal-engagement-val" style="color:#E55;">${_fmtNum(note.like_count)}</div><div class="opp-modal-engagement-label">赞</div></div>
+          <div class="opp-modal-engagement-item"><div class="opp-modal-engagement-val" style="color:#F5A623;">${_fmtNum(note.collect_count)}</div><div class="opp-modal-engagement-label">收藏</div></div>
+          <div class="opp-modal-engagement-item"><div class="opp-modal-engagement-val" style="color:#1565C0;">${_fmtNum(note.comment_count)}</div><div class="opp-modal-engagement-label">评论</div></div>
+          <div class="opp-modal-engagement-item"><div class="opp-modal-engagement-val" style="color:#00695C;">${_fmtNum(note.share_count)}</div><div class="opp-modal-engagement-label">分享</div></div>
+        </div>
+        ${images}
+        ${comments ? `<div class="opp-modal-comments"><div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;">热门评论</div>${comments}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function _renderEvidence(evidenceRefs) {
+  if (!evidenceRefs || !evidenceRefs.length) return '';
+  const items = evidenceRefs.slice(0, 6).map(ev => `
+    <div class="opp-modal-ev-item">
+      <span class="opp-modal-ev-kind">${EV_KIND_MAP[ev.source_kind] || ev.source_kind}</span>
+      <span class="opp-modal-ev-conf">置信度 ${Math.round((ev.confidence || 0) * 100)}%</span>
+      <div class="opp-modal-ev-snippet">${(ev.snippet || '').slice(0, 150)}${(ev.snippet || '').length > 150 ? '…' : ''}</div>
+    </div>
+  `).join('');
+  return `
+    <div style="margin-top:12px;">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;">证据追溯 (${evidenceRefs.length} 条)</div>
+      <div class="opp-modal-evidence">${items}</div>
+    </div>
+  `;
+}
+
+async function fetchXhsCard(cardId) {
+  const noteArea = document.getElementById('opp-modal-note-area');
+  const extraArea = document.getElementById('opp-modal-xhs-extra');
+  try {
+    const res = await fetch('/xhs-opportunities/' + cardId, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) { noteArea.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px;">原始笔记暂不可用</div>'; return; }
+    const card = await res.json();
+
+    const sourceNotes = card.source_notes || [];
+    if (sourceNotes.length && sourceNotes[0].note_context) {
+      const note = sourceNotes[0].note_context;
+      noteArea.innerHTML = _renderNoteCard(note);
+    } else {
+      noteArea.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px;">原始笔记数据暂不可用</div>';
+    }
+
+    const fields = [];
+    if (card.audience) fields.push(_row('目标受众', card.audience));
+    if (card.scene) fields.push(_row('使用场景', card.scene));
+    if (card.confidence != null) fields.push(_row('置信度', Math.round(card.confidence * 100) + '%'));
+    if (card.visual_pattern_refs && card.visual_pattern_refs.length) fields.push(_row('视觉模式', card.visual_pattern_refs.join('、')));
+    if (card.content_pattern_refs && card.content_pattern_refs.length) fields.push(_row('内容模式', card.content_pattern_refs.join('、')));
+    if (card.value_proposition_refs && card.value_proposition_refs.length) fields.push(_row('价值主张', card.value_proposition_refs.join('、')));
+    if (card.style_refs && card.style_refs.length) fields.push(_row('风格参考', card.style_refs.join('、')));
+    if (card.need_refs && card.need_refs.length) fields.push(_row('需求参考', card.need_refs.join('、')));
+    if (card.benchmark_refs && card.benchmark_refs.length) fields.push(_row('标杆参考', card.benchmark_refs.join('、')));
+    if (card.composite_review_score != null) fields.push(_row('综合评审分', Math.round(card.composite_review_score * 100) + ' 分'));
+    if (card.qualified_opportunity) fields.push(_row('机会状态', '已认定为合格机会'));
+    if (card.suggested_next_step && card.suggested_next_step.length) fields.push(_row('建议下一步', Array.isArray(card.suggested_next_step) ? card.suggested_next_step.join('、') : card.suggested_next_step));
+
+    const evidenceHtml = _renderEvidence(card.evidence_refs);
+
+    if (fields.length || evidenceHtml) {
+      extraArea.innerHTML = `<div class="opp-modal-xhs"><h4>机会卡片深度分析</h4>${fields.join('')}${evidenceHtml}</div>`;
+    }
+  } catch (_) {
+    noteArea.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px;">加载失败</div>';
+  }
+}
+
+function closeOppDetail() {
+  document.getElementById('opp-modal-backdrop').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOppDetail(); });
+
+/* ── center: spec list ── */
+
+function specTitle(s) {
+  if (s.core_claim && s.core_claim.trim()) return s.core_claim.trim();
+  if (s.supporting_claims && s.supporting_claims.length && s.supporting_claims[0].trim()) return s.supporting_claims[0].trim();
+  if (s.target_people && s.target_people.length) return '卖点草稿 · ' + s.target_people.join('、');
+  const d = s.created_at ? new Date(s.created_at) : new Date();
+  return '卖点草稿 · ' + (d.getMonth()+1) + '/' + d.getDate();
+}
+
+function renderSpecs() {
+  const container = document.getElementById('spec-list');
+  if (!specs.length) { container.innerHTML = '<div class="empty-hint">暂无卖点规格</div>'; return; }
+  container.innerHTML = specs.map(s => `
+    <div class="spec-list-item ${s.spec_id === activeSpecId ? 'active' : ''}" onclick="selectSpec('${s.spec_id}')">
+      <h4>${specTitle(s)}</h4>
+      <div class="meta">人群：${(s.target_people || []).join('、') || '-'}　场景：${(s.target_scenarios || []).join('、') || '-'}</div>
+    </div>`).join('');
+}
+
+/* ── right: expression rendering ── */
+
+function renderExpression(containerId, expr) {
+  const el = document.getElementById(containerId);
+  if (!expr || typeof expr === 'string') { el.textContent = expr || '—'; return; }
+  el.innerHTML = `
+    <div class="expr-field"><strong>标题：</strong>${expr.headline || '—'}</div>
+    <div class="expr-field"><strong>副文案：</strong>${expr.sub_copy || '—'}</div>
+    <div class="expr-field"><strong>视觉方向：</strong>${expr.visual_direction || '—'}</div>
+    <div class="expr-field"><strong>语气：</strong>${expr.tone || '—'}</div>
+    ${expr.notes ? `<div style="margin-top:4px;color:var(--muted);font-size:11px;">备注：${expr.notes}</div>` : ''}
+  `;
+}
+
+function selectSpec(id) {
+  activeSpecId = id;
+  const s = specs.find(x => x.spec_id === id);
+  if (!s) return;
+  document.getElementById('f-core-claim').value = s.core_claim || '';
+  document.getElementById('f-supporting').value = (s.supporting_claims || []).join('\n');
+  document.getElementById('f-people').value = (s.target_people || []).join('、');
+  document.getElementById('f-scenarios').value = (s.target_scenarios || []).join('、');
+  renderExpression('expr-shelf', s.shelf_expression);
+  renderExpression('expr-first3s', s.first3s_expression);
+  renderSpecs();
+  loadAnnotations(id);
+  loadReferences();
+}
+
+/* ── SSE compile ── */
+
+const STAGE_META = {
+  insight:       { icon: '🔍', label: '洞察提炼' },
+  selling_point: { icon: '🎯', label: '卖点构建' },
+  expression:    { icon: '✍️', label: '平台表达' },
+};
+
+function renderStageCard(stage, status, data, elapsed) {
+  const meta = STAGE_META[stage] || { icon: '⚙', label: stage };
+  const iconClass = status === 'running' ? 'running' : status === 'done' ? 'done' : 'pending';
+  const cardClass = status === 'running' ? 'running' : status === 'done' ? 'done' : '';
+
+  let bodyHtml = '';
+  if (status === 'running') {
+    bodyHtml = `<div class="stage-body">${data.description || '处理中…'}<span class="thinking-dots"><span></span><span></span><span></span></span></div>`;
+  } else if (status === 'done') {
+    const reasoning = data.reasoning || '';
+    const elapsed_s = elapsed ? ` (${(elapsed/1000).toFixed(1)}s)` : '';
+    let summaryParts = [];
+    if (data.insight_summary) summaryParts.push(data.insight_summary);
+    if (data.core_claim) summaryParts.push(`核心主张: ${data.core_claim}`);
+    if (data.shelf_expression && data.shelf_expression.headline) summaryParts.push(`货架: ${data.shelf_expression.headline}`);
+    if (data.first3s_expression && data.first3s_expression.headline) summaryParts.push(`前3秒: ${data.first3s_expression.headline}`);
+    bodyHtml = `
+      <div class="stage-body">✓ 完成${elapsed_s}</div>
+      ${summaryParts.length ? `<div class="stage-body">${summaryParts.join(' · ')}</div>` : ''}
+      ${reasoning ? `<div class="stage-reasoning">💭 ${reasoning}</div>` : ''}
+    `;
+  }
+
+  return `
+    <div class="stage-card ${cardClass}" id="stage-${stage}">
+      <div class="stage-header">
+        <div class="stage-icon ${iconClass}">${meta.icon}</div>
+        <span>${meta.label}</span>
+        ${status === 'done' ? '<span style="margin-left:auto;font-size:11px;color:var(--accent-pos);">✓</span>' : ''}
+      </div>
+      ${bodyHtml}
+    </div>
+  `;
+}
+
+async function compileSpec() {
+  if (!selectedOppIds.size) { toast('请先在左侧选择来源机会'); return; }
+  const btn = document.getElementById('btn-compile');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 编译中…';
+
+  const processPanel = document.getElementById('compile-process');
+  const stageCards = document.getElementById('stage-cards');
+  processPanel.style.display = 'block';
+  document.getElementById('process-status').textContent = '编译中';
+
+  stageCards.innerHTML = ['insight','selling_point','expression'].map(s =>
+    renderStageCard(s, 'pending', {}, 0)
+  ).join('');
+  document.getElementById('eval-panel').style.display = 'none';
+  debugSseLines = [];
+
+  try {
+    const res = await fetch('/growth-lab/api/compiler/compile-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        opportunity_ids: [...selectedOppIds],
+        workspace_id: window.__workspaceId || '',
+        brand_id: window.__brandId || '',
+      }),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalSpec = null;
+    let parseErrors = [];
+
+    function processLines(text) {
+      const lines = text.split('\n');
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        debugSseLines.push(line);
+        const jsonStr = line.slice(6);
+        let evt;
+        try {
+          evt = JSON.parse(jsonStr);
+        } catch (e) {
+          parseErrors.push({ error: e.message, preview: jsonStr.slice(0, 120) });
+          continue;
+        }
+        if (evt.event === 'compile_stage') {
+          const el = document.getElementById(`stage-${evt.stage}`);
+          if (el) el.outerHTML = renderStageCard(evt.stage, evt.status, evt.data || {}, evt.elapsed_ms || 0);
+        } else if (evt.event === 'compile_complete') {
+          finalSpec = evt.data;
+          if (evt.evaluation) finalSpec._evaluation = evt.evaluation;
+        }
+      }
+    }
+
+    const rawChunks = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        if (buffer.trim()) processLines(buffer);
+        break;
+      }
+      const chunk = decoder.decode(value, { stream: true });
+      rawChunks.push(chunk);
+      buffer += chunk;
+
+      const parts = buffer.split('\n');
+      buffer = parts.pop();
+      processLines(parts.join('\n'));
+    }
+
+    document.getElementById('process-status').textContent = finalSpec ? '已完成' : '完成（无结果）';
+
+    if (!finalSpec) {
+      const diagInfo = [
+        `SSE 事件数: ${debugSseLines.length}`,
+        `原始 chunk 数: ${rawChunks.length}`,
+        `解析错误数: ${parseErrors.length}`,
+        `残留 buffer 长度: ${buffer.length}`,
+      ].join(' | ');
+      const hasComplete = debugSseLines.some(l => l.includes('compile_complete'));
+      const diagDetail = hasComplete
+        ? '收到了 compile_complete 事件但解析后 data 为空'
+        : '未收到 compile_complete 事件';
+      const errDetail = parseErrors.length
+        ? '\n解析错误:\n' + parseErrors.map(e => `  ${e.error}: ${e.preview}`).join('\n')
+        : '';
+      showCompileResult(null, `${diagInfo}\n${diagDetail}${errDetail}`);
+    } else {
+      showCompileResult(finalSpec);
+    }
+  } catch (e) { toast('编译失败：' + e.message); showCompileResult(null, '请求异常: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'AI 编译卖点'; }
+}
+
+/* ── compile result preview modal ── */
+
+function _crExpr(expr) {
+  if (!expr || typeof expr === 'string') return `<div class="cr-expr">${expr || '—'}</div>`;
+  return `<div class="cr-expr">
+    <div class="cr-expr-row"><strong>标题</strong>${expr.headline || '—'}</div>
+    <div class="cr-expr-row"><strong>副文案</strong>${expr.sub_copy || '—'}</div>
+    <div class="cr-expr-row"><strong>视觉方向</strong>${expr.visual_direction || '—'}</div>
+    <div class="cr-expr-row"><strong>语气</strong>${expr.tone || '—'}</div>
+  </div>`;
+}
+
+function showCompileResult(spec, errorMsg) {
+  pendingSpec = spec;
+  const body = document.getElementById('cr-body');
+  const footer = document.getElementById('cr-footer');
+
+  if (!spec) {
+    body.innerHTML = `
+      <div class="cr-debug">
+        <strong>编译未生成有效结果</strong>
+        ${errorMsg ? `<pre style="margin-top:6px;white-space:pre-wrap;">${errorMsg}</pre>` : ''}
+        <div style="margin-top:10px;font-size:11px;color:var(--muted);font-weight:600;">SSE 原始数据 (${debugSseLines.length} 条)</div>
+        ${debugSseLines.length ? `<pre>${debugSseLines.map(l => l.slice(0, 300)).join('\n')}</pre>` : '<div style="margin-top:4px;">未收到任何 SSE 数据，请检查网络或后端服务</div>'}
+      </div>`;
+    footer.innerHTML = `<button class="btn btn-ghost" onclick="closeCompileResult()">关闭</button>`;
+    document.getElementById('cr-backdrop').classList.add('open');
+    return;
+  }
+
+  const supporting = (spec.supporting_claims || []);
+  const people = (spec.target_people || []);
+  const scenarios = (spec.target_scenarios || []);
+
+  body.innerHTML = `
+    <div class="cr-field">
+      <div class="cr-field-label">核心主张</div>
+      <div class="cr-claim">${spec.core_claim || '（空）'}</div>
+    </div>
+    ${supporting.length ? `
+    <div class="cr-field">
+      <div class="cr-field-label">支撑论据</div>
+      <ul class="cr-list">${supporting.map(s => `<li>${s}</li>`).join('')}</ul>
+    </div>` : ''}
+    ${people.length ? `
+    <div class="cr-field">
+      <div class="cr-field-label">目标人群</div>
+      <div class="cr-tags">${people.map(p => `<span class="cr-tag">${p}</span>`).join('')}</div>
+    </div>` : ''}
+    ${scenarios.length ? `
+    <div class="cr-field">
+      <div class="cr-field-label">目标场景</div>
+      <div class="cr-tags">${scenarios.map(s => `<span class="cr-tag">${s}</span>`).join('')}</div>
+    </div>` : ''}
+    ${spec.differentiation_notes ? `
+    <div class="cr-field">
+      <div class="cr-field-label">差异化说明</div>
+      <div style="font-size:13px;line-height:1.6;color:#555;">${spec.differentiation_notes}</div>
+    </div>` : ''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="cr-field">
+        <div class="cr-field-label">货架表达</div>
+        ${_crExpr(spec.shelf_expression)}
+      </div>
+      <div class="cr-field">
+        <div class="cr-field-label">前3秒表达</div>
+        ${_crExpr(spec.first3s_expression)}
+      </div>
+    </div>
+    ${spec._evaluation ? `
+    <div class="cr-field" style="margin-top:4px;">
+      <div class="cr-field-label">质量评估</div>
+      <div style="font-size:13px;">
+        ${spec._evaluation.overall_label || ''} (${Math.round((spec._evaluation.overall_score || 0) * 100)}分)
+      </div>
+    </div>` : ''}
+  `;
+
+  footer.innerHTML = `
+    <button class="btn btn-ghost" onclick="closeCompileResult()">暂不填充</button>
+    <button class="btn btn-primary" onclick="applyCompileResult()">一键填充到表单</button>
+  `;
+
+  document.getElementById('cr-backdrop').classList.add('open');
+}
+
+async function applyCompileResult() {
+  if (!pendingSpec) { closeCompileResult(); return; }
+  const s = pendingSpec;
+
+  document.getElementById('f-core-claim').value = s.core_claim || '';
+  document.getElementById('f-supporting').value = (s.supporting_claims || []).join('\n');
+  document.getElementById('f-people').value = (s.target_people || []).join('、');
+  document.getElementById('f-scenarios').value = (s.target_scenarios || []).join('、');
+  renderExpression('expr-shelf', s.shelf_expression);
+  renderExpression('expr-first3s', s.first3s_expression);
+  activeSpecId = s.spec_id || null;
+
+  closeCompileResult();
+  toast('已填充到表单');
+  await loadSpecs();
+  loadReferences();
+  renderEvaluation(s, s._evaluation || null);
+}
+
+function closeCompileResult() {
+  document.getElementById('cr-backdrop').classList.remove('open');
+}
+
+/* ── quality evaluation ── */
+
+function renderEvaluation(spec, serverEval) {
+  const dims = serverEval ? serverEval.dimensions : evaluateSpec(spec);
+  const panel = document.getElementById('eval-panel');
+  const avgScore = serverEval ? serverEval.overall_score : dims.reduce((s,d) => s + d.score, 0) / dims.length;
+  const overallLabel = serverEval ? serverEval.overall_label : (avgScore >= 0.7 ? '优秀' : avgScore >= 0.5 ? '良好' : '需完善');
+  const overallColor = avgScore >= 0.7 ? 'var(--accent-pos)' : avgScore >= 0.5 ? 'var(--accent-warn)' : 'var(--accent-neg)';
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div class="eval-card">
+      <h3>📊 编译质量报告 <span style="font-size:12px;font-weight:500;color:${overallColor};margin-left:auto;">${overallLabel} (${Math.round(avgScore*100)}分)</span></h3>
+      ${dims.map(d => {
+        const level = d.score >= 0.7 ? 'high' : d.score >= 0.4 ? 'mid' : 'low';
+        return `
+          <div class="eval-dimension">
+            <div class="dim-header"><span>${d.label}</span><span>${Math.round(d.score*100)}分</span></div>
+            <div class="eval-bar"><div class="eval-bar-fill ${level}" style="width:${d.score*100}%"></div></div>
+            <div class="eval-hint">${d.hint}</div>
+          </div>`;
+      }).join('')}
+      <div class="next-steps">
+        ${activeSpecId ? `<button class="btn btn-success btn-sm" onclick="location.href='/growth-lab/lab?spec_id=${activeSpecId}'">进入主图工作台 →</button>` : ''}
+        ${activeSpecId ? `<button class="btn btn-ghost btn-sm" onclick="location.href='/growth-lab/first3s?spec_id=${activeSpecId}'">进入前3秒工作台 →</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('f-core-claim').focus()">继续优化卖点</button>
+      </div>
+    </div>
+  `;
+}
+
+function evaluateSpec(spec) {
+  const dims = [];
+
+  const claim = spec.core_claim || '';
+  dims.push({
+    label: '卖点清晰度',
+    score: claim.length >= 6 && claim.length <= 40 ? 0.8 : claim.length > 0 ? 0.5 : 0.1,
+    hint: claim.length < 6 ? '核心主张过短，建议更具体' : claim.length > 40 ? '核心主张过长，建议精炼' : '长度适中',
+  });
+
+  const people = spec.target_people || [];
+  dims.push({
+    label: '人群精准度',
+    score: people.length >= 2 ? 0.8 : people.length === 1 ? 0.5 : 0.1,
+    hint: people.length < 2 ? '建议补充更细分的目标人群' : '人群定位清晰',
+  });
+
+  const scenarios = spec.target_scenarios || [];
+  dims.push({
+    label: '场景可感知度',
+    score: scenarios.length >= 2 ? 0.8 : scenarios.length === 1 ? 0.5 : 0.1,
+    hint: scenarios.length < 2 ? '建议补充具体使用场景' : '场景描述具体',
+  });
+
+  const supporting = spec.supporting_claims || [];
+  dims.push({
+    label: '支撑充分度',
+    score: supporting.length >= 3 ? 0.9 : supporting.length >= 2 ? 0.7 : supporting.length === 1 ? 0.4 : 0.1,
+    hint: supporting.length < 2 ? '支撑论据不足，建议补充' : `${supporting.length} 条支撑论据`,
+  });
+
+  const hasShelf = spec.shelf_expression && spec.shelf_expression.headline;
+  const hasFirst3s = spec.first3s_expression && spec.first3s_expression.headline;
+  dims.push({
+    label: '可执行度',
+    score: hasShelf && hasFirst3s ? 0.9 : hasShelf || hasFirst3s ? 0.6 : 0.2,
+    hint: hasShelf && hasFirst3s ? '货架和前3秒表达均已就绪' : '平台表达不完整，建议完善后再进入工作台',
+  });
+
+  const diff = spec.differentiation_notes || '';
+  dims.push({
+    label: '差异化与风险',
+    score: diff.length > 10 ? 0.7 : diff.length > 0 ? 0.4 : 0.2,
+    hint: diff.length <= 10 ? '建议补充竞品差异化分析' : '已有差异化说明',
+  });
+
+  return dims;
+}
+
+/* ── expert annotations ── */
+
+function openAnnotation(fieldName) {
+  const container = document.getElementById(`ann-${fieldName}`);
+  if (container.style.display !== 'none') { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="annotation-panel">
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+        <select id="ann-type-${fieldName}">
+          <option value="insight">洞察补充</option>
+          <option value="correction">方向纠偏</option>
+          <option value="risk">风险提示</option>
+          <option value="template">经验模板</option>
+        </select>
+        <span style="font-size:11px;color:var(--muted);">字段：${fieldName}</span>
+      </div>
+      <textarea id="ann-text-${fieldName}" placeholder="输入专家经验或洞察…"></textarea>
+      <div style="margin-top:6px;display:flex;gap:6px;">
+        <button class="btn btn-primary btn-sm" onclick="submitAnnotation('${fieldName}')">保存批注</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ann-${fieldName}').style.display='none'">取消</button>
+      </div>
+    </div>
+  `;
+}
+
+async function submitAnnotation(fieldName) {
+  const annType = document.getElementById(`ann-type-${fieldName}`).value;
+  const content = document.getElementById(`ann-text-${fieldName}`).value.trim();
+  if (!content) { toast('请输入批注内容'); return; }
+  if (!activeSpecId) { toast('请先编译或选择一个卖点'); return; }
+
+  try {
+    const res = await fetch('/growth-lab/api/compiler/annotations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spec_id: activeSpecId,
+        field_name: fieldName,
+        annotation_type: annType,
+        content: content,
+        annotator: '专家用户',
+      }),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    toast('批注已保存');
+    document.getElementById(`ann-${fieldName}`).style.display = 'none';
+    loadAnnotations(activeSpecId);
+  } catch (e) { toast('保存失败：' + e.message); }
+}
+
+async function loadAnnotations(specId) {
+  const container = document.getElementById('annotation-history');
+  if (!specId) { container.innerHTML = '<div class="empty-hint" style="font-size:12px;">暂无批注</div>'; return; }
+  try {
+    const res = await fetch(`/growth-lab/api/compiler/annotations?spec_id=${specId}`);
+    if (!res.ok) { container.innerHTML = '<div class="empty-hint" style="font-size:12px;">暂无批注</div>'; return; }
+    const data = await res.json();
+    currentAnnotations = data.items || [];
+    if (!currentAnnotations.length) { container.innerHTML = '<div class="empty-hint" style="font-size:12px;">暂无批注</div>'; return; }
+    const typeMap = { insight: '洞察补充', correction: '方向纠偏', risk: '风险提示', template: '经验模板' };
+    container.innerHTML = currentAnnotations.map(a => `
+      <div style="padding:6px 8px;margin-bottom:4px;border-radius:6px;background:var(--bg);font-size:12px;">
+        <span class="annotation-badge ${a.annotation_type}">${typeMap[a.annotation_type] || a.annotation_type}</span>
+        <span style="color:var(--muted);margin-left:4px;">${a.field_name}</span>
+        <div style="margin-top:3px;">${a.content}</div>
+      </div>
+    `).join('');
+  } catch (_) { container.innerHTML = '<div class="empty-hint" style="font-size:12px;">加载失败</div>'; }
+}
+
+/* ── references ── */
+
+async function loadReferences() {
+  try {
+    const res = await fetch('/growth-lab/api/compiler/references');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const shelfRefs = data.shelf_references || [];
+    const shelfContainer = document.getElementById('ref-shelf-items');
+    const shelfSection = document.getElementById('ref-shelf');
+    if (shelfRefs.length) {
+      shelfSection.style.display = 'block';
+      shelfContainer.innerHTML = shelfRefs.map(r => `<div class="ref-item">${r.name || r.headline || r.template_text || JSON.stringify(r)}</div>`).join('');
+    }
+
+    const first3sRefs = data.first3s_references || [];
+    const first3sContainer = document.getElementById('ref-first3s-items');
+    const first3sSection = document.getElementById('ref-first3s');
+    if (first3sRefs.length) {
+      first3sSection.style.display = 'block';
+      first3sContainer.innerHTML = first3sRefs.map(r => `<div class="ref-item">${r.name || r.hook_text || r.template_text || JSON.stringify(r)}</div>`).join('');
+    }
+  } catch (_) {}
+}
+
+/* ── save / load ── */
+
+async function saveSpec() {
+  let coreClaim = document.getElementById('f-core-claim').value.trim();
+  const supporting = document.getElementById('f-supporting').value.split('\n').filter(Boolean);
+
+  if (!coreClaim && supporting.length) {
+    coreClaim = supporting[0];
+    document.getElementById('f-core-claim').value = coreClaim;
+    toast('已用首条支撑论据自动填充核心主张');
+  }
+  if (!coreClaim) {
+    toast('请填写核心主张后再保存');
+    document.getElementById('f-core-claim').focus();
+    return;
+  }
+
+  const payload = {
+    core_claim: coreClaim,
+    supporting_claims: supporting,
+    target_people: document.getElementById('f-people').value.split(/[、,，]/).filter(Boolean),
+    target_scenarios: document.getElementById('f-scenarios').value.split(/[、,，]/).filter(Boolean),
+  };
+  if (activeSpecId) payload.spec_id = activeSpecId;
+  try {
+    const res = await fetch('/growth-lab/api/compiler/specs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    toast('已保存'); await loadSpecs();
+  } catch (e) { toast('保存失败：' + e.message); }
+}
+
+async function loadOpps() {
+  try {
+    const res = await fetch('/growth-lab/api/radar/opportunities?status=promoted');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    opportunities = data.items || data || [];
+    renderOppList();
+  } catch (e) { document.getElementById('opp-list').innerHTML = '<div class="empty-hint" style="color:var(--accent-neg);">加载失败</div>'; }
+}
+
+async function loadSpecs() {
+  try {
+    const res = await fetch('/growth-lab/api/compiler/specs');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    specs = data.items || data || [];
+    renderSpecs();
+  } catch (e) { document.getElementById('spec-list').innerHTML = '<div class="empty-hint" style="color:var(--accent-neg);">加载失败</div>'; }
+}
+
+loadOpps();
+loadSpecs();
+loadReferences();
+</script>
+</body>
+</html>
