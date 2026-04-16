@@ -45,6 +45,38 @@ class BatchJob:
     status: Literal["queued", "running", "done", "partial", "failed"] = "queued"
 
 
+def _real_generate(variant: dict) -> str:
+    """调用 ImageGeneratorService 真实生成图片，失败时回退到 mock。"""
+    try:
+        from apps.content_planning.services.image_generator import (
+            ImageGeneratorService, ImagePrompt,
+        )
+        svc = ImageGeneratorService()
+        if not svc.is_available():
+            logger.warning("ImageGeneratorService 不可用，使用 mock 占位")
+            return VariantBatchQueue._mock_generate(variant)
+
+        spec = variant.get("image_variant_spec", {})
+        ref_urls = spec.get("reference_image_urls") or []
+        prompt = ImagePrompt(
+            slot_id=variant.get("variant_id", "unknown"),
+            prompt=spec.get("base_prompt", ""),
+            negative_prompt=spec.get("negative_prompt", ""),
+            size=spec.get("size", "1024*1024"),
+            ref_image_url=ref_urls[0] if ref_urls else "",
+        )
+        provider_hint = spec.get("provider_hint", "auto")
+        opp_id = variant.get("source_opportunity_id", "") or "growth_lab"
+        result = svc.generate_single(prompt, opportunity_id=opp_id, provider=provider_hint)
+        if result.status == "completed" and result.image_url:
+            return result.image_url
+        logger.warning("图片生成未成功: status=%s error=%s", result.status, result.error)
+        raise RuntimeError(result.error or "图片生成返回非完成状态")
+    except ImportError:
+        logger.warning("ImageGeneratorService 模块不可用，使用 mock 占位")
+        return VariantBatchQueue._mock_generate(variant)
+
+
 class VariantBatchQueue:
     """批量变体生成队列——管理并行 slot 执行与状态上报。"""
 
@@ -53,11 +85,13 @@ class VariantBatchQueue:
         *,
         max_workers: int = _MAX_WORKERS,
         generate_fn: Callable[[dict], str] | None = None,
+        on_slot_done: Callable[[dict, str], None] | None = None,
     ) -> None:
         self._pool = ThreadPoolExecutor(max_workers=max_workers)
         self._batches: dict[str, BatchJob] = {}
         self._lock = Lock()
-        self._generate_fn = generate_fn or self._mock_generate
+        self._generate_fn = generate_fn or _real_generate
+        self._on_slot_done = on_slot_done
 
     def enqueue_batch(
         self,
@@ -145,6 +179,11 @@ class VariantBatchQueue:
                 "Slot 完成: batch=%s slot=%d elapsed=%.1fs",
                 batch_id, slot_index, slot.finished_at - slot.started_at,
             )
+            if self._on_slot_done:
+                try:
+                    self._on_slot_done(slot.variant, result_url)
+                except Exception:
+                    logger.debug("on_slot_done 回调异常", exc_info=True)
         except Exception as exc:
             with self._lock:
                 slot.status = "failed"
@@ -154,6 +193,11 @@ class VariantBatchQueue:
                 "Slot 失败: batch=%s slot=%d error=%s",
                 batch_id, slot_index, exc,
             )
+            if self._on_slot_done:
+                try:
+                    self._on_slot_done(slot.variant, "")
+                except Exception:
+                    pass
 
     @staticmethod
     def _mock_generate(variant: dict) -> str:

@@ -332,8 +332,9 @@
         <input type="text" id="f-scenarios" placeholder="如：客厅聚餐、露营野餐…" />
         <div id="ann-target_scenarios" style="display:none;"></div>
 
-        <div style="margin-top: 16px; display: flex; gap: 8px;">
+        <div style="margin-top: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
           <button class="btn btn-ghost btn-sm" onclick="saveSpec()">保存卖点</button>
+          <span id="action-links"></span>
         </div>
       </div>
 
@@ -641,6 +642,10 @@ function renderSpecs() {
     <div class="spec-list-item ${s.spec_id === activeSpecId ? 'active' : ''}" onclick="selectSpec('${s.spec_id}')">
       <h4>${specTitle(s)}</h4>
       <div class="meta">人群：${(s.target_people || []).join('、') || '-'}　场景：${(s.target_scenarios || []).join('、') || '-'}</div>
+      <div style="display:flex;gap:6px;margin-top:6px;" onclick="event.stopPropagation()">
+        <a href="/growth-lab/lab?spec_id=${s.spec_id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">主图工作台 →</a>
+        <a href="/growth-lab/first3s?spec_id=${s.spec_id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">前3秒工作台 →</a>
+      </div>
     </div>`).join('');
 }
 
@@ -669,8 +674,18 @@ function selectSpec(id) {
   renderExpression('expr-shelf', s.shelf_expression);
   renderExpression('expr-first3s', s.first3s_expression);
   renderSpecs();
+  updateActionLinks();
   loadAnnotations(id);
   loadReferences();
+}
+
+function updateActionLinks() {
+  const el = document.getElementById('action-links');
+  if (!activeSpecId) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <a href="/growth-lab/lab?spec_id=${activeSpecId}" class="btn btn-success btn-sm" style="text-decoration:none;font-size:11px;">主图工作台 →</a>
+    <a href="/growth-lab/first3s?spec_id=${activeSpecId}" class="btn btn-ghost btn-sm" style="text-decoration:none;font-size:11px;">前3秒工作台 →</a>
+  `;
 }
 
 /* ── SSE compile ── */
@@ -891,9 +906,11 @@ function showCompileResult(spec, errorMsg) {
     </div>` : ''}
   `;
 
+  const specId = spec.spec_id || '';
   footer.innerHTML = `
     <button class="btn btn-ghost" onclick="closeCompileResult()">暂不填充</button>
     <button class="btn btn-primary" onclick="applyCompileResult()">一键填充到表单</button>
+    ${specId ? `<button class="btn" style="background:#10B981;color:#fff;" onclick="applyAndGoToLab('${specId}')">填充并进入主图裂变 →</button>` : ''}
   `;
 
   document.getElementById('cr-backdrop').classList.add('open');
@@ -920,6 +937,11 @@ async function applyCompileResult() {
 
 function closeCompileResult() {
   document.getElementById('cr-backdrop').classList.remove('open');
+}
+
+async function applyAndGoToLab(specId) {
+  await applyCompileResult();
+  location.href = '/growth-lab/lab?spec_id=' + specId;
 }
 
 /* ── quality evaluation ── */

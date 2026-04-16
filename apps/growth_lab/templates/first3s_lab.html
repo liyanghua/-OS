@@ -27,8 +27,8 @@
     .topnav a:hover { background: var(--primary-light); color: var(--primary); }
     .topnav a.active { background: var(--primary); color: #fff; font-weight: 600; }
 
-    .shell { max-width: 1400px; margin: 0 auto; padding: 24px; }
-    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .shell { max-width: 1500px; margin: 0 auto; padding: 20px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .page-header h1 { font-size: 22px; font-weight: 700; }
 
     .btn {
@@ -42,47 +42,55 @@
     .btn-ghost:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
     .btn-sm { padding: 5px 10px; font-size: 12px; }
     .btn-accent { background: var(--accent-pos); color: #fff; }
+    .btn-accent:hover { opacity: .9; }
+    .btn-warn { background: var(--accent-warn); color: #fff; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
 
-    .two-col { display: grid; grid-template-columns: 340px 1fr; gap: 20px; min-height: calc(100vh - 140px); }
-    @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+    /* ── three-column layout ─────────────────── */
+    .three-col { display: grid; grid-template-columns: 260px 1fr 320px; gap: 16px; min-height: calc(100vh - 130px); }
+    @media (max-width: 1100px) { .three-col { grid-template-columns: 240px 1fr; } .col-right { display: none; } }
+    @media (max-width: 700px) { .three-col { grid-template-columns: 1fr; } }
 
     .panel {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 18px; overflow-y: auto;
+      padding: 16px; overflow-y: auto;
     }
-    .panel-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+    .panel-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .panel-sub { font-size: 12px; color: var(--muted); font-weight: 400; }
 
-    .form-group { margin-bottom: 14px; }
+    .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
-    .form-group select, .form-group input {
+    .form-group select, .form-group input, .form-group textarea {
       width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
-      font-size: 13px; font-family: inherit; outline: none; background: var(--bg);
+      font-size: 13px; font-family: inherit; outline: none; background: var(--bg); resize: vertical;
     }
-    .form-group select:focus, .form-group input:focus {
+    .form-group select:focus, .form-group input:focus, .form-group textarea:focus {
       border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79,70,229,.12);
     }
 
     /* ── checkbox grid ───────────────────────── */
-    .hook-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+    .hook-types { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
     .hook-type-item {
-      display: flex; align-items: center; gap: 6px;
-      padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
-      cursor: pointer; transition: all .15s; font-size: 13px; user-select: none;
+      display: flex; align-items: center; gap: 5px;
+      padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px;
+      cursor: pointer; transition: all .15s; font-size: 12px; user-select: none;
     }
     .hook-type-item:hover { border-color: var(--primary); background: var(--primary-light); }
-    .hook-type-item input { accent-color: var(--primary); }
+    .hook-type-item input { accent-color: var(--primary); width: 14px; height: 14px; }
     .hook-type-item.checked { border-color: var(--primary); background: var(--primary-light); }
 
     /* ── hook cards ───────────────────────────── */
     .hook-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 16px; margin-bottom: 12px; transition: box-shadow .2s;
+      padding: 14px; margin-bottom: 10px; transition: box-shadow .2s; cursor: pointer;
     }
     .hook-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
-    .hook-card .opening { font-size: 16px; font-weight: 700; line-height: 1.5; margin-bottom: 8px; }
-    .hook-card .supporting { font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 8px; }
-    .hook-card .cta { font-size: 13px; font-weight: 600; color: var(--primary); margin-bottom: 10px; }
-    .hook-card .tag-row { display: flex; flex-wrap: wrap; gap: 4px; }
+    .hook-card.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79,70,229,.15); }
+    .hook-card .opening { font-size: 15px; font-weight: 700; line-height: 1.5; margin-bottom: 6px; }
+    .hook-card .supporting { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 6px; }
+    .hook-card .cta { font-size: 12px; font-weight: 600; color: var(--primary); margin-bottom: 8px; }
+    .hook-card .tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    .hook-card .actions { display: flex; gap: 6px; justify-content: flex-end; }
 
     .badge {
       display: inline-block; padding: 2px 10px; border-radius: 999px;
@@ -91,16 +99,109 @@
     .badge-hook { background: #FEF3C7; color: #92400E; }
     .badge-tone { background: #EDE9FE; color: #5B21B6; }
     .badge-platform { background: #DBEAFE; color: #1D4ED8; }
+    .badge-video { background: #D1FAE5; color: #065F46; }
+
+    /* ── video panel ─────────────────────────── */
+    .video-panel {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; margin-top: 14px; background: #FAFBFD;
+    }
+    .video-panel-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; color: var(--primary); }
+
+    .aspect-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .aspect-toggle button {
+      border: none; background: var(--bg); padding: 5px 12px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all .15s;
+    }
+    .aspect-toggle button.active { background: var(--primary); color: #fff; }
+    .aspect-toggle button:not(.active):hover { background: var(--primary-light); }
+
+    .ref-img-preview { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .ref-img-preview img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+    .ref-img-preview .url-text { font-size: 11px; color: var(--muted); word-break: break-all; flex: 1; }
+    .ref-img-preview .clear-btn { font-size: 11px; cursor: pointer; color: var(--accent-neg); text-decoration: underline; }
+
+    /* ── ref picker modal ────────────────────── */
+    .rp-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 2000;
+      display: none; align-items: center; justify-content: center;
+    }
+    .rp-backdrop.open { display: flex; }
+    .rp-modal {
+      background: var(--surface); border-radius: 14px; width: 680px; max-height: 80vh;
+      display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    }
+    .rp-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .rp-header h3 { font-size: 15px; font-weight: 700; }
+    .rp-tabs { display: flex; gap: 4px; padding: 10px 18px 0; }
+    .rp-tab {
+      padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1px solid transparent; transition: all .15s;
+    }
+    .rp-tab.active { background: var(--primary); color: #fff; }
+    .rp-tab:not(.active) { color: var(--muted); border-color: var(--border); }
+    .rp-tab:not(.active):hover { background: var(--primary-light); }
+    .rp-tab-count { font-weight: 400; opacity: .7; margin-left: 4px; }
+    .rp-body { flex: 1; overflow-y: auto; padding: 14px 18px; }
+    .rp-footer { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .rp-note-group { margin-bottom: 16px; }
+    .rp-note-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .rp-note-title { font-size: 12px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rp-note-stats { display: flex; gap: 8px; }
+    .rp-note-stat { font-size: 11px; color: var(--muted); }
+    .rp-img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 6px; }
+    .rp-card {
+      position: relative; border-radius: 6px; overflow: hidden; cursor: pointer;
+      border: 2px solid transparent; aspect-ratio: 1; transition: all .15s;
+    }
+    .rp-card img { width: 100%; height: 100%; object-fit: cover; }
+    .rp-card.selected { border-color: var(--primary); }
+    .rp-card-check {
+      position: absolute; top: 3px; right: 3px; width: 18px; height: 18px;
+      background: var(--primary); color: #fff; border-radius: 50%;
+      font-size: 11px; display: none; align-items: center; justify-content: center;
+    }
+    .rp-card.selected .rp-card-check { display: flex; }
+    .rp-card-label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.5); color: #fff; font-size: 10px; text-align: center; padding: 1px; }
+    .rp-empty { text-align: center; padding: 30px; color: var(--muted); font-size: 13px; }
+
+    /* ── right col: video preview ────────────── */
+    .video-preview-area { display: flex; flex-direction: column; gap: 12px; }
+    .video-player-wrapper {
+      width: 100%; background: #000; border-radius: var(--radius); overflow: hidden;
+      aspect-ratio: 9/16; max-height: 400px; display: flex; align-items: center; justify-content: center;
+    }
+    .video-player-wrapper video { width: 100%; height: 100%; object-fit: contain; }
+    .video-player-placeholder { color: #555; font-size: 13px; text-align: center; }
+
+    .progress-bar-outer {
+      width: 100%; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;
+    }
+    .progress-bar-inner {
+      height: 100%; background: var(--primary); border-radius: 4px; transition: width .3s ease;
+    }
+    .progress-label { font-size: 12px; color: var(--muted); text-align: center; margin-top: 4px; }
+
+    .video-thumb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .video-thumb {
+      border-radius: 6px; overflow: hidden; cursor: pointer; aspect-ratio: 9/16;
+      border: 2px solid transparent; transition: all .15s;
+    }
+    .video-thumb.active { border-color: var(--primary); }
+    .video-thumb video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 
     .empty-hint { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13px; }
     .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
     .toast {
       position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px;
       font-size: 13px; font-weight: 500; color: #fff; background: #1F2937;
       box-shadow: 0 4px 20px rgba(0,0,0,.15); z-index: 9999; opacity: 0; transform: translateY(10px); transition: all .3s;
     }
     .toast.show { opacity: 1; transform: translateY(0); }
+
+    .divider { height: 1px; background: var(--border); margin: 14px 0; }
   </style>
 </head>
 <body>
@@ -121,14 +222,14 @@
     <h1>前3秒裂变工作台</h1>
   </div>
 
-  <div class="two-col">
-    <!-- left: controls -->
-    <div class="panel" style="max-height: calc(100vh - 140px);">
-      <div class="panel-title">钩子生成控制</div>
+  <div class="three-col">
+    <!-- ═══ LEFT: control panel ═══ -->
+    <div class="panel" style="max-height: calc(100vh - 130px);">
+      <div class="panel-title">钩子生成</div>
 
       <div class="form-group">
         <label>选择卖点规格</label>
-        <select id="spec-select">
+        <select id="spec-select" onchange="onSpecChange()">
           <option value="">加载中…</option>
         </select>
       </div>
@@ -145,16 +246,116 @@
         <label class="hook-type-item"><input type="checkbox" value="好奇" /> 好奇</label>
       </div>
 
-      <button class="btn btn-primary" style="width:100%;margin-top:16px;" id="btn-generate" onclick="generateHooks()">
+      <button class="btn btn-primary" style="width:100%;margin-top:12px;" id="btn-generate" onclick="generateHooks()">
         生成钩子脚本
       </button>
+
+      <div class="divider"></div>
+
+      <!-- video config section -->
+      <div id="video-config" style="display:none;">
+        <div class="panel-title" style="font-size:13px;">视频生成参数</div>
+
+        <div class="form-group">
+          <label>画面比例</label>
+          <div class="aspect-toggle">
+            <button class="active" data-ratio="9:16" onclick="setAspect(this)">9:16 竖屏</button>
+            <button data-ratio="16:9" onclick="setAspect(this)">16:9 横屏</button>
+            <button data-ratio="1:1" onclick="setAspect(this)">1:1</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>首帧参考图</label>
+          <input type="hidden" id="ref-image" />
+          <button class="btn btn-ghost btn-sm" onclick="openRefPicker()" style="width:100%;">选择参考图…</button>
+          <input type="text" id="ref-image-manual" placeholder="或粘贴图片 URL" oninput="syncManualRef()" style="margin-top:6px;" />
+        </div>
+        <div class="ref-img-preview" id="ref-preview" style="display:none;">
+          <img id="ref-preview-img" src="" />
+          <span class="url-text" id="ref-preview-url"></span>
+          <span class="clear-btn" onclick="clearRefImage()">清除</span>
+        </div>
+      </div>
     </div>
 
-    <!-- right: hook list -->
-    <div class="panel" style="max-height: calc(100vh - 140px);">
-      <div class="panel-title">钩子版本列表 <span id="hook-count" style="font-weight:400;color:var(--muted);font-size:12px;"></span></div>
+    <!-- ═══ MIDDLE: hooks + video gen ═══ -->
+    <div class="panel" style="max-height: calc(100vh - 130px);">
+      <div class="panel-title">
+        钩子版本 <span id="hook-count" class="panel-sub"></span>
+        <span id="selected-hook-hint" class="panel-sub" style="margin-left:auto;"></span>
+      </div>
       <div id="hook-list"></div>
       <div id="hook-empty" class="empty-hint">暂无钩子版本。选择卖点规格和钩子类型后点击「生成钩子脚本」。</div>
+
+      <!-- video gen panel (appears after selecting a hook) -->
+      <div id="video-gen-panel" class="video-panel" style="display:none;">
+        <div class="video-panel-title">视频生成</div>
+        <div class="form-group">
+          <label>视频 Prompt <span style="font-weight:400;color:var(--muted);">（基于钩子脚本自动组装，可编辑）</span></label>
+          <textarea id="video-prompt" rows="4" placeholder="视频生成提示词…"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-accent" id="btn-gen-video" onclick="submitVideoGen()">
+            生成前3秒视频
+          </button>
+          <span id="gen-status-hint" style="font-size:12px;color:var(--muted);"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ RIGHT: video preview ═══ -->
+    <div class="panel col-right" style="max-height: calc(100vh - 130px);">
+      <div class="panel-title">视频预览</div>
+      <div class="video-preview-area">
+        <div class="video-player-wrapper" id="player-wrapper">
+          <div class="video-player-placeholder" id="player-placeholder">选择钩子脚本后生成视频</div>
+          <video id="video-player" controls style="display:none;"></video>
+        </div>
+
+        <div id="progress-section" style="display:none;">
+          <div class="progress-bar-outer">
+            <div class="progress-bar-inner" id="progress-bar" style="width:0%;"></div>
+          </div>
+          <div class="progress-label" id="progress-label">准备中…</div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="panel-title" style="font-size:12px;">已生成视频 <span id="video-count" class="panel-sub"></span></div>
+        <div class="video-thumb-grid" id="video-thumb-grid"></div>
+        <div id="video-thumb-empty" class="empty-hint" style="padding:16px;font-size:12px;">暂无已生成视频</div>
+
+        <div style="margin-top:12px;">
+          <button class="btn btn-warn btn-sm" id="btn-create-test" onclick="createTestFromVideo()" style="width:100%;display:none;">
+            创建测试任务
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ref picker modal -->
+<div class="rp-backdrop" id="rp-backdrop" onclick="if(event.target===this)closeRefPicker()">
+  <div class="rp-modal">
+    <div class="rp-header">
+      <h3>选择首帧参考图</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeRefPicker()">✕</button>
+    </div>
+    <div class="rp-tabs" id="rp-tabs">
+      <div class="rp-tab active" onclick="switchPickerTab('related')">关联笔记<span class="rp-tab-count" id="rp-count-related"></span></div>
+      <div class="rp-tab" onclick="switchPickerTab('library')">全部素材库<span class="rp-tab-count" id="rp-count-library"></span></div>
+    </div>
+    <div class="rp-body" id="rp-body"><div class="rp-empty">加载中…</div></div>
+    <div class="rp-footer">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <img id="rp-footer-preview" src="" style="width:36px;height:36px;object-fit:cover;border-radius:4px;display:none;" />
+        <span id="rp-footer-text" style="font-size:12px;color:var(--muted);">未选择</span>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="closeRefPicker()">取消</button>
+        <button class="btn btn-primary btn-sm" id="rp-btn-confirm" onclick="confirmRefSelection()" disabled>确认选择</button>
+      </div>
     </div>
   </div>
 </div>
@@ -162,19 +363,120 @@
 <div id="toast" class="toast"></div>
 
 <script>
+/* ═══════════════════════════════════════════════
+   State
+   ═══════════════════════════════════════════════ */
 let hookVariants = [];
+let selectedHookId = null;
+let aspectRatio = '9:16';
+let currentJobId = null;
+let pollTimer = null;
+let generatedVideos = [];  // {variant_id, video_url, hook_id}
 
+let refImageGroups = [];
+let libraryGroups = [];
+let libraryLoaded = false;
+let pickerSelectedUrl = '';
+let pickerTab = 'related';
+
+/* ═══════════════════════════════════════════════
+   Utils
+   ═══════════════════════════════════════════════ */
 function toast(msg, dur) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), dur || 2500);
 }
 
+function _fmtStat(n) { return n >= 10000 ? (n / 10000).toFixed(1) + 'w' : String(n ?? 0); }
+
+/* ═══════════════════════════════════════════════
+   Checkbox styling
+   ═══════════════════════════════════════════════ */
 document.querySelectorAll('.hook-type-item').forEach(item => {
   const cb = item.querySelector('input');
   if (cb.checked) item.classList.add('checked');
   cb.addEventListener('change', () => item.classList.toggle('checked', cb.checked));
 });
+
+/* ═══════════════════════════════════════════════
+   Aspect ratio toggle
+   ═══════════════════════════════════════════════ */
+function setAspect(btn) {
+  document.querySelectorAll('.aspect-toggle button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  aspectRatio = btn.dataset.ratio;
+}
+
+/* ═══════════════════════════════════════════════
+   Spec loading
+   ═══════════════════════════════════════════════ */
+async function loadSpecs() {
+  try {
+    const res = await fetch('/growth-lab/api/compiler/specs');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    const specs = data.items || [];
+    const sel = document.getElementById('spec-select');
+    if (!specs.length) {
+      sel.innerHTML = '<option value="">暂无卖点规格 — 请先在编译器中创建</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">请选择…</option>' +
+      specs.map(s => `<option value="${s.spec_id}">${s.core_claim || s.spec_id.slice(0,8)}</option>`).join('');
+
+    const urlParams = new URLSearchParams(location.search);
+    const presetId = urlParams.get('spec_id');
+    if (presetId) {
+      sel.value = presetId;
+      onSpecChange();
+    }
+  } catch (e) {
+    document.getElementById('spec-select').innerHTML = '<option value="">加载失败</option>';
+  }
+}
+
+function onSpecChange() {
+  const specId = document.getElementById('spec-select').value;
+  if (specId) {
+    loadHooksForSpec(specId);
+    loadRefImages(specId);
+    document.getElementById('video-config').style.display = '';
+  } else {
+    document.getElementById('video-config').style.display = 'none';
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   Hook loading & rendering
+   ═══════════════════════════════════════════════ */
+async function loadHooksForSpec(specId) {
+  try {
+    const url = specId
+      ? `/growth-lab/api/first3s/variants?selling_point_id=${encodeURIComponent(specId)}`
+      : '/growth-lab/api/first3s/variants';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    hookVariants = (data.items || []).map(h => {
+      const hs = h.hook_script || {};
+      return {
+        variant_id: h.variant_id,
+        hook_type: h.key_hook_type || hs.hook_type || '',
+        opening_line: hs.opening_line || '',
+        supporting_line: hs.supporting_line || '',
+        cta: hs.cta_line || '',
+        tone: hs.tone || '',
+        platform: hs.platform || h.platform || '',
+        generated_video_url: h.generated_video_url || '',
+        video_generation_status: h.video_generation_status || '',
+      };
+    });
+    renderHooks();
+  } catch (e) {
+    document.getElementById('hook-empty').innerHTML = '<span style="color:var(--accent-neg);">加载失败</span>';
+  }
+}
 
 function renderHooks() {
   const container = document.getElementById('hook-list');
@@ -183,53 +485,69 @@ function renderHooks() {
   count.textContent = hookVariants.length ? `(${hookVariants.length})` : '';
   if (!hookVariants.length) { container.innerHTML = ''; empty.style.display = 'block'; return; }
   empty.style.display = 'none';
+
   container.innerHTML = hookVariants.map(h => {
     const toneTag = h.tone ? `<span class="badge badge-tone">${h.tone}</span>` : '';
     const platTag = h.platform ? `<span class="badge badge-platform">${h.platform}</span>` : '';
+    const videoTag = h.generated_video_url ? `<span class="badge badge-video">已生成视频</span>` : '';
+    const sel = h.variant_id === selectedHookId ? ' selected' : '';
     return `
-      <div class="hook-card">
-        <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <div class="hook-card${sel}" onclick="selectHook('${h.variant_id}')">
+        <div class="tag-row">
           <span class="badge badge-hook">${h.hook_type || '—'}</span>
-          ${toneTag}${platTag}
+          ${toneTag}${platTag}${videoTag}
         </div>
         <div class="opening">${h.opening_line || '—'}</div>
         <div class="supporting">${h.supporting_line || ''}</div>
         ${h.cta ? '<div class="cta">' + h.cta + '</div>' : ''}
-        <div style="display:flex;justify-content:flex-end;">
-          <button class="btn btn-accent btn-sm" onclick="createTestFromHook('${h.variant_id}')">创建测试任务</button>
+        <div class="actions">
+          <button class="btn btn-accent btn-sm" onclick="event.stopPropagation();selectHookAndGenerate('${h.variant_id}')">生成视频</button>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();createTestFromHook('${h.variant_id}')">创建测试</button>
         </div>
       </div>`;
   }).join('');
 }
 
-async function loadSpecs() {
-  try {
-    const res = await fetch('/growth-lab/api/compiler/specs');
-    if (!res.ok) throw new Error(res.statusText);
-    const data = await res.json();
-    const specs = data.items || data || [];
-    const sel = document.getElementById('spec-select');
-    if (!specs.length) {
-      sel.innerHTML = '<option value="">暂无卖点规格 — 请先在编译器中创建</option>';
-      return;
-    }
-    sel.innerHTML = '<option value="">请选择…</option>' +
-      specs.map(s => `<option value="${s.spec_id}">${s.core_claim || '未命名'}</option>`).join('');
-  } catch (e) {
-    document.getElementById('spec-select').innerHTML = '<option value="">加载失败</option>';
+function selectHook(variantId) {
+  selectedHookId = variantId;
+  renderHooks();
+  const h = hookVariants.find(x => x.variant_id === variantId);
+  if (!h) return;
+
+  document.getElementById('selected-hook-hint').textContent = '已选: ' + (h.opening_line || '').slice(0, 20) + '…';
+  document.getElementById('video-gen-panel').style.display = '';
+
+  const prompt = buildVideoPrompt(h);
+  document.getElementById('video-prompt').value = prompt;
+
+  if (h.generated_video_url) {
+    playVideo(h.generated_video_url);
   }
 }
 
-async function loadHooks() {
-  try {
-    const res = await fetch('/growth-lab/api/first3s/variants');
-    if (!res.ok) throw new Error(res.statusText);
-    const data = await res.json();
-    hookVariants = data.items || data || [];
-    renderHooks();
-  } catch (e) { document.getElementById('hook-empty').innerHTML = '<span style="color:var(--accent-neg);">加载失败</span>'; }
+function selectHookAndGenerate(variantId) {
+  selectHook(variantId);
+  submitVideoGen();
 }
 
+function buildVideoPrompt(hook) {
+  let lines = [];
+  if (hook.opening_line) lines.push(hook.opening_line);
+  if (hook.supporting_line) lines.push(hook.supporting_line);
+  if (hook.cta) lines.push(hook.cta);
+  const script = lines.join('\n');
+
+  let prompt = `为短视频前3秒生成一段引人注目的视觉画面。\n`;
+  prompt += `钩子类型: ${hook.hook_type || '通用'}\n`;
+  prompt += `文案:\n${script}\n`;
+  prompt += `画面风格: 高质量、有冲击力、${hook.tone || '自然'}风格\n`;
+  prompt += `要求: 适合竖屏短视频，前3秒必须抓住注意力`;
+  return prompt;
+}
+
+/* ═══════════════════════════════════════════════
+   Hook generation
+   ═══════════════════════════════════════════════ */
 async function generateHooks() {
   const specId = document.getElementById('spec-select').value;
   if (!specId) { toast('请先选择卖点规格'); return; }
@@ -242,30 +560,345 @@ async function generateHooks() {
     const res = await fetch('/growth-lab/api/first3s/generate-hooks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ spec_id: specId, hook_types: types }),
+      body: JSON.stringify({ opportunity_ids: [specId], hook_types: types }),
     });
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
-    toast('生成完成，共 ' + (data.count ?? types.length) + ' 个钩子');
-    await loadHooks();
+    toast('生成完成，共 ' + (data.total ?? types.length) + ' 个钩子');
+    await loadHooksForSpec(specId);
   } catch (e) { toast('生成失败：' + e.message); }
   finally { btn.disabled = false; btn.textContent = '生成钩子脚本'; }
 }
 
+/* ═══════════════════════════════════════════════
+   Video Generation: submit + poll
+   ═══════════════════════════════════════════════ */
+async function submitVideoGen() {
+  if (!selectedHookId) { toast('请先选择一个钩子脚本'); return; }
+  const prompt = document.getElementById('video-prompt').value.trim();
+  if (!prompt) { toast('请输入视频 Prompt'); return; }
+
+  const btn = document.getElementById('btn-gen-video');
+  const hint = document.getElementById('gen-status-hint');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 提交中…';
+  hint.textContent = '';
+
+  const refUrl = document.getElementById('ref-image').value || '';
+
+  try {
+    const res = await fetch('/growth-lab/api/first3s/generate-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        variant_id: selectedHookId,
+        prompt: prompt,
+        first_frame_url: refUrl,
+        aspect_ratio: aspectRatio,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || res.statusText);
+    }
+    const data = await res.json();
+    currentJobId = data.job_id;
+    toast('视频生成任务已提交');
+    hint.textContent = '任务已提交，轮询中…';
+    showProgress('pending', 0);
+    startPolling(data.job_id);
+  } catch (e) {
+    toast('提交失败：' + e.message);
+    hint.textContent = '提交失败';
+  } finally {
+    btn.disabled = false; btn.textContent = '生成前3秒视频';
+  }
+}
+
+function showProgress(status, pct) {
+  const sec = document.getElementById('progress-section');
+  const bar = document.getElementById('progress-bar');
+  const label = document.getElementById('progress-label');
+  sec.style.display = '';
+
+  const statusMap = { pending: '排队中…', generating: '视频生成中…', completed: '完成！', failed: '生成失败', timeout: '超时' };
+  label.textContent = statusMap[status] || status;
+
+  if (status === 'pending') bar.style.width = '10%';
+  else if (status === 'generating') bar.style.width = Math.max(pct, 20) + '%';
+  else if (status === 'completed') bar.style.width = '100%';
+  else bar.style.width = '100%';
+
+  if (status === 'failed' || status === 'timeout') {
+    bar.style.background = 'var(--accent-neg)';
+  } else if (status === 'completed') {
+    bar.style.background = 'var(--accent-pos)';
+  } else {
+    bar.style.background = 'var(--primary)';
+  }
+}
+
+function startPolling(jobId) {
+  if (pollTimer) clearInterval(pollTimer);
+  let elapsed = 0;
+  const maxMs = 300000;
+  const intervalMs = 8000;
+
+  pollTimer = setInterval(async () => {
+    elapsed += intervalMs;
+    if (elapsed > maxMs) {
+      clearInterval(pollTimer); pollTimer = null;
+      showProgress('timeout', 100);
+      document.getElementById('gen-status-hint').textContent = '超时';
+      return;
+    }
+
+    try {
+      const res = await fetch(`/growth-lab/api/first3s/video-status/${jobId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const pct = Math.min(90, Math.round((elapsed / maxMs) * 100));
+      showProgress(data.status, pct);
+      document.getElementById('gen-status-hint').textContent =
+        data.status === 'generating' ? `生成中 (${Math.round(elapsed/1000)}s)…` : data.status;
+
+      if (data.status === 'completed') {
+        clearInterval(pollTimer); pollTimer = null;
+        showProgress('completed', 100);
+        toast('视频生成完成！');
+        document.getElementById('gen-status-hint').textContent = `完成 (${(data.elapsed_ms/1000).toFixed(1)}s)`;
+        if (data.video_url) {
+          playVideo(data.video_url);
+          addGeneratedVideo(selectedHookId, data.video_url);
+        }
+      } else if (data.status === 'failed') {
+        clearInterval(pollTimer); pollTimer = null;
+        showProgress('failed', 100);
+        toast('视频生成失败：' + (data.error || '未知错误'));
+        document.getElementById('gen-status-hint').textContent = '失败: ' + (data.error || '');
+      }
+    } catch (e) { /* continue polling */ }
+  }, intervalMs);
+}
+
+/* ═══════════════════════════════════════════════
+   Video Player + Thumbs
+   ═══════════════════════════════════════════════ */
+function playVideo(url) {
+  const player = document.getElementById('video-player');
+  const placeholder = document.getElementById('player-placeholder');
+  player.src = url;
+  player.style.display = '';
+  placeholder.style.display = 'none';
+  player.play().catch(() => {});
+  document.getElementById('btn-create-test').style.display = '';
+}
+
+function addGeneratedVideo(hookId, videoUrl) {
+  if (generatedVideos.find(v => v.video_url === videoUrl)) return;
+  generatedVideos.unshift({ hook_id: hookId, video_url: videoUrl });
+  renderVideoThumbs();
+
+  const h = hookVariants.find(x => x.variant_id === hookId);
+  if (h) { h.generated_video_url = videoUrl; renderHooks(); }
+}
+
+function renderVideoThumbs() {
+  const grid = document.getElementById('video-thumb-grid');
+  const empty = document.getElementById('video-thumb-empty');
+  const count = document.getElementById('video-count');
+  count.textContent = generatedVideos.length ? `(${generatedVideos.length})` : '';
+  if (!generatedVideos.length) { grid.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+
+  grid.innerHTML = generatedVideos.map((v, i) => {
+    const active = document.getElementById('video-player').src?.includes(v.video_url) ? ' active' : '';
+    return `
+      <div class="video-thumb${active}" onclick="playVideo('${v.video_url}')">
+        <video src="${v.video_url}" muted preload="metadata"></video>
+      </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   Reference Image Picker
+   ═══════════════════════════════════════════════ */
+async function loadRefImages(specId) {
+  refImageGroups = [];
+  try {
+    const res = await fetch(`/growth-lab/api/radar/opportunities?limit=20`);
+    if (!res.ok) return;
+    const data = await res.json();
+    for (const opp of (data.items || [])) {
+      const imgs = [];
+      const seen = new Set();
+      const cover = opp.cover_image || '';
+      if (cover && !seen.has(cover)) { seen.add(cover); imgs.push({ url: cover, label: '封面' }); }
+      for (const [i, u] of (opp.source_images || opp.image_urls || []).entries()) {
+        if (u && !seen.has(u)) { seen.add(u); imgs.push({ url: u, label: `图${i+1}` }); }
+      }
+      if (imgs.length) {
+        refImageGroups.push({
+          title: opp.title || opp.opportunity_title || '',
+          likes: opp.like_count || 0,
+          collects: opp.collect_count || 0,
+          images: imgs,
+        });
+      }
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function openRefPicker() {
+  pickerSelectedUrl = document.getElementById('ref-image').value || '';
+  pickerTab = 'related';
+  _updatePickerTabs();
+  _renderPickerBody();
+  document.getElementById('rp-backdrop').classList.add('open');
+}
+
+function closeRefPicker() {
+  document.getElementById('rp-backdrop').classList.remove('open');
+}
+
+function switchPickerTab(tab) {
+  pickerTab = tab;
+  _updatePickerTabs();
+  _renderPickerBody();
+  if (tab === 'library' && !libraryLoaded) loadLibrary();
+}
+
+function _updatePickerTabs() {
+  document.querySelectorAll('.rp-tab').forEach((t, i) => {
+    t.classList.toggle('active', (i === 0 && pickerTab === 'related') || (i === 1 && pickerTab === 'library'));
+  });
+  document.getElementById('rp-count-related').textContent = refImageGroups.length ? ` (${refImageGroups.length})` : '';
+  document.getElementById('rp-count-library').textContent = libraryGroups.length ? ` (${libraryGroups.length})` : '';
+}
+
+function _renderPickerBody() {
+  const body = document.getElementById('rp-body');
+  const groups = pickerTab === 'related' ? refImageGroups : libraryGroups;
+  if (!groups.length) {
+    body.innerHTML = `<div class="rp-empty">${pickerTab === 'library' && !libraryLoaded ? '加载中…' : '暂无图片'}</div>`;
+    _updatePickerFooter();
+    return;
+  }
+  body.innerHTML = groups.map(g => `
+    <div class="rp-note-group">
+      <div class="rp-note-header">
+        <span class="rp-note-title">${g.title || '未知笔记'}</span>
+        <div class="rp-note-stats">
+          <span class="rp-note-stat">❤ ${_fmtStat(g.likes)}</span>
+          <span class="rp-note-stat">⭐ ${_fmtStat(g.collects)}</span>
+        </div>
+      </div>
+      <div class="rp-img-grid">
+        ${g.images.map(img => `
+          <div class="rp-card${pickerSelectedUrl === img.url ? ' selected' : ''}" onclick="selectRefImage('${img.url.replace(/'/g, "\\'")}')">
+            <img src="${img.url}" loading="lazy" onerror="this.parentElement.style.display='none'" />
+            <div class="rp-card-check">✓</div>
+            <div class="rp-card-label">${img.label}</div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+  _updatePickerFooter();
+}
+
+async function loadLibrary() {
+  try {
+    const res = await fetch('/api/image-library?limit=100');
+    if (!res.ok) return;
+    const data = await res.json();
+    libraryGroups = (data.groups || []).map(g => ({
+      title: g.title || '', likes: g.likes || 0, collects: g.collects || 0,
+      images: g.images || [],
+    }));
+    libraryLoaded = true;
+    _updatePickerTabs();
+    if (pickerTab === 'library') _renderPickerBody();
+  } catch (e) { /* ignore */ }
+}
+
+function selectRefImage(url) {
+  pickerSelectedUrl = pickerSelectedUrl === url ? '' : url;
+  _renderPickerBody();
+}
+
+function _updatePickerFooter() {
+  const img = document.getElementById('rp-footer-preview');
+  const txt = document.getElementById('rp-footer-text');
+  const btn = document.getElementById('rp-btn-confirm');
+  if (pickerSelectedUrl) {
+    img.src = pickerSelectedUrl; img.style.display = '';
+    txt.textContent = '已选择 1 张';
+    btn.disabled = false;
+  } else {
+    img.style.display = 'none';
+    txt.textContent = '未选择';
+    btn.disabled = true;
+  }
+}
+
+function confirmRefSelection() {
+  document.getElementById('ref-image').value = pickerSelectedUrl;
+  document.getElementById('ref-image-manual').value = '';
+  _updateRefPreview(pickerSelectedUrl);
+  closeRefPicker();
+  toast('已选择参考图');
+}
+
+function clearRefImage() {
+  document.getElementById('ref-image').value = '';
+  document.getElementById('ref-image-manual').value = '';
+  _updateRefPreview('');
+}
+
+function _updateRefPreview(url) {
+  const preview = document.getElementById('ref-preview');
+  if (!url) { preview.style.display = 'none'; return; }
+  preview.style.display = 'flex';
+  document.getElementById('ref-preview-img').src = url;
+  document.getElementById('ref-preview-url').textContent = url.length > 60 ? url.slice(0, 60) + '…' : url;
+}
+
+function syncManualRef() {
+  const val = document.getElementById('ref-image-manual').value.trim();
+  document.getElementById('ref-image').value = val;
+  _updateRefPreview(val);
+}
+
+/* ═══════════════════════════════════════════════
+   Test Task
+   ═══════════════════════════════════════════════ */
 async function createTestFromHook(hookId) {
   try {
     const res = await fetch('/growth-lab/api/board/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ variant_id: hookId, variant_type: 'first3s' }),
+      body: JSON.stringify({ source_variant_id: hookId, variant_type: 'first3s' }),
     });
     if (!res.ok) throw new Error(res.statusText);
     toast('测试任务已创建');
   } catch (e) { toast('创建失败：' + e.message); }
 }
 
+async function createTestFromVideo() {
+  if (!selectedHookId) return;
+  await createTestFromHook(selectedHookId);
+}
+
+/* ═══════════════════════════════════════════════
+   Keyboard
+   ═══════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeRefPicker();
+});
+
+/* ═══════════════════════════════════════════════
+   Init
+   ═══════════════════════════════════════════════ */
 loadSpecs();
-loadHooks();
 </script>
 </body>
 </html>

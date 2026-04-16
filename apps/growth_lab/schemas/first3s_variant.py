@@ -72,6 +72,13 @@ class First3sVariant(BaseModel):
     clip_assembly_plan: ClipAssemblyPlan | None = None
     pattern_refs: list[str] = Field(default_factory=list)
 
+    # 视频生成相关
+    video_prompt: str = ""
+    first_frame_url: str = ""
+    generated_video_url: str = ""
+    video_generation_status: str = ""  # pending / generating / completed / failed
+    video_job_id: str = ""
+
     expected_goal: str = ""
     quality_score: float | None = None
 

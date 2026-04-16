@@ -483,9 +483,28 @@ async def generate_variant_batch(req: VariantBatchRequest) -> dict:
 
     variant_dicts = [v.model_dump() for v in variants]
     for vd in variant_dicts:
+        img_spec = vd.get("image_variant_spec", {})
+        if req.base_prompt and not img_spec.get("base_prompt"):
+            img_spec["base_prompt"] = req.base_prompt
+        if req.negative_prompt:
+            img_spec["negative_prompt"] = req.negative_prompt
+        if req.reference_image_urls:
+            img_spec["reference_image_urls"] = req.reference_image_urls
+        if req.provider_hint and req.provider_hint != "auto":
+            img_spec["provider_hint"] = req.provider_hint
+        vd["image_variant_spec"] = img_spec
+        vd["status"] = "generating"
         store.save_main_image_variant(vd)
 
-    queue = VariantBatchQueue()
+    def _on_slot_done(variant_dict: dict, result_url: str) -> None:
+        variant_dict["generated_image_url"] = result_url
+        variant_dict["status"] = "generated" if result_url else "failed"
+        try:
+            store.save_main_image_variant(variant_dict)
+        except Exception:
+            pass
+
+    queue = _get_batch_queue(on_slot_done=_on_slot_done)
     batch_id = queue.enqueue_batch(
         variant_dicts,
         workspace_id=req.workspace_id,
@@ -494,10 +513,22 @@ async def generate_variant_batch(req: VariantBatchRequest) -> dict:
     return {"batch_id": batch_id, "status": "queued", "total_slots": len(variant_dicts)}
 
 
+_batch_queue_instance: "VariantBatchQueue | None" = None
+
+
+def _get_batch_queue(on_slot_done=None):
+    from apps.growth_lab.services.variant_batch_queue import VariantBatchQueue
+    global _batch_queue_instance
+    if _batch_queue_instance is None:
+        _batch_queue_instance = VariantBatchQueue(on_slot_done=on_slot_done)
+    elif on_slot_done is not None:
+        _batch_queue_instance._on_slot_done = on_slot_done
+    return _batch_queue_instance
+
+
 @router.get("/api/lab/batch/{batch_id}/status")
 async def get_batch_status(batch_id: str) -> dict:
-    from apps.growth_lab.services.variant_batch_queue import VariantBatchQueue
-    queue = VariantBatchQueue()
+    queue = _get_batch_queue()
     return queue.get_batch_status(batch_id)
 
 
@@ -552,6 +583,86 @@ async def generate_hook_scripts(req: CompileSellingPointRequest) -> dict:
     for r in results:
         store.save_first3s_variant(r.model_dump())
     return {"variants": [r.model_dump() for r in results], "total": len(results)}
+
+
+class VideoGenerateRequest(BaseModel):
+    variant_id: str = ""
+    prompt: str = ""
+    first_frame_url: str = ""
+    aspect_ratio: str = "9:16"
+
+
+_video_jobs: dict[str, dict[str, Any]] = {}
+
+
+@router.post("/api/first3s/generate-video")
+async def generate_video(req: VideoGenerateRequest) -> dict:
+    """提交 Seedance 视频生成任务（异步）。"""
+    import asyncio
+    from apps.growth_lab.services.video_generator import VideoGeneratorService
+
+    svc = VideoGeneratorService()
+    if not svc.is_available():
+        raise HTTPException(500, "OPENROUTER_API_KEY 未配置，无法生成视频")
+
+    if not req.prompt:
+        raise HTTPException(400, "prompt 不能为空")
+
+    store = _get_store()
+    variant = store.get_first3s_variant(req.variant_id) if req.variant_id else None
+    variant_id = req.variant_id or "tmp_" + __import__("uuid").uuid4().hex[:12]
+
+    if variant:
+        variant["video_prompt"] = req.prompt
+        variant["first_frame_url"] = req.first_frame_url
+        variant["video_generation_status"] = "pending"
+        store.save_first3s_variant(variant)
+
+    async def _run_job(job_id: str) -> None:
+        _video_jobs[job_id]["status"] = "generating"
+        try:
+            result = await svc.generate_and_wait(
+                req.prompt,
+                variant_id,
+                first_frame_url=req.first_frame_url,
+                aspect_ratio=req.aspect_ratio,
+            )
+            _video_jobs[job_id].update(result)
+            if variant and result.get("status") == "completed":
+                variant["generated_video_url"] = result.get("video_url", "")
+                variant["video_generation_status"] = "completed"
+                variant["video_job_id"] = result.get("job_id", "")
+                store.save_first3s_variant(variant)
+            elif variant:
+                variant["video_generation_status"] = result.get("status", "failed")
+                store.save_first3s_variant(variant)
+        except Exception as e:
+            logger.exception("[VideoGen] job %s failed: %s", job_id, e)
+            _video_jobs[job_id].update({"status": "failed", "error": str(e)})
+            if variant:
+                variant["video_generation_status"] = "failed"
+                store.save_first3s_variant(variant)
+
+    job_id = __import__("uuid").uuid4().hex[:16]
+    _video_jobs[job_id] = {"status": "pending", "variant_id": variant_id}
+    asyncio.create_task(_run_job(job_id))
+
+    return {"job_id": job_id, "status": "pending"}
+
+
+@router.get("/api/first3s/video-status/{job_id}")
+async def video_status(job_id: str) -> dict:
+    """轮询视频生成状态。"""
+    job = _video_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, f"Job {job_id} not found")
+    return {
+        "job_id": job_id,
+        "status": job.get("status", "unknown"),
+        "video_url": job.get("video_url", ""),
+        "error": job.get("error", ""),
+        "elapsed_ms": job.get("elapsed_ms", 0),
+    }
 
 
 # ── API: Board / TestTask ────────────────────────────────────

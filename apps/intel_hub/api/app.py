@@ -157,6 +157,10 @@ def create_app(
     _source_images_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/source-images", StaticFiles(directory=str(_source_images_dir)), name="source_images")
 
+    _generated_videos_dir = Path(__file__).resolve().parents[3] / "data" / "generated_videos"
+    _generated_videos_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/generated-videos", StaticFiles(directory=str(_generated_videos_dir)), name="generated_videos")
+
     def list_payload(
         table_name: str,
         page: int,
@@ -844,6 +848,37 @@ def create_app(
             })
         card_dict["source_notes"] = source_notes
         return card_dict
+
+    @app.get("/api/image-library")
+    async def image_library(limit: int = 200) -> dict[str, Any]:
+        """Return all note images from pipeline_details as a flat library for the ref-image picker."""
+        groups: list[dict[str, Any]] = []
+        for _nid, entry in list(_note_ctx_index.items())[:limit]:
+            nc = entry.get("note_context", {})
+            if not nc:
+                continue
+            imgs: list[dict[str, str]] = []
+            seen: set[str] = set()
+            cover = nc.get("cover_image", "")
+            if cover and cover not in seen:
+                seen.add(cover)
+                imgs.append({"url": cover, "label": "封面"})
+            for i, u in enumerate(nc.get("image_urls", [])):
+                if u and u not in seen:
+                    seen.add(u)
+                    imgs.append({"url": u, "label": f"图{i+1}"})
+            if not imgs:
+                continue
+            groups.append({
+                "note_id": nc.get("note_id", _nid),
+                "title": nc.get("title", ""),
+                "likes": nc.get("like_count", 0),
+                "collects": nc.get("collect_count", 0),
+                "comments": nc.get("comment_count", 0),
+                "images": imgs,
+            })
+        groups.sort(key=lambda g: g.get("likes", 0), reverse=True)
+        return {"groups": groups, "total": len(groups)}
 
     @app.get("/xhs-opportunities")
     async def xhs_opportunities(

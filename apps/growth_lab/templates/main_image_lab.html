@@ -111,6 +111,8 @@
       font-size: 12px; font-weight: 500; color: #1D4ED8; margin-bottom: 16px;
     }
     .batch-status.hidden { display: none; }
+    .batch-progress { width: 100%; height: 6px; background: #E0E7FF; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+    .batch-progress-bar { height: 100%; background: var(--primary); border-radius: 3px; transition: width .3s ease; }
 
     .empty-hint { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13px; }
     .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; }
@@ -121,6 +123,139 @@
       box-shadow: 0 4px 20px rgba(0,0,0,.15); z-index: 9999; opacity: 0; transform: translateY(10px); transition: all .3s;
     }
     .toast.show { opacity: 1; transform: translateY(0); }
+
+    .recommend-panel { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 12px; margin-bottom: 14px; }
+    .recommend-panel .rp-title { font-size: 12px; font-weight: 700; color: #065F46; margin-bottom: 8px; }
+    .recommend-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 8px; background: #D1FAE5; color: #065F46;
+      font-size: 11px; font-weight: 600; margin: 2px 4px 2px 0; cursor: pointer; transition: all .15s;
+    }
+    .recommend-chip:hover { background: #A7F3D0; }
+
+    /* ── gen count selector ───────────────── */
+    .gen-count-bar {
+      display: flex; align-items: center; gap: 6px; margin-top: 12px; margin-bottom: 4px;
+    }
+    .gen-count-bar label { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+    .gen-count-btn {
+      padding: 4px 12px; border-radius: 8px; border: 1px solid var(--border);
+      font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg); color: var(--ink); transition: all .15s;
+    }
+    .gen-count-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .gen-count-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .gen-count-hint { font-size: 11px; color: var(--accent-warn); margin-top: 2px; }
+
+    /* ── image preview lightbox ───────────── */
+    .lb-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 10000;
+      display: none; align-items: center; justify-content: center; cursor: zoom-out;
+    }
+    .lb-backdrop.open { display: flex; }
+    .lb-inner {
+      position: relative; max-width: 90vw; max-height: 90vh; cursor: default;
+    }
+    .lb-inner img { max-width: 90vw; max-height: 85vh; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.4); }
+    .lb-close {
+      position: absolute; top: -12px; right: -12px; width: 32px; height: 32px;
+      border-radius: 50%; background: #fff; border: none; font-size: 18px; font-weight: 700;
+      cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.2); display: flex; align-items: center; justify-content: center;
+    }
+    .lb-meta {
+      margin-top: 10px; text-align: center; color: #fff; font-size: 12px; line-height: 1.6; opacity: .85;
+    }
+    .variant-thumb { position: relative; }
+    .variant-thumb .zoom-icon {
+      position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 6px;
+      background: rgba(0,0,0,.45); color: #fff; font-size: 12px;
+      display: none; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .variant-cell:hover .zoom-icon { display: flex; }
+
+    .grid-view-btn { min-width: 32px; padding: 4px 8px; font-size: 15px; line-height: 1; }
+    .grid-view-btn.active { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+
+    /* ── ref image picker ─────────────────── */
+    .ref-preview-row {
+      display: flex; align-items: center; gap: 8px; margin-top: 6px; min-height: 36px;
+    }
+    .ref-preview-thumb {
+      width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 2px solid var(--primary);
+      flex-shrink: 0;
+    }
+    .ref-preview-url { font-size: 11px; color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ref-preview-clear {
+      background: none; border: none; cursor: pointer; color: var(--accent-neg); font-size: 16px;
+      padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+    }
+    .ref-preview-clear:hover { background: #FEE2E2; }
+
+    .rp-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 300;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity .2s; pointer-events: none;
+    }
+    .rp-backdrop.open { opacity: 1; pointer-events: auto; }
+    .rp-modal {
+      background: var(--surface); border-radius: 16px; width: 800px; max-width: 94vw;
+      max-height: 82vh; display: flex; flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2); overflow: hidden;
+    }
+    .rp-header {
+      padding: 18px 24px 14px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+    }
+    .rp-header h2 { font-size: 16px; font-weight: 700; margin: 0; }
+    .rp-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 6px; }
+    .rp-close:hover { background: var(--bg); color: var(--ink); }
+    .rp-body { flex: 1; overflow-y: auto; padding: 16px 24px; }
+    .rp-footer {
+      padding: 12px 24px; border-top: 1px solid var(--border); flex-shrink: 0;
+      display: flex; align-items: center; gap: 12px; justify-content: flex-end;
+    }
+    .rp-footer-preview { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+    .rp-footer-preview img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; border: 2px solid var(--primary); }
+    .rp-footer-preview span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .rp-note-group { margin-bottom: 20px; }
+    .rp-note-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .rp-note-title { font-size: 13px; font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rp-note-stats { display: flex; gap: 10px; flex-shrink: 0; }
+    .rp-note-stat { font-size: 11px; color: var(--muted); font-weight: 500; }
+    .rp-note-stat b { font-weight: 700; margin-right: 2px; }
+
+    .rp-img-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+    .rp-card {
+      width: 150px; border-radius: 10px; overflow: hidden; cursor: pointer;
+      border: 3px solid transparent; transition: all .15s; position: relative; background: var(--bg);
+    }
+    .rp-card:hover { border-color: #A5B4FC; box-shadow: 0 4px 16px rgba(79,70,229,.12); transform: translateY(-2px); }
+    .rp-card.selected { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(79,70,229,.18); }
+    .rp-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+    .rp-card-check {
+      position: absolute; top: 6px; right: 6px; width: 24px; height: 24px;
+      border-radius: 50%; background: var(--primary); color: #fff;
+      font-size: 14px; font-weight: 700; display: none; align-items: center; justify-content: center;
+    }
+    .rp-card.selected .rp-card-check { display: flex; }
+    .rp-card-label {
+      padding: 6px 8px; font-size: 11px; color: var(--muted); text-align: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .rp-empty { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13px; }
+
+    .rp-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 24px; flex-shrink: 0; }
+    .rp-tab {
+      padding: 10px 18px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
+      border-bottom: 2px solid transparent; transition: all .15s; background: none; border-top: none; border-left: none; border-right: none;
+    }
+    .rp-tab:hover { color: var(--ink); }
+    .rp-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .rp-tab-count { font-weight: 400; font-size: 11px; color: var(--muted); margin-left: 4px; }
   </style>
 </head>
 <body>
@@ -145,7 +280,12 @@
   </div>
 
   <div id="batch-status" class="batch-status hidden">
-    <span class="spinner"></span> <span id="batch-msg">批量生成进行中…</span>
+    <div style="flex:1;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="spinner"></span> <span id="batch-msg">批量生成进行中…</span>
+      </div>
+      <div class="batch-progress"><div class="batch-progress-bar" id="batch-progress-bar" style="width:0%;"></div></div>
+    </div>
   </div>
 
   <div class="two-col">
@@ -162,13 +302,20 @@
         <div id="spec-ref-detail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #C7D2FE;font-size:12px;color:#374151;line-height:1.7;"></div>
       </div>
 
+      <div id="recommend-panel" class="recommend-panel" style="display:none;">
+        <div class="rp-title">AI 推荐变量组合（基于卖点）</div>
+        <div id="recommend-combos"></div>
+      </div>
+
       <div class="panel-title">变量控制面板</div>
 
       <div id="dim-inputs">
         <div class="dim-row">
           <select class="dim-select">
-            <option value="模特">模特</option><option value="构图">构图</option><option value="场景">场景</option>
-            <option value="字卡">字卡</option><option value="色彩">色彩</option><option value="风格">风格</option>
+            <option value="model_face">模特面部</option><option value="hair_style">发型</option><option value="hair_color">发色</option>
+            <option value="composition">构图</option><option value="close_up_detail">特写细节</option>
+            <option value="scene_background">场景背景</option><option value="benefit_card">利益点字卡</option>
+            <option value="color_style">色彩风格</option><option value="stimulation_level">刺激强度</option>
           </select>
           <input type="text" class="dim-value" placeholder="输入变量值…" />
         </div>
@@ -187,16 +334,39 @@
         <textarea id="neg-prompt" rows="2" placeholder="需要排除的元素…"></textarea>
       </div>
       <div class="form-group">
-        <label>参考图 URL</label>
-        <input type="text" id="ref-image" placeholder="https://..." />
+        <label>参考图</label>
+        <input type="hidden" id="ref-image" />
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="btn btn-ghost btn-sm" onclick="openRefPicker()" id="btn-ref-picker">选择参考图…</button>
+          <input type="text" id="ref-image-manual" placeholder="或粘贴 URL" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg);outline:none;" oninput="syncManualRef()" />
+        </div>
+        <div id="ref-preview-row" class="ref-preview-row" style="display:none;">
+          <img id="ref-preview-img" class="ref-preview-thumb" src="" alt="" />
+          <span id="ref-preview-url" class="ref-preview-url"></span>
+          <button class="ref-preview-clear" onclick="clearRefImage()" title="清除">&times;</button>
+        </div>
       </div>
 
-      <button class="btn btn-primary" style="width:100%;margin-top:12px;" id="btn-generate" onclick="generateBatch()">批量生成</button>
+      <div class="gen-count-bar">
+        <label>生成数量</label>
+        <button class="gen-count-btn active" data-count="2" onclick="setGenCount(2)">2 张</button>
+        <button class="gen-count-btn" data-count="4" onclick="setGenCount(4)">4 张</button>
+        <button class="gen-count-btn" data-count="8" onclick="setGenCount(8)">8 张</button>
+      </div>
+      <div id="gen-count-hint" class="gen-count-hint" style="display:none;"></div>
+
+      <button class="btn btn-primary" style="width:100%;margin-top:12px;" id="btn-generate" onclick="generateBatch()">批量生成（2 张）</button>
     </div>
 
     <!-- right: variant grid -->
     <div class="panel" style="max-height: calc(100vh - 140px);">
-      <div class="panel-title">版本网格 <span id="variant-count" style="font-weight:400;color:var(--muted);font-size:12px;"></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div class="panel-title" style="margin-bottom:0;">版本网格 <span id="variant-count" style="font-weight:400;color:var(--muted);font-size:12px;"></span></div>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-ghost btn-sm grid-view-btn active" data-mode="grid" onclick="setViewMode('grid')" title="网格视图">▦</button>
+          <button class="btn btn-ghost btn-sm grid-view-btn" data-mode="large" onclick="setViewMode('large')" title="大图视图">⊞</button>
+        </div>
+      </div>
       <div id="variant-grid" class="variant-grid"></div>
       <div id="variant-empty" class="empty-hint">暂无版本。在左侧配置变量后点击「批量生成」。</div>
     </div>
@@ -205,18 +375,131 @@
 
 <div id="toast" class="toast"></div>
 
+<!-- lightbox -->
+<div id="lb-backdrop" class="lb-backdrop" onclick="closeLightbox()">
+  <div class="lb-inner" onclick="event.stopPropagation()">
+    <button class="lb-close" onclick="closeLightbox()">×</button>
+    <img id="lb-img" src="" alt="" />
+    <div class="lb-meta" id="lb-meta"></div>
+  </div>
+</div>
+
+<!-- ref image picker modal -->
+<div class="rp-backdrop" id="rp-backdrop" onclick="if(event.target===this)closeRefPicker()">
+  <div class="rp-modal">
+    <div class="rp-header">
+      <h2>选择参考图</h2>
+      <button class="rp-close" onclick="closeRefPicker()">&times;</button>
+    </div>
+    <div class="rp-tabs">
+      <button class="rp-tab active" data-tab="related" onclick="switchPickerTab('related')">关联笔记<span class="rp-tab-count" id="rp-tab-count-related"></span></button>
+      <button class="rp-tab" data-tab="library" onclick="switchPickerTab('library')">全部素材库<span class="rp-tab-count" id="rp-tab-count-library"></span></button>
+    </div>
+    <div class="rp-body" id="rp-body">
+      <div class="rp-empty">加载中…</div>
+    </div>
+    <div class="rp-footer">
+      <div class="rp-footer-preview" id="rp-footer-preview"></div>
+      <button class="btn btn-ghost btn-sm" onclick="closeRefPicker()">取消</button>
+      <button class="btn btn-primary btn-sm" id="rp-confirm" onclick="confirmRefSelection()" disabled>确认选择</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let varCombos = [];
 let variants = [];
 let selectedVariantIds = new Set();
+let currentSpecId = new URLSearchParams(location.search).get('spec_id') || '';
+let activeBatchId = null;
+let specData = null;
+let maxGenCount = 2;
+let refImageGroups = [];
+let libraryGroups = [];
+let libraryLoaded = false;
+let pickerSelectedUrl = '';
+let pickerTab = 'related';
 
-const STATUS_BADGE = { pending: 'badge-pending', generating: 'badge-generating', done: 'badge-done', failed: 'badge-failed' };
-const STATUS_LABEL = { pending: '待生成', generating: '生成中', done: '已完成', failed: '失败' };
+const DIM_LABEL = {
+  model_face: '模特面部', hair_style: '发型', hair_color: '发色',
+  composition: '构图', close_up_detail: '特写细节', scene_background: '场景背景',
+  benefit_card: '利益点字卡', color_style: '色彩风格', stimulation_level: '刺激强度',
+};
+
+const STATUS_BADGE = {
+  draft: 'badge-pending', generating: 'badge-generating', generated: 'badge-done',
+  selected: 'badge-done', in_test: 'badge-generating', archived: 'badge-dim', failed: 'badge-failed',
+};
+const STATUS_LABEL = {
+  draft: '待生成', generating: '生成中', generated: '已完成',
+  selected: '已选用', in_test: '测试中', archived: '已归档', failed: '失败',
+};
 
 function toast(msg, dur) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), dur || 2500);
+}
+
+function setGenCount(n) {
+  maxGenCount = n;
+  document.querySelectorAll('.gen-count-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.count) === n);
+  });
+  document.getElementById('btn-generate').textContent = `批量生成（${n} 张）`;
+  updateGenHint();
+}
+
+function updateGenHint() {
+  const hint = document.getElementById('gen-count-hint');
+  const comboCount = varCombos.length;
+  if (comboCount > maxGenCount) {
+    hint.style.display = 'block';
+    hint.textContent = `已有 ${comboCount} 个变量组合，超出上限 ${maxGenCount}，将只使用前 ${maxGenCount} 个`;
+  } else if (comboCount > 0) {
+    hint.style.display = 'block';
+    hint.style.color = 'var(--muted)';
+    hint.textContent = `${comboCount} 个变量组合 → 将生成 ${comboCount} 张`;
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
+function openLightbox(variantId) {
+  const v = variants.find(x => x.variant_id === variantId);
+  if (!v || !v.generated_image_url) return;
+  const img = document.getElementById('lb-img');
+  img.src = v.generated_image_url;
+  const dims = (v.key_variables || []).filter(x => x && x.value).map(x =>
+    `${DIM_LABEL[x.dimension] || x.dimension}: ${x.value}`
+  ).join('　');
+  const meta = [
+    v.expected_goal || '',
+    dims,
+    `状态: ${STATUS_LABEL[v.status] || v.status}`,
+  ].filter(Boolean).join('\n');
+  document.getElementById('lb-meta').innerText = meta;
+  document.getElementById('lb-backdrop').classList.add('open');
+}
+
+function closeLightbox() {
+  document.getElementById('lb-backdrop').classList.remove('open');
+  document.getElementById('lb-img').src = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeRefPicker(); } });
+
+let viewMode = 'grid';
+function setViewMode(mode) {
+  viewMode = mode;
+  const grid = document.getElementById('variant-grid');
+  if (mode === 'large') {
+    grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(320px, 1fr))';
+  } else {
+    grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
+  }
+  document.querySelectorAll('.grid-view-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
 }
 
 function addDimRow() {
@@ -225,8 +508,10 @@ function addDimRow() {
   row.className = 'dim-row';
   row.innerHTML = `
     <select class="dim-select">
-      <option value="模特">模特</option><option value="构图">构图</option><option value="场景">场景</option>
-      <option value="字卡">字卡</option><option value="色彩">色彩</option><option value="风格">风格</option>
+      <option value="model_face">模特面部</option><option value="hair_style">发型</option><option value="hair_color">发色</option>
+      <option value="composition">构图</option><option value="close_up_detail">特写细节</option>
+      <option value="scene_background">场景背景</option><option value="benefit_card">利益点字卡</option>
+      <option value="color_style">色彩风格</option><option value="stimulation_level">刺激强度</option>
     </select>
     <input type="text" class="dim-value" placeholder="输入变量值…" />`;
   container.appendChild(row);
@@ -243,18 +528,38 @@ function addVarCombo() {
   if (!Object.keys(combo).length) { toast('请至少填写一个维度值'); return; }
   varCombos.push(combo);
   renderMatrix();
+  updateGenHint();
   rows.forEach(r => r.querySelector('.dim-value').value = '');
 }
 
-function removeCombo(idx) { varCombos.splice(idx, 1); renderMatrix(); }
+function addRecommendCombo(combo) {
+  varCombos.push(combo);
+  renderMatrix();
+  updateGenHint();
+  toast('已添加推荐组合');
+}
+
+function removeCombo(idx) { varCombos.splice(idx, 1); renderMatrix(); updateGenHint(); }
 
 function renderMatrix() {
   const el = document.getElementById('var-matrix');
   if (!varCombos.length) { el.innerHTML = ''; return; }
   el.innerHTML = varCombos.map((c, i) => {
-    const chips = Object.entries(c).map(([k,v]) => `<span class="var-chip">${k}:${v} <span class="remove" onclick="removeCombo(${i})">×</span></span>`).join('');
+    const chips = Object.entries(c).map(([k,v]) =>
+      `<span class="var-chip">${DIM_LABEL[k] || k}:${v} <span class="remove" onclick="removeCombo(${i})">×</span></span>`
+    ).join('');
     return `<div style="margin-bottom:6px;">${chips}</div>`;
   }).join('');
+}
+
+function _extractDims(v) {
+  const kvs = v.key_variables || [];
+  if (Array.isArray(kvs) && kvs.length) {
+    return kvs.filter(x => x && x.value).map(x =>
+      `<span class="badge badge-dim">${DIM_LABEL[x.dimension] || x.dimension}:${x.value}</span>`
+    ).join('');
+  }
+  return '';
 }
 
 function renderVariants() {
@@ -266,11 +571,13 @@ function renderVariants() {
   empty.style.display = 'none';
   grid.innerHTML = variants.map(v => {
     const sel = selectedVariantIds.has(v.variant_id);
-    const st = v.status || 'pending';
-    const dims = Object.entries(v.variable_values || {}).map(([k,val]) => `<span class="badge badge-dim">${k}:${val}</span>`).join('');
-    const thumb = v.image_url
-      ? `<img src="${v.image_url}" alt="" />`
-      : '<span>暂无图片</span>';
+    const st = v.status || 'draft';
+    const dims = _extractDims(v);
+    const imgUrl = v.generated_image_url || '';
+    const thumb = imgUrl
+      ? `<img src="${imgUrl}" alt="" /><span class="zoom-icon" onclick="event.stopPropagation();openLightbox('${v.variant_id}')">🔍</span>`
+      : `<span>${st === 'generating' ? '<span class="spinner"></span> 生成中…' : '暂无图片'}</span>`;
+    const goal = v.expected_goal ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;">${v.expected_goal}</div>` : '';
     return `
       <div class="variant-cell ${sel ? 'selected' : ''}" onclick="toggleVariant('${v.variant_id}')">
         <div class="variant-thumb">${thumb}</div>
@@ -279,6 +586,7 @@ function renderVariants() {
             <span class="badge ${STATUS_BADGE[st] || 'badge-pending'}">${STATUS_LABEL[st] || st}</span>
           </div>
           <div class="labels">${dims}</div>
+          ${goal}
         </div>
       </div>`;
   }).join('');
@@ -294,27 +602,88 @@ async function generateBatch() {
   if (!varCombos.length) { toast('请先添加变量组合'); return; }
   const btn = document.getElementById('btn-generate');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 生成中…';
-  document.getElementById('batch-status').classList.remove('hidden');
+  const statusEl = document.getElementById('batch-status');
+  statusEl.classList.remove('hidden');
+  document.getElementById('batch-msg').textContent = '正在提交批量任务…';
+  document.getElementById('batch-progress-bar').style.width = '0%';
   try {
+    const refUrl = document.getElementById('ref-image').value.trim();
+    const combosToSend = varCombos.slice(0, maxGenCount);
+    const variableMatrix = combosToSend.map(combo =>
+      Object.entries(combo).map(([dim, val]) => ({
+        dimension: dim,
+        label: DIM_LABEL[dim] || dim,
+        value: val,
+      }))
+    );
     const res = await fetch('/growth-lab/api/lab/generate-batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        variable_combos: varCombos,
+        source_selling_point_id: currentSpecId,
+        variable_matrix: variableMatrix,
         base_prompt: document.getElementById('base-prompt').value,
         negative_prompt: document.getElementById('neg-prompt').value,
-        reference_image_url: document.getElementById('ref-image').value,
+        reference_image_urls: refUrl ? [refUrl] : [],
+        platform: 'shelf',
       }),
     });
-    if (!res.ok) throw new Error(res.statusText);
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText || res.statusText);
+    }
     const data = await res.json();
-    toast('批量任务已提交，共 ' + (data.count ?? varCombos.length) + ' 个版本');
-    await loadVariants();
-  } catch (e) { toast('生成失败：' + e.message); }
-  finally {
+    activeBatchId = data.batch_id;
+    const totalSlots = data.total_slots || combosToSend.length;
+    toast(`批量任务已提交，共 ${totalSlots} 张`);
+    document.getElementById('batch-msg').textContent = `生成中… 0/${totalSlots}`;
+    pollBatchProgress();
+  } catch (e) {
+    toast('生成失败：' + e.message);
     btn.disabled = false; btn.textContent = '批量生成';
-    document.getElementById('batch-status').classList.add('hidden');
+    statusEl.classList.add('hidden');
   }
+}
+
+async function pollBatchProgress() {
+  if (!activeBatchId) return;
+  const btn = document.getElementById('btn-generate');
+  const statusEl = document.getElementById('batch-status');
+  const msgEl = document.getElementById('batch-msg');
+  const barEl = document.getElementById('batch-progress-bar');
+
+  const poll = async () => {
+    try {
+      const res = await fetch(`/growth-lab/api/lab/batch/${activeBatchId}/status`);
+      if (!res.ok) return true;
+      const st = await res.json();
+      const pct = st.progress_pct || 0;
+      barEl.style.width = pct + '%';
+      msgEl.textContent = `生成中… ${st.done || 0}/${st.total || 0} 完成${st.failed ? ` (${st.failed} 失败)` : ''}`;
+
+      if (st.status === 'done' || st.status === 'partial') {
+        msgEl.textContent = `完成！${st.done || 0} 成功${st.failed ? `，${st.failed} 失败` : ''}`;
+        barEl.style.width = '100%';
+        await loadVariants();
+        setTimeout(() => {
+          statusEl.classList.add('hidden');
+          btn.disabled = false; btn.textContent = '批量生成';
+        }, 2000);
+        activeBatchId = null;
+        return true;
+      }
+      await loadVariants();
+      return false;
+    } catch (_) { return false; }
+  };
+
+  for (let i = 0; i < 120; i++) {
+    const done = await poll();
+    if (done) return;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  msgEl.textContent = '任务超时，请刷新查看';
+  btn.disabled = false; btn.textContent = '批量生成';
 }
 
 async function createTestTask() {
@@ -325,7 +694,7 @@ async function createTestTask() {
       await fetch('/growth-lab/api/board/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variant_id: vid, variant_type: 'main_image' }),
+        body: JSON.stringify({ source_variant_id: vid, variant_type: 'main_image' }),
       });
     }
     toast('已为 ' + ids.length + ' 个版本创建测试任务');
@@ -335,7 +704,10 @@ async function createTestTask() {
 
 async function loadVariants() {
   try {
-    const res = await fetch('/growth-lab/api/lab/variants');
+    const url = currentSpecId
+      ? `/growth-lab/api/lab/variants?selling_point_id=${currentSpecId}`
+      : '/growth-lab/api/lab/variants';
+    const res = await fetch(url);
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
     variants = data.items || data || [];
@@ -343,14 +715,55 @@ async function loadVariants() {
   } catch (e) { document.getElementById('variant-empty').innerHTML = '<span style="color:var(--accent-neg);">加载失败</span>'; }
 }
 
+function _buildRecommendations(s) {
+  const recommendations = [];
+  const people = s.target_people || [];
+  const scenarios = s.target_scenarios || [];
+  const shelf = s.shelf_expression || {};
+
+  if (people.length && scenarios.length) {
+    recommendations.push({
+      label: `${people[0]} × ${scenarios[0]}`,
+      combo: { model_face: people[0], scene_background: scenarios[0] },
+    });
+  }
+  if (shelf.visual_direction) {
+    const combo = { color_style: shelf.visual_direction };
+    if (shelf.tone) combo.stimulation_level = shelf.tone;
+    recommendations.push({ label: `${shelf.visual_direction} 风格`, combo });
+  }
+  if (people.length > 1) {
+    recommendations.push({
+      label: `${people[1]} 人群变体`,
+      combo: { model_face: people[1], composition: '半身近景' },
+    });
+  }
+  if (scenarios.length > 1) {
+    recommendations.push({
+      label: `${scenarios[1]} 场景变体`,
+      combo: { scene_background: scenarios[1], composition: '产品居中' },
+    });
+  }
+  return recommendations;
+}
+
+function renderRecommendations(recs) {
+  if (!recs.length) return;
+  const panel = document.getElementById('recommend-panel');
+  const container = document.getElementById('recommend-combos');
+  panel.style.display = 'block';
+  container.innerHTML = recs.map((r, i) =>
+    `<span class="recommend-chip" onclick='addRecommendCombo(${JSON.stringify(r.combo)})'>+ ${r.label}</span>`
+  ).join('');
+}
+
 async function loadSpecContext() {
-  const params = new URLSearchParams(location.search);
-  const specId = params.get('spec_id');
-  if (!specId) return;
+  if (!currentSpecId) return;
   try {
-    const res = await fetch('/growth-lab/api/compiler/specs/' + specId);
+    const res = await fetch('/growth-lab/api/compiler/specs/' + currentSpecId);
     if (!res.ok) return;
     const s = await res.json();
+    specData = s;
 
     document.getElementById('spec-ref-panel').style.display = 'block';
     document.getElementById('spec-ref-claim').textContent = s.core_claim || '—';
@@ -391,7 +804,178 @@ async function loadSpecContext() {
       }
       promptEl.value = parts.join('，');
     }
+
+    const recs = _buildRecommendations(s);
+    renderRecommendations(recs);
+
+    loadRefImages(s.source_opportunity_ids || []);
   } catch (_) {}
+}
+
+async function loadRefImages(oppIds) {
+  refImageGroups = [];
+  if (!oppIds.length) return;
+
+  for (const oppId of oppIds) {
+    try {
+      const res = await fetch('/xhs-opportunities/' + oppId, { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) continue;
+      const card = await res.json();
+      for (const sn of (card.source_notes || [])) {
+        const nc = sn.note_context || sn;
+        const imgs = [];
+        const seen = new Set();
+        if (nc.cover_image && !seen.has(nc.cover_image)) { seen.add(nc.cover_image); imgs.push({ url: nc.cover_image, label: '封面' }); }
+        (nc.image_urls || []).forEach((u, i) => {
+          if (u && !seen.has(u)) { seen.add(u); imgs.push({ url: u, label: `图${i + 1}` }); }
+        });
+        if (imgs.length) {
+          refImageGroups.push({
+            title: nc.title || card.title || '来源笔记',
+            likes: nc.like_count || 0,
+            collects: nc.collect_count || 0,
+            comments: nc.comment_count || 0,
+            images: imgs,
+          });
+        }
+      }
+    } catch (_) {}
+  }
+}
+
+function _fmtStat(n) { return n >= 10000 ? (n/10000).toFixed(1) + '万' : String(n || 0); }
+
+function _renderGroups(groups, emptyMsg) {
+  if (!groups.length) return `<div class="rp-empty">${emptyMsg}</div>`;
+  return groups.map(g => `
+    <div class="rp-note-group">
+      <div class="rp-note-header">
+        <div class="rp-note-title">${g.title || '未知笔记'}</div>
+        <div class="rp-note-stats">
+          <span class="rp-note-stat"><b>${_fmtStat(g.likes)}</b>赞</span>
+          <span class="rp-note-stat"><b>${_fmtStat(g.collects)}</b>藏</span>
+          <span class="rp-note-stat"><b>${_fmtStat(g.comments)}</b>评</span>
+        </div>
+      </div>
+      <div class="rp-img-grid">
+        ${g.images.map(img => `
+          <div class="rp-card ${pickerSelectedUrl === img.url ? 'selected' : ''}" onclick="selectRefImage('${img.url.replace(/'/g, "\\'")}')">
+            <img src="${img.url}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'" />
+            <div class="rp-card-check">&#10003;</div>
+            <div class="rp-card-label">${img.label}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function openRefPicker() {
+  pickerSelectedUrl = document.getElementById('ref-image').value || '';
+  pickerTab = 'related';
+  document.querySelectorAll('.rp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'related'));
+
+  const relCount = refImageGroups.reduce((s, g) => s + g.images.length, 0);
+  document.getElementById('rp-tab-count-related').textContent = relCount ? `(${relCount})` : '';
+
+  _renderPickerBody();
+  _updatePickerFooter();
+  document.getElementById('rp-backdrop').classList.add('open');
+
+  if (!libraryLoaded) loadLibrary();
+}
+
+function closeRefPicker() {
+  document.getElementById('rp-backdrop').classList.remove('open');
+}
+
+function switchPickerTab(tab) {
+  pickerTab = tab;
+  document.querySelectorAll('.rp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  if (tab === 'library' && !libraryLoaded) {
+    document.getElementById('rp-body').innerHTML = '<div class="rp-empty"><span class="spinner"></span> 加载素材库…</div>';
+    loadLibrary();
+    return;
+  }
+  _renderPickerBody();
+}
+
+function _renderPickerBody() {
+  const body = document.getElementById('rp-body');
+  if (pickerTab === 'related') {
+    body.innerHTML = _renderGroups(refImageGroups, '暂无关联笔记图片。请确认卖点规格关联了来源机会。');
+  } else {
+    body.innerHTML = _renderGroups(libraryGroups, '素材库为空');
+  }
+}
+
+async function loadLibrary() {
+  try {
+    const res = await fetch('/api/image-library');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    libraryGroups = data.groups || [];
+    libraryLoaded = true;
+    const libCount = libraryGroups.reduce((s, g) => s + g.images.length, 0);
+    document.getElementById('rp-tab-count-library').textContent = libCount ? `(${libCount})` : '';
+    if (pickerTab === 'library') _renderPickerBody();
+  } catch (e) {
+    libraryLoaded = true;
+    libraryGroups = [];
+    if (pickerTab === 'library') {
+      document.getElementById('rp-body').innerHTML = `<div class="rp-empty">加载失败：${e.message}</div>`;
+    }
+  }
+}
+
+function selectRefImage(url) {
+  pickerSelectedUrl = pickerSelectedUrl === url ? '' : url;
+  document.querySelectorAll('.rp-card').forEach(c => {
+    const onclick = c.getAttribute('onclick') || '';
+    c.classList.toggle('selected', pickerSelectedUrl && onclick.includes(pickerSelectedUrl.replace(/'/g, "\\'")));
+  });
+  _updatePickerFooter();
+}
+
+function _updatePickerFooter() {
+  const preview = document.getElementById('rp-footer-preview');
+  const btn = document.getElementById('rp-confirm');
+  if (pickerSelectedUrl) {
+    preview.innerHTML = `<img src="${pickerSelectedUrl}" alt="" /><span>${pickerSelectedUrl.split('/').pop()}</span>`;
+    btn.disabled = false;
+  } else {
+    preview.innerHTML = '<span style="color:var(--muted);font-size:12px;">点击图片选择</span>';
+    btn.disabled = true;
+  }
+}
+
+function confirmRefSelection() {
+  document.getElementById('ref-image').value = pickerSelectedUrl;
+  document.getElementById('ref-image-manual').value = '';
+  _updateRefPreview(pickerSelectedUrl);
+  closeRefPicker();
+  toast('已选择参考图');
+}
+
+function clearRefImage() {
+  document.getElementById('ref-image').value = '';
+  document.getElementById('ref-image-manual').value = '';
+  pickerSelectedUrl = '';
+  document.getElementById('ref-preview-row').style.display = 'none';
+}
+
+function _updateRefPreview(url) {
+  const row = document.getElementById('ref-preview-row');
+  if (!url) { row.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  document.getElementById('ref-preview-img').src = url;
+  document.getElementById('ref-preview-url').textContent = url.split('/').pop() || url;
+}
+
+function syncManualRef() {
+  const url = document.getElementById('ref-image-manual').value.trim();
+  document.getElementById('ref-image').value = url;
+  _updateRefPreview(url);
 }
 
 loadSpecContext();
