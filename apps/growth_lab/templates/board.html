@@ -71,8 +71,29 @@
     .badge-main_image { background: #DBEAFE; color: #1D4ED8; }
     .badge-first3s { background: #FEF3C7; color: #92400E; }
     .badge-running { background: #D1FAE5; color: #065F46; }
+    .badge-active { background: #D1FAE5; color: #065F46; }
     .badge-completed { background: #E0E7FF; color: #3730A3; }
     .badge-pending { background: #F3F4F6; color: var(--muted); }
+    .badge-draft { background: #F3F4F6; color: var(--muted); }
+    .badge-stopped { background: #FEE2E2; color: #991B1B; }
+    .badge-xhs { background: #FFE4E6; color: #BE123C; }
+    .badge-note { background: #ECFDF5; color: #065F46; }
+
+    .note-bind-area {
+      margin-top: 10px; padding: 10px 12px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 8px; font-size: 12px;
+    }
+    .note-bind-area .bind-row { display: flex; gap: 6px; align-items: center; }
+    .note-bind-area input {
+      flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: 12px; font-family: inherit; outline: none;
+    }
+    .note-bind-area input:focus { border-color: var(--primary); }
+    .note-linked { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .xhs-metrics { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; font-size: 12px; }
+    .xhs-metrics .m-item { display: flex; align-items: center; gap: 3px; }
+    .xhs-metrics .m-label { color: var(--muted); }
+    .xhs-metrics .m-val { font-weight: 700; color: var(--ink); }
 
     /* ── inline form ─────────────────────────── */
     .result-form {
@@ -206,10 +227,76 @@ function setTab(tab, btn) {
 function filtered() {
   if (currentTab === 'all') return allTasks;
   return allTasks.filter(t => {
-    if (currentTab === 'running') return t.status === 'running' || t.status === 'pending';
-    if (currentTab === 'completed') return t.status === 'completed';
+    if (currentTab === 'running') return ['active', 'running', 'observing', 'draft'].includes(t.status);
+    if (currentTab === 'completed') return ['completed', 'stopped', 'amplified'].includes(t.status);
     return true;
   });
+}
+
+const _stLabel = { active: '进行中', running: '进行中', observing: '观察中', completed: '已完成', stopped: '已停止', amplified: '已放大', draft: '待开始', re_variant: '再裂变' };
+const _platLabel = { xiaohongshu: '小红书', tmall: '天猫', douyin: '抖音' };
+
+function _fmtN(n) { return n != null ? String(n) : '—'; }
+
+function _renderNoteArea(t) {
+  const id = t.task_id;
+  const noteId = t.xhs_note_id || '';
+  const noteUrl = t.xhs_note_url || '';
+  const isXhs = (t.platform || '').toLowerCase().includes('xhs') || (t.platform || '').includes('xiaohongshu') || (t.platform || '').includes('小红书');
+
+  if (!isXhs && !noteId) return '';
+
+  if (noteId) {
+    return `
+      <div class="note-bind-area">
+        <div class="note-linked">
+          <span class="badge badge-note">已关联</span>
+          <span style="font-weight:600;">${noteId.slice(0, 16)}</span>
+          ${noteUrl ? '<a href="' + noteUrl + '" target="_blank" style="color:var(--primary);font-size:11px;">查看笔记 ↗</a>' : ''}
+          <button class="btn btn-ghost btn-sm" onclick="syncMetrics('${id}')" id="sync-btn-${id}">刷新数据</button>
+        </div>
+        <div class="xhs-metrics" id="xhs-m-${id}"></div>
+      </div>`;
+  }
+
+  return `
+    <div class="note-bind-area">
+      <div style="margin-bottom:6px;color:var(--muted);">关联小红书笔记（粘贴笔记链接或 ID）</div>
+      <div class="bind-row">
+        <input type="text" id="bind-input-${id}" placeholder="https://www.xiaohongshu.com/explore/... 或笔记ID" />
+        <button class="btn btn-primary btn-sm" onclick="bindNote('${id}')">关联</button>
+      </div>
+    </div>`;
+}
+
+function _renderResults(results) {
+  if (!results || !results.length) return '';
+  return '<div class="results-timeline">' + results.map(r => {
+    const hasXhs = r.liked_count != null || r.collected_count != null;
+    const xhsRow = hasXhs
+      ? `<div class="xhs-metrics" style="margin-top:4px;">
+           <span class="m-item"><span class="m-label">👀</span> <span class="m-val">${_fmtN(r.view_count)}</span></span>
+           <span class="m-item"><span class="m-label">❤</span> <span class="m-val">${_fmtN(r.liked_count)}</span></span>
+           <span class="m-item"><span class="m-label">⭐</span> <span class="m-val">${_fmtN(r.collected_count)}</span></span>
+           <span class="m-item"><span class="m-label">💬</span> <span class="m-val">${_fmtN(r.comment_count)}</span></span>
+           <span class="m-item"><span class="m-label">↗</span> <span class="m-val">${_fmtN(r.share_count)}</span></span>
+           ${r.rise_fans_count ? '<span class="m-item"><span class="m-label">+粉</span> <span class="m-val">' + _fmtN(r.rise_fans_count) + '</span></span>' : ''}
+         </div>` : '';
+    const hasClassic = r.ctr != null || r.traffic != null;
+    const classicRow = hasClassic
+      ? `<div class="result-metrics">
+           <span>CTR <strong>${r.ctr != null ? (r.ctr * 100).toFixed(1) + '%' : '—'}</strong></span>
+           <span>流量 <strong>${r.traffic ?? '—'}</strong></span>
+           <span>转化率 <strong>${r.conversion_rate != null ? (r.conversion_rate * 100).toFixed(1) + '%' : '—'}</strong></span>
+           <span>退款率 <strong>${r.refund_rate != null ? (r.refund_rate * 100).toFixed(1) + '%' : '—'}</strong></span>
+           <span>收藏率 <strong>${r.save_rate != null ? (r.save_rate * 100).toFixed(1) + '%' : '—'}</strong></span>
+         </div>` : '';
+    return `<div class="result-item">
+      <div class="date">${r.date || '—'}</div>
+      ${classicRow}${xhsRow}
+      ${r.notes ? '<div style="margin-top:4px;color:var(--muted);font-size:11px;">' + r.notes + '</div>' : ''}
+    </div>`;
+  }).join('') + '</div>';
 }
 
 function renderTasks() {
@@ -221,26 +308,23 @@ function renderTasks() {
   list.innerHTML = tasks.map(t => {
     const typeCls = t.variant_type === 'main_image' ? 'badge-main_image' : 'badge-first3s';
     const typeLabel = t.variant_type === 'main_image' ? '主图' : '前3秒';
-    const stCls = 'badge-' + (t.status || 'pending');
-    const stLabel = { running: '进行中', completed: '已完成', pending: '待开始' }[t.status] || t.status;
-    const results = (t.results || []).map(r => `
-      <div class="result-item">
-        <div class="date">${r.date || '—'}</div>
-        <div class="result-metrics">
-          <span>CTR <strong>${r.ctr != null ? (r.ctr * 100).toFixed(1) + '%' : '—'}</strong></span>
-          <span>流量 <strong>${r.traffic ?? '—'}</strong></span>
-          <span>转化率 <strong>${r.conversion_rate != null ? (r.conversion_rate * 100).toFixed(1) + '%' : '—'}</strong></span>
-          <span>退款率 <strong>${r.refund_rate != null ? (r.refund_rate * 100).toFixed(1) + '%' : '—'}</strong></span>
-          <span>收藏率 <strong>${r.save_rate != null ? (r.save_rate * 100).toFixed(1) + '%' : '—'}</strong></span>
-        </div>
-        ${r.notes ? '<div style="margin-top:4px;color:var(--muted);font-size:11px;">' + r.notes + '</div>' : ''}
-      </div>`).join('');
+    const stCls = 'badge-' + (t.status || 'draft');
+    const stLabel = _stLabel[t.status] || t.status;
+    const platDisplay = _platLabel[(t.platform || '').toLowerCase()] || t.platform || '';
+    const xhsBadge = (t.platform || '').includes('xiaohongshu') ? '<span class="badge badge-xhs">小红书</span>' : '';
+    const reviewBadge = t.xhs_review_status === 'approved' ? '<span class="badge badge-note">审核通过</span>'
+      : t.xhs_review_status === 'under_review' ? '<span class="badge badge-pending">平台审核中</span>'
+      : t.xhs_review_status === 'pending' ? '<span class="badge badge-pending">待审核</span>'
+      : t.xhs_review_status === 'rejected' ? '<span class="badge" style="background:#fee2e2;color:#dc2626;">审核拒绝</span>' : '';
+
     return `
       <div class="task-card" data-id="${t.task_id}">
         <div class="task-header">
-          <div style="display:flex;gap:6px;align-items:center;">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <span class="badge ${typeCls}">${typeLabel}</span>
+            ${xhsBadge}
             <span class="badge ${stCls}">${stLabel}</span>
+            ${reviewBadge}
           </div>
           <div style="display:flex;gap:6px;">
             <button class="btn btn-ghost btn-sm" onclick="toggleResultForm('${t.task_id}')">录入结果</button>
@@ -248,12 +332,14 @@ function renderTasks() {
           </div>
         </div>
         <div class="task-meta">
-          ${t.platform ? '<span>平台：' + t.platform + '</span>' : ''}
+          ${platDisplay ? '<span>平台：' + platDisplay + '</span>' : ''}
           ${t.store_id ? '<span>店铺：' + t.store_id + '</span>' : ''}
           ${t.sku_id ? '<span>SKU：' + t.sku_id + '</span>' : ''}
           ${t.owner ? '<span>负责人：' + t.owner + '</span>' : ''}
           ${t.test_window_days ? '<span>周期：' + t.test_window_days + '天</span>' : ''}
+          ${t.source_variant_id ? '<span style="font-size:11px;color:var(--muted);">variant: ' + t.source_variant_id.slice(0,8) + '…</span>' : ''}
         </div>
+        ${_renderNoteArea(t)}
         <div class="result-form" id="rf-${t.task_id}">
           <div class="form-row">
             <div><label>日期</label><input type="date" id="rf-date-${t.task_id}" /></div>
@@ -268,7 +354,7 @@ function renderTasks() {
           <div style="margin-bottom:8px;"><label>备注</label><textarea id="rf-notes-${t.task_id}" rows="2" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;outline:none;resize:vertical;"></textarea></div>
           <button class="btn btn-primary btn-sm" onclick="submitResult('${t.task_id}')">提交结果</button>
         </div>
-        ${results ? '<div class="results-timeline">' + results + '</div>' : ''}
+        ${_renderResults(t.results)}
       </div>`;
   }).join('');
 }
@@ -306,6 +392,55 @@ async function amplify(taskId) {
   } catch (e) { toast('生成失败：' + e.message); }
 }
 
+async function bindNote(taskId) {
+  const input = document.getElementById('bind-input-' + taskId);
+  const val = (input?.value || '').trim();
+  if (!val) { toast('请输入笔记链接或 ID'); return; }
+
+  const isUrl = val.startsWith('http');
+  const payload = isUrl ? { note_url: val } : { note_id: val };
+
+  try {
+    const res = await fetch('/growth-lab/api/board/tasks/' + taskId + '/bind-note', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || res.statusText);
+    }
+    const data = await res.json();
+    toast('已关联笔记 ' + data.xhs_note_id);
+    await loadTasks();
+  } catch (e) { toast('关联失败：' + e.message); }
+}
+
+async function syncMetrics(taskId) {
+  const btn = document.getElementById('sync-btn-' + taskId);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 回采中…'; }
+
+  try {
+    const res = await fetch('/growth-lab/api/board/tasks/' + taskId + '/sync-metrics', { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || res.statusText);
+    }
+    const data = await res.json();
+    const m = data.metrics || {};
+    if (data.note_status === 'unavailable') {
+      toast(`⚠️ 笔记暂不可访问（${data.note_status_msg || '审核中或已隐藏'}），稍后再试`, 'warning');
+    } else {
+      toast(`回采成功：👀${m.view_count || 0} ❤${m.liked_count || 0} ⭐${m.collected_count || 0} 💬${m.comment_count || 0}`);
+    }
+    await loadTasks();
+  } catch (e) {
+    toast('回采失败：' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '刷新数据'; }
+  }
+}
+
 async function submitTask() {
   const payload = {
     variant_id: document.getElementById('m-variant-id').value,
@@ -334,6 +469,18 @@ async function loadTasks() {
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
     allTasks = data.items || data || [];
+
+    const resultPromises = allTasks.map(async t => {
+      try {
+        const rRes = await fetch('/growth-lab/api/board/tasks/' + t.task_id + '/results');
+        if (rRes.ok) {
+          const rData = await rRes.json();
+          t.results = rData.items || [];
+        }
+      } catch (e) { t.results = []; }
+    });
+    await Promise.all(resultPromises);
+
     document.getElementById('loading').style.display = 'none';
     renderTasks();
   } catch (e) { document.getElementById('loading').innerHTML = '<span style="color:var(--accent-neg);">加载失败</span>'; }

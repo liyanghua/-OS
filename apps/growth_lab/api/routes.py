@@ -665,6 +665,23 @@ async def video_status(job_id: str) -> dict:
     }
 
 
+def _extract_note_id(url: str) -> str:
+    """从小红书 URL 中提取笔记 ID。"""
+    import re
+    if not url:
+        return ""
+    m = re.search(r"/explore/([a-f0-9]+)", url)
+    if m:
+        return m.group(1)
+    m = re.search(r"/discovery/item/([a-f0-9]+)", url)
+    if m:
+        return m.group(1)
+    m = re.search(r"note[_/]?id[=:]([a-f0-9]+)", url, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    return ""
+
+
 # ── API: First3s / 一键发布 ──────────────────────────────────
 
 class PublishRequest(BaseModel):
@@ -743,16 +760,38 @@ async def publish_to_xhs(req: PublishRequest) -> dict:
 
             if result.get("status") == "published" and variant:
                 from datetime import datetime, UTC as _UTC
+                note_url = result.get("note_url", "")
+                note_id = _extract_note_id(note_url)
+
                 variant.setdefault("publish_count", 0)
                 variant["publish_count"] += 1
                 variant.setdefault("publish_history", [])
                 variant["publish_history"].append({
                     "job_id": job_id,
                     "title": title,
-                    "note_url": result.get("note_url", ""),
+                    "note_url": note_url,
+                    "note_id": note_id,
                     "published_at": datetime.now(_UTC).isoformat(),
                 })
                 store.save_first3s_variant(variant)
+
+                from apps.growth_lab.schemas.test_task import TestTask as _TT
+                task = _TT(
+                    source_variant_id=req.variant_id,
+                    variant_type="first3s",
+                    platform="xiaohongshu",
+                    xhs_note_url=note_url,
+                    xhs_note_id=note_id,
+                    xhs_publish_job_id=job_id,
+                    xhs_review_status="pending",
+                    status="active",
+                    test_window_days=7,
+                    metrics_to_watch=["liked_count", "collected_count", "comment_count"],
+                )
+                task_dict = task.model_dump()
+                store.save_test_task(task_dict)
+                _publish_jobs[job_id]["test_task_id"] = task_dict["task_id"]
+                logger.info("[Publish] auto-created TestTask %s for variant %s", task_dict["task_id"], req.variant_id)
         except Exception as e:
             logger.exception("[Publish] job %s failed: %s", job_id, e)
             _publish_jobs[job_id].update({"status": "failed", "error": str(e)})
@@ -775,6 +814,7 @@ async def publish_status(job_id: str) -> dict:
         "elapsed_ms": job.get("elapsed_ms", 0),
         "progress_step": job.get("progress_step", ""),
         "progress_detail": job.get("progress_detail", ""),
+        "test_task_id": job.get("test_task_id", ""),
     }
 
 
@@ -967,6 +1007,93 @@ async def create_amplification_plan(task_id: str) -> dict:
     plan = await planner.suggest(task, results)
     store.save_amplification_plan(plan.model_dump())
     return plan.model_dump()
+
+
+class BindNoteRequest(BaseModel):
+    note_id: str = ""
+    note_url: str = ""
+
+
+@router.patch("/api/board/tasks/{task_id}/bind-note")
+async def bind_note(task_id: str, req: BindNoteRequest) -> dict:
+    """手动绑定小红书笔记 ID 到测试任务。"""
+    store = _get_store()
+    task = store.get_test_task(task_id)
+    if not task:
+        raise HTTPException(404, f"TestTask {task_id} not found")
+
+    note_id = req.note_id.strip()
+    if not note_id and req.note_url:
+        note_id = _extract_note_id(req.note_url)
+    if not note_id:
+        raise HTTPException(400, "无法提取笔记 ID，请检查链接或手动输入")
+
+    task["xhs_note_id"] = note_id
+    if req.note_url:
+        task["xhs_note_url"] = req.note_url.strip()
+    store.save_test_task(task)
+    return {"task_id": task_id, "xhs_note_id": note_id}
+
+
+@router.post("/api/board/tasks/{task_id}/sync-metrics")
+async def sync_note_metrics(task_id: str) -> dict:
+    """从小红书回采笔记互动数据并写入 ResultSnapshot。"""
+    from apps.growth_lab.services.note_metrics_syncer import NoteMetricsSyncer
+    from apps.growth_lab.schemas.test_task import ResultSnapshot
+
+    store = _get_store()
+    task = store.get_test_task(task_id)
+    if not task:
+        raise HTTPException(404, f"TestTask {task_id} not found")
+    note_id = task.get("xhs_note_id", "")
+    if not note_id:
+        raise HTTPException(400, "该任务尚未关联笔记 ID，请先绑定")
+
+    syncer = NoteMetricsSyncer(headless=True)
+    try:
+        metrics = await syncer.fetch(note_id)
+    except Exception as exc:
+        logger.exception("[sync-metrics] syncer.fetch raised: %s", exc)
+        raise HTTPException(502, f"回采异常: {exc}")
+    if not metrics:
+        raise HTTPException(502, f"回采数据失败 (note_id={note_id})，请检查登录态或笔记是否可访问")
+
+    note_status = metrics.get("note_status", "")
+    note_status_msg = metrics.get("note_status_msg", "")
+    audit_status = metrics.get("audit_status", -1)
+
+    today = __import__("datetime").date.today().isoformat()
+    snapshot = ResultSnapshot(
+        task_id=task_id,
+        date=today,
+        liked_count=metrics.get("liked_count"),
+        collected_count=metrics.get("collected_count"),
+        comment_count=metrics.get("comment_count"),
+        share_count=metrics.get("share_count"),
+        view_count=metrics.get("view_count"),
+        rise_fans_count=metrics.get("rise_fans_count"),
+        notes=note_status_msg or f"自动回采 (来源: {metrics.get('source', '')})",
+        raw_data=metrics,
+    )
+    store.save_result_snapshot(snapshot.model_dump())
+
+    if audit_status == 1:
+        task["xhs_review_status"] = "approved"
+    elif audit_status == 0:
+        task["xhs_review_status"] = "under_review"
+    elif audit_status == 2:
+        task["xhs_review_status"] = "rejected"
+    elif note_status in ("under_review", "rejected", "hidden"):
+        task["xhs_review_status"] = note_status
+    elif task.get("xhs_review_status") in ("pending",):
+        task["xhs_review_status"] = "approved"
+    store.save_test_task(task)
+
+    resp: dict[str, Any] = {"snapshot_id": snapshot.snapshot_id, "metrics": metrics}
+    if note_status:
+        resp["note_status"] = note_status
+        resp["note_status_msg"] = note_status_msg
+    return resp
 
 
 # ── API: Assets ──────────────────────────────────────────────

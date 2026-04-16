@@ -448,6 +448,7 @@
         <div id="pub-result-icon" style="font-size:36px;margin-bottom:8px;"></div>
         <div id="pub-result-msg" style="font-size:14px;font-weight:600;"></div>
         <a id="pub-result-link" href="#" target="_blank" style="font-size:12px;color:var(--primary);display:none;margin-top:8px;">查看笔记</a>
+        <div id="pub-result-board" style="display:none;"></div>
       </div>
     </div>
     <div class="pub-footer" id="pub-footer">
@@ -1247,7 +1248,7 @@ function startPublishPolling(jobId) {
       if (data.status === 'published') {
         clearInterval(publishPollTimer); publishPollTimer = null;
         document.getElementById('pub-progress-bar').style.width = '100%';
-        showPublishResult('published', '', data.note_url);
+        showPublishResult('published', '', data.note_url, data.test_task_id);
         const h = hookVariants.find(x => x.variant_id === selectedHookId);
         if (h) { h.publish_count = (h.publish_count || 0) + 1; renderHooks(); }
       } else if (data.status === 'failed') {
@@ -1258,7 +1259,7 @@ function startPublishPolling(jobId) {
   }, intervalMs);
 }
 
-function showPublishResult(status, error, noteUrl) {
+function showPublishResult(status, error, noteUrl, testTaskId) {
   document.getElementById('pub-progress-area').style.display = 'none';
   document.getElementById('pub-result-area').style.display = '';
   document.getElementById('pub-footer').style.display = 'none';
@@ -1266,6 +1267,7 @@ function showPublishResult(status, error, noteUrl) {
   const icon = document.getElementById('pub-result-icon');
   const msg = document.getElementById('pub-result-msg');
   const link = document.getElementById('pub-result-link');
+  const board = document.getElementById('pub-result-board');
 
   if (status === 'published') {
     icon.textContent = '✅';
@@ -1276,12 +1278,21 @@ function showPublishResult(status, error, noteUrl) {
       link.textContent = '查看笔记 →';
       link.style.display = 'inline-block';
     }
+    if (board) {
+      board.style.display = '';
+      board.innerHTML = '<div style="margin-top:12px;padding:10px 14px;background:var(--primary-light);border-radius:8px;font-size:12px;">'
+        + '<span style="font-weight:600;color:var(--primary);">已自动创建测试任务</span>'
+        + '<div style="margin-top:6px;">笔记审核通过后可在测试放大板关联笔记 ID 并回采互动数据</div>'
+        + '<a href="/growth-lab/board" style="display:inline-block;margin-top:8px;color:var(--primary);font-weight:600;font-size:13px;text-decoration:none;">前往测试放大板 →</a>'
+        + '</div>';
+    }
     toast('小红书发布成功！');
   } else {
     icon.textContent = '❌';
     msg.textContent = error || '发布失败';
     msg.style.color = 'var(--accent-neg)';
     link.style.display = 'none';
+    if (board) board.style.display = 'none';
   }
 }
 

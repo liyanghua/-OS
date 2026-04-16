@@ -32,6 +32,12 @@ class TestTask(BaseModel):
     decision_rule: str = ""
     owner: str = ""
 
+    # 小红书笔记关联
+    xhs_note_id: str = ""
+    xhs_note_url: str = ""
+    xhs_publish_job_id: str = ""
+    xhs_review_status: str = ""  # pending / approved / rejected
+
     # B2B 上下文
     workspace_id: str = ""
     brand_id: str = ""
@@ -58,6 +64,15 @@ class ResultSnapshot(BaseModel):
     conversion_rate: float | None = None
     refund_rate: float | None = None
     save_rate: float | None = None
+
+    # 小红书互动指标
+    liked_count: int | None = None
+    collected_count: int | None = None
+    comment_count: int | None = None
+    share_count: int | None = None
+    view_count: int | None = None
+    rise_fans_count: int | None = None
+
     comments_signal: str = ""
     overall_result: Literal[
         "excellent", "good", "neutral", "poor", "pending",
