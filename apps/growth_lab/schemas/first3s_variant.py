@@ -79,6 +79,10 @@ class First3sVariant(BaseModel):
     video_generation_status: str = ""  # pending / generating / completed / failed
     video_job_id: str = ""
 
+    # 发布记录
+    publish_count: int = 0
+    publish_history: list[dict[str, Any]] = Field(default_factory=list)
+
     expected_goal: str = ""
     quality_score: float | None = None
 

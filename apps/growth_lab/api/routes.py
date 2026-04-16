@@ -665,6 +665,250 @@ async def video_status(job_id: str) -> dict:
     }
 
 
+# ── API: First3s / 一键发布 ──────────────────────────────────
+
+class PublishRequest(BaseModel):
+    variant_id: str = ""
+    title: str = ""
+    body: str = ""
+    topics: list[str] = Field(default_factory=list)
+
+
+_publish_jobs: dict[str, dict[str, Any]] = {}
+
+
+@router.post("/api/first3s/publish")
+async def publish_to_xhs(req: PublishRequest) -> dict:
+    """提交小红书发布任务（异步 Playwright）。"""
+    import asyncio
+    from apps.growth_lab.services.xhs_publisher import XHSPublishService, build_publish_content
+
+    store = _get_store()
+    variant = store.get_first3s_variant(req.variant_id) if req.variant_id else None
+
+    if not variant:
+        raise HTTPException(404, "First3sVariant not found")
+
+    video_url = variant.get("generated_video_url", "")
+    if not video_url:
+        raise HTTPException(400, "该钩子尚未生成视频，请先生成视频")
+
+    title = req.title
+    body = req.body
+    topics = req.topics
+
+    if not title or not body:
+        hook_script = variant.get("hook_script", {})
+        spec = None
+        sp_id = variant.get("source_selling_point_id", "")
+        if sp_id:
+            spec = store.get_selling_point_spec(sp_id)
+        auto = build_publish_content(hook_script, spec)
+        if not title:
+            title = auto["title"]
+        if not body:
+            body = auto["body"]
+        if not topics:
+            topics = auto["topics"]
+
+    _repo_root = Path(__file__).resolve().parents[3]
+    _videos_dir = _repo_root / "data" / "generated_videos"
+    video_path = str(_videos_dir / video_url.replace("/generated-videos/", ""))
+
+    job_id = __import__("uuid").uuid4().hex[:16]
+    _publish_jobs[job_id] = {
+        "status": "pending",
+        "variant_id": req.variant_id,
+        "progress_step": "",
+        "progress_detail": "",
+    }
+
+    def _on_progress(step: str, detail: str) -> None:
+        if job_id in _publish_jobs:
+            _publish_jobs[job_id]["progress_step"] = step
+            _publish_jobs[job_id]["progress_detail"] = detail
+
+    async def _run_publish() -> None:
+        _publish_jobs[job_id]["status"] = "publishing"
+        try:
+            svc = XHSPublishService(headless=False)
+            result = await svc.publish_video(
+                video_path=video_path,
+                title=title,
+                body=body,
+                topics=topics,
+                on_progress=_on_progress,
+            )
+            _publish_jobs[job_id].update(result)
+
+            if result.get("status") == "published" and variant:
+                from datetime import datetime, UTC as _UTC
+                variant.setdefault("publish_count", 0)
+                variant["publish_count"] += 1
+                variant.setdefault("publish_history", [])
+                variant["publish_history"].append({
+                    "job_id": job_id,
+                    "title": title,
+                    "note_url": result.get("note_url", ""),
+                    "published_at": datetime.now(_UTC).isoformat(),
+                })
+                store.save_first3s_variant(variant)
+        except Exception as e:
+            logger.exception("[Publish] job %s failed: %s", job_id, e)
+            _publish_jobs[job_id].update({"status": "failed", "error": str(e)})
+
+    asyncio.create_task(_run_publish())
+    return {"job_id": job_id, "status": "pending"}
+
+
+@router.get("/api/first3s/publish-status/{job_id}")
+async def publish_status(job_id: str) -> dict:
+    """轮询发布状态。"""
+    job = _publish_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, f"Publish job {job_id} not found")
+    return {
+        "job_id": job_id,
+        "status": job.get("status", "unknown"),
+        "note_url": job.get("note_url", ""),
+        "error": job.get("error", ""),
+        "elapsed_ms": job.get("elapsed_ms", 0),
+        "progress_step": job.get("progress_step", ""),
+        "progress_detail": job.get("progress_detail", ""),
+    }
+
+
+@router.get("/api/first3s/publish-preview")
+async def publish_preview(variant_id: str = "") -> dict:
+    """预览发布内容（不实际发布）。"""
+    from apps.growth_lab.services.xhs_publisher import build_publish_content
+
+    store = _get_store()
+    variant = store.get_first3s_variant(variant_id) if variant_id else None
+    if not variant:
+        raise HTTPException(404, "First3sVariant not found")
+
+    hook_script = variant.get("hook_script", {})
+    spec = None
+    sp_id = variant.get("source_selling_point_id", "")
+    if sp_id:
+        spec = store.get_selling_point_spec(sp_id)
+
+    content = build_publish_content(hook_script, spec)
+    content["video_url"] = variant.get("generated_video_url", "")
+    content["variant_id"] = variant_id
+    return content
+
+
+# ── API: First3s / 小红书登录 ─────────────────────────────────
+
+_login_jobs: dict[str, dict[str, Any]] = {}
+
+
+@router.get("/api/first3s/xhs-login-status")
+async def xhs_login_status() -> dict:
+    """检查小红书登录态是否有效。"""
+    from apps.growth_lab.services.xhs_publisher import _is_storage_state_valid
+    ss = _is_storage_state_valid()
+    if ss:
+        import json as _json
+        meta_path = Path(ss).with_suffix(".meta.json")
+        exported_at = ""
+        if meta_path.exists():
+            try:
+                meta = _json.loads(meta_path.read_text())
+                exported_at = meta.get("exported_at", "")
+            except Exception:
+                pass
+        return {"logged_in": True, "exported_at": exported_at}
+    return {"logged_in": False, "exported_at": ""}
+
+
+@router.post("/api/first3s/xhs-login")
+async def xhs_login() -> dict:
+    """启动浏览器扫码登录小红书，异步完成后保存 storage_state。"""
+    import asyncio
+
+    job_id = __import__("uuid").uuid4().hex[:16]
+    _login_jobs[job_id] = {"status": "pending", "step": "starting"}
+
+    async def _run_login() -> None:
+        _login_jobs[job_id]["status"] = "running"
+        try:
+            from playwright.async_api import async_playwright
+            _login_jobs[job_id]["step"] = "launching_browser"
+
+            async with async_playwright() as pw:
+                browser = await pw.chromium.launch(
+                    headless=False,
+                    args=["--disable-blink-features=AutomationControlled"],
+                )
+                context = await browser.new_context(viewport={"width": 1400, "height": 900})
+                page = await context.new_page()
+
+                _login_jobs[job_id]["step"] = "navigating"
+                await page.goto("https://creator.xiaohongshu.com", wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_timeout(2000)
+
+                _login_jobs[job_id]["step"] = "waiting_for_login"
+
+                for i in range(120):
+                    await page.wait_for_timeout(2000)
+                    url = page.url.lower()
+                    if "login" not in url and ("creator" in url or "home" in url):
+                        break
+                    try:
+                        avatar = page.locator('[class*="avatar"], [class*="user-info"], [class*="nickname"]')
+                        if await avatar.count() > 0:
+                            break
+                    except Exception:
+                        pass
+                else:
+                    _login_jobs[job_id].update({"status": "failed", "error": "登录超时(4分钟)"})
+                    await context.close()
+                    await browser.close()
+                    return
+
+                _login_jobs[job_id]["step"] = "exporting"
+                from apps.growth_lab.services.xhs_publisher import _SESSIONS_DIR
+                _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+                ss_path = _SESSIONS_DIR / "xhs_state.json"
+                await context.storage_state(path=str(ss_path))
+
+                import json as _json
+                from datetime import datetime, timezone
+                meta_path = ss_path.with_suffix(".meta.json")
+                meta_path.write_text(
+                    _json.dumps({"exported_at": datetime.now(tz=timezone.utc).isoformat()}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+
+                await context.close()
+                await browser.close()
+                _login_jobs[job_id].update({"status": "success", "step": "done"})
+
+        except Exception as e:
+            logger.exception("[XHSLogin] failed: %s", e)
+            _login_jobs[job_id].update({"status": "failed", "error": str(e)})
+
+    asyncio.create_task(_run_login())
+    return {"job_id": job_id, "status": "pending"}
+
+
+@router.get("/api/first3s/xhs-login-status/{job_id}")
+async def xhs_login_job_status(job_id: str) -> dict:
+    """轮询扫码登录任务状态。"""
+    job = _login_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, f"Login job {job_id} not found")
+    return {
+        "job_id": job_id,
+        "status": job.get("status", "unknown"),
+        "step": job.get("step", ""),
+        "error": job.get("error", ""),
+    }
+
+
 # ── API: Board / TestTask ────────────────────────────────────
 
 @router.get("/api/board/tasks")
