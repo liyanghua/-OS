@@ -662,6 +662,7 @@ async def video_status(job_id: str) -> dict:
         "video_url": job.get("video_url", ""),
         "error": job.get("error", ""),
         "elapsed_ms": job.get("elapsed_ms", 0),
+        "frame_dropped": job.get("frame_dropped", False),
     }
 
 
@@ -819,8 +820,8 @@ async def publish_status(job_id: str) -> dict:
 
 
 @router.get("/api/first3s/publish-preview")
-async def publish_preview(variant_id: str = "") -> dict:
-    """预览发布内容（不实际发布）。"""
+async def publish_preview(variant_id: str = "", regenerate: str = "") -> dict:
+    """预览发布内容（不实际发布）。regenerate=1 时强制重新 LLM 生成。"""
     from apps.growth_lab.services.xhs_publisher import build_publish_content
 
     store = _get_store()
@@ -834,9 +835,29 @@ async def publish_preview(variant_id: str = "") -> dict:
     if sp_id:
         spec = store.get_selling_point_spec(sp_id)
 
-    content = build_publish_content(hook_script, spec)
+    spec_dict = spec if isinstance(spec, dict) else (spec.model_dump() if hasattr(spec, "model_dump") else None)
+
+    content: dict | None = None
+    ai_generated = False
+    try:
+        from apps.growth_lab.services.publish_content_compiler import PublishContentCompiler
+        compiler = PublishContentCompiler()
+        annotations = []
+        if sp_id and hasattr(store, "list_expert_annotations"):
+            annotations = store.list_expert_annotations(
+                where={"spec_id": sp_id}, limit=10,
+            )
+        content = await compiler.compile(hook_script, spec_dict, annotations or None)
+        ai_generated = True
+    except Exception:
+        logger.warning("[PublishPreview] LLM compile failed, fallback to rules", exc_info=True)
+
+    if content is None:
+        content = build_publish_content(hook_script, spec)
+
     content["video_url"] = variant.get("generated_video_url", "")
     content["variant_id"] = variant_id
+    content["ai_generated"] = ai_generated
     return content
 
 

@@ -3,6 +3,30 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## 发布超时修复 + AI 发布内容生成升级 (2026-04-17)
+
+### Bug 修复
+
+- 前端 `startPublishPolling()` 增加 `errCount` 计数器：连续 10 次非 200 响应自动终止轮询并显示友好提示（"发布状态丢失，请检查创作者后台"），替代之前的静默丢弃行为
+- `maxMs` 从 180s 提升到 300s，适配网络慢时发布流程耗时
+- 根因：uvicorn StatReload 导致内存中 `_publish_jobs` 丢失，前端轮询收到 404 后静默跳过直到超时
+
+### AI 发布内容生成
+
+| 文件 | 改动 |
+|---|---|
+| `apps/growth_lab/services/publish_content_compiler.py` | **新增** — LLM 驱动的小红书发布内容编译器，基于卖点规格+钩子脚本+专家批注生成标题/正文/话题 |
+| `apps/growth_lab/api/routes.py` | `/publish-preview` 端点优先调用 `PublishContentCompiler.compile()`，LLM 失败时 fallback 到原 `build_publish_content()` 规则拼接；新增 `regenerate` 参数支持前端 AI 重写 |
+| `apps/growth_lab/templates/first3s_lab.html` | 发布弹窗新增 "AI 重写" 按钮 + AI 生成状态提示；支持多次 LLM 重新生成 + 手动编辑 |
+
+### 设计决策
+
+- `build_publish_content()` 保留为 fallback，LLM 不可用时自动降级
+- 不做 job 持久化到 DB（前端防御已足够）
+- 不做发布内容多版本管理（当前阶段不需要）
+
+---
+
 ## 热点驱动裂变系统 growth_lab (2026-04-16)
 
 ### 概述

@@ -416,6 +416,11 @@
         <button class="btn btn-xhs" id="pub-login-btn" onclick="startXHSLogin()">扫码登录小红书</button>
       </div>
       <div id="pub-form" style="display:none;">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+          <button class="btn btn-ghost btn-sm" id="pub-btn-ai-regen" onclick="regeneratePublishContent()" style="font-size:11px;gap:4px;display:flex;align-items:center;">
+            <span id="pub-regen-icon">✨</span> AI 重写
+          </button>
+        </div>
         <div class="pub-field">
           <label>标题 <span style="font-weight:400;color:var(--muted);">（最多20字）</span></label>
           <input id="pub-title" maxlength="20" placeholder="输入标题…" />
@@ -432,6 +437,7 @@
           </div>
           <div class="pub-tag-list" id="pub-tag-list"></div>
         </div>
+        <div id="pub-ai-hint" style="display:none;font-size:11px;color:var(--muted);margin-top:4px;text-align:right;"></div>
       </div>
       <div id="pub-progress-area" style="display:none;">
         <div class="pub-progress">
@@ -782,6 +788,9 @@ function startPolling(jobId) {
         clearInterval(pollTimer); pollTimer = null;
         showProgress('completed', 100);
         toast('视频生成完成！');
+        if (data.frame_dropped) {
+          toast('提示：首帧参考图含真人，已自动切换为文生视频', 5000);
+        }
         document.getElementById('gen-status-hint').textContent = `完成 (${(data.elapsed_ms/1000).toFixed(1)}s)`;
         if (data.video_url) {
           playVideo(data.video_url);
@@ -1046,24 +1055,65 @@ async function openPublishModal() {
   document.getElementById('pub-form').style.display = '';
   document.getElementById('pub-footer').style.display = '';
 
+  await _loadPublishPreview(selectedHookId, false);
+}
+
+function _setPubFormLock(locked) {
+  const fields = ['pub-title', 'pub-body-text', 'pub-topic-input'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    el.disabled = locked;
+    el.style.opacity = locked ? '0.5' : '';
+  });
+  document.getElementById('pub-btn-confirm').disabled = locked;
+}
+
+async function _loadPublishPreview(variantId, regenerate) {
+  const btn = document.getElementById('pub-btn-ai-regen');
+  const hint = document.getElementById('pub-ai-hint');
+
+  _setPubFormLock(true);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-width:2px;"></span> AI 生成中…';
+  hint.textContent = '✨ AI 正在生成发布内容，请稍候…';
+  hint.style.display = '';
+
   try {
-    const res = await fetch(`/growth-lab/api/first3s/publish-preview?variant_id=${selectedHookId}`);
+    const qs = `variant_id=${variantId}` + (regenerate ? '&regenerate=1' : '');
+    const res = await fetch(`/growth-lab/api/first3s/publish-preview?${qs}`);
     if (res.ok) {
       const data = await res.json();
       document.getElementById('pub-title').value = data.title || '';
       document.getElementById('pub-body-text').value = data.body || '';
       pubTopics = data.topics || [];
       renderPubTopics();
+      if (data.ai_generated) {
+        hint.textContent = '✨ AI 已生成，可直接编辑或点击"AI 重写"换一版';
+      } else {
+        hint.textContent = '规则生成（LLM 不可用），可手动编辑';
+      }
+    } else {
+      hint.textContent = '内容加载失败，可手动编辑';
     }
   } catch (e) {
-    const h = hookVariants.find(x => x.variant_id === selectedHookId);
+    const h = hookVariants.find(x => x.variant_id === variantId);
     if (h) {
       document.getElementById('pub-title').value = (h.opening_line || '').slice(0, 20);
       document.getElementById('pub-body-text').value = [h.opening_line, h.supporting_line, h.cta].filter(Boolean).join('\n\n');
     }
     pubTopics = ['好物推荐', '短视频'];
     renderPubTopics();
+    hint.textContent = '网络异常，已使用默认内容，可手动编辑';
+  } finally {
+    _setPubFormLock(false);
+    btn.disabled = false;
+    btn.innerHTML = '<span id="pub-regen-icon">✨</span> AI 重写';
   }
+}
+
+async function regeneratePublishContent() {
+  if (!selectedHookId) return;
+  await _loadPublishPreview(selectedHookId, true);
 }
 
 let loginPollTimer = null;
@@ -1203,8 +1253,9 @@ async function submitPublish() {
 function startPublishPolling(jobId) {
   if (publishPollTimer) clearInterval(publishPollTimer);
   let elapsed = 0;
-  const maxMs = 180000;
+  const maxMs = 300000;
   const intervalMs = 3000;
+  let errCount = 0;
 
   const stepMap = {
     'starting': '启动浏览器',
@@ -1230,13 +1281,21 @@ function startPublishPolling(jobId) {
     elapsed += intervalMs;
     if (elapsed > maxMs) {
       clearInterval(publishPollTimer); publishPollTimer = null;
-      showPublishResult('failed', '发布超时');
+      showPublishResult('failed', '发布超时，请检查小红书创作者后台确认是否发布成功');
       return;
     }
 
     try {
       const res = await fetch(`/growth-lab/api/first3s/publish-status/${jobId}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        errCount++;
+        if (errCount >= 10) {
+          clearInterval(publishPollTimer); publishPollTimer = null;
+          showPublishResult('failed', '发布状态丢失（服务可能已重启），请检查小红书创作者后台确认是否发布成功');
+        }
+        return;
+      }
+      errCount = 0;
       const data = await res.json();
 
       const step = data.progress_step || '';
