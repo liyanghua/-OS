@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>视觉工作台 — 增长实验室</title>
+  <style>
+    :root {
+      --primary: #4F46E5; --primary-light: #EEF2FF;
+      --accent-pos: #10B981; --accent-neg: #EF4444; --accent-warn: #F59E0B;
+      --bg: #F9FAFB; --surface: #FFFFFF; --border: #E5E7EB;
+      --ink: #111827; --muted: #6B7280; --radius: 10px;
+      --canvas-bg: #F3F4F6; --canvas-grid: #E5E7EB;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { font-family: system-ui, -apple-system, "PingFang SC", sans-serif; background: var(--bg); color: var(--ink); overflow: hidden; }
+
+    .topnav {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 20px; display: flex; align-items: center; height: 48px; gap: 4px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topnav .brand { font-weight: 700; font-size: 14px; color: var(--primary); margin-right: 16px; }
+    .topnav a {
+      font-size: 12px; font-weight: 500; color: var(--muted); text-decoration: none;
+      padding: 5px 10px; border-radius: 6px; transition: all .15s;
+    }
+    .topnav a:hover { background: var(--primary-light); color: var(--primary); }
+    .topnav a.active { background: var(--primary); color: #fff; font-weight: 600; }
+    .beta-tag { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 3px;
+      background: var(--accent-warn); color: #fff; margin-left: 4px; vertical-align: top; }
+
+    .workspace {
+      display: grid; grid-template-columns: 280px 1fr 320px;
+      grid-template-rows: 52px 1fr 64px;
+      height: calc(100vh - 48px);
+    }
+
+    /* Top bar */
+    .ws-topbar {
+      grid-column: 1 / 4; grid-row: 1 / 2;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 16px; display: flex; align-items: center; gap: 12px;
+    }
+    .ws-title-block { display: flex; flex-direction: column; line-height: 1.2; }
+    .ws-title { font-size: 14px; font-weight: 700; }
+    .ws-subtitle { font-size: 11px; color: var(--muted); }
+    .ws-topbar-spacer { flex: 1; }
+    .ws-output-chips { display: flex; gap: 6px; }
+    .chip {
+      font-size: 11px; padding: 3px 8px; border-radius: 999px;
+      background: var(--primary-light); color: var(--primary); font-weight: 600;
+    }
+
+    /* Left column */
+    .ws-left {
+      grid-column: 1 / 2; grid-row: 2 / 4;
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .ws-tabs { display: flex; border-bottom: 1px solid var(--border); }
+    .ws-tab {
+      flex: 1; padding: 10px 6px; font-size: 12px; cursor: pointer; text-align: center;
+      color: var(--muted); border-bottom: 2px solid transparent; font-weight: 600;
+    }
+    .ws-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .ws-tab-body { flex: 1; overflow-y: auto; padding: 14px; font-size: 12.5px; }
+    .ws-section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.3px; margin-bottom: 6px; }
+    .ws-row { margin-bottom: 12px; }
+    .ws-row label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    .ws-row input, .ws-row textarea, .ws-row select {
+      width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: 12px; font-family: inherit; background: var(--bg); outline: none; resize: vertical;
+    }
+    .ws-row textarea { min-height: 54px; }
+
+    /* Canvas area */
+    .ws-canvas-wrap {
+      grid-column: 2 / 3; grid-row: 2 / 3;
+      position: relative; overflow: hidden;
+      background-color: var(--canvas-bg);
+      background-image:
+        radial-gradient(circle, var(--canvas-grid) 1px, transparent 1px);
+      background-size: 24px 24px;
+      background-position: 0 0;
+    }
+    #canvas-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; user-select: none; touch-action: none; }
+
+    .frame-rect { fill: rgba(255,255,255,0.6); stroke: var(--border); stroke-width: 1; }
+    .frame-rect.selected { stroke: var(--primary); stroke-width: 2; }
+    .frame-title { font-size: 13px; font-weight: 700; fill: var(--ink); pointer-events: none; }
+    .frame-subtitle { font-size: 11px; fill: var(--muted); pointer-events: none; }
+    .frame-chip {
+      fill: var(--primary-light); stroke: none;
+    }
+    .frame-chip-text { font-size: 10px; fill: var(--primary); font-weight: 700; pointer-events: none; }
+    .frame-btn-bg { fill: var(--surface); stroke: var(--border); cursor: pointer; }
+    .frame-btn-bg:hover { fill: var(--primary-light); stroke: var(--primary); }
+    .frame-btn-text { font-size: 10px; fill: var(--ink); font-weight: 600; pointer-events: none; }
+
+    .node-card { cursor: pointer; }
+    .node-bg { fill: var(--surface); stroke: var(--border); stroke-width: 1; }
+    .node-card.selected .node-bg { stroke: var(--primary); stroke-width: 2; }
+    .node-card.generating .node-bg { stroke: var(--accent-warn); stroke-dasharray: 4 4; }
+    .node-card.generated .node-bg { stroke: var(--accent-pos); }
+    .node-card.failed .node-bg { stroke: var(--accent-neg); }
+    .node-role-text { font-size: 11px; font-weight: 700; fill: var(--ink); pointer-events: none; }
+    .node-status-text { font-size: 9px; fill: var(--muted); pointer-events: none; }
+    .node-placeholder-text { font-size: 10px; fill: var(--muted); pointer-events: none; text-anchor: middle; }
+    .node-index-chip { fill: var(--primary); }
+    .node-index-text { font-size: 10px; font-weight: 700; fill: #fff; pointer-events: none; text-anchor: middle; }
+
+    /* Minimap */
+    .ws-minimap {
+      position: absolute; right: 14px; bottom: 14px; width: 160px; height: 110px;
+      background: rgba(255,255,255,.92); border: 1px solid var(--border); border-radius: 6px;
+      overflow: hidden;
+    }
+    #minimap-svg { width: 100%; height: 100%; }
+    .mini-viewport { fill: rgba(79,70,229,.08); stroke: var(--primary); stroke-width: 1; }
+
+    /* Canvas toolbar */
+    .canvas-toolbar {
+      position: absolute; left: 14px; top: 14px; display: flex; gap: 6px;
+      background: rgba(255,255,255,.95); border: 1px solid var(--border);
+      border-radius: 8px; padding: 4px 6px; box-shadow: 0 2px 6px rgba(0,0,0,.04);
+    }
+    .canvas-toolbar button {
+      background: transparent; border: none; padding: 6px 8px; border-radius: 5px;
+      font-size: 12px; cursor: pointer; color: var(--muted);
+    }
+    .canvas-toolbar button:hover { background: var(--primary-light); color: var(--primary); }
+    .canvas-toolbar .zoom-display { font-size: 11px; color: var(--muted); padding: 6px 4px; min-width: 40px; text-align: center; }
+
+    .canvas-hint {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      color: var(--muted); font-size: 13px; text-align: center; pointer-events: none;
+    }
+
+    /* Right column */
+    .ws-right {
+      grid-column: 3 / 4; grid-row: 2 / 4;
+      background: var(--surface); border-left: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .ws-right-section { padding: 14px; border-bottom: 1px solid var(--border); }
+    .ws-right-section:last-child { flex: 1; overflow-y: auto; border-bottom: none; }
+    .ws-right-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .ws-right-kv { font-size: 12px; line-height: 1.6; color: var(--ink); }
+    .ws-right-kv .k { color: var(--muted); font-size: 11px; margin-top: 6px; }
+
+    /* Bottom bar */
+    .ws-bottom {
+      grid-column: 1 / 4; grid-row: 3 / 4;
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 0 16px; display: flex; align-items: center; gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border: none; border-radius: 6px;
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s;
+      font-family: inherit;
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) { opacity: .9; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+    .btn-ghost:hover:not(:disabled) { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .btn-success { background: var(--accent-pos); color: #fff; }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(17, 24, 39, .94); color: #fff;
+      padding: 10px 16px; border-radius: 8px; font-size: 13px;
+      opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 9999;
+    }
+    #toast.show { opacity: 1; }
+
+    /* Empty state */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 12px; padding: 40px 24px; color: var(--muted); text-align: center;
+    }
+    .empty-state h3 { font-size: 15px; color: var(--ink); font-weight: 700; }
+    .empty-state p { font-size: 12px; line-height: 1.6; }
+
+    /* Template picker */
+    .ws-option-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .ws-option-chip {
+      padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border);
+      font-size: 11px; cursor: pointer; background: var(--bg); color: var(--muted);
+    }
+    .ws-option-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* Right panel source breakdown */
+    .source-list { display: flex; flex-direction: column; gap: 6px; }
+    .source-item {
+      padding: 8px 10px; background: var(--bg); border-radius: 6px; font-size: 11.5px; line-height: 1.5;
+    }
+    .source-tag {
+      display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 3px;
+      background: var(--primary-light); color: var(--primary); font-weight: 700;
+      margin-right: 4px; vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <span class="brand">增长实验室</span>
+  <a href="/growth-lab/radar">热点雷达</a>
+  <a href="/growth-lab/compiler">卖点编译器</a>
+  <a href="/growth-lab/workspace" class="active">视觉工作台<span class="beta-tag">NEW</span></a>
+  <a href="/growth-lab/lab">主图(旧)</a>
+  <a href="/growth-lab/first3s">前3秒(旧)</a>
+  <a href="/growth-lab/board">测试放大板</a>
+  <a href="/growth-lab/assets">资产图谱</a>
+</nav>
+
+<div class="workspace">
+
+  <!-- Top bar -->
+  <div class="ws-topbar">
+    <div class="ws-title-block">
+      <div class="ws-title" id="ws-task-title">未命名任务</div>
+      <div class="ws-subtitle" id="ws-task-subtitle">从编译器进入 或 新建任务</div>
+    </div>
+    <div class="ws-output-chips" id="ws-output-chips"></div>
+    <div class="ws-topbar-spacer"></div>
+    <button class="btn btn-ghost btn-sm" onclick="openNewTask()">＋ 新建任务</button>
+    <button class="btn btn-primary btn-sm" onclick="generateAllFrames()">⚡ 自动生成全部</button>
+    <button class="btn btn-ghost btn-sm" onclick="pushToAssetGraph()">⬆ 推送资产图谱</button>
+    <button class="btn btn-success btn-sm" onclick="exportProduction()">导出生产包</button>
+  </div>
+
+  <!-- Left column -->
+  <div class="ws-left">
+    <div class="ws-tabs">
+      <div class="ws-tab active" data-tab="intent" onclick="switchTab('intent')">意图</div>
+      <div class="ws-tab" data-tab="template" onclick="switchTab('template')">模板</div>
+      <div class="ws-tab" data-tab="plans" onclick="switchTab('plans')">历史</div>
+      <div class="ws-tab" data-tab="help" onclick="switchTab('help')">帮助</div>
+    </div>
+
+    <div class="ws-tab-body" id="tab-intent">
+      <div class="ws-section-title">任务意图</div>
+      <div class="ws-row"><label>商品/品牌</label><input id="in-product" placeholder="如 JOYRUQO 洁面乳" /></div>
+      <div class="ws-row"><label>目标人群</label><input id="in-audience" placeholder="如 25-30 岁敏感肌女性" /></div>
+      <div class="ws-row"><label>输出类型（可多选）</label>
+        <div class="ws-option-row" id="output-types">
+          <span class="ws-option-chip active" data-val="main_image">主图5张</span>
+          <span class="ws-option-chip" data-val="detail">详情8模块</span>
+          <span class="ws-option-chip" data-val="video_shots">视频分镜</span>
+          <span class="ws-option-chip" data-val="buyer_show">买家秀8张</span>
+          <span class="ws-option-chip" data-val="competitor">竞品对标</span>
+        </div>
+      </div>
+      <div class="ws-row"><label>仅借框架（跨品类）</label>
+        <div class="ws-option-row" id="borrow-frame-only" title="勾选后：只保留模板的叙事/构图骨架，丢弃原品类文案细节，由 AI 按当前意图重新填充">
+          <span class="ws-option-chip" data-val="main_image">主图</span>
+          <span class="ws-option-chip" data-val="detail">详情</span>
+          <span class="ws-option-chip" data-val="video_shots">视频</span>
+          <span class="ws-option-chip" data-val="buyer_show">买家秀</span>
+          <span class="ws-option-chip" data-val="competitor">竞品</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">专家模板是洁面乳为主；非洁面乳品类建议勾选，让 AI 按你的意图重参数化。</div>
+      </div>
+      <div class="ws-row"><label>风格参考</label><input id="in-style" placeholder="如 极简高端、日系清新（逗号分隔）" /></div>
+      <div class="ws-row"><label>必须呈现</label><input id="in-must" placeholder="核心卖点1, 核心卖点2" /></div>
+      <div class="ws-row"><label>避免</label><input id="in-avoid" placeholder="如 真人大头照、夸张字体" /></div>
+      <div class="ws-row"><label>来源卖点 spec_id（可选）</label><input id="in-spec" placeholder="从编译器带入" /></div>
+      <button class="btn btn-primary" style="width: 100%;" onclick="compileNewPlan()">AI 一键编译</button>
+    </div>
+
+    <div class="ws-tab-body" id="tab-template" style="display:none;">
+      <div class="ws-section-title">业务专家模板库</div>
+      <div id="tpl-list"></div>
+    </div>
+
+    <div class="ws-tab-body" id="tab-plans" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="ws-section-title" style="margin:0;">生图历史</div>
+        <button class="btn btn-ghost btn-sm" onclick="loadPlans()" title="刷新">↻</button>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin:4px 0 8px;">点任一缩略图 → 跳到对应节点，右栏可直接对话式改图（img2img）。</div>
+      <div id="plan-list"></div>
+    </div>
+
+    <div class="ws-tab-body" id="tab-help" style="display:none;">
+      <div class="ws-section-title">画布操作</div>
+      <div style="font-size:12px;line-height:1.8;color:var(--muted);">
+        · 空格+拖动 / 中键拖动 平移<br/>
+        · Ctrl+滚轮 缩放（0.25× ~ 4×）<br/>
+        · 单击节点 → 右栏显示上下文<br/>
+        · 点击节点的"生成"按钮 → 调用生成<br/>
+        · Frame 顶部"生成本组" → 批量生成
+      </div>
+      <div class="ws-section-title" style="margin-top:16px;">设计原则</div>
+      <div style="font-size:12px;line-height:1.8;color:var(--muted);">
+        AI 先做 80%，操盘手做关键 20%。<br/>
+        节点=一等公民，画布=空间容器。<br/>
+        每个模板都来自业务专家的真实打法。
+      </div>
+    </div>
+  </div>
+
+  <!-- Center canvas -->
+  <div class="ws-canvas-wrap" id="canvas-wrap">
+    <svg id="canvas-svg">
+      <defs>
+        <clipPath id="clip-rect-generic">
+          <rect x="0" y="0" width="1" height="1" />
+        </clipPath>
+      </defs>
+      <g id="canvas-viewport"></g>
+    </svg>
+
+    <div class="canvas-hint" id="canvas-hint">
+      <h3 style="color: var(--ink); font-size:15px; font-weight:700; margin-bottom:6px;">AI-native 视觉结果工作台</h3>
+      <p>在左栏填写意图并"一键编译"，或从编译器跳转进入。</p>
+    </div>
+
+    <div class="canvas-toolbar">
+      <button onclick="zoomIn()" title="放大">＋</button>
+      <div class="zoom-display" id="zoom-display">100%</div>
+      <button onclick="zoomOut()" title="缩小">－</button>
+      <button onclick="fitToView()" title="适配视图">⤢</button>
+      <button onclick="resetView()" title="重置">⟲</button>
+    </div>
+
+    <div class="ws-minimap" id="ws-minimap" style="display:none;">
+      <svg id="minimap-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </div>
+
+  <!-- Right column (4 段 AI 控制台) -->
+  <div class="ws-right" id="ws-right">
+    <!-- 段1：当前上下文 -->
+    <div class="ws-right-section" id="right-context">
+      <div class="ws-right-title">① 当前上下文</div>
+      <div class="ws-right-kv" id="right-context-body">
+        <div style="color:var(--muted); font-size:12px;">选中一个节点以查看。</div>
+      </div>
+    </div>
+
+    <!-- 段2：为什么长这样（溯源） -->
+    <div class="ws-right-section" id="right-sources">
+      <div class="ws-right-title">② 为什么长这样</div>
+      <div class="source-list" id="sources-list">
+        <div style="color:var(--muted); font-size:12px;">暂无溯源信息。</div>
+      </div>
+    </div>
+
+    <!-- 段3：建议动作区 -->
+    <div class="ws-right-section" id="right-suggestions">
+      <div class="ws-right-title">
+        ③ 建议动作
+        <button class="btn btn-ghost btn-sm" onclick="refreshSuggestions(true)" title="用 LLM 重新生成建议">LLM</button>
+      </div>
+      <div id="suggestions-list" style="display:flex; flex-direction:column; gap:6px;">
+        <div style="color:var(--muted); font-size:12px;">选中节点后会自动生成。</div>
+      </div>
+    </div>
+
+    <!-- 段4：对话编辑器 + 执行提案 + 节点变体 -->
+    <div class="ws-right-section" id="right-actions">
+      <div class="ws-right-title">④ 对话编辑 <span style="font-size:10px; color:var(--muted); font-weight:500;">一句话指令</span></div>
+      <div id="copilot-empty-hint" style="display:none; font-size:11.5px; color:var(--muted); background:var(--bg); border:1px dashed var(--border); border-radius:6px; padding:8px 10px; margin-bottom:6px; line-height:1.5;">
+        还没选图。去左侧"历史"tab 点一张缩略图，或在画布上点一个节点 —— 然后这里就能直接对话式改图。
+      </div>
+      <div id="copilot-selected-info" style="display:none; font-size:11px; color:var(--primary); background:var(--primary-light); border-radius:6px; padding:6px 8px; margin-bottom:6px;"></div>
+      <textarea id="copilot-input" placeholder="例：把右边更柔和，文案更短"
+        style="width:100%; min-height:46px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; resize:vertical; background:var(--bg); outline:none;"></textarea>
+      <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="btn-edit-variant" onclick="editActiveVariant()" title="以当前采纳图为底图做图生图微调，保留构图">微调当前图</button>
+        <button class="btn btn-ghost btn-sm" id="btn-propose" onclick="proposeEdit()" title="修改意图后重新文生图，不保留原构图">重新生成</button>
+        <button class="btn btn-ghost btn-sm" id="btn-gen-node" onclick="generateSelectedNode(1)">直接出图</button>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:4px;">
+        默认"微调当前图"走图生图（保构图）；需要整体换思路时点"重新生成"。
+      </div>
+      <div id="copilot-proposal" style="margin-top:8px;"></div>
+
+      <div class="ws-right-title" style="margin-top:14px;">节点变体</div>
+      <div id="node-variants" style="display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="ws-bottom">
+    <div id="ws-bottom-status" style="font-size:12px; color:var(--muted);">就绪</div>
+    <div style="flex:1;"></div>
+    <div style="font-size:11px; color:var(--muted);" id="ws-stats">0 Frame · 0 节点</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ─────────────────────────────────────────────────────
+ * 视觉工作台前端控制器（无限 SVG 画布 + 状态管理）
+ * ───────────────────────────────────────────────────── */
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+const state = {
+  planId: new URLSearchParams(location.search).get('plan_id') || '',
+  specId: new URLSearchParams(location.search).get('spec_id') || '',
+  initialNodeId: new URLSearchParams(location.search).get('node_id') || '',
+  initialVariantId: new URLSearchParams(location.search).get('variant_id') || '',
+  plan: null,
+  frames: [],
+  nodes: [],
+  variantsByNode: {},
+  selectedNodeId: null,
+  selectedFrameId: null,
+  templates: [],
+  templateDetailCache: {},  // {template_id: {...full template doc with business_context...}}
+  // 画布视图
+  view: { x: 0, y: 0, scale: 1 },
+  // 交互
+  isPanning: false,
+  spaceDown: false,
+  panStart: { x: 0, y: 0 },
+  // 轮询
+  pollTimers: new Set(),
+};
+
+const OUTPUT_TYPE_LABEL = {
+  main_image: '主图5张', detail: '详情8模块',
+  video_shots: '视频分镜', buyer_show: '买家秀8张', competitor: '竞品对标',
+};
+
+function toast(msg, dur) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur || 2200);
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.ws-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('[id^="tab-"]').forEach(b => b.style.display = 'none');
+  document.getElementById('tab-' + name).style.display = '';
+  if (name === 'template') loadTemplates();
+  if (name === 'plans') loadPlans();
+}
+
+/* ── 输出类型多选 ── */
+document.querySelectorAll('#output-types .ws-option-chip').forEach(chip => {
+  chip.addEventListener('click', () => chip.classList.toggle('active'));
+});
+document.querySelectorAll('#borrow-frame-only .ws-option-chip').forEach(chip => {
+  chip.addEventListener('click', () => chip.classList.toggle('active'));
+});
+
+function getSelectedOutputTypes() {
+  return Array.from(document.querySelectorAll('#output-types .ws-option-chip.active'))
+    .map(c => c.dataset.val);
+}
+
+function getBorrowFrameOnly() {
+  const out = {};
+  document.querySelectorAll('#borrow-frame-only .ws-option-chip.active')
+    .forEach(c => { out[c.dataset.val] = true; });
+  return out;
+}
+
+/* ── 编译新计划 ── */
+async function compileNewPlan() {
+  const outputs = getSelectedOutputTypes();
+  if (!outputs.length) { toast('请至少选择一个输出类型'); return; }
+  const body = {
+    source_spec_id: document.getElementById('in-spec').value.trim(),
+    product_name: document.getElementById('in-product').value.trim(),
+    audience: document.getElementById('in-audience').value.trim(),
+    output_types: outputs,
+    style_refs: splitList(document.getElementById('in-style').value),
+    must_have: splitList(document.getElementById('in-must').value),
+    avoid: splitList(document.getElementById('in-avoid').value),
+    borrow_frame_only: getBorrowFrameOnly(),
+  };
+  setBottomStatus('正在编译...');
+  try {
+    const r = await fetch('/growth-lab/api/workspace/compile', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    toast(`已生成 ${data.frame_count} 个 Frame / ${data.node_count} 个节点`);
+    state.planId = data.plan_id;
+    history.replaceState({}, '', `?plan_id=${data.plan_id}`);
+    await loadPlan(data.plan_id);
+    setBottomStatus('编译完成');
+  } catch (e) {
+    toast('编译失败: ' + e.message); setBottomStatus('编译失败');
+  }
+}
+
+function splitList(s) {
+  return (s || '').split(/[,，、;；]/).map(x => x.trim()).filter(Boolean);
+}
+
+/* ── 加载 plan ── */
+async function loadPlan(planId) {
+  const r = await fetch(`/growth-lab/api/workspace/plan/${planId}`);
+  if (!r.ok) { toast('加载 plan 失败'); return; }
+  const data = await r.json();
+  state.plan = data.plan;
+  state.frames = data.frames || [];
+  state.nodes = data.nodes || [];
+  state.variantsByNode = data.variants_by_node || {};
+  renderTopbar();
+  renderCanvas();
+  fitToView();
+  document.getElementById('canvas-hint').style.display = state.frames.length ? 'none' : 'block';
+}
+
+function renderTopbar() {
+  const plan = state.plan || {};
+  const intent = plan.intent || {};
+  document.getElementById('ws-task-title').textContent = intent.product_name || '未命名任务';
+  const sub = [
+    intent.audience ? `人群: ${intent.audience}` : '',
+    `Plan: ${(plan.plan_id || '').slice(0, 8)}`,
+  ].filter(Boolean).join(' · ');
+  document.getElementById('ws-task-subtitle').textContent = sub;
+  const chips = (intent.output_types || []).map(t =>
+    `<span class="chip">${OUTPUT_TYPE_LABEL[t] || t}</span>`
+  ).join('');
+  document.getElementById('ws-output-chips').innerHTML = chips;
+  document.getElementById('ws-stats').textContent =
+    `${state.frames.length} Frame · ${state.nodes.length} 节点`;
+}
+
+/* ── 画布渲染 ── */
+function getSVG() { return document.getElementById('canvas-svg'); }
+function getVP() { return document.getElementById('canvas-viewport'); }
+
+function applyTransform() {
+  const { x, y, scale } = state.view;
+  getVP().setAttribute('transform', `translate(${x} ${y}) scale(${scale})`);
+  document.getElementById('zoom-display').textContent = `${Math.round(scale * 100)}%`;
+}
+
+function renderCanvas() {
+  const vp = getVP();
+  vp.innerHTML = '';
+  // Frame 先画
+  for (const f of state.frames) {
+    vp.appendChild(buildFrame(f));
+  }
+  // Node 再画（确保在 Frame 上方）
+  for (const n of state.nodes) {
+    vp.appendChild(buildNode(n));
+  }
+  applyTransform();
+  document.getElementById('ws-minimap').style.display = state.frames.length ? 'block' : 'none';
+  renderMinimap();
+}
+
+function buildFrame(frame) {
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.dataset.frameId = frame.frame_id;
+  const nodesInFrame = state.nodes.filter(n => n.frame_id === frame.frame_id);
+  if (!nodesInFrame.length) return g;
+  // 计算边界
+  const minX = Math.min(...nodesInFrame.map(n => n.canvas_x)) - 20;
+  const minY = frame.canvas_y;
+  const maxX = Math.max(...nodesInFrame.map(n => n.canvas_x + n.width)) + 20;
+  const maxY = Math.max(...nodesInFrame.map(n => n.canvas_y + n.height)) + 20;
+  const w = maxX - minX;
+  const h = maxY - minY;
+
+  // bg rect
+  const bg = document.createElementNS(SVG_NS, 'rect');
+  bg.setAttribute('class', 'frame-rect' + (state.selectedFrameId === frame.frame_id ? ' selected' : ''));
+  bg.setAttribute('x', minX); bg.setAttribute('y', minY);
+  bg.setAttribute('width', w); bg.setAttribute('height', h);
+  bg.setAttribute('rx', 12);
+  g.appendChild(bg);
+
+  // title
+  const title = document.createElementNS(SVG_NS, 'text');
+  title.setAttribute('class', 'frame-title');
+  title.setAttribute('x', minX + 14); title.setAttribute('y', minY + 24);
+  title.textContent = frame.title || frame.frame_key;
+  g.appendChild(title);
+
+  // subtitle: template id
+  const sub = document.createElementNS(SVG_NS, 'text');
+  sub.setAttribute('class', 'frame-subtitle');
+  sub.setAttribute('x', minX + 14); sub.setAttribute('y', minY + 40);
+  const doneCount = nodesInFrame.filter(n => n.status === 'generated' || n.status === 'approved').length;
+  sub.textContent = `${frame.template_id} · ${doneCount}/${nodesInFrame.length} 完成`;
+  g.appendChild(sub);
+
+  // 生成本组按钮
+  const btnW = 70, btnH = 22;
+  const btnX = minX + w - btnW - 14, btnY = minY + 10;
+  const btnBg = document.createElementNS(SVG_NS, 'rect');
+  btnBg.setAttribute('class', 'frame-btn-bg');
+  btnBg.setAttribute('x', btnX); btnBg.setAttribute('y', btnY);
+  btnBg.setAttribute('width', btnW); btnBg.setAttribute('height', btnH); btnBg.setAttribute('rx', 6);
+  btnBg.addEventListener('click', (e) => { e.stopPropagation(); generateFrame(frame.frame_id); });
+  g.appendChild(btnBg);
+  const btnText = document.createElementNS(SVG_NS, 'text');
+  btnText.setAttribute('class', 'frame-btn-text');
+  btnText.setAttribute('x', btnX + btnW / 2); btnText.setAttribute('y', btnY + 15);
+  btnText.setAttribute('text-anchor', 'middle');
+  btnText.textContent = '⚡ 生成本组';
+  g.appendChild(btnText);
+
+  // 换模板按钮
+  const btn2W = 60;
+  const btn2X = btnX - btn2W - 6, btn2Y = btnY;
+  const btn2Bg = document.createElementNS(SVG_NS, 'rect');
+  btn2Bg.setAttribute('class', 'frame-btn-bg');
+  btn2Bg.setAttribute('x', btn2X); btn2Bg.setAttribute('y', btn2Y);
+  btn2Bg.setAttribute('width', btn2W); btn2Bg.setAttribute('height', btnH); btn2Bg.setAttribute('rx', 6);
+  btn2Bg.addEventListener('click', (e) => { e.stopPropagation(); openReplanDialog(frame.frame_id, frame.frame_key, frame.template_id); });
+  g.appendChild(btn2Bg);
+  const btn2Text = document.createElementNS(SVG_NS, 'text');
+  btn2Text.setAttribute('class', 'frame-btn-text');
+  btn2Text.setAttribute('x', btn2X + btn2W / 2); btn2Text.setAttribute('y', btn2Y + 15);
+  btn2Text.setAttribute('text-anchor', 'middle');
+  btn2Text.textContent = '🔄 换模板';
+  g.appendChild(btn2Text);
+
+  return g;
+}
+
+function buildNode(node) {
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.dataset.nodeId = node.node_id;
+  const statusClass = node.status || 'draft';
+  g.setAttribute('class', `node-card ${statusClass}` + (state.selectedNodeId === node.node_id ? ' selected' : ''));
+  g.setAttribute('transform', `translate(${node.canvas_x} ${node.canvas_y})`);
+
+  const bg = document.createElementNS(SVG_NS, 'rect');
+  bg.setAttribute('class', 'node-bg');
+  bg.setAttribute('x', 0); bg.setAttribute('y', 0);
+  bg.setAttribute('width', node.width); bg.setAttribute('height', node.height);
+  bg.setAttribute('rx', 8);
+  g.appendChild(bg);
+
+  // index chip
+  const chipR = 11;
+  const chip = document.createElementNS(SVG_NS, 'circle');
+  chip.setAttribute('class', 'node-index-chip');
+  chip.setAttribute('cx', 14); chip.setAttribute('cy', 14); chip.setAttribute('r', chipR);
+  g.appendChild(chip);
+  const chipText = document.createElementNS(SVG_NS, 'text');
+  chipText.setAttribute('class', 'node-index-text');
+  chipText.setAttribute('x', 14); chipText.setAttribute('y', 18);
+  chipText.textContent = node.slot_index;
+  g.appendChild(chipText);
+
+  // role title
+  const role = document.createElementNS(SVG_NS, 'text');
+  role.setAttribute('class', 'node-role-text');
+  role.setAttribute('x', 32); role.setAttribute('y', 18);
+  role.textContent = truncate(node.role || node.title || '', 14);
+  g.appendChild(role);
+
+  // image/video thumb area
+  const padT = 32, padB = 24, padX = 10;
+  const thumbX = padX, thumbY = padT;
+  const thumbW = node.width - padX * 2;
+  const thumbH = node.height - padT - padB;
+
+  const variants = state.variantsByNode[node.node_id] || [];
+  const activeV = variants.find(v => v.variant_id === node.active_variant_id) || variants.find(v => v.asset_url);
+
+  if (activeV && activeV.asset_url) {
+    const img = document.createElementNS(SVG_NS, 'image');
+    img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', activeV.asset_url);
+    img.setAttribute('x', thumbX); img.setAttribute('y', thumbY);
+    img.setAttribute('width', thumbW); img.setAttribute('height', thumbH);
+    img.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+    g.appendChild(img);
+  } else {
+    const ph = document.createElementNS(SVG_NS, 'rect');
+    ph.setAttribute('x', thumbX); ph.setAttribute('y', thumbY);
+    ph.setAttribute('width', thumbW); ph.setAttribute('height', thumbH);
+    ph.setAttribute('fill', 'var(--bg)'); ph.setAttribute('rx', 4);
+    g.appendChild(ph);
+    const phText = document.createElementNS(SVG_NS, 'text');
+    phText.setAttribute('class', 'node-placeholder-text');
+    phText.setAttribute('x', thumbX + thumbW / 2); phText.setAttribute('y', thumbY + thumbH / 2 + 4);
+    phText.textContent = statusClass === 'generating' ? '⏳ 生成中…' : '暂无图片';
+    g.appendChild(phText);
+  }
+
+  // status text
+  const statusLabel = {
+    draft: '待生成', generating: '生成中', generated: '已完成',
+    reviewed: '已审阅', approved: '已采纳', failed: '失败',
+  }[statusClass] || statusClass;
+  const status = document.createElementNS(SVG_NS, 'text');
+  status.setAttribute('class', 'node-status-text');
+  status.setAttribute('x', padX); status.setAttribute('y', node.height - 8);
+  status.textContent = `${statusLabel} · ${variants.length} 变体`;
+  g.appendChild(status);
+
+  g.addEventListener('click', (e) => { e.stopPropagation(); selectNode(node.node_id); });
+
+  return g;
+}
+
+function truncate(s, n) { return s && s.length > n ? s.slice(0, n) + '…' : (s || ''); }
+
+function renderMinimap() {
+  const svg = document.getElementById('minimap-svg');
+  svg.innerHTML = '';
+  if (!state.frames.length) return;
+  // 计算整个 world bounds
+  const xs = state.nodes.map(n => [n.canvas_x, n.canvas_x + n.width]).flat();
+  const ys = state.nodes.map(n => [n.canvas_y, n.canvas_y + n.height]).flat();
+  if (!xs.length) return;
+  const minX = Math.min(...xs) - 40, maxX = Math.max(...xs) + 40;
+  const minY = Math.min(...ys) - 40, maxY = Math.max(...ys) + 40;
+  const W = maxX - minX, H = maxY - minY;
+  svg.setAttribute('viewBox', `${minX} ${minY} ${W} ${H}`);
+  for (const n of state.nodes) {
+    const r = document.createElementNS(SVG_NS, 'rect');
+    r.setAttribute('x', n.canvas_x); r.setAttribute('y', n.canvas_y);
+    r.setAttribute('width', n.width); r.setAttribute('height', n.height);
+    r.setAttribute('fill', n.status === 'generated' ? 'var(--accent-pos)' : 'var(--border)');
+    r.setAttribute('opacity', '0.6');
+    svg.appendChild(r);
+  }
+  // viewport rect
+  const wrap = document.getElementById('canvas-wrap');
+  const { x, y, scale } = state.view;
+  const vpX = -x / scale, vpY = -y / scale;
+  const vpW = wrap.clientWidth / scale, vpH = wrap.clientHeight / scale;
+  const vRect = document.createElementNS(SVG_NS, 'rect');
+  vRect.setAttribute('class', 'mini-viewport');
+  vRect.setAttribute('x', vpX); vRect.setAttribute('y', vpY);
+  vRect.setAttribute('width', vpW); vRect.setAttribute('height', vpH);
+  svg.appendChild(vRect);
+}
+
+/* ── 节点选中 ── */
+function selectNode(nodeId) {
+  state.selectedNodeId = nodeId;
+  const node = state.nodes.find(n => n.node_id === nodeId);
+  state.selectedFrameId = node ? node.frame_id : null;
+  renderCanvas();
+  renderRightPanel(node);
+  updateCopilotEmptyState(node);
+}
+
+function updateCopilotEmptyState(node) {
+  const hint = document.getElementById('copilot-empty-hint');
+  const info = document.getElementById('copilot-selected-info');
+  const btnEdit = document.getElementById('btn-edit-variant');
+  const btnProp = document.getElementById('btn-propose');
+  const btnGen = document.getElementById('btn-gen-node');
+  const ta = document.getElementById('copilot-input');
+  if (!node) {
+    if (hint) hint.style.display = 'block';
+    if (info) { info.style.display = 'none'; info.innerHTML = ''; }
+    [btnEdit, btnProp, btnGen].forEach(b => { if (b) { b.disabled = true; b.style.opacity = 0.5; b.style.cursor = 'not-allowed'; } });
+    if (ta) ta.disabled = true;
+    return;
+  }
+  if (hint) hint.style.display = 'none';
+  [btnEdit, btnProp, btnGen].forEach(b => { if (b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; } });
+  if (ta) ta.disabled = false;
+  const variants = state.variantsByNode[node.node_id] || [];
+  const active = variants.find(v => v.variant_id === node.active_variant_id) || variants.slice(-1)[0];
+  if (info) {
+    const thumb = active && active.asset_url
+      ? `<img src="${active.asset_url}" style="width:44px; height:44px; object-fit:cover; border-radius:4px; border:1px solid var(--border);" />`
+      : '';
+    const roleText = node.role ? escapeHtml(node.role) : (node.result_type || '节点');
+    info.innerHTML = `
+      <div style="display:flex; gap:8px; align-items:center;">
+        ${thumb}
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">正在改：${roleText}</div>
+          <div style="color:var(--muted); font-size:10.5px;">${active ? '底图：' + escapeHtml((active.variant_id || '').slice(0,8)) : '还没有生成图片，先点"直接出图"'}</div>
+        </div>
+      </div>`;
+    info.style.display = 'flex';
+  }
+}
+
+function renderRightPanel(node) {
+  const ctx = document.getElementById('right-context-body');
+  const sources = document.getElementById('sources-list');
+  const variantsEl = document.getElementById('node-variants');
+  const suggestions = document.getElementById('suggestions-list');
+  const proposal = document.getElementById('copilot-proposal');
+  if (!node) {
+    ctx.innerHTML = `<div style="color:var(--muted); font-size:12px;">选中一个节点以查看。</div>`;
+    sources.innerHTML = `<div style="color:var(--muted); font-size:12px;">暂无溯源信息。</div>`;
+    suggestions.innerHTML = `<div style="color:var(--muted); font-size:12px;">选中节点后会自动生成。</div>`;
+    proposal.innerHTML = '';
+    variantsEl.innerHTML = '';
+    document.getElementById('btn-gen-node').disabled = true;
+    document.getElementById('btn-propose').disabled = true;
+    return;
+  }
+  document.getElementById('btn-gen-node').disabled = false;
+  document.getElementById('btn-propose').disabled = false;
+  ctx.innerHTML = `
+    <div class="k">角色</div><div>${escapeHtml(node.role || '')}</div>
+    <div class="k">视觉要求</div><div>${escapeHtml(node.visual_spec || '—')}</div>
+    <div class="k">文案方向</div><div>${escapeHtml(node.copy_spec || '—')}</div>
+    <div class="k">比例 · 状态</div><div>${escapeHtml(node.aspect_ratio || '1:1')} · ${escapeHtml(node.status || '')}</div>
+    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="viewFinalCard('${node.node_id}')">查看最终结果卡</button>
+    </div>
+  `;
+
+  renderLineage(node, sources);
+
+  const variants = state.variantsByNode[node.node_id] || [];
+  // 默认拉取规则建议（快），LLM 按需手动触发
+  refreshSuggestions(false);
+
+  // 竞品节点特殊 UI
+  if (node.result_type === 'competitor_ref') {
+    renderCompetitorPanel(node);
+    return;
+  }
+
+  variantsEl.innerHTML = variants.map(v => {
+    const url = v.asset_url || '';
+    const isActive = v.variant_id === node.active_variant_id;
+    const editMode = (v.extra && v.extra.mode === 'edit');
+    const baseId = (v.extra && v.extra.base_variant_id) ? String(v.extra.base_variant_id).slice(0, 6) : '';
+    const thumb = url
+      ? `<img src="${url}" style="width:100%; border-radius:4px;" />`
+      : `<div style="height:80px; background:var(--bg); border-radius:4px; display:flex;align-items:center;justify-content:center; font-size:11px; color:var(--muted);">${v.status === 'done' ? '无图' : (v.status || 'pending')}</div>`;
+    const tagBits = [];
+    if (isActive) tagBits.push(`<span style="background:var(--primary); color:#fff; font-size:9px; padding:1px 5px; border-radius:3px;">编辑底图</span>`);
+    if (editMode) tagBits.push(`<span style="background:#fff7ed; color:#c2410c; font-size:9px; padding:1px 5px; border-radius:3px; border:1px solid #fed7aa;">微调${baseId ? '·'+baseId : ''}</span>`);
+    return `
+      <div style="border:1px solid ${isActive ? 'var(--primary)' : 'var(--border)'}; border-radius:6px; padding:6px; position:relative;">
+        ${tagBits.length ? `<div style="position:absolute; top:4px; left:4px; display:flex; gap:4px;">${tagBits.join('')}</div>` : ''}
+        ${thumb}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px; gap:4px;">
+          <span style="font-size:10px; color:var(--muted);">${v.status || ''}</span>
+          <div style="display:flex; gap:4px;">
+            ${url && !isActive ? `<button class="btn btn-ghost btn-sm" onclick="editVariantFrom('${node.node_id}', '${v.variant_id}')" title="以这张为底图微调">微调这张</button>` : ''}
+            ${url ? `<button class="btn btn-ghost btn-sm" onclick="setActiveVariant('${node.node_id}', '${v.variant_id}')">${isActive ? '已采纳' : '采纳'}</button>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('') || `<div style="color:var(--muted); font-size:11px;">暂无变体</div>`;
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
+  );
+}
+
+/* ── 溯源面板：专家资产 + 业务上下文 ── */
+async function renderLineage(node, container) {
+  const items = [];
+  if (node.intent_ref_fields && node.intent_ref_fields.length) {
+    node.intent_ref_fields.forEach(ref => {
+      items.push(`<div class="source-item"><span class="source-tag">意图</span>${escapeHtml(ref)}</div>`);
+    });
+  }
+  let templateId = '';
+  let slotIndex = '';
+  if (node.template_slot_ref) {
+    const [tid, idx] = String(node.template_slot_ref).split('#');
+    templateId = tid || '';
+    slotIndex = idx || '';
+    items.push(`<div class="source-item"><span class="source-tag">模板</span>${escapeHtml(node.template_slot_ref)}</div>`);
+  }
+  if (node.brand_rule_refs && node.brand_rule_refs.length) {
+    node.brand_rule_refs.slice(0, 3).forEach(r => {
+      items.push(`<div class="source-item"><span class="source-tag">品牌</span>${escapeHtml(r)}</div>`);
+    });
+  }
+  // 若该 frame 走了"仅借框架"，把 binding_reason 与 adapted_template 名称也贴出来
+  try {
+    const frame = (state.frames || []).find(f => f.frame_id === node.frame_id);
+    const bindings = (state.plan && state.plan.template_bindings) || [];
+    const binding = frame ? bindings.find(b => b.frame_key === frame.frame_key) : null;
+    if (binding && binding.adapted_template_snapshot) {
+      const snap = binding.adapted_template_snapshot;
+      items.push(`<div class="source-item" style="background:#fff7ed; border:1px solid #fed7aa;">
+        <span class="source-tag" style="background:#f97316; color:#fff;">借框架</span>
+        <div style="display:flex; flex-direction:column;">
+          <span style="font-size:11px;">${escapeHtml(binding.binding_reason || '')}</span>
+          <span style="font-size:10px; color:var(--muted);">骨架来源：${escapeHtml(snap.original_name || snap.original_template_id || '')} → 重参数化为 ${escapeHtml(snap.adapted_name || snap.adapted_template_id || '')}</span>
+        </div>
+      </div>`);
+    }
+  } catch (e) { /* ignore */ }
+  container.innerHTML = items.join('') || `<div style="color:var(--muted); font-size:12px;">暂无溯源信息。</div>`;
+
+  if (!templateId) return;
+
+  // 取回模板详情并渲染"专家资产来源"
+  let tpl = state.templateDetailCache[templateId];
+  if (!tpl) {
+    try {
+      const r = await fetch(`/growth-lab/api/workspace/template/${encodeURIComponent(templateId)}`);
+      if (!r.ok) return;
+      tpl = await r.json();
+      state.templateDetailCache[templateId] = tpl;
+    } catch (e) { return; }
+  }
+
+  // 若期间用户已切换节点则忽略
+  if (state.selectedNodeId !== node.node_id) return;
+
+  const sourceBadge = `<span class="source-tag" style="background:#eef5ff; color:#2563eb;">${escapeHtml(tpl.source_kind_label || tpl.source_kind || '')}</span>`;
+  const sourcePath = tpl.source_path_display || tpl.yaml_source_path || '';
+  let html = `
+    <div style="margin-top:10px; padding:8px 10px; background:var(--bg); border:1px solid var(--border); border-radius:6px;">
+      <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+        ${sourceBadge}
+        <span style="font-size:12px; font-weight:600;">${escapeHtml(tpl.name || tpl.template_id)}</span>
+      </div>
+      ${sourcePath ? `<div style="font-size:10px; color:var(--muted); margin-top:4px;">来源文件：${escapeHtml(sourcePath)}</div>` : ''}
+  `;
+
+  const bc = tpl.business_context || {};
+  const sp = tpl.strategy_pack || {};
+  const gs = tpl.global_style || {};
+  const extras = [];
+  if (bc.brand_name) extras.push(['品牌', bc.brand_name]);
+  if (bc.product_category) extras.push(['品类', bc.product_category]);
+  if (Array.isArray(bc.target_audience) && bc.target_audience.length) extras.push(['目标人群', bc.target_audience.join('、')]);
+  if (Array.isArray(bc.goals) && bc.goals.length) extras.push(['业务目标', bc.goals.join('、')]);
+  if (sp.message_hierarchy && sp.message_hierarchy.primary_message) extras.push(['核心主张', sp.message_hierarchy.primary_message]);
+  if (gs.tone) extras.push(['整体基调', gs.tone]);
+  if (Array.isArray(gs.visual_keywords) && gs.visual_keywords.length) extras.push(['视觉关键词', gs.visual_keywords.slice(0,5).join('、')]);
+  if (Array.isArray(gs.avoid_keywords) && gs.avoid_keywords.length) extras.push(['避免', gs.avoid_keywords.slice(0,5).join('、')]);
+
+  if (extras.length) {
+    html += `<div style="margin-top:6px; display:grid; grid-template-columns:64px 1fr; row-gap:4px; column-gap:8px; font-size:11px;">`;
+    extras.forEach(([k, v]) => {
+      html += `<div style="color:var(--muted);">${escapeHtml(k)}</div><div>${escapeHtml(v)}</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // slot 级富 prompt 块
+  let slot = null;
+  if (Array.isArray(tpl.slots)) {
+    slot = tpl.slots.find(s => String(s.index) === String(slotIndex));
+  }
+  if (slot) {
+    const pos = slot.positive_prompt_blocks || [];
+    const neg = slot.negative_prompt_blocks || [];
+    if (pos.length || neg.length) {
+      html += `<div style="margin-top:8px; padding-top:6px; border-top:1px dashed var(--border);">`;
+      if (pos.length) {
+        html += `<div style="font-size:11px; color:var(--muted); margin-bottom:2px;">视觉指令（正向）</div>`;
+        html += `<div style="font-size:11px; line-height:1.5;">${pos.slice(0,4).map(escapeHtml).join('；')}</div>`;
+      }
+      if (neg.length) {
+        html += `<div style="font-size:11px; color:var(--muted); margin-top:6px; margin-bottom:2px;">规避</div>`;
+        html += `<div style="font-size:11px; line-height:1.5; color:#b91c1c;">${neg.slice(0,4).map(escapeHtml).join('、')}</div>`;
+      }
+      html += `</div>`;
+    }
+  }
+
+  html += `</div>`;
+  container.insertAdjacentHTML('beforeend', html);
+}
+
+/* ── 生成相关 ── */
+async function generateSelectedNode(count) {
+  if (!state.selectedNodeId) { toast('请先选中一个节点'); return; }
+  await triggerGenerate(state.selectedNodeId, count);
+}
+
+async function triggerGenerate(nodeId, count) {
+  setBottomStatus('调用生成...');
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/generate`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ count }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    toast('已入队 → 持续生成');
+    pollBatch(data.batch_id);
+    // 本地先标记为 generating 以改善体验
+    const node = state.nodes.find(n => n.node_id === nodeId);
+    if (node) { node.status = 'generating'; renderCanvas(); if (nodeId === state.selectedNodeId) renderRightPanel(node); }
+  } catch (e) {
+    toast('生成失败: ' + e.message); setBottomStatus('失败');
+  }
+}
+
+async function generateFrame(frameId) {
+  setBottomStatus('批量生成中...');
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/frame/${frameId}/generate-all`, { method: 'POST' });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    toast(`已入队 ${data.triggered_nodes} 个节点`);
+    (data.batch_ids || []).forEach(pollBatch);
+  } catch (e) {
+    toast('批量生成失败: ' + e.message);
+  }
+}
+
+async function generateAllFrames() {
+  if (!state.frames.length) { toast('请先编译一个 plan'); return; }
+  for (const f of state.frames) {
+    await generateFrame(f.frame_id);
+  }
+}
+
+function pollBatch(batchId) {
+  const t = setInterval(async () => {
+    try {
+      const r = await fetch(`/growth-lab/api/workspace/batch/${batchId}/status`);
+      if (!r.ok) { clearInterval(t); state.pollTimers.delete(t); return; }
+      const data = await r.json();
+      setBottomStatus(`生成 ${data.done}/${data.total} ${data.progress_pct || 0}%`);
+      if (data.status === 'done' || data.status === 'partial' || data.status === 'failed') {
+        clearInterval(t); state.pollTimers.delete(t);
+        if (state.planId) await loadPlan(state.planId);
+        setBottomStatus('就绪');
+      } else {
+        // 更新节点缩略图（中途刷新）
+        if (state.planId) await refreshVariantsOnly();
+      }
+    } catch (e) { /* 忽略网络抖动 */ }
+  }, 2500);
+  state.pollTimers.add(t);
+}
+
+async function refreshVariantsOnly() {
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/plan/${state.planId}`);
+    if (!r.ok) return;
+    const data = await r.json();
+    state.nodes = data.nodes || [];
+    state.variantsByNode = data.variants_by_node || {};
+    renderCanvas();
+    const sel = state.nodes.find(n => n.node_id === state.selectedNodeId);
+    if (sel) renderRightPanel(sel);
+  } catch (e) {}
+}
+
+/* ── 竞品节点特殊面板 ── */
+function renderCompetitorPanel(node) {
+  const variantsEl = document.getElementById('node-variants');
+  const analysis = (node.extra || {}).competitor_analysis;
+  const prevUrl = (node.extra || {}).competitor_image_url || '';
+  variantsEl.innerHTML = `
+    <div style="font-size:11.5px; line-height:1.5;">
+      <div style="font-weight:700; margin-bottom:4px;">竞品主图拆解（32 维度）</div>
+      <input id="comp-url-input" placeholder="粘贴竞品主图 URL" value="${escapeHtml(prevUrl)}"
+        style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:11.5px; background:var(--bg); outline:none;" />
+      <button class="btn btn-primary btn-sm" style="margin-top:6px;" onclick="runCompetitorDeconstruct('${node.node_id}')">运行拆解</button>
+    </div>
+    ${renderCompetitorAnalysis(analysis)}
+  `;
+}
+
+function renderCompetitorAnalysis(a) {
+  if (!a) return '<div style="color:var(--muted); font-size:11px; margin-top:8px;">未运行拆解</div>';
+  const groups = [
+    ['构图与色彩', a.composition_color || {}],
+    ['展示与文案', a.display_copy || {}],
+    ['背景与氛围', a.background_mood || {}],
+    ['场景与品质', a.scene_quality || {}],
+  ];
+  const groupsHtml = groups.map(([title, kv]) => {
+    const items = Object.entries(kv).map(([k, v]) =>
+      `<div style="display:flex; gap:6px; line-height:1.4;"><span style="color:var(--muted); min-width:68px;">${escapeHtml(k)}</span><span>${escapeHtml(v || '—')}</span></div>`
+    ).join('');
+    return `
+      <div style="margin-top:8px; padding:8px; border:1px solid var(--border); border-radius:6px;">
+        <div style="font-size:11px; font-weight:700; color:var(--primary); margin-bottom:4px;">${title}</div>
+        <div style="font-size:11px;">${items}</div>
+      </div>
+    `;
+  }).join('');
+  return `
+    ${a.summary ? `<div style="margin-top:8px; padding:8px; background: var(--primary-light); border-radius:6px; font-size:11.5px; line-height:1.4;"><b>一句话：</b>${escapeHtml(a.summary)}</div>` : ''}
+    ${groupsHtml}
+    ${(a.borrow_ideas && a.borrow_ideas.length) ? `<div style="margin-top:8px; font-size:11px;"><b style="color:var(--accent-pos);">可借鉴：</b>${(a.borrow_ideas || []).map(escapeHtml).join('；')}</div>` : ''}
+    ${(a.avoid_ideas && a.avoid_ideas.length) ? `<div style="margin-top:4px; font-size:11px;"><b style="color:var(--accent-neg);">应规避：</b>${(a.avoid_ideas || []).map(escapeHtml).join('；')}</div>` : ''}
+  `;
+}
+
+async function runCompetitorDeconstruct(nodeId) {
+  const url = (document.getElementById('comp-url-input') || {}).value || '';
+  if (!url.trim()) { toast('请先填入竞品图 URL'); return; }
+  setBottomStatus('竞品拆解中…');
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/deconstruct-competitor`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ image_url: url }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    toast(data.analysis?.note ? '已拆解（降级模式）' : '已拆解');
+    // 更新本地 state 并重新渲染
+    const node = state.nodes.find(n => n.node_id === nodeId);
+    if (node) {
+      node.extra = node.extra || {};
+      node.extra.competitor_analysis = data.analysis;
+      node.extra.competitor_image_url = url;
+      node.status = 'reviewed';
+      renderCanvas();
+      renderRightPanel(node);
+    }
+    setBottomStatus('就绪');
+  } catch (e) {
+    toast('拆解失败: ' + e.message); setBottomStatus('失败');
+  }
+}
+
+/* ── AI 建议 / 对话编辑 / 提案 ── */
+async function refreshSuggestions(useLLM) {
+  const nodeId = state.selectedNodeId;
+  const el = document.getElementById('suggestions-list');
+  if (!nodeId) { el.innerHTML = `<div style="color:var(--muted); font-size:12px;">选中节点后会自动生成。</div>`; return; }
+  el.innerHTML = `<div style="color:var(--muted); font-size:12px;">${useLLM ? 'LLM 生成中…' : '加载中…'}</div>`;
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/suggest-actions?use_llm=${useLLM ? 1 : 0}`);
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    const actions = data.actions || [];
+    if (!actions.length) { el.innerHTML = `<div style="color:var(--muted); font-size:12px;">暂无建议</div>`; return; }
+    el.innerHTML = actions.map((a, i) => `
+      <div style="padding:8px; border:1px solid var(--border); border-radius:6px; display:flex; flex-direction:column; gap:4px;">
+        <div style="font-size:12px; font-weight:700;">${escapeHtml(a.label || '')}</div>
+        <div style="font-size:11px; color:var(--muted); line-height:1.4;">${escapeHtml(a.intent || '')}</div>
+        <div style="display:flex; gap:4px; margin-top:2px;">
+          <button class="btn btn-primary btn-sm" onclick="applySuggestion(${i})">执行</button>
+          <button class="btn btn-ghost btn-sm" onclick="useSuggestionAsPrompt(${i})">填入对话</button>
+        </div>
+      </div>
+    `).join('');
+    window._lastSuggestions = actions;
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--accent-neg); font-size:11px;">加载失败：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function applySuggestion(idx) {
+  const a = (window._lastSuggestions || [])[idx];
+  if (!a) return;
+  const nodeId = state.selectedNodeId;
+  if (a.type === 'generate') {
+    await triggerGenerate(nodeId, 1);
+    return;
+  }
+  // refine/copy_rewrite/replace_scene → 走提案链路
+  document.getElementById('copilot-input').value = a.intent;
+  await proposeEdit();
+}
+
+function useSuggestionAsPrompt(idx) {
+  const a = (window._lastSuggestions || [])[idx];
+  if (!a) return;
+  document.getElementById('copilot-input').value = a.intent;
+  document.getElementById('copilot-input').focus();
+}
+
+async function proposeEdit() {
+  const nodeId = state.selectedNodeId;
+  if (!nodeId) return;
+  const text = document.getElementById('copilot-input').value.trim();
+  if (!text) { toast('请先输入指令'); return; }
+  const btn = document.getElementById('btn-propose');
+  btn.disabled = true; btn.textContent = '生成提案中…';
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/propose-edit`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_prompt: text }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    const p = data.proposal || {};
+    renderProposal(nodeId, p);
+  } catch (e) {
+    toast('提案失败: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '生成提案';
+  }
+}
+
+function renderProposal(nodeId, p) {
+  const el = document.getElementById('copilot-proposal');
+  if (!p || (!p.summary && !p.prompt_delta && !p.copy_delta)) {
+    el.innerHTML = `<div style="color:var(--muted); font-size:11px;">无可用提案</div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div style="padding:8px; border:1px dashed var(--primary); border-radius:6px; background: var(--primary-light); font-size:11.5px; line-height:1.5;">
+      <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">执行提案</div>
+      ${p.summary ? `<div style="margin-bottom:4px;">${escapeHtml(p.summary)}</div>` : ''}
+      ${p.prompt_delta ? `<div style="color:var(--muted);"><b>prompt 调整：</b>${escapeHtml(truncate(p.prompt_delta, 140))}</div>` : ''}
+      ${p.copy_delta ? `<div style="color:var(--muted);"><b>文案调整：</b>${escapeHtml(truncate(p.copy_delta, 80))}</div>` : ''}
+      ${p.risk ? `<div style="color:var(--accent-warn); margin-top:4px;">⚠ ${escapeHtml(p.risk)}</div>` : ''}
+      <div style="display:flex; gap:4px; margin-top:6px;">
+        <button class="btn btn-primary btn-sm" onclick='applyProposal("${nodeId}", ${JSON.stringify(p).replace(/'/g, "&#39;")})'>采纳并生成</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('copilot-proposal').innerHTML = ''">忽略</button>
+      </div>
+    </div>
+  `;
+}
+
+async function applyProposal(nodeId, proposal) {
+  const p = typeof proposal === 'string' ? JSON.parse(proposal) : proposal;
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/apply-proposal`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        prompt_delta: p.prompt_delta || '',
+        copy_delta: p.copy_delta || '',
+        generate_count: 1,
+      }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    toast('已采纳，生成中…');
+    pollBatch(data.batch_id);
+    document.getElementById('copilot-input').value = '';
+    document.getElementById('copilot-proposal').innerHTML = '';
+    // 本地 node 状态更新
+    const node = state.nodes.find(n => n.node_id === nodeId);
+    if (node) { node.status = 'generating'; renderCanvas(); if (nodeId === state.selectedNodeId) renderRightPanel(node); }
+  } catch (e) { toast('应用提案失败: ' + e.message); }
+}
+
+async function editActiveVariant() {
+  return editVariantFrom(state.selectedNodeId, '');
+}
+
+async function editVariantFrom(nodeId, baseVariantId) {
+  if (!nodeId) { toast('请先选中一个节点'); return; }
+  const text = document.getElementById('copilot-input').value.trim();
+  if (!text) { toast('请先输入调整指令'); return; }
+  const btn = document.getElementById('btn-edit-variant');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '微调中…'; }
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/edit-variant`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        user_prompt: text,
+        base_variant_id: baseVariantId || '',
+        count: 1,
+      }),
+    });
+    if (!r.ok) {
+      const errTxt = await r.text();
+      throw new Error(errTxt || '微调请求失败');
+    }
+    const data = await r.json();
+    toast('已入队微调（img2img）');
+    pollBatch(data.batch_id);
+    document.getElementById('copilot-input').value = '';
+    const node = state.nodes.find(n => n.node_id === nodeId);
+    if (node) { node.status = 'generating'; renderCanvas(); if (nodeId === state.selectedNodeId) renderRightPanel(node); }
+  } catch (e) {
+    toast('微调失败：' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = orig || '微调当前图'; }
+  }
+}
+
+async function setActiveVariant(nodeId, variantId) {
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}`, {
+      method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ active_variant_id: variantId, status: 'reviewed' }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    toast('已采纳');
+    await loadPlan(state.planId);
+    selectNode(nodeId);
+  } catch (e) { toast('更新失败: ' + e.message); }
+}
+
+/* ── 模板库 / 历史 ── */
+async function loadTemplates() {
+  const r = await fetch('/growth-lab/api/workspace/templates');
+  if (!r.ok) return;
+  const data = await r.json();
+  state.templates = data.items || [];
+  const el = document.getElementById('tpl-list');
+  if (!el) return;  // 模板 tab 未挂载
+  el.innerHTML = state.templates.map(t => {
+    const isExpert = t.source_kind && t.source_kind !== 'yaml_simple';
+    const badgeColor = isExpert ? '#eef5ff' : '#f3f4f6';
+    const badgeText = isExpert ? '#2563eb' : '#6b7280';
+    const sourceLabel = t.source_kind_label || (isExpert ? '专家资产' : '精简模板');
+    const sourcePath = t.source_path || '';
+    return `
+    <div style="padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;">
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        <span style="padding:1px 6px; border-radius:4px; font-size:10px; background:${badgeColor}; color:${badgeText};">${escapeHtml(sourceLabel)}</span>
+        <span style="font-size:12.5px; font-weight:700;">${escapeHtml(t.name)}</span>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:4px;">${escapeHtml(t.category)} · ${t.slot_count} 槽位 · ${escapeHtml(t.version)}</div>
+      <div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5;">${escapeHtml(truncate(t.description || '', 120))}</div>
+      ${sourcePath ? `<div style="font-size:10px; color:var(--muted); margin-top:4px; word-break:break-all;">文件：${escapeHtml(sourcePath)}</div>` : ''}
+    </div>
+  `;
+  }).join('') || `<div style="color:var(--muted); font-size:12px;">暂无模板</div>`;
+}
+
+async function loadPlans() {
+  const el = document.getElementById('plan-list');
+  el.innerHTML = `<div style="color:var(--muted); font-size:12px;">加载中…</div>`;
+  let data;
+  try {
+    const r = await fetch('/growth-lab/api/workspace/gallery?plan_limit=20&variant_limit_per_plan=24');
+    if (!r.ok) throw new Error(await r.text());
+    data = await r.json();
+  } catch (e) {
+    el.innerHTML = `<div style="color:#b91c1c; font-size:12px;">加载失败：${escapeHtml(e.message || e)}</div>`;
+    return;
+  }
+  const groups = data.groups || [];
+  if (!groups.length) {
+    // 退回到"只有 plan 元数据"的旧格式
+    try {
+      const r2 = await fetch('/growth-lab/api/workspace/plans');
+      const d2 = await r2.json();
+      if ((d2.items || []).length) {
+        el.innerHTML = (d2.items || []).map(p => `
+          <div style="padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; cursor:pointer;"
+               onclick="jumpToPlan('${p.plan_id}')">
+            <div style="font-size:12.5px; font-weight:700;">${escapeHtml(p.product_name || '(未命名)')}</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:4px;">${escapeHtml(p.plan_id.slice(0,10))} · ${p.frame_count} Frame · ${escapeHtml(p.status)} · 尚无生图</div>
+          </div>
+        `).join('');
+        return;
+      }
+    } catch (e) { /* ignore */ }
+    el.innerHTML = `<div style="color:var(--muted); font-size:12px;">暂无历史。编译一个 plan 并出图后，这里会出现缩略图。</div>`;
+    return;
+  }
+
+  const html = groups.map(g => {
+    const isCurrent = g.plan_id === state.planId;
+    const thumbs = (g.variants || []).map(v => {
+      const edit = v.mode === 'edit';
+      const active = v.is_active;
+      const tip = [
+        v.role || '',
+        v.edit_instruction ? ('微调：' + truncate(v.edit_instruction, 40)) : '',
+        v.updated_at ? ('更新：' + v.updated_at.slice(0,19).replace('T',' ')) : '',
+      ].filter(Boolean).join(' · ');
+      return `
+        <div class="gal-thumb" title="${escapeHtml(tip)}"
+             onclick="openFromGallery('${g.plan_id}', '${v.node_id}', '${v.variant_id}')"
+             style="position:relative; width:72px; height:72px; border-radius:6px; overflow:hidden; cursor:pointer; border:1px solid ${active ? 'var(--primary)' : 'var(--border)'}; flex:0 0 auto;">
+          <img src="${v.asset_url}" style="width:100%; height:100%; object-fit:cover; display:block;" />
+          ${active ? `<span style="position:absolute; top:2px; left:2px; background:var(--primary); color:#fff; font-size:9px; padding:1px 4px; border-radius:3px;">采纳</span>` : ''}
+          ${edit ? `<span style="position:absolute; top:2px; right:2px; background:#f97316; color:#fff; font-size:9px; padding:1px 4px; border-radius:3px;">微调</span>` : ''}
+        </div>
+      `;
+    }).join('');
+    return `
+      <div style="padding:10px; border:1px solid ${isCurrent ? 'var(--primary)' : 'var(--border)'}; border-radius:8px; margin-bottom:10px; background:${isCurrent ? 'var(--primary-light)' : 'var(--bg)'}">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; gap:6px;">
+          <div style="font-size:12.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(g.product_name)}</div>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); jumpToPlan('${g.plan_id}')">打开</button>
+        </div>
+        <div style="font-size:10.5px; color:var(--muted); margin-top:2px;">
+          ${escapeHtml(g.audience || '')}${g.audience ? ' · ' : ''}${escapeHtml(g.plan_id.slice(0,8))} · ${g.variant_count} 张
+          ${isCurrent ? ' · <span style="color:var(--primary); font-weight:600;">当前</span>' : ''}
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">${thumbs}</div>
+      </div>
+    `;
+  }).join('');
+  el.innerHTML = html;
+}
+
+function jumpToPlan(planId) {
+  if (planId === state.planId) return;
+  location.href = `/growth-lab/workspace?plan_id=${planId}`;
+}
+
+function openFromGallery(planId, nodeId, variantId) {
+  // 同一个 plan 内部直接局部跳转，不全页刷新
+  if (planId === state.planId) {
+    selectNode(nodeId);
+    if (variantId) {
+      const node = state.nodes.find(n => n.node_id === nodeId);
+      if (node) {
+        node.active_variant_id = variantId;
+        renderRightPanel(node);
+      }
+    }
+    scrollNodeIntoView(nodeId);
+    document.getElementById('copilot-input').focus();
+    // 切回"意图"tab，避免挡住右栏
+    switchTab('intent');
+    return;
+  }
+  const params = new URLSearchParams();
+  params.set('plan_id', planId);
+  if (nodeId) params.set('node_id', nodeId);
+  if (variantId) params.set('variant_id', variantId);
+  location.href = `/growth-lab/workspace?${params.toString()}`;
+}
+
+function scrollNodeIntoView(nodeId) {
+  const node = state.nodes.find(n => n.node_id === nodeId);
+  if (!node || !state.view) return;
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return;
+  const scale = state.view.scale || 1;
+  const cx = (node.canvas_x || 0) + (node.width || 200) / 2;
+  const cy = (node.canvas_y || 0) + (node.height || 200) / 2;
+  state.view.x = wrap.clientWidth / 2 - cx * scale;
+  state.view.y = wrap.clientHeight / 2 - cy * scale;
+  if (typeof applyTransform === 'function') applyTransform();
+  if (typeof renderMinimap === 'function') renderMinimap();
+}
+
+function openNewTask() {
+  location.href = '/growth-lab/workspace';
+}
+
+async function exportProduction() {
+  if (!state.planId) { toast('请先编译一个 plan'); return; }
+  toast('打包中...');
+  const res = await fetch(`/growth-lab/api/workspace/plan/${state.planId}/export`);
+  if (!res.ok) { toast('导出失败'); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `workspace_plan_${state.planId}.zip`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('已开始下载');
+}
+
+async function pushToAssetGraph() {
+  if (!state.planId) { toast('请先编译一个 plan'); return; }
+  if (!confirm('把 approved/reviewed 节点推送到资产图谱？')) return;
+  const res = await fetch(`/growth-lab/api/workspace/plan/${state.planId}/push-to-asset-graph`, { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) {
+    toast(`已推送 ${data.pushed_count} 个资产到图谱`);
+  } else {
+    toast('推送失败');
+  }
+}
+
+async function openReplanDialog(frameId, frameKey, currentTplId) {
+  if (!state.templates.length) {
+    await loadTemplates();
+  }
+  const catMap = {
+    main_image: 'main_image', detail: 'detail_module',
+    video_shots: 'video_shot_list', buyer_show: 'buyer_show',
+    competitor: 'competitor_deconstruct',
+  };
+  const category = catMap[frameKey];
+  const candidates = state.templates.filter(t => t.category === category);
+  if (!candidates.length) { toast('该 Frame 没有可切换的模板'); return; }
+  const lines = candidates.map((t, i) => `${i+1}. ${t.name} (${t.template_id}) ${t.template_id === currentTplId ? '[当前]' : ''}`).join('\n');
+  const input = prompt(`输入要切换的模板编号：\n\n${lines}\n\n(已生成的节点资产会按 slot 保留)`);
+  const idx = parseInt(input, 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= candidates.length) return;
+  const tpl = candidates[idx];
+  if (tpl.template_id === currentTplId) { toast('与当前模板相同'); return; }
+  toast(`切换到 ${tpl.name}...`);
+  const res = await fetch(`/growth-lab/api/workspace/frame/${frameId}/replan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_template_id: tpl.template_id, keep_assets: true }),
+  });
+  const data = await res.json();
+  if (!data.ok) { toast('换模板失败'); return; }
+  toast(`已切换：保留${data.updated} · 新增${data.created} · 归档${data.archived}`);
+  await loadPlan(state.planId);
+}
+
+async function viewFinalCard(nodeId) {
+  const res = await fetch(`/growth-lab/api/workspace/node/${nodeId}/final-card`);
+  const data = await res.json();
+  const card = data.card || {};
+  const src = card.source || {};
+  alert([
+    `最终结果卡 · ${card.title || ''}`,
+    `状态：${card.status}  类型：${card.result_type}  比例：${card.aspect_ratio}`,
+    `角色：${card.role}`,
+    card.asset_url ? `资产：${card.asset_url}` : '（尚未有 active 变体）',
+    '',
+    '溯源：',
+    `  商品：${(src.intent || {}).product_name || ''}`,
+    `  模板 Slot：${src.template_slot_ref}`,
+    `  品牌规则：${(src.brand_rule_refs || []).join(', ')}`,
+    '',
+    `变体数：${card.variant_count}`,
+  ].join('\n'));
+}
+
+function setBottomStatus(msg) { document.getElementById('ws-bottom-status').textContent = msg; }
+
+/* ── 画布交互：pan / zoom / space ── */
+function screenToWorld(sx, sy) {
+  const rect = document.getElementById('canvas-wrap').getBoundingClientRect();
+  const { x, y, scale } = state.view;
+  return { x: (sx - rect.left - x) / scale, y: (sy - rect.top - y) / scale };
+}
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !state.spaceDown) {
+    state.spaceDown = true; document.body.style.cursor = 'grab';
+  }
+  if (e.key === 'Escape') selectNode(null);
+});
+document.addEventListener('keyup', e => {
+  if (e.code === 'Space') { state.spaceDown = false; document.body.style.cursor = ''; }
+});
+
+const canvasWrap = document.getElementById('canvas-wrap');
+
+canvasWrap.addEventListener('mousedown', e => {
+  if (e.button === 1 || state.spaceDown || (e.target.id === 'canvas-svg' || e.target === getVP())) {
+    // 仅在点击空白处/按住空格/中键时触发 pan
+    const target = e.target;
+    if (!state.spaceDown && e.button !== 1) {
+      // 若点击到 node-card/frame-btn，则让它们自己处理
+      let cur = target;
+      while (cur && cur !== canvasWrap) {
+        if (cur.classList && (cur.classList.contains('node-card') || cur.classList.contains('frame-btn-bg'))) return;
+        cur = cur.parentNode;
+      }
+    }
+    state.isPanning = true;
+    state.panStart = { x: e.clientX - state.view.x, y: e.clientY - state.view.y };
+    document.body.style.cursor = 'grabbing';
+  }
+});
+
+document.addEventListener('mousemove', e => {
+  if (!state.isPanning) return;
+  state.view.x = e.clientX - state.panStart.x;
+  state.view.y = e.clientY - state.panStart.y;
+  applyTransform();
+  renderMinimap();
+});
+
+document.addEventListener('mouseup', () => {
+  if (state.isPanning) { state.isPanning = false; document.body.style.cursor = state.spaceDown ? 'grab' : ''; }
+});
+
+canvasWrap.addEventListener('wheel', e => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  zoomAt(e.clientX, e.clientY, factor);
+}, { passive: false });
+
+function zoomAt(screenX, screenY, factor) {
+  const wrap = canvasWrap.getBoundingClientRect();
+  const cx = screenX - wrap.left, cy = screenY - wrap.top;
+  const { x, y, scale } = state.view;
+  const newScale = Math.max(0.25, Math.min(4, scale * factor));
+  // 保持鼠标点位在 world 里不变
+  state.view.x = cx - (cx - x) * (newScale / scale);
+  state.view.y = cy - (cy - y) * (newScale / scale);
+  state.view.scale = newScale;
+  applyTransform();
+  renderMinimap();
+}
+
+function zoomIn() { const wrap = canvasWrap.getBoundingClientRect();
+  zoomAt(wrap.left + wrap.width/2, wrap.top + wrap.height/2, 1.2); }
+function zoomOut() { const wrap = canvasWrap.getBoundingClientRect();
+  zoomAt(wrap.left + wrap.width/2, wrap.top + wrap.height/2, 1/1.2); }
+function resetView() { state.view = { x: 0, y: 0, scale: 1 }; applyTransform(); renderMinimap(); }
+function fitToView() {
+  if (!state.nodes.length) return;
+  const xs = state.nodes.map(n => [n.canvas_x, n.canvas_x + n.width]).flat();
+  const ys = state.nodes.map(n => [n.canvas_y, n.canvas_y + n.height]).flat();
+  const minX = Math.min(...xs) - 40, maxX = Math.max(...xs) + 40;
+  const minY = Math.min(...ys) - 40, maxY = Math.max(...ys) + 40;
+  const wrap = canvasWrap.getBoundingClientRect();
+  const scale = Math.min(wrap.width / (maxX - minX), wrap.height / (maxY - minY), 1);
+  state.view.scale = Math.max(0.3, scale);
+  state.view.x = (wrap.width - (maxX - minX) * state.view.scale) / 2 - minX * state.view.scale;
+  state.view.y = (wrap.height - (maxY - minY) * state.view.scale) / 2 - minY * state.view.scale;
+  applyTransform();
+  renderMinimap();
+}
+
+/* ── 启动 ── */
+(async () => {
+  updateCopilotEmptyState(null);
+  if (state.planId) {
+    await loadPlan(state.planId);
+    // URL 携带 node_id / variant_id 时自动定位 + 选中，便于从"生图历史"跳回继续对话改图
+    if (state.initialNodeId) {
+      const node = state.nodes.find(n => n.node_id === state.initialNodeId);
+      if (node) {
+        if (state.initialVariantId) {
+          node.active_variant_id = state.initialVariantId;
+        }
+        selectNode(node.node_id);
+        scrollNodeIntoView(node.node_id);
+        const input = document.getElementById('copilot-input');
+        if (input) { input.focus(); }
+      }
+    }
+  } else if (state.specId) {
+    document.getElementById('in-spec').value = state.specId;
+  }
+})();
+</script>
+</body>
+</html>

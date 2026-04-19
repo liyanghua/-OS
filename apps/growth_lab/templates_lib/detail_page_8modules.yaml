@@ -1,0 +1,99 @@
+template_id: detail_page_8modules
+category: detail_module
+name: 商品详情页 8 模块模板
+description: |
+  来源：业务专家商品详情页策划脚本。
+  8 个模块按"吸引注意→独特设计→特殊材料→先进工艺→特别有用→特别好用→特别耐用→商品参数"展开，
+  每个模块一屏一卖点。
+version: v1
+default_brand_rules:
+  - 一屏聚焦单一卖点
+  - 品牌名加粗
+  - 避免信息过载
+slots:
+  - index: 1
+    role: 模块1 吸引注意（一屏呈现产品全貌+记忆点）
+    visual_spec: >
+      产品 45° 高清主图（浅灰底）+ 管口密封处+品牌 logo 局部特写小图。
+      主图居中，特写环绕；整屏聚焦"产品第一眼吸引力"。
+    copy_spec: 品牌名加粗 + 品类词，如"JOYRUQO 奶白管身洁面乳"
+    aspect_ratio: "3:4"
+    generation_hints:
+      - product_hero_shot
+      - brand_logo_emphasis
+    extra:
+      layout_logic: 主图居中，特写环绕；文案置主图下方
+
+  - index: 2
+    role: 模块2 独特设计（一屏呈现差异化设计爽点）
+    visual_spec: >
+      管口密封盖特写；"普通管口易积灰 vs 本产品密封管口"对比小图（左普通、右本品）。
+      特写置左，文案置右，对比图置特写下方。
+    copy_spec: 爽点关键词下划线，如"密封管口防污染"
+    aspect_ratio: "3:4"
+    generation_hints:
+      - feature_closeup
+      - comparison_mini
+
+  - index: 3
+    role: 模块3 特殊材料（一屏呈现材料安全/功能爽点）
+    visual_spec: >
+      氨基酸成分分子体质感实拍图 + 温和性检测报告截图（保留机构名+合格结论）。
+      质感图居中，报告截图半透叠放右下角。
+    copy_spec: 氨基酸表达加粗，如"氨基酸活泽和亲肤"
+    aspect_ratio: "3:4"
+    generation_hints:
+      - ingredient_texture
+      - certificate_overlay
+
+  - index: 4
+    role: 模块4 先进工艺（一屏呈现工艺效果爽点）
+    visual_spec: >
+      微泡细腻泡沫实拍图 + 工艺步骤示意图（横向排列：氨基酸提取→微泡生成→成品）。
+      步骤图横向排列，每步配 2 字说明。
+    copy_spec: 核心动作词加粗，如"提→泡→成"
+    aspect_ratio: "3:4"
+    generation_hints:
+      - process_diagram
+
+  - index: 5
+    role: 模块5 特别有用（一屏呈现核心功能爽点）
+    visual_spec: >
+      敏感肌用户使用后摸脸微笑的场景图（自然光线）。
+      突出"不紧绷"痛点（如用户手抚脸颊无紧绷表情）。
+    copy_spec: 场景图占屏 70%，关键词红色突出
+    aspect_ratio: "3:4"
+    generation_hints:
+      - user_real_scene
+      - benefit_highlight
+
+  - index: 6
+    role: 模块6 特别好用（一屏呈现使用便捷爽点）
+    visual_spec: >
+      使用步骤实拍（挤膏→起泡→冲洗，纵向 3 张）。
+      每张图配箭头标注顺序。
+    copy_spec: 核心动作词，如"起泡""清洗"加粗
+    aspect_ratio: "3:4"
+    generation_hints:
+      - step_by_step
+
+  - index: 7
+    role: 模块7 特别耐用（一屏呈现耐用性爽点）
+    visual_spec: >
+      本产品少量膏体 vs 普通洗面奶大量膏体对比图（黄豆大小 vs 大堆）。
+      用量省测试数据图表（折线图展示单次用量少）。
+    copy_spec: 测试数据"黄豆大小"大号字突出
+    aspect_ratio: "3:4"
+    generation_hints:
+      - quantity_comparison
+      - data_visualization
+
+  - index: 8
+    role: 模块8 商品参数（一屏呈现核心参数）
+    visual_spec: >
+      2 列参数表格（左名右值，细灰边框），白底黑字小字（≥12号）。
+      右上角加"参数详情"链接。
+    copy_spec: 规格 100g/支；材质氨基酸表活；适用肤质敏感/干/中性；净含量 100ml
+    aspect_ratio: "3:4"
+    generation_hints:
+      - parameter_table

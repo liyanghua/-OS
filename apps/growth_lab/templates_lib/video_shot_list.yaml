@@ -1,0 +1,125 @@
+template_id: video_shot_list
+category: video_shot_list
+name: 视频分镜表模板
+description: |
+  来源：业务专家视频拆解框架。
+  行级结构：序号 | 关键帧预览 | 标题 | 类别 | 真人出镜 | 景别 | 运镜 |
+  画面内容 | 拍摄指导 | 画面文案/花字 | 口播/台词 | 音乐/BGM
+  N 个镜头按脚本叙事顺序展开；此处先定义一个 12 镜头默认框架，可由 compiler 扩展。
+version: v1
+default_brand_rules:
+  - 出镜人物与商品保持一致
+  - 每镜头时长不超过 3 秒
+slots:
+  - index: 1
+    role: 镜头1 场景开启
+    visual_spec: 男子背身出门展示穿搭全景，跟拍侧后方；低机位 1.2m 高度
+    copy_spec: "口播：好帅啊！今天这套装好棒啊"
+    aspect_ratio: "9:16"
+    extra:
+      category: 外观样式
+      real_person: true
+      shot_size: 全景
+      camera_move: 跟拍侧后方
+      bgm: 轻快流行 BGM + 开门音效
+
+  - index: 2
+    role: 镜头2 克服瓶颈痛点
+    visual_spec: 男子弯腰从黑色纸盒拿出奶白色膏体，动作显露尝试感
+    aspect_ratio: "9:16"
+    extra:
+      category: 外观样式
+      shot_size: 中景
+      camera_move: 固定机位
+
+  - index: 3
+    role: 镜头3 喷发整理发型
+    visual_spec: 男子早景色整理头发，微笑微动镜头
+    aspect_ratio: "9:16"
+    extra:
+      category: 产品点
+      shot_size: 中近景
+      camera_move: 固定机位
+
+  - index: 4
+    role: 镜头4 展示手部配件与比赞
+    visual_spec: 男子右手持膏体，左手伸出显露腕表"比赞"手势
+    aspect_ratio: "9:16"
+    extra:
+      category: 产品点
+      shot_size: 近景
+      camera_move: 微推
+
+  - index: 5
+    role: 镜头5 指信口气调剂色相节
+    visual_spec: 男子指色态拉起，展示得体气质随后拉起衣物
+    aspect_ratio: "9:16"
+    extra:
+      category: 外观样式
+      shot_size: 特写+中景
+      camera_move: 固定+微摇
+
+  - index: 6
+    role: 镜头6 揭示内里颗粒织纹质
+    visual_spec: 男子拉开夹克内里，手指向内片展示夹棉纹质
+    aspect_ratio: "9:16"
+    extra:
+      category: 成分材质
+      shot_size: 中景
+      camera_move: 固定机位
+
+  - index: 7
+    role: 镜头7 整体造型展示与转体
+    visual_spec: 整身造型展示；转体 180° 展示挂装
+    aspect_ratio: "9:16"
+    extra:
+      category: 外观样式
+      shot_size: 全景
+      camera_move: 摇镜（水平 180°）
+
+  - index: 8
+    role: 镜头8 指向品牌信息并笑谈
+    visual_spec: 男子指向手机展示内页，笑意融合动作体现
+    aspect_ratio: "9:16"
+    extra:
+      category: 商品信息
+      shot_size: 中景
+      camera_move: 固定机位
+
+  - index: 9
+    role: 镜头9 拉链开合演示功能
+    visual_spec: 男子双手操作拉链，先后开关至整体，再缓慢拉到整个位
+    aspect_ratio: "9:16"
+    extra:
+      category: 产品点
+      shot_size: 中景
+      camera_move: 固定机位
+
+  - index: 10
+    role: 镜头10 报价回回归
+    visual_spec: 男子手持报价单，笑容展开示报价信息
+    aspect_ratio: "9:16"
+    extra:
+      category: 价格信息
+      shot_size: 中景
+      camera_move: 固定机位
+
+  - index: 11
+    role: 镜头11 双手交展示版型
+    visual_spec: 男子双手平举服装展示正面版型
+    aspect_ratio: "9:16"
+    extra:
+      category: 外观样式
+      shot_size: 中景
+      camera_move: 固定机位
+
+  - index: 12
+    role: 镜头12 行动号召
+    visual_spec: 男子正面朝镜头微笑示意，右手比心手势
+    copy_spec: "口播：点击下单，拥有同款！"
+    aspect_ratio: "9:16"
+    extra:
+      category: 号召
+      shot_size: 中近景
+      camera_move: 固定机位
+      bgm: 结束版 BGM 渐弱

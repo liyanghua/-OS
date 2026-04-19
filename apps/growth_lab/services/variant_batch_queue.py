@@ -58,12 +58,15 @@ def _real_generate(variant: dict) -> str:
 
         spec = variant.get("image_variant_spec", {})
         ref_urls = spec.get("reference_image_urls") or []
+        raw_mode = str(spec.get("mode", "generate") or "generate").lower()
+        mode = "edit" if raw_mode == "edit" else "generate"
         prompt = ImagePrompt(
             slot_id=variant.get("variant_id", "unknown"),
             prompt=spec.get("base_prompt", ""),
             negative_prompt=spec.get("negative_prompt", ""),
             size=spec.get("size", "1024*1024"),
             ref_image_url=ref_urls[0] if ref_urls else "",
+            mode=mode,
         )
         provider_hint = spec.get("provider_hint", "auto")
         opp_id = variant.get("source_opportunity_id", "") or "growth_lab"

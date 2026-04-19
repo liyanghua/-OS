@@ -154,6 +154,48 @@ class GrowthLabStore:
                     payload_json TEXT NOT NULL
                 )
             """)
+            # ── 视觉工作台（无限画布）新增表 ──
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_plans (
+                    plan_id TEXT PRIMARY KEY,
+                    source_spec_id TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'draft',
+                    workspace_id TEXT NOT NULL DEFAULT '',
+                    brand_id TEXT NOT NULL DEFAULT '',
+                    payload_json TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_frames (
+                    frame_id TEXT PRIMARY KEY,
+                    plan_id TEXT NOT NULL DEFAULT '',
+                    frame_key TEXT NOT NULL DEFAULT '',
+                    template_id TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'draft',
+                    payload_json TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_nodes (
+                    node_id TEXT PRIMARY KEY,
+                    plan_id TEXT NOT NULL DEFAULT '',
+                    frame_id TEXT NOT NULL DEFAULT '',
+                    slot_index INTEGER NOT NULL DEFAULT 0,
+                    result_type TEXT NOT NULL DEFAULT 'main_image',
+                    status TEXT NOT NULL DEFAULT 'draft',
+                    active_variant_id TEXT NOT NULL DEFAULT '',
+                    payload_json TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_variants (
+                    variant_id TEXT PRIMARY KEY,
+                    node_id TEXT NOT NULL DEFAULT '',
+                    asset_url TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    payload_json TEXT NOT NULL
+                )
+            """)
             conn.commit()
 
     # ── 通用 CRUD ──────────────────────────────────────────────
@@ -388,3 +430,95 @@ class GrowthLabStore:
 
     def list_expert_annotations(self, **kwargs: Any) -> list[dict]:
         return self._list_all("expert_annotations", **kwargs)
+
+    # ── 视觉工作台 CRUD ───────────────────────────────────────
+
+    def save_workspace_plan(self, p: dict) -> None:
+        self._upsert("workspace_plans", "plan_id", p["plan_id"], {
+            "source_spec_id": (p.get("intent") or {}).get("source_spec_id", ""),
+            "status": p.get("status", "draft"),
+            "workspace_id": p.get("workspace_id", ""),
+            "brand_id": p.get("brand_id", ""),
+        }, p)
+
+    def get_workspace_plan(self, plan_id: str) -> dict | None:
+        return self._get_one("workspace_plans", "plan_id", plan_id)
+
+    def list_workspace_plans(self, **kwargs: Any) -> list[dict]:
+        return self._list_all("workspace_plans", **kwargs)
+
+    def save_workspace_frame(self, f: dict) -> None:
+        self._upsert("workspace_frames", "frame_id", f["frame_id"], {
+            "plan_id": f.get("plan_id", ""),
+            "frame_key": f.get("frame_key", ""),
+            "template_id": f.get("template_id", ""),
+            "status": f.get("status", "draft"),
+        }, f)
+
+    def get_workspace_frame(self, frame_id: str) -> dict | None:
+        return self._get_one("workspace_frames", "frame_id", frame_id)
+
+    def list_workspace_frames(self, plan_id: str) -> list[dict]:
+        return self._list_all(
+            "workspace_frames",
+            where={"plan_id": plan_id},
+            order_by="rowid ASC",
+            limit=100,
+        )
+
+    def save_workspace_node(self, n: dict) -> None:
+        self._upsert("workspace_nodes", "node_id", n["node_id"], {
+            "plan_id": n.get("plan_id", ""),
+            "frame_id": n.get("frame_id", ""),
+            "slot_index": int(n.get("slot_index", 0) or 0),
+            "result_type": n.get("result_type", "main_image"),
+            "status": n.get("status", "draft"),
+            "active_variant_id": n.get("active_variant_id", ""),
+        }, n)
+
+    def get_workspace_node(self, node_id: str) -> dict | None:
+        return self._get_one("workspace_nodes", "node_id", node_id)
+
+    def list_workspace_nodes(self, plan_id: str | None = None, frame_id: str | None = None) -> list[dict]:
+        where: dict[str, Any] = {}
+        if plan_id:
+            where["plan_id"] = plan_id
+        if frame_id:
+            where["frame_id"] = frame_id
+        return self._list_all(
+            "workspace_nodes",
+            where=where or None,
+            order_by="slot_index ASC, rowid ASC",
+            limit=1000,
+        )
+
+    def save_workspace_variant(self, v: dict) -> None:
+        self._upsert("workspace_variants", "variant_id", v["variant_id"], {
+            "node_id": v.get("node_id", ""),
+            "asset_url": v.get("asset_url", ""),
+            "status": v.get("status", "pending"),
+        }, v)
+
+    def get_workspace_variant(self, variant_id: str) -> dict | None:
+        return self._get_one("workspace_variants", "variant_id", variant_id)
+
+    def list_workspace_variants(self, node_id: str) -> list[dict]:
+        return self._list_all(
+            "workspace_variants",
+            where={"node_id": node_id},
+            order_by="rowid ASC",
+            limit=200,
+        )
+
+    def delete_workspace_plan_cascade(self, plan_id: str) -> None:
+        """删除计划及其所有 frame / node / variant。"""
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM workspace_variants WHERE node_id IN "
+                "(SELECT node_id FROM workspace_nodes WHERE plan_id = ?)",
+                (plan_id,),
+            )
+            conn.execute("DELETE FROM workspace_nodes WHERE plan_id = ?", (plan_id,))
+            conn.execute("DELETE FROM workspace_frames WHERE plan_id = ?", (plan_id,))
+            conn.execute("DELETE FROM workspace_plans WHERE plan_id = ?", (plan_id,))
+            conn.commit()

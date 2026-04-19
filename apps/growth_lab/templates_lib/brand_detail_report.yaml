@@ -1,0 +1,83 @@
+template_id: brand_detail_report
+category: brand_detail_report
+name: 品牌级详情页策划报告
+description: |
+  来源：业务专家洁面乳品牌详情页策划报告。
+  表格形式展示 9 个模块：首屏海报→核心卖点展示→功能演示→材质特写→使用场景→人物互动→品牌故事→信任背书→规格参数。
+  每模块包含：主标题/副标题/视觉重点描述/对应卖点。
+version: v1
+default_brand_rules:
+  - 保持高端调性
+  - 品牌符号贯穿
+slots:
+  - index: 1
+    role: 首屏海报
+    visual_spec: 产品主图置于高光级洗手台场景，结合黑白墙面背景与品牌视觉符号
+    copy_spec: "主标题：品牌名.产品名；副标题：直击品牌定位一句话"
+    aspect_ratio: "3:4"
+    extra:
+      mapped_selling_point: 高端品牌与品牌符号辨识度
+
+  - index: 2
+    role: 核心卖点展示
+    visual_spec: 品牌历史/奢侈品感/系列视觉资产结合；画面强调独家材料与品牌气质
+    copy_spec: 主副标题呼应，引出识别度
+    aspect_ratio: "3:4"
+    extra:
+      mapped_selling_point: 品牌识别度与品质感高级
+
+  - index: 3
+    role: 功能演示
+    visual_spec: 乳状洁面演示场景，清洁日常污垢的转化过程（泡沫上脸→按摩→冲洗）
+    copy_spec: 细腻起泡、温和改善
+    aspect_ratio: "3:4"
+    extra:
+      mapped_selling_point: 乳状泡沫体验
+
+  - index: 4
+    role: 材质特写
+    visual_spec: 光泽质感管身配光泽黑墨，从氨基、开盖到视觉，每步都有讲究
+    copy_spec: 放入洗手盆，就有讲究
+    aspect_ratio: "3:4"
+    extra:
+      mapped_selling_point: 包装材质与仪式感
+
+  - index: 5
+    role: 使用场景
+    visual_spec: 早晨清晨开启状态；夜晚洗去疲惫感；让基础护肤也成为属于自己的仪式
+    copy_spec: 日常仪式与居家仪式感
+    aspect_ratio: "3:4"
+    extra:
+      mapped_selling_point: 日常仪式感情绪价值
+
+  - index: 6
+    role: 人物互动
+    visual_spec: 精致生活，不止体现在妆容之后；对于重视形象与生活品质的都市女性
+    copy_spec: 新锐白领女性高要求浴室场景
+    aspect_ratio: "3:4"
+    extra:
+      mapped_selling_point: 生活方式身份表达
+
+  - index: 7
+    role: 品牌故事
+    visual_spec: 从品牌符号到识别叙事，都是品牌的表达；将产品从基础清洁升级为可感知的日常护肤仪式
+    copy_spec: 品牌故事视觉语言、系列产品资产
+    aspect_ratio: "3:4"
+    extra:
+      mapped_selling_point: 品牌历史奢华背书
+
+  - index: 8
+    role: 信任背书
+    visual_spec: 全球高端美妆品牌认证/高端资产可直接感知的包装与使用场景，共同构成安心感
+    copy_spec: 品牌权威信任、系列产品系列；官方资本渠道直属
+    aspect_ratio: "3:4"
+    extra:
+      mapped_selling_point: 品牌背书与可信度
+
+  - index: 9
+    role: 规格参数
+    visual_spec: 产品信息一目了然；主副标题呼应产品形态与使用方式
+    copy_spec: 产品名称.品类.品牌商历史.使用贴心建议.容量与包装清晰讲解
+    aspect_ratio: "3:4"
+    extra:
+      mapped_selling_point: 产品全貌与购买决策支持

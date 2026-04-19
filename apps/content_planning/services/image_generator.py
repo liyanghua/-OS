@@ -10,7 +10,7 @@ import time
 import urllib.request
 import uuid
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
 
@@ -47,6 +47,10 @@ class ImagePrompt(BaseModel):
     negative_prompt: str = ""
     size: str = "1024*1024"
     ref_image_url: str = Field(default="", description="参考图 URL（原始笔记封面等），非空时启用参考图模式")
+    mode: Literal["generate", "edit"] = Field(
+        default="generate",
+        description="generate=常规文生图/参考图生成；edit=以 ref_image_url 为底图的图生图微调（保构图）",
+    )
 
 
 class ImageResult(BaseModel):
@@ -247,11 +251,20 @@ class ImageGeneratorService:
                         prompt.slot_id, self._openrouter_model, bool(prompt.ref_image_url), len(safe_prompt))
 
             if prompt.ref_image_url:
-                text_instruction = (
-                    "Using the attached image as a style and composition reference, "
-                    "generate a new beautiful photograph or illustration for a lifestyle post.\n\n"
-                    f"Scene description: {safe_prompt}"
-                )
+                if prompt.mode == "edit":
+                    text_instruction = (
+                        "Edit the attached image according to the instruction. "
+                        "Preserve overall composition, subject identity, pose, camera angle, "
+                        "product details and background layout unless explicitly asked to change. "
+                        "Only modify what the instruction requests.\n\n"
+                        f"Instruction: {safe_prompt}"
+                    )
+                else:
+                    text_instruction = (
+                        "Using the attached image as a style and composition reference, "
+                        "generate a new beautiful photograph or illustration for a lifestyle post.\n\n"
+                        f"Scene description: {safe_prompt}"
+                    )
                 if safe_negative:
                     text_instruction += f"\n\nPlease avoid: {safe_negative}"
                 _prompt_sent = text_instruction

@@ -1,0 +1,78 @@
+template_id: buyer_show_scenes
+category: buyer_show
+name: 买家秀 8 张场景风格库
+description: |
+  来源：业务专家洗面奶买家秀图片生成提示词。
+  面向女性 18-29 岁人群；8 张宽高比 3:4 的买家秀图片。
+  场景库"电商场景风格库"，每张图对应一种场景/风格。
+version: v1
+default_brand_rules:
+  - 真实生活感优先
+  - 避免过度美化
+  - 人物特征自然
+slots:
+  - index: 1
+    role: 产品特写买家秀
+    visual_spec: >
+      近距离展示产品正面，突出产品细节和卖点。
+      人物特征：25-30 岁中国都市白领女性，干练简约风格。
+      光线：清晨柔和自然光。
+    copy_spec: ""
+    aspect_ratio: "3:4"
+    generation_hints:
+      - macro_closeup
+      - natural_light
+
+  - index: 2
+    role: 使用场景买家秀
+    visual_spec: >
+      产品正在被使用的自然状态。
+      环境：中国现代简约风公寓，灰白色调，简洁线条。
+      典型元素：简约床品、木质茶几、收纳架、绿植点缀。
+    aspect_ratio: "3:4"
+    generation_hints:
+      - product_in_use
+      - home_scene
+
+  - index: 3
+    role: 整体搭配买家秀
+    visual_spec: 产品与中国家居环境搭配的全景效果，穿着纯色家居服或简约睡衣
+    aspect_ratio: "3:4"
+    generation_hints:
+      - lifestyle_wide
+
+  - index: 4
+    role: 细节展示买家秀
+    visual_spec: 产品的材质、工艺、细节特写；傍晚暖色落地灯光
+    aspect_ratio: "3:4"
+    generation_hints:
+      - texture_detail
+      - warm_light
+
+  - index: 5
+    role: 生活氛围买家秀
+    visual_spec: 产品融入中国人日常生活场景；干净利落品质感；轻熟风
+    aspect_ratio: "3:4"
+    generation_hints:
+      - lifestyle_candid
+
+  - index: 6
+    role: 手持展示买家秀
+    visual_spec: 亚洲人手持产品的自然姿态，面部特征真实自然
+    aspect_ratio: "3:4"
+    generation_hints:
+      - hand_holding
+
+  - index: 7
+    role: 侧面角度买家秀
+    visual_spec: 从不同角度展示产品，结合环境层次
+    aspect_ratio: "3:4"
+    generation_hints:
+      - angle_variation
+
+  - index: 8
+    role: 情境故事买家秀
+    visual_spec: 展示产品使用的生活场景故事感，包含微妙情绪
+    aspect_ratio: "3:4"
+    generation_hints:
+      - emotional_story

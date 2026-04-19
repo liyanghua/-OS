@@ -151,7 +151,45 @@
     /* references */
     .ref-section { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
     .ref-section h5 { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
-    .ref-item { padding: 6px 8px; background: var(--bg); border-radius: 6px; margin-bottom: 4px; font-size: 12px; line-height: 1.5; }
+    .ref-card { display: flex; gap: 8px; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
+    .ref-card .ref-thumb { width: 44px; height: 44px; border-radius: 6px; background: var(--surface-2, #f0f0f0); flex: 0 0 44px; object-fit: cover; display:flex; align-items:center; justify-content:center; font-size:18px; color: var(--muted); }
+    .ref-card .ref-body { flex: 1; min-width: 0; }
+    .ref-card .ref-title { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.4; word-break: break-word; }
+    .ref-card .ref-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.5; word-break: break-word; }
+    .ref-card .ref-meta { display:flex; gap:6px; margin-top:4px; flex-wrap:wrap; font-size:10.5px; color: var(--muted); }
+    .ref-card .ref-badge { background: var(--surface-2, #eef1f6); padding: 1px 6px; border-radius: 4px; }
+    .ref-card .ref-badge.source { background: #eef4ff; color: #3061e6; }
+    .ref-card .ref-badge.metric { background: #ecf9f1; color: #0f9d58; }
+    .ref-card.clickable { cursor: pointer; transition: border-color .15s, transform .15s; }
+    .ref-card.clickable:hover { border-color: var(--primary); transform: translateY(-1px); }
+
+    /* reference modal */
+    .ref-modal-backdrop {
+      position: fixed; inset: 0; background: rgba(15,20,40,.55);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999; opacity: 0; pointer-events: none; transition: opacity .15s;
+    }
+    .ref-modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .ref-modal {
+      background: var(--surface); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+      width: min(520px, 92vw); max-height: 84vh; overflow: hidden; position: relative;
+      display: flex; flex-direction: column;
+    }
+    .ref-modal-close {
+      position: absolute; top: 10px; right: 12px; width: 28px; height: 28px; border: none;
+      background: transparent; color: var(--muted); cursor: pointer; font-size: 18px; border-radius: 4px;
+    }
+    .ref-modal-close:hover { background: var(--bg); color: var(--ink); }
+    .ref-modal-cover { width: 100%; aspect-ratio: 16/9; background: var(--bg); display:flex; align-items:center; justify-content:center; font-size: 42px; color: var(--muted); }
+    .ref-modal-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ref-modal-body { padding: 16px 20px 20px; overflow-y: auto; }
+    .ref-modal-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 6px; padding-right: 32px; }
+    .ref-modal-sub { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin-bottom: 12px; }
+    .ref-modal-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .ref-modal-row { display: flex; gap: 10px; font-size: 12px; margin-bottom: 6px; line-height: 1.5; }
+    .ref-modal-row .k { color: var(--muted); min-width: 64px; flex: 0 0 64px; }
+    .ref-modal-row .v { color: var(--ink); flex: 1; word-break: break-word; }
+    .ref-modal-actions { margin-top: 12px; display: flex; gap: 8px; }
 
     /* opportunity detail modal */
     .opp-modal-backdrop {
@@ -275,6 +313,7 @@
   <span class="brand">增长实验室</span>
   <a href="/growth-lab/radar">热点雷达</a>
   <a href="/growth-lab/compiler" class="active">卖点编译器</a>
+  <a href="/growth-lab/workspace">视觉工作台</a>
   <a href="/growth-lab/lab">主图工作台</a>
   <a href="/growth-lab/first3s">前3秒工作台</a>
   <a href="/growth-lab/board">测试放大板</a>
@@ -380,6 +419,13 @@
   <div class="opp-modal">
     <button class="opp-modal-close" onclick="closeOppDetail()">&times;</button>
     <div id="opp-modal-content"></div>
+  </div>
+</div>
+
+<div class="ref-modal-backdrop" id="ref-modal-backdrop" onclick="if(event.target===this)closeRefDetail()">
+  <div class="ref-modal">
+    <button class="ref-modal-close" onclick="closeRefDetail()">&times;</button>
+    <div id="ref-modal-content"></div>
   </div>
 </div>
 
@@ -642,9 +688,10 @@ function renderSpecs() {
     <div class="spec-list-item ${s.spec_id === activeSpecId ? 'active' : ''}" onclick="selectSpec('${s.spec_id}')">
       <h4>${specTitle(s)}</h4>
       <div class="meta">人群：${(s.target_people || []).join('、') || '-'}　场景：${(s.target_scenarios || []).join('、') || '-'}</div>
-      <div style="display:flex;gap:6px;margin-top:6px;" onclick="event.stopPropagation()">
-        <a href="/growth-lab/lab?spec_id=${s.spec_id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">主图工作台 →</a>
-        <a href="/growth-lab/first3s?spec_id=${s.spec_id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">前3秒工作台 →</a>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;" onclick="event.stopPropagation()">
+        <a href="/growth-lab/workspace?spec_id=${s.spec_id}" class="btn btn-primary btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">视觉工作台 →</a>
+        <a href="/growth-lab/lab?spec_id=${s.spec_id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">主图(旧) →</a>
+        <a href="/growth-lab/first3s?spec_id=${s.spec_id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">前3秒(旧) →</a>
       </div>
     </div>`).join('');
 }
@@ -683,8 +730,9 @@ function updateActionLinks() {
   const el = document.getElementById('action-links');
   if (!activeSpecId) { el.innerHTML = ''; return; }
   el.innerHTML = `
-    <a href="/growth-lab/lab?spec_id=${activeSpecId}" class="btn btn-success btn-sm" style="text-decoration:none;font-size:11px;">主图工作台 →</a>
-    <a href="/growth-lab/first3s?spec_id=${activeSpecId}" class="btn btn-ghost btn-sm" style="text-decoration:none;font-size:11px;">前3秒工作台 →</a>
+    <a href="/growth-lab/workspace?spec_id=${activeSpecId}" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:11px;">视觉工作台 →</a>
+    <a href="/growth-lab/lab?spec_id=${activeSpecId}" class="btn btn-ghost btn-sm" style="text-decoration:none;font-size:11px;">主图(旧) →</a>
+    <a href="/growth-lab/first3s?spec_id=${activeSpecId}" class="btn btn-ghost btn-sm" style="text-decoration:none;font-size:11px;">前3秒(旧) →</a>
   `;
 }
 
@@ -1097,6 +1145,80 @@ async function loadAnnotations(specId) {
 
 /* ── references ── */
 
+function escapeHtmlRef(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let _refCache = { shelf: [], first3s: [] };
+
+function renderRefCard(r, group, idx) {
+  const title = escapeHtmlRef(r.title || '');
+  const sub = r.subtitle ? `<div class="ref-sub">${escapeHtmlRef(r.subtitle)}</div>` : '';
+  const kindIcon = r.kind === 'asset' ? '🖼️' : '📖';
+  const thumb = r.image_url
+    ? `<img class="ref-thumb" src="${escapeHtmlRef(r.image_url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ref-thumb',textContent:'${kindIcon}'}))" />`
+    : `<div class="ref-thumb">${kindIcon}</div>`;
+  const meta = [];
+  if (r.source_label) meta.push(`<span class="ref-badge source">${escapeHtmlRef(r.source_label)}</span>`);
+  if (r.metric_label) meta.push(`<span class="ref-badge metric">${escapeHtmlRef(r.metric_label)}</span>`);
+  (r.tags || []).slice(0, 3).forEach(t => meta.push(`<span class="ref-badge">${escapeHtmlRef(t)}</span>`));
+  const metaHtml = meta.length ? `<div class="ref-meta">${meta.join('')}</div>` : '';
+  return `
+    <div class="ref-card clickable" onclick="openRefDetail('${group}', ${idx})">
+      ${thumb}
+      <div class="ref-body">
+        <div class="ref-title">${title}</div>
+        ${sub}
+        ${metaHtml}
+      </div>
+    </div>
+  `;
+}
+
+function openRefDetail(group, idx) {
+  const r = (_refCache[group] || [])[idx];
+  if (!r) return;
+  const kindIcon = r.kind === 'asset' ? '🖼️' : '📖';
+  const looksLikeImage = r.image_url && !/example\.com/i.test(r.image_url);
+  const cover = looksLikeImage
+    ? `<div class="ref-modal-cover"><img src="${escapeHtmlRef(r.image_url)}" alt="" onerror="this.parentElement.textContent='${kindIcon}'" /></div>`
+    : `<div class="ref-modal-cover">${kindIcon}</div>`;
+
+  const rows = [];
+  if (r.subtitle) rows.push(`<div class="ref-modal-row"><div class="k">说明</div><div class="v">${escapeHtmlRef(r.subtitle)}</div></div>`);
+  if (r.source_label) rows.push(`<div class="ref-modal-row"><div class="k">来源</div><div class="v">${escapeHtmlRef(r.source_label)}</div></div>`);
+  if (r.metric_label) rows.push(`<div class="ref-modal-row"><div class="k">表现</div><div class="v">${escapeHtmlRef(r.metric_label)}</div></div>`);
+  if (r.tags && r.tags.length) rows.push(`<div class="ref-modal-row"><div class="k">标签</div><div class="v">${r.tags.map(t => `<span class="ref-badge">${escapeHtmlRef(t)}</span>`).join(' ')}</div></div>`);
+
+  const actions = [];
+  // 只有看起来像真实 URL（非 example.com / 非 data:）才展示外链
+  if (r.link && /^https?:/i.test(r.link) && !/example\.com/i.test(r.link)) {
+    actions.push(`<button class="btn btn-ghost btn-sm" onclick="window.open('${escapeHtmlRef(r.link)}', '_blank')">在新窗口打开原图</button>`);
+  }
+  if (r.kind === 'asset') {
+    actions.push(`<button class="btn btn-ghost btn-sm" onclick="window.location.href='/growth-lab/assets'">去资产图谱查看</button>`);
+  }
+
+  document.getElementById('ref-modal-content').innerHTML = `
+    ${cover}
+    <div class="ref-modal-body">
+      <div class="ref-modal-title">${escapeHtmlRef(r.title || '')}</div>
+      ${rows.join('')}
+      ${actions.length ? `<div class="ref-modal-actions">${actions.join('')}</div>` : ''}
+    </div>
+  `;
+  document.getElementById('ref-modal-backdrop').classList.add('open');
+}
+
+function closeRefDetail() {
+  document.getElementById('ref-modal-backdrop').classList.remove('open');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeRefDetail();
+});
+
 async function loadReferences() {
   try {
     const res = await fetch('/growth-lab/api/compiler/references');
@@ -1104,19 +1226,21 @@ async function loadReferences() {
     const data = await res.json();
 
     const shelfRefs = data.shelf_references || [];
+    _refCache.shelf = shelfRefs;
     const shelfContainer = document.getElementById('ref-shelf-items');
     const shelfSection = document.getElementById('ref-shelf');
     if (shelfRefs.length) {
       shelfSection.style.display = 'block';
-      shelfContainer.innerHTML = shelfRefs.map(r => `<div class="ref-item">${r.name || r.headline || r.template_text || JSON.stringify(r)}</div>`).join('');
+      shelfContainer.innerHTML = shelfRefs.map((r, i) => renderRefCard(r, 'shelf', i)).join('');
     }
 
     const first3sRefs = data.first3s_references || [];
+    _refCache.first3s = first3sRefs;
     const first3sContainer = document.getElementById('ref-first3s-items');
     const first3sSection = document.getElementById('ref-first3s');
     if (first3sRefs.length) {
       first3sSection.style.display = 'block';
-      first3sContainer.innerHTML = first3sRefs.map(r => `<div class="ref-item">${r.name || r.hook_text || r.template_text || JSON.stringify(r)}</div>`).join('');
+      first3sContainer.innerHTML = first3sRefs.map((r, i) => renderRefCard(r, 'first3s', i)).join('');
     }
   } catch (_) {}
 }

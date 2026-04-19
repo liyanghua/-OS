@@ -1,0 +1,434 @@
+asset_id: unified_main_image_script_v2_demo
+schema_version: main_image_script_v2
+title: 主图脚本资产统一 Schema v2｜示例
+asset_type: main_image_script_bundle
+domain: ecommerce_content
+scene: 商品主图策划
+version: v2
+status: active
+language: zh-CN
+created_by: system
+owners:
+  - content_strategy_team
+description: >
+  面向电商主图策划、AIGC 生图编译、设计任务下发、评审打标和资产沉淀的统一对象模型。
+  v2 将资产层、单图层、编译层分开建模，便于复用、校验和下游系统接入。
+
+business_context:
+  product_category: 洁面产品
+  brand_name: 示例品牌
+  target_audience:
+    - 敏感肌女性
+  channel:
+    - 天猫
+    - 小红书
+  lifecycle_stage: 冷启测款
+  goals:
+    - 提升点击率
+    - 提升转化率
+    - 建立温和清洁认知
+
+strategy_pack:
+  positioning:
+    core_positioning: 敏感肌可用的温和洁面
+    differentiation:
+      - 氨基酸配方
+      - 洗后不紧绷
+      - 日常可高频使用
+    user_pains:
+      - 洁面后紧绷
+      - 敏感泛红
+      - 清洁与温和难兼顾
+  message_hierarchy:
+    primary_message: 温和清洁不刺激
+    secondary_messages:
+      - 氨基酸配方
+      - 洗后水润不紧绷
+      - 敏感肌友好
+    trust_signals:
+      - 用户好评
+      - 真人使用场景
+      - 成分标签
+
+global_style:
+  tone: 温和、干净、可信、生活化
+  style_tags:
+    - clean
+    - soft-light
+    - natural
+    - premium-lite
+  visual_keywords:
+    - 浴室
+    - 洗手台
+    - 柔和光线
+    - 简洁背景
+    - 真实自然
+  avoid_keywords:
+    - 杂乱背景
+    - 强刺激感
+    - 医疗夸张感
+    - 过度特效
+    - 低质感画面
+  color_system:
+    primary: 米白 / 浅奶油色
+    secondary: 浅绿色 / 淡蓝色
+    contrast_level: low_to_medium
+    emotion: 安心、舒缓、清洁感
+
+script_asset:
+  asset_objective: 形成适合五图主图链路的标准化脚本资产
+  card_count: 5
+  narrative_arc:
+    - 人群场景直击
+    - 痛点放大对比
+    - 核心需求满足
+    - 场景化功能说明
+    - 用户信任背书
+  evaluation_policy:
+    required_dimensions:
+      - 结构完整性
+      - 卖点清晰度
+      - 视觉一致性
+      - 场景贴合度
+      - 可编译性
+      - 平台合规性
+    minimum_score_to_publish: 80
+
+cards:
+  - card_id: card_01
+    order: 1
+    card_type: scene_hit
+    title: 人群+场景直击图
+    objective: 让用户快速识别人群、场景和产品气质
+    message_role: primary
+    visual_spec:
+      layout_type: single_scene_focus
+      shot_type: medium
+      scene: 敏感肌女性在浴室进行日常洁面
+      subjects:
+        - type: person
+          role: target_user
+          description: 女性用户，表情放松，闭眼享受舒适肤感
+        - type: product
+          role: hero_product
+          description: 产品自然放置在洗手台旁
+      composition:
+        focal_points:
+          - 人
+          - 产品
+          - 温和洁面氛围
+        product_ratio: 0.18
+        text_ratio: 0.12
+      background:
+        type: bathroom_clean
+        complexity: low
+      lighting:
+        style: soft_natural
+      labels: []
+    copy_spec:
+      headline: 敏感肌日常洁面，温和不刺激！
+      subheadline: null
+      promo_text: null
+      selling_points:
+        - 温和
+        - 日常适用
+      text_position: upper_left
+    compile_spec:
+      prompt_intent: 生活化真实人群场景
+      positive_prompt_blocks:
+        - 敏感肌女性，浴室，日常洁面，柔和自然光
+        - 洗手台旁洁面产品，干净背景，舒适表情
+      negative_prompt_blocks:
+        - 杂乱背景
+        - 过度磨皮
+        - 医疗广告感
+      render_hints:
+        aspect_ratio: 1:1
+        emphasis: 人群与产品关系
+    tags:
+      audience:
+        - 敏感肌
+      scene:
+        - 浴室
+        - 日常洁面
+
+  - card_id: card_02
+    order: 2
+    card_type: pain_compare
+    title: 痛点放大对比图
+    objective: 强化传统方案痛点与本品解决效果
+    message_role: primary
+    visual_spec:
+      layout_type: split_compare
+      shot_type: close_up
+      scene: 使用前后状态对比
+      subjects:
+        - type: skin_state
+          role: before
+          description: 传统洗面奶后紧绷泛红
+        - type: skin_state
+          role: after
+          description: 使用本品后水润舒适
+      composition:
+        focal_points:
+          - 前后差异
+          - 符号提示
+        product_ratio: 0.08
+        text_ratio: 0.18
+      background:
+        type: neutral_compare
+        complexity: low
+      lighting:
+        style: clear_compare
+      labels:
+        - 紧绷泛红 + 红色×
+        - 水润不紧绷 + 绿色√
+    copy_spec:
+      headline: 告别紧绷！温和清洁更舒服
+      subheadline: null
+      promo_text: null
+      selling_points:
+        - 痛点解决
+        - 水润舒适
+      text_position: top_center
+    compile_spec:
+      prompt_intent: 前后对比放大
+      positive_prompt_blocks:
+        - 左右分屏对比，左侧泛红紧绷，右侧水润舒适
+        - 对比符号清晰，信息直观
+      negative_prompt_blocks:
+        - 差异不明显
+        - 色彩过脏
+      render_hints:
+        aspect_ratio: 1:1
+        emphasis: 差异对比
+    tags:
+      comparison:
+        - before_after
+      pain_point:
+        - 紧绷
+        - 泛红
+
+  - card_id: card_03
+    order: 3
+    card_type: ingredient_benefit
+    title: 核心需求满足图
+    objective: 建立成分到效果的价值认知
+    message_role: primary
+    visual_spec:
+      layout_type: dual_focus
+      shot_type: macro_plus_portrait_detail
+      scene: 成分与功效联动展示
+      subjects:
+        - type: foam
+          role: ingredient_expression
+          description: 细腻泡沫特写
+        - type: face_detail
+          role: benefit_expression
+          description: 洗后脸部水润有光泽
+      composition:
+        focal_points:
+          - 细腻泡沫
+          - 水润脸部特写
+        product_ratio: 0.10
+        text_ratio: 0.14
+      background:
+        type: clean_soft
+        complexity: low
+      lighting:
+        style: beauty_soft
+      labels:
+        - 氨基酸成分
+        - 保湿因子
+    copy_spec:
+      headline: 氨基酸配方！洗后水润不紧绷
+      subheadline: null
+      promo_text: null
+      selling_points:
+        - 氨基酸配方
+        - 保湿因子
+        - 洗后不紧绷
+      text_position: upper_right
+    compile_spec:
+      prompt_intent: 成分优势可视化
+      positive_prompt_blocks:
+        - 细腻泡沫微距，温和质感
+        - 洗后脸部水润透亮，手轻触脸颊
+      negative_prompt_blocks:
+        - 泡沫粗糙
+        - 夸张液体特效
+      render_hints:
+        aspect_ratio: 1:1
+        emphasis: 成分与效果闭环
+    tags:
+      ingredient:
+        - 氨基酸
+      benefit:
+        - 保湿
+        - 温和清洁
+
+  - card_id: card_04
+    order: 4
+    card_type: scenario_matrix
+    title: 场景化功能对比图
+    objective: 展示多场景适配和功能覆盖
+    message_role: secondary
+    visual_spec:
+      layout_type: three_column_compare
+      shot_type: mixed
+      scene: 多场景功能说明
+      subjects:
+        - type: scenario_panel
+          role: daily_clean
+          description: 日常洁面
+        - type: scenario_panel
+          role: sensitive_care
+          description: 敏感肌护理
+        - type: scenario_panel
+          role: long_term_use
+          description: 长期使用
+      composition:
+        focal_points:
+          - 三栏对比
+          - 场景名称
+          - 功能差异
+        product_ratio: 0.06
+        text_ratio: 0.22
+      background:
+        type: scenario_pastel
+        complexity: low
+      lighting:
+        style: informative_clean
+      labels:
+        - 深层清洁 √
+        - 温和适配 √
+        - 保湿回弹 √
+    copy_spec:
+      headline: 多场景适配，温和又实用
+      subheadline: null
+      promo_text: null
+      selling_points:
+        - 多场景适配
+        - 温和实用
+      text_position: top_center
+    compile_spec:
+      prompt_intent: 信息型主图
+      positive_prompt_blocks:
+        - 横向三栏场景说明，简洁配色
+        - 每栏有 clear before/after 或功能点
+      negative_prompt_blocks:
+        - 版式混乱
+        - 图标堆砌
+      render_hints:
+        aspect_ratio: 1:1
+        emphasis: 信息整齐易读
+    tags:
+      scenarios:
+        - 日常洁面
+        - 敏感肌护理
+        - 长期使用
+
+  - card_id: card_05
+    order: 5
+    card_type: trust_proof
+    title: 用户信任背书图
+    objective: 用好评与真实场景强化购买信心
+    message_role: trust
+    visual_spec:
+      layout_type: review_plus_realshot
+      shot_type: collage
+      scene: 评价与实拍背书
+      subjects:
+        - type: review_snippets
+          role: trust_signal
+          description: 3-4条真实好评截图，需打码
+        - type: real_photo
+          role: usage_evidence
+          description: 洗漱台产品图 / 用户笑脸自拍
+      composition:
+        focal_points:
+          - 好评信息
+          - 真实实拍
+        product_ratio: 0.10
+        text_ratio: 0.18
+      background:
+        type: real_natural
+        complexity: low_to_medium
+      lighting:
+        style: natural_real
+      labels:
+        - 回购第3次
+        - 敏感肌用着没泛红
+        - 性价比超高
+    copy_spec:
+      headline: 1000+好评！温和好用还回购！
+      subheadline: null
+      promo_text: null
+      selling_points:
+        - 用户认可
+        - 回购信任
+      text_position: upper_left
+    compile_spec:
+      prompt_intent: 真实信任背书
+      positive_prompt_blocks:
+        - 好评截图拼贴，真实实拍产品场景
+        - 自然生活化，不摆拍过度
+      negative_prompt_blocks:
+        - 伪造评价感
+        - 过度广告感
+      render_hints:
+        aspect_ratio: 1:1
+        emphasis: 真实可信
+    tags:
+      trust:
+        - 好评背书
+        - 回购
+        - 真人实拍
+
+prompt_compile_spec:
+  compiler_version: prompt_compile_v1
+  inputs:
+    - global_style
+    - strategy_pack
+    - card.visual_spec
+    - card.copy_spec
+    - card.compile_spec
+  outputs:
+    - positive_prompt
+    - negative_prompt
+    - layout_hints
+    - typography_hints
+    - safety_notes
+  rules:
+    - 每张图必须包含明确主体、场景、构图和文案角色
+    - 视觉风格继承 global_style
+    - 卖点表述优先使用 strategy_pack.message_hierarchy
+    - 编译时保留平台合规与真实性约束
+
+review_spec:
+  reviewers:
+    - strategist
+    - visual_designer
+    - commerce_operator
+  checklist:
+    - 是否符合目标人群
+    - 是否突出核心卖点
+    - 是否具备首屏吸引力
+    - 是否适合平台主图规范
+    - 是否可直接用于AIGC或设计出图
+  score_fields:
+    clarity: 1-10
+    consistency: 1-10
+    trustworthiness: 1-10
+    compilability: 1-10
+    compliance: 1-10
+
+lineage:
+  source_asset_ids:
+    - 商品主图脚本.md
+  derived_from:
+    - 商品主图脚本_结构化入库版.yaml
+  downstream_assets:
+    - prompt_bundle
+    - design_brief
+    - review_record

@@ -1,0 +1,77 @@
+template_id: competitor_deconstruct_32d
+category: competitor_deconstruct
+name: 竞品主图 32 维度拆解框架
+description: |
+  来源：业务专家竞品主图拆解维度框架。
+  32 个维度分为 4 组（构图/文案/背景/场景），
+  既可作为 VLM 分析竞品图的 rubric，也可作为本品主图的 checklist。
+version: v1
+default_brand_rules: []
+slots:
+  - index: 1
+    role: 构图与色彩（8 维度）
+    visual_spec: >
+      评估维度：主体物位置 / 构图方式 / 层次关系 / 主色调 /
+      辅助色 / 色彩对比 / 色彩情绪 / 产品占比
+    aspect_ratio: "1:1"
+    extra:
+      dimensions:
+        - 主体物位置
+        - 构图方式
+        - 层次关系
+        - 主色调
+        - 辅助色
+        - 色彩对比
+        - 色彩情绪
+        - 产品占比
+
+  - index: 2
+    role: 展示与文案（8 维度）
+    visual_spec: >
+      评估维度：展示角度 / 展示数量 / 细节呈现 / 标题文字 /
+      促销信息 / 卖点文案 / 文字位置 / 文字占比
+    aspect_ratio: "1:1"
+    extra:
+      dimensions:
+        - 展示角度
+        - 展示数量
+        - 细节呈现
+        - 标题文字
+        - 促销信息
+        - 卖点文案
+        - 文字位置
+        - 文字占比
+
+  - index: 3
+    role: 背景与氛围（8 维度）
+    visual_spec: >
+      评估维度：背景类型 / 背景颜色 / 简洁程度 / 氛围营造 /
+      装饰元素 / 图标标识 / 边框修饰 / 特效处理
+    aspect_ratio: "1:1"
+    extra:
+      dimensions:
+        - 背景类型
+        - 背景颜色
+        - 简洁程度
+        - 氛围营造
+        - 装饰元素
+        - 图标标识
+        - 边框修饰
+        - 特效处理
+
+  - index: 4
+    role: 场景与品质（8 维度）
+    visual_spec: >
+      评估维度：使用场景 / 人物元素 / 生活化元素 / 场景道具 /
+      图片清晰度 / 光影处理 / 精致程度 / 专业度
+    aspect_ratio: "1:1"
+    extra:
+      dimensions:
+        - 使用场景
+        - 人物元素
+        - 生活化元素
+        - 场景道具
+        - 图片清晰度
+        - 光影处理
+        - 精致程度
+        - 专业度

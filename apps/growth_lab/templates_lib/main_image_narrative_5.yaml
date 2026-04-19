@@ -1,0 +1,74 @@
+template_id: main_image_narrative_5
+category: main_image
+name: 主图 5 张叙事模板
+description: |
+  来源：业务专家洗面奶主图策划脚本。
+  5 张图按"人群场景直击 → 痛点放大 → 核心需求满足 → 场景对比 → 用户信任"递进叙事。
+version: v1
+default_brand_rules:
+  - 商品颜色不得偏移
+  - logo 区域不可遮挡
+  - 文案不得超过 15 字
+slots:
+  - index: 1
+    role: 人群场景直击图
+    visual_spec: >
+      以目标人群的真实生活场景为主，产品自然放置，女性使用时表情放松。
+      画面聚焦"人+产品+温和氛围"，背景简洁干净，避免杂乱元素。
+    copy_spec: 直击人群标签+核心价值，一句话 ≤12 字（如"敏感肌日常洁面，温和不刺激"）
+    aspect_ratio: "1:1"
+    generation_hints:
+      - locked_brand_color
+      - allow_scene_swap
+      - realistic_lighting
+    evaluation_criteria:
+      - 人物与产品关系自然
+      - 背景不杂乱
+      - 氛围匹配目标人群
+
+  - index: 2
+    role: 痛点放大对比图
+    visual_spec: >
+      左右分屏——左侧呈现传统问题（标注"问题+红×"），右侧呈现本品效果（标注"结果+绿√"）。
+      用视觉对比强化差异，符号清晰。
+    copy_spec: 对比式短句，如"告别紧绷！温和清洁更舒服"
+    aspect_ratio: "1:1"
+    generation_hints:
+      - split_screen
+      - symbol_emphasis
+    evaluation_criteria:
+      - 左右对比强烈
+      - 符号×/√位置醒目
+
+  - index: 3
+    role: 核心需求满足图
+    visual_spec: >
+      聚焦核心成分/核心功能的可视化。
+      左侧特写产品（如细腻泡沫），右侧展示使用效果特写，辅以小标签点缀。
+    copy_spec: 核心卖点短句+承诺，如"氨基酸配方！洗后水润不紧绷"
+    aspect_ratio: "1:1"
+    generation_hints:
+      - ingredient_visualization
+      - macro_texture
+
+  - index: 4
+    role: 场景化功能对比图
+    visual_spec: >
+      横向 3 栏，每栏对应一个核心场景。
+      每栏×/√图标强化差异，背景为对应场景的浅色调。
+    copy_spec: 多场景适配，如"多场景适配，温和又实用"
+    aspect_ratio: "1:1"
+    generation_hints:
+      - three_column_layout
+      - scene_based_background
+
+  - index: 5
+    role: 用户信任背书图
+    visual_spec: >
+      左侧放用户真实好评截图（打码隐私）。
+      右侧放用户实拍使用场景（洗漱台产品图/用户笑脸自拍等），风格真实自然。
+    copy_spec: 数据+场景短句，如"1000+好评：温和好用还回购！"
+    aspect_ratio: "1:1"
+    generation_hints:
+      - testimonial_composition
+      - user_generated_feel

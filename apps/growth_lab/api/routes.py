@@ -166,6 +166,12 @@ async def asset_graph_page(request: Request) -> HTMLResponse:
     return HTMLResponse(tpl.render())
 
 
+@router.get("/workspace", response_class=HTMLResponse)
+async def visual_workspace_page(request: Request) -> HTMLResponse:
+    tpl = TEMPLATE_ENV.get_template("workspace.html")
+    return HTMLResponse(tpl.render())
+
+
 # ── API: Radar / TrendOpportunity ─────────────────────────────
 
 @router.get("/api/radar/opportunities")
@@ -372,9 +378,132 @@ async def list_annotations(spec_id: str = "", limit: int = 50) -> dict:
 
 # ── API: References ──────────────────────────────────────────
 
+_TAG_LABEL_ZH = {
+    "main_image": "主图",
+    "first3s": "前3秒",
+    "detail_module": "详情模块",
+    "video_shot": "分镜",
+    "buyer_show": "买家秀",
+    "competitor_ref": "竞品",
+    "high_performer": "高表现",
+    "main_image_template": "主图模板",
+    "viral_clip": "爆款片段",
+    "selling_point_template": "卖点模板",
+    "workspace": "视觉工作台",
+    "人群场景直击图": "人群直击",
+    "痛点放大对比图": "痛点对比",
+    "核心需求满足图": "需求满足",
+    "场景化功能对比图": "场景对比",
+    "用户信任背书图": "信任背书",
+}
+
+
+def _humanize_tag(t: str) -> str:
+    if not t:
+        return ""
+    return _TAG_LABEL_ZH.get(t, t)
+
+
+def _normalize_reference(raw: dict) -> dict:
+    """把 PatternTemplate / AssetPerformanceCard 统一成运营友好的展示结构。"""
+    # PatternTemplate：有 name/template_text
+    if "template_text" in raw or ("name" in raw and "asset_id" not in raw):
+        tags = raw.get("tags") or []
+        return {
+            "kind": "pattern",
+            "title": raw.get("name") or raw.get("headline") or "经验模板",
+            "subtitle": raw.get("template_text") or raw.get("hook_text") or raw.get("description") or "",
+            "image_url": raw.get("image_url") or raw.get("thumbnail_url") or "",
+            "tags": [_humanize_tag(t) for t in tags if t],
+            "source_label": "经验模板",
+            "metric_label": f"复用 {raw.get('usage_count') or 0} 次" if raw.get("usage_count") else "",
+            "link": "",
+        }
+
+    # AssetPerformanceCard
+    tags = raw.get("tags") or []
+    asset_type = raw.get("asset_type") or ""
+    source_platform = raw.get("source_platform") or ""
+    best_metrics = raw.get("best_metrics") or {}
+    metric_bits: list[str] = []
+    for k in ("ctr", "cvr", "roi", "sales"):
+        if k in best_metrics:
+            metric_bits.append(f"{k.upper()} {best_metrics[k]}")
+    usage = raw.get("usage_count") or 0
+    if usage:
+        metric_bits.append(f"被复用 {usage} 次")
+
+    title = raw.get("description") or raw.get("headline") or "未命名资产"
+    # 状态 subtitle
+    status = raw.get("status") or ""
+    source_label_parts = [_humanize_tag(asset_type)]
+    if source_platform:
+        source_label_parts.append(_humanize_tag(source_platform))
+    if status and status != "active":
+        source_label_parts.append(status)
+    return {
+        "kind": "asset",
+        "title": title,
+        "subtitle": "、".join([_humanize_tag(t) for t in tags if t]) or "",
+        "image_url": raw.get("image_url") or "",
+        "tags": [_humanize_tag(t) for t in tags if t],
+        "source_label": " · ".join(p for p in source_label_parts if p),
+        "metric_label": " · ".join(metric_bits),
+        "link": raw.get("image_url") or "",
+    }
+
+
+_DEFAULT_SHELF_REFS = [
+    {
+        "kind": "pattern",
+        "title": "爆款标题公式：痛点 + 解决方案 + 差异化",
+        "subtitle": "例：告别 XX 烦恼，XX 产品让你 XX",
+        "image_url": "", "tags": ["经验模板"], "source_label": "经验模板",
+        "metric_label": "", "link": "",
+    },
+    {
+        "kind": "pattern",
+        "title": "数字型标题：具体数据增强说服力",
+        "subtitle": "例：3 天见效 / 月销 10 万+ / 98% 好评",
+        "image_url": "", "tags": ["经验模板"], "source_label": "经验模板",
+        "metric_label": "", "link": "",
+    },
+    {
+        "kind": "pattern",
+        "title": "场景型标题：切入具体使用场景",
+        "subtitle": "例：露营必备 / 宿舍神器 / 通勤好物",
+        "image_url": "", "tags": ["经验模板"], "source_label": "经验模板",
+        "metric_label": "", "link": "",
+    },
+]
+_DEFAULT_FIRST3S_REFS = [
+    {
+        "kind": "pattern",
+        "title": "悬念型钩子：先抛问题再给答案",
+        "subtitle": "例：你还在为 XX 苦恼吗？",
+        "image_url": "", "tags": ["经验模板"], "source_label": "经验模板",
+        "metric_label": "", "link": "",
+    },
+    {
+        "kind": "pattern",
+        "title": "共鸣型钩子：直击目标人群痛点",
+        "subtitle": "例：每次 XX 的时候是不是特别 XX？",
+        "image_url": "", "tags": ["经验模板"], "source_label": "经验模板",
+        "metric_label": "", "link": "",
+    },
+    {
+        "kind": "pattern",
+        "title": "反转型钩子：先否定再肯定",
+        "subtitle": "例：我以为 XX 没用，直到我试了这个…",
+        "image_url": "", "tags": ["经验模板"], "source_label": "经验模板",
+        "metric_label": "", "link": "",
+    },
+]
+
+
 @router.get("/api/compiler/references")
 async def get_references() -> dict:
-    """返回货架/前3秒参考案例（从 PatternTemplate 和 AssetPerformanceCard 拉取）。"""
+    """返回货架/前3秒参考案例（从 PatternTemplate 和 AssetPerformanceCard 拉取，统一成运营友好结构）。"""
     store = _get_store()
 
     shelf_templates = store.list_pattern_templates(
@@ -383,26 +512,19 @@ async def get_references() -> dict:
     first3s_templates = store.list_pattern_templates(
         where={"template_type": "first3s"}, limit=5,
     )
-
     shelf_assets = store.list_asset_performance_cards(
         where={"asset_type": "high_performer"}, limit=3,
     )
+    # main_image_template 也应当作为货架参考
+    shelf_assets_tpl = store.list_asset_performance_cards(
+        where={"asset_type": "main_image_template"}, limit=3,
+    )
 
-    shelf_refs = shelf_templates + shelf_assets
-    first3s_refs = first3s_templates
+    shelf_raw = list(shelf_templates) + list(shelf_assets) + list(shelf_assets_tpl)
+    first3s_raw = list(first3s_templates)
 
-    if not shelf_refs:
-        shelf_refs = [
-            {"name": "爆款标题公式：痛点 + 解决方案 + 差异化", "template_text": "例：告别 XX 烦恼，XX 产品让你 XX"},
-            {"name": "数字型标题：具体数据增强说服力", "template_text": "例：3天见效 / 月销10万+ / 98%好评"},
-            {"name": "场景型标题：切入具体使用场景", "template_text": "例：露营必备 / 宿舍神器 / 通勤好物"},
-        ]
-    if not first3s_refs:
-        first3s_refs = [
-            {"name": "悬念型钩子：先抛问题再给答案", "hook_text": "例：你还在为 XX 苦恼吗？"},
-            {"name": "共鸣型钩子：直击目标人群痛点", "hook_text": "例：每次 XX 的时候是不是特别 XX？"},
-            {"name": "反转型钩子：先否定再肯定", "hook_text": "例：我以为 XX 没用，直到我试了这个…"},
-        ]
+    shelf_refs = [_normalize_reference(r) for r in shelf_raw] or _DEFAULT_SHELF_REFS
+    first3s_refs = [_normalize_reference(r) for r in first3s_raw] or _DEFAULT_FIRST3S_REFS
 
     return {"shelf_references": shelf_refs, "first3s_references": first3s_refs}
 
@@ -1184,6 +1306,506 @@ async def feedback_to_radar(workspace_id: str = "") -> dict:
     svc = AssetGraphService(_get_store())
     feedback_opps = svc.feedback_to_radar(workspace_id)
     return {"feedback_opportunities": len(feedback_opps), "items": feedback_opps}
+
+
+# ── API: 视觉工作台（无限画布） ──────────────────────────────
+
+class WorkspaceCompileRequest(BaseModel):
+    source_spec_id: str = ""
+    product_name: str = ""
+    audience: str = ""
+    output_types: list[str] = Field(default_factory=lambda: ["main_image"])
+    style_refs: list[str] = Field(default_factory=list)
+    scenario_refs: list[str] = Field(default_factory=list)
+    must_have: list[str] = Field(default_factory=list)
+    avoid: list[str] = Field(default_factory=list)
+    requested_counts: dict[str, int] = Field(default_factory=dict)
+    workspace_id: str = ""
+    brand_id: str = ""
+    template_overrides: dict[str, str] = Field(default_factory=dict)
+    # {frame_key: True} → 强制"仅借框架"：骨架化并按 intent 重参数化，丢弃品类细节
+    borrow_frame_only: dict[str, bool] = Field(default_factory=dict)
+
+
+class WorkspaceGenerateNodeRequest(BaseModel):
+    count: int = 1
+
+
+_SOURCE_KIND_ZH = {
+    "yaml_simple": "精简模板",
+    "yaml_v2": "专家资产（Schema v2）",
+    "md_table": "专家 MD（表格）",
+    "md_sections": "专家 MD（分节）",
+}
+
+
+def _template_summary(t) -> dict:
+    """返回 workspace templates 列表展示用的精简结构。"""
+    return {
+        "template_id": t.template_id,
+        "category": t.category,
+        "name": t.name,
+        "description": t.description,
+        "version": t.version,
+        "slot_count": len(t.slots),
+        "source_kind": t.source_kind,
+        "source_kind_label": _SOURCE_KIND_ZH.get(t.source_kind, t.source_kind),
+        "source_path": t.yaml_source_path,
+    }
+
+
+@router.get("/api/workspace/templates")
+async def list_workspace_templates(category: str = "") -> dict:
+    """列出业务专家模板。"""
+    from apps.growth_lab.services.template_library import get_template_library
+    lib = get_template_library()
+    items = lib.list_by_category(category) if category else lib.list_all()
+    return {
+        "items": [
+            {
+                **_template_summary(t),
+                "slots": [s.model_dump() for s in t.slots],
+            }
+            for t in items
+        ],
+    }
+
+
+@router.get("/api/workspace/template/{template_id}")
+async def get_workspace_template(template_id: str) -> dict:
+    """获取单个模板（含 Schema v2 完整上下文，供节点溯源面板使用）。"""
+    from apps.growth_lab.services.template_library import get_template_library
+    from pathlib import Path as _P
+    lib = get_template_library()
+    t = lib.get(template_id)
+    if t is None:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    data = t.model_dump()
+    data["source_kind_label"] = _SOURCE_KIND_ZH.get(t.source_kind, t.source_kind)
+    # 展示友好路径
+    try:
+        data["source_path_display"] = str(_P(t.yaml_source_path).name) if t.yaml_source_path else ""
+    except Exception:
+        data["source_path_display"] = t.yaml_source_path or ""
+    return data
+
+
+@router.post("/api/workspace/compile")
+async def compile_workspace(req: WorkspaceCompileRequest) -> dict:
+    """从 IntentContext 编译一个新的 CompilePlan + Frames + Nodes。"""
+    from apps.growth_lab.schemas.visual_workspace import IntentContext
+    from apps.growth_lab.services.visual_plan_compiler import VisualPlanCompiler
+
+    intent = IntentContext(
+        product_name=req.product_name,
+        audience=req.audience,
+        output_types=req.output_types or ["main_image"],
+        style_refs=req.style_refs,
+        scenario_refs=req.scenario_refs,
+        must_have=req.must_have,
+        avoid=req.avoid,
+        requested_counts=req.requested_counts,
+        source_spec_id=req.source_spec_id,
+    )
+    # 若传入了 source_spec_id 且字段不全，尝试用 spec 回填
+    store = _get_store()
+    if req.source_spec_id:
+        spec = store.get_selling_point_spec(req.source_spec_id)
+        if spec:
+            if not intent.product_name:
+                intent.product_name = spec.get("core_claim", "")
+            if not intent.must_have:
+                intent.must_have = list(spec.get("supporting_claims", []))[:3]
+            if not intent.audience:
+                people = spec.get("target_people", [])
+                intent.audience = "、".join(people[:2]) if people else ""
+
+    compiler = VisualPlanCompiler()
+    plan, frames, nodes = compiler.compile(
+        intent,
+        template_overrides=req.template_overrides or None,
+        borrow_frame_only=req.borrow_frame_only or None,
+    )
+    plan_dict = plan.model_dump(mode="json")
+    plan_dict["workspace_id"] = req.workspace_id
+    plan_dict["brand_id"] = req.brand_id
+    store.save_workspace_plan(plan_dict)
+    for f in frames:
+        store.save_workspace_frame(f.model_dump(mode="json"))
+    for n in nodes:
+        store.save_workspace_node(n.model_dump(mode="json"))
+
+    return {
+        "plan_id": plan.plan_id,
+        "frame_count": len(frames),
+        "node_count": len(nodes),
+    }
+
+
+@router.get("/api/workspace/plan/{plan_id}")
+async def get_workspace_plan(plan_id: str) -> dict:
+    """返回一个 plan 的完整内容（含 frames/nodes/variants 的简要索引）。"""
+    store = _get_store()
+    plan = store.get_workspace_plan(plan_id)
+    if not plan:
+        raise HTTPException(404, "plan not found")
+    frames = store.list_workspace_frames(plan_id)
+    nodes = store.list_workspace_nodes(plan_id=plan_id)
+    # 加载每个节点的 active variant URL
+    variants_by_node: dict[str, list[dict]] = {}
+    for n in nodes:
+        vs = store.list_workspace_variants(n["node_id"])
+        variants_by_node[n["node_id"]] = vs
+    return {
+        "plan": plan,
+        "frames": frames,
+        "nodes": nodes,
+        "variants_by_node": variants_by_node,
+    }
+
+
+@router.get("/api/workspace/plans")
+async def list_workspace_plans(limit: int = 50, offset: int = 0) -> dict:
+    store = _get_store()
+    items = store.list_workspace_plans(limit=limit, offset=offset)
+    return {
+        "items": [
+            {
+                "plan_id": p.get("plan_id", ""),
+                "status": p.get("status", "draft"),
+                "product_name": (p.get("intent") or {}).get("product_name", ""),
+                "frame_count": len(p.get("frame_ids", []) or []),
+                "created_at": p.get("created_at", ""),
+                "updated_at": p.get("updated_at", ""),
+            }
+            for p in items
+        ],
+        "total": store._count("workspace_plans"),
+    }
+
+
+@router.get("/api/workspace/gallery")
+async def workspace_gallery(plan_limit: int = 20, variant_limit_per_plan: int = 24) -> dict:
+    """返回"生图历史图集"：最近若干 plan + 其下所有已出图变体的缩略图与上下文。
+
+    前端用它做跨任务的图集入口：点缩略图即可跳回对应 plan 的对应节点并带上 variant_id。
+    """
+    store = _get_store()
+    plans = store.list_workspace_plans(limit=plan_limit, offset=0)
+    groups: list[dict[str, Any]] = []
+    for plan in plans:
+        plan_id = plan.get("plan_id", "")
+        if not plan_id:
+            continue
+        nodes = store.list_workspace_nodes(plan_id=plan_id)
+        node_by_id = {n.get("node_id"): n for n in nodes if n.get("node_id")}
+        frames = store.list_workspace_frames(plan_id)
+        frame_by_id = {f.get("frame_id"): f for f in frames if f.get("frame_id")}
+
+        items: list[dict[str, Any]] = []
+        for n in nodes:
+            vs = store.list_workspace_variants(n.get("node_id", ""))
+            for v in vs:
+                url = v.get("asset_url") or ""
+                if not url:
+                    continue
+                items.append({
+                    "variant_id": v.get("variant_id", ""),
+                    "node_id": n.get("node_id", ""),
+                    "plan_id": plan_id,
+                    "frame_id": n.get("frame_id", ""),
+                    "frame_key": (frame_by_id.get(n.get("frame_id"), {}) or {}).get("frame_key", ""),
+                    "asset_url": url,
+                    "role": n.get("role") or "",
+                    "result_type": n.get("result_type", ""),
+                    "aspect_ratio": n.get("aspect_ratio", "1:1"),
+                    "status": v.get("status", ""),
+                    "is_active": v.get("variant_id") == n.get("active_variant_id"),
+                    "updated_at": v.get("updated_at", "") or v.get("created_at", ""),
+                    "mode": (v.get("extra") or {}).get("mode", ""),
+                    "base_variant_id": (v.get("extra") or {}).get("base_variant_id", ""),
+                    "edit_instruction": (v.get("extra") or {}).get("edit_instruction", ""),
+                })
+        items.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
+        items = items[: max(1, int(variant_limit_per_plan))]
+        if not items:
+            continue
+        groups.append({
+            "plan_id": plan_id,
+            "product_name": (plan.get("intent") or {}).get("product_name", "") or "未命名任务",
+            "audience": (plan.get("intent") or {}).get("audience", ""),
+            "status": plan.get("status", ""),
+            "updated_at": plan.get("updated_at", ""),
+            "variant_count": len(items),
+            "variants": items,
+        })
+    return {"groups": groups, "plan_count": len(groups)}
+
+
+@router.post("/api/workspace/node/{node_id}/generate")
+async def generate_workspace_node(node_id: str, req: WorkspaceGenerateNodeRequest) -> dict:
+    """为单个节点触发一次生成（可指定 count 张变体）。"""
+    from apps.growth_lab.services.visual_node_generator import VisualNodeGenerator
+    gen = VisualNodeGenerator(_get_store())
+    try:
+        batch_id = gen.generate_for_node(node_id, count=max(1, int(req.count or 1)))
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+    return {"batch_id": batch_id, "node_id": node_id}
+
+
+class WorkspaceEditVariantRequest(BaseModel):
+    user_prompt: str = ""
+    count: int = 1
+    base_variant_id: str = ""
+
+
+@router.post("/api/workspace/node/{node_id}/edit-variant")
+async def edit_workspace_variant(node_id: str, req: WorkspaceEditVariantRequest) -> dict:
+    """对话式图生图微调：以 active（或指定）变体为底图入队 mode=edit 新变体。"""
+    from apps.growth_lab.services.visual_node_generator import VisualNodeGenerator
+    gen = VisualNodeGenerator(_get_store())
+    try:
+        batch_id = gen.edit_variant(
+            node_id,
+            user_prompt=req.user_prompt or "",
+            base_variant_id=req.base_variant_id or "",
+            count=max(1, int(req.count or 1)),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"batch_id": batch_id, "node_id": node_id, "mode": "edit"}
+
+
+@router.post("/api/workspace/frame/{frame_id}/generate-all")
+async def generate_workspace_frame(frame_id: str) -> dict:
+    """批量生成一个 Frame 内所有 draft 节点，每个节点生成一张。"""
+    from apps.growth_lab.services.visual_node_generator import VisualNodeGenerator
+    store = _get_store()
+    nodes = store.list_workspace_nodes(frame_id=frame_id)
+    if not nodes:
+        raise HTTPException(404, "frame has no nodes")
+    gen = VisualNodeGenerator(store)
+    batch_ids: list[str] = []
+    for n in nodes:
+        if n.get("status") in {"generated", "approved"}:
+            continue
+        batch_ids.append(gen.generate_for_node(n["node_id"], count=1))
+    return {"batch_ids": batch_ids, "triggered_nodes": len(batch_ids)}
+
+
+@router.get("/api/workspace/batch/{batch_id}/status")
+async def workspace_batch_status(batch_id: str) -> dict:
+    """轮询 batch 进度（同 main-image 批量 queue 的格式）。"""
+    from apps.growth_lab.services.visual_node_generator import get_batch_queue
+    q = get_batch_queue(batch_id)
+    if q is None:
+        raise HTTPException(404, "batch not found")
+    return q.get_batch_status(batch_id)
+
+
+@router.get("/api/workspace/node/{node_id}")
+async def get_workspace_node(node_id: str) -> dict:
+    store = _get_store()
+    n = store.get_workspace_node(node_id)
+    if not n:
+        raise HTTPException(404, "node not found")
+    variants = store.list_workspace_variants(node_id)
+    return {"node": n, "variants": variants}
+
+
+class WorkspaceCopilotProposeRequest(BaseModel):
+    user_prompt: str = ""
+
+
+@router.get("/api/workspace/node/{node_id}/suggest-actions")
+async def workspace_suggest_actions(node_id: str, use_llm: int = 0) -> dict:
+    """右栏"建议动作区"——返回 3-5 条可一键执行的建议。"""
+    from apps.growth_lab.services.workspace_copilot import get_workspace_copilot
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    intent = (store.get_workspace_plan(node.get("plan_id", "")) or {}).get("intent") or {}
+    copilot = get_workspace_copilot()
+    if use_llm:
+        actions = await copilot.suggest_actions_llm(node, intent)
+    else:
+        actions = copilot.suggest_actions(node, intent)
+    return {"actions": actions}
+
+
+@router.post("/api/workspace/node/{node_id}/propose-edit")
+async def workspace_propose_edit(
+    node_id: str, req: WorkspaceCopilotProposeRequest,
+) -> dict:
+    """右栏"对话编辑器"——把用户指令转换为结构化执行提案（不直接改库）。"""
+    from apps.growth_lab.services.workspace_copilot import get_workspace_copilot
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    intent = (store.get_workspace_plan(node.get("plan_id", "")) or {}).get("intent") or {}
+    copilot = get_workspace_copilot()
+    proposal = await copilot.propose_edit(node, req.user_prompt, intent)
+    return {"proposal": proposal}
+
+
+class WorkspaceCopilotApplyRequest(BaseModel):
+    prompt_delta: str = ""
+    copy_delta: str = ""
+    generate_count: int = 1
+
+
+@router.post("/api/workspace/node/{node_id}/apply-proposal")
+async def workspace_apply_proposal(node_id: str, req: WorkspaceCopilotApplyRequest) -> dict:
+    """把提案落到节点：更新 visual_spec / copy_spec 后立即触发一次生成。"""
+    from apps.growth_lab.services.visual_node_generator import VisualNodeGenerator
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    changed = False
+    if req.prompt_delta:
+        # 把 delta 追加到 visual_spec（而不是覆盖），保留溯源
+        orig = node.get("visual_spec", "")
+        node["visual_spec"] = (orig + "\n【调整】" + req.prompt_delta).strip()
+        changed = True
+    if req.copy_delta:
+        orig = node.get("copy_spec", "")
+        node["copy_spec"] = (orig + "\n【调整】" + req.copy_delta).strip() if orig else req.copy_delta
+        changed = True
+    if changed:
+        node["updated_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        store.save_workspace_node(node)
+
+    gen = VisualNodeGenerator(store)
+    batch_id = gen.generate_for_node(node_id, count=max(1, int(req.generate_count or 1)))
+    return {"ok": True, "batch_id": batch_id, "node": node}
+
+
+class WorkspaceCompetitorRequest(BaseModel):
+    image_url: str = ""
+
+
+@router.post("/api/workspace/node/{node_id}/deconstruct-competitor")
+async def workspace_deconstruct_competitor(
+    node_id: str, req: WorkspaceCompetitorRequest,
+) -> dict:
+    """对竞品节点触发一次 32 维度拆解；结果写入节点 payload。"""
+    from apps.growth_lab.services.competitor_deconstructor import get_competitor_deconstructor
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    dec = get_competitor_deconstructor()
+    analysis = await dec.deconstruct(req.image_url)
+    # 写回节点 extra + 参考链接
+    node.setdefault("extra", {})
+    node["extra"]["competitor_analysis"] = analysis
+    node["extra"]["competitor_image_url"] = req.image_url
+    node["status"] = "reviewed"
+    node["updated_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+    store.save_workspace_node(node)
+    return {"ok": True, "analysis": analysis, "node": node}
+
+
+class WorkspaceNodeUpdateRequest(BaseModel):
+    active_variant_id: str | None = None
+    status: str | None = None
+    copy_spec: str | None = None
+    visual_spec: str | None = None
+    canvas_x: float | None = None
+    canvas_y: float | None = None
+
+
+@router.patch("/api/workspace/node/{node_id}")
+async def update_workspace_node(node_id: str, req: WorkspaceNodeUpdateRequest) -> dict:
+    store = _get_store()
+    n = store.get_workspace_node(node_id)
+    if not n:
+        raise HTTPException(404, "node not found")
+    changed = False
+    for field in ("active_variant_id", "status", "copy_spec", "visual_spec"):
+        val = getattr(req, field)
+        if val is not None:
+            n[field] = val
+            changed = True
+    if req.canvas_x is not None:
+        n["canvas_x"] = float(req.canvas_x)
+        changed = True
+    if req.canvas_y is not None:
+        n["canvas_y"] = float(req.canvas_y)
+        changed = True
+    if changed:
+        n["updated_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        store.save_workspace_node(n)
+    return {"ok": True, "node": n}
+
+
+# ── Sprint 4: replan_frame + 导出 + 资产图谱回流 ────────────
+
+class WorkspaceReplanRequest(BaseModel):
+    new_template_id: str = ""
+    keep_assets: bool = True
+
+
+@router.post("/api/workspace/frame/{frame_id}/replan")
+async def workspace_replan_frame(frame_id: str, req: WorkspaceReplanRequest) -> dict:
+    """切换 Frame 模板（保留已生成资产，做 slot 级别重绑定）。"""
+    from apps.growth_lab.services.frame_replanner import FrameReplanner
+    if not req.new_template_id:
+        raise HTTPException(400, "new_template_id is required")
+    replanner = FrameReplanner(_get_store())
+    try:
+        result = replanner.replan(
+            frame_id=frame_id,
+            new_template_id=req.new_template_id,
+            keep_assets=req.keep_assets,
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    return {"ok": True, **result}
+
+
+@router.get("/api/workspace/node/{node_id}/final-card")
+async def workspace_final_card(node_id: str) -> dict:
+    """产出最终结果卡（交付给 Command Center / 复盘使用）。"""
+    from apps.growth_lab.services.workspace_exporter import WorkspaceExporter
+    exporter = WorkspaceExporter(_get_store())
+    try:
+        card = exporter.render_final_result_card(node_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    return {"card": card}
+
+
+@router.get("/api/workspace/plan/{plan_id}/export")
+async def workspace_export_zip(plan_id: str):
+    """下载 plan 的交付包（ZIP）。"""
+    from apps.growth_lab.services.workspace_exporter import WorkspaceExporter
+    exporter = WorkspaceExporter(_get_store())
+    try:
+        data, filename = exporter.export_plan_zip(plan_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    return StreamingResponse(
+        iter([data]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post("/api/workspace/plan/{plan_id}/push-to-asset-graph")
+async def workspace_push_to_asset_graph(plan_id: str) -> dict:
+    """把已 approved/reviewed 的节点推送到资产图谱。"""
+    from apps.growth_lab.services.workspace_exporter import WorkspaceExporter
+    exporter = WorkspaceExporter(_get_store())
+    try:
+        pushed = exporter.push_to_asset_graph(plan_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    return {"ok": True, "pushed_count": len(pushed), "assets": pushed}
 
 
 # ── API: 视频处理 ────────────────────────────────────────────
