@@ -1,0 +1,39 @@
+# 品牌规则 · JOYRUQO（示例）
+brand_id: joyruqo
+brand_name: "JOYRUQO"
+
+product_colors:
+  - "#D4B68A"   # 包装主色
+  - "#F5EBD8"   # 辅助米色
+  - "#FFFFFF"
+
+logo_zones:
+  top_right: forbidden     # 右上角不要放其它元素
+  bottom_left: reserved    # 品牌 Logo 预留位
+
+# 文案层面：JOYRUQO 洁面乳要围绕"温和"体系
+must_keywords:
+  - "温和"
+  - "敏感肌"
+  - "氨基酸"
+
+avoid_keywords:
+  - "最好"
+  - "最佳"
+  - "第一"
+  - "顶级"
+  - "国家级"
+  - "绝对"
+  - "100%"
+  - "根治"
+  - "彻底"
+  - "医疗级"
+
+main_image_specs:
+  aspect_ratio: "1:1"
+  min_pixels: 800
+  max_file_kb: 500
+  allow_watermark: false
+
+approval:
+  require_all_nodes_pass: true

@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -1564,7 +1564,8 @@ class WorkspaceEditVariantRequest(BaseModel):
 async def edit_workspace_variant(node_id: str, req: WorkspaceEditVariantRequest) -> dict:
     """对话式图生图微调：以 active（或指定）变体为底图入队 mode=edit 新变体。"""
     from apps.growth_lab.services.visual_node_generator import VisualNodeGenerator
-    gen = VisualNodeGenerator(_get_store())
+    store = _get_store()
+    gen = VisualNodeGenerator(store)
     try:
         batch_id = gen.edit_variant(
             node_id,
@@ -1574,6 +1575,13 @@ async def edit_workspace_variant(node_id: str, req: WorkspaceEditVariantRequest)
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+    node = store.get_workspace_node(node_id) or {}
+    _record_session_event(node.get("plan_id", ""), node_id, req.base_variant_id or "", "edit_instruction", {
+        "user_prompt": req.user_prompt,
+        "count": req.count,
+        "base_variant_id": req.base_variant_id,
+        "batch_id": batch_id,
+    })
     return {"batch_id": batch_id, "node_id": node_id, "mode": "edit"}
 
 
@@ -1614,8 +1622,155 @@ async def get_workspace_node(node_id: str) -> dict:
     return {"node": n, "variants": variants}
 
 
+@router.get("/api/workspace/plan/{plan_id}/tree")
+async def get_workspace_plan_tree(plan_id: str) -> dict:
+    """返回 Plan → Frame → Node → Object 的树形结构，驱动左栏结果结构树 tab。"""
+    store = _get_store()
+    plan = store.get_workspace_plan(plan_id)
+    if not plan:
+        raise HTTPException(404, "plan not found")
+    frames = store.list_workspace_frames(plan_id)
+    nodes = store.list_workspace_nodes(plan_id=plan_id)
+    variants_by_node: dict[str, list[dict]] = {}
+    for n in nodes:
+        variants_by_node[n["node_id"]] = store.list_workspace_variants(n["node_id"])
+
+    def _active_thumb(n: dict) -> str:
+        aid = n.get("active_variant_id") or ""
+        vs = variants_by_node.get(n["node_id"], [])
+        if aid:
+            v = next((x for x in vs if x.get("variant_id") == aid), None)
+            if v and v.get("asset_url"):
+                return v["asset_url"]
+        for v in reversed(vs):
+            if v.get("asset_url"):
+                return v["asset_url"]
+        return ""
+
+    frame_tree: list[dict] = []
+    for f in frames:
+        fnodes = [n for n in nodes if n.get("frame_id") == f.get("frame_id")]
+        fnodes.sort(key=lambda x: x.get("slot_index", 0))
+        frame_tree.append({
+            "frame_id": f.get("frame_id", ""),
+            "frame_key": f.get("frame_key", ""),
+            "title": f.get("title", ""),
+            "template_id": f.get("template_id", ""),
+            "status": f.get("status", "draft"),
+            "nodes": [
+                {
+                    "node_id": n.get("node_id", ""),
+                    "slot_index": n.get("slot_index", 0),
+                    "role": n.get("role", ""),
+                    "title": n.get("title", ""),
+                    "result_type": n.get("result_type", ""),
+                    "status": n.get("status", "draft"),
+                    "variant_count": len(variants_by_node.get(n["node_id"], [])),
+                    "active_variant_id": n.get("active_variant_id", ""),
+                    "active_thumb": _active_thumb(n),
+                    "objects": n.get("objects", []) or [],
+                }
+                for n in fnodes
+            ],
+        })
+
+    intent = plan.get("intent") or {}
+    # 聚合 Plan 状态（供顶栏 chip）
+    statuses = [n.get("status", "draft") for n in nodes]
+    if statuses and all(s == "approved" for s in statuses):
+        agg = "approved"
+    elif statuses and any(s == "reviewed" for s in statuses):
+        agg = "reviewing"
+    elif statuses and any(s in {"generated", "reviewed", "approved"} for s in statuses):
+        agg = "editing"
+    else:
+        agg = "draft"
+    return {
+        "plan_id": plan_id,
+        "intent": intent,
+        "template_bindings": plan.get("template_bindings", []),
+        "compile_plan": {
+            "generation_rules": plan.get("generation_rules", {}),
+            "evaluation_rules": plan.get("evaluation_rules", {}),
+            "status": plan.get("status", ""),
+        },
+        "frames": frame_tree,
+        "aggregate_status": agg,
+        "counts": {
+            "frames": len(frames),
+            "nodes": len(nodes),
+            "generated": sum(1 for s in statuses if s in {"generated", "reviewed", "approved"}),
+            "reviewed": sum(1 for s in statuses if s in {"reviewed", "approved"}),
+            "approved": sum(1 for s in statuses if s == "approved"),
+        },
+    }
+
+
+@router.get("/api/workspace/node/{node_id}/objects")
+async def get_workspace_node_objects(node_id: str) -> dict:
+    """返回节点下的对象列表。"""
+    store = _get_store()
+    n = store.get_workspace_node(node_id)
+    if not n:
+        raise HTTPException(404, "node not found")
+    return {"node_id": node_id, "objects": n.get("objects", []) or []}
+
+
+class WorkspaceObjectPatchRequest(BaseModel):
+    label: str | None = None
+    locked: bool | None = None
+    editable: bool | None = None
+    prompt_hint: str | None = None
+
+
+@router.post("/api/workspace/object/{object_id}")
+async def patch_workspace_object(object_id: str, req: WorkspaceObjectPatchRequest) -> dict:
+    """更新某个 object 的 label / locked / editable / prompt_hint。"""
+    store = _get_store()
+    # O(n) 扫 nodes 定位 object —— V1 够用
+    nodes = store.list_workspace_nodes()
+    hit_node: dict | None = None
+    hit_obj: dict | None = None
+    for n in nodes:
+        for o in n.get("objects", []) or []:
+            if o.get("object_id") == object_id:
+                hit_node, hit_obj = n, o
+                break
+        if hit_obj is not None:
+            break
+    if hit_obj is None or hit_node is None:
+        raise HTTPException(404, "object not found")
+    if req.label is not None:
+        hit_obj["label"] = req.label
+    if req.locked is not None:
+        hit_obj["locked"] = req.locked
+    if req.editable is not None:
+        hit_obj["editable"] = req.editable
+    if req.prompt_hint is not None:
+        hit_obj["prompt_hint"] = req.prompt_hint
+    store.save_workspace_node(hit_node)
+    return {"ok": True, "object": hit_obj}
+
+
+class WorkspaceSelectionContextPayload(BaseModel):
+    mode: str = "scene"
+    primary_object_id: str | None = None
+    secondary_object_ids: list[str] = []
+    selected_object_ids: list[str] = []
+    selected_region: dict[str, Any] | None = None
+    pinned_variant_id: str | None = None
+    pinned_image_url: str | None = None
+
+
+class WorkspaceConversationState(BaseModel):
+    last_user_messages: list[str] = []
+    last_proposal_summary: str = ""
+
+
 class WorkspaceCopilotProposeRequest(BaseModel):
     user_prompt: str = ""
+    selection_context: WorkspaceSelectionContextPayload | None = None
+    conversation_state: WorkspaceConversationState | None = None
 
 
 @router.get("/api/workspace/node/{node_id}/suggest-actions")
@@ -1639,49 +1794,391 @@ async def workspace_suggest_actions(node_id: str, use_llm: int = 0) -> dict:
 async def workspace_propose_edit(
     node_id: str, req: WorkspaceCopilotProposeRequest,
 ) -> dict:
-    """右栏"对话编辑器"——把用户指令转换为结构化执行提案（不直接改库）。"""
+    """右栏"对话编辑器"——v2 升级：先建 EditContextPack → 解析指代 → LLM 生成提案。"""
+    from apps.growth_lab.services.edit_context_builder import build_edit_context_pack
+    from apps.growth_lab.services.reference_resolver import resolve_edit_reference
     from apps.growth_lab.services.workspace_copilot import get_workspace_copilot
+
     store = _get_store()
     node = store.get_workspace_node(node_id)
     if not node:
         raise HTTPException(404, "node not found")
-    intent = (store.get_workspace_plan(node.get("plan_id", "")) or {}).get("intent") or {}
+    sel = req.selection_context
+    primary = sel.primary_object_id if sel else None
+    secondary = list(sel.secondary_object_ids) if sel else []
+    selected = list(set(([primary] if primary else []) + secondary + (sel.selected_object_ids if sel else [])))
+    selected = [s for s in selected if s]
+    region = sel.selected_region if sel else None
+    variant_id = sel.pinned_variant_id if sel else None
+
+    pack = build_edit_context_pack(
+        node_id,
+        variant_id=variant_id,
+        primary_object_id=primary,
+        selected_object_ids=selected or None,
+        selected_region=region,
+        store=store,
+    )
+    if pack is None:
+        raise HTTPException(404, "node context unavailable")
+
+    resolved = resolve_edit_reference(pack, req.user_prompt or "")
     copilot = get_workspace_copilot()
-    proposal = await copilot.propose_edit(node, req.user_prompt, intent)
-    return {"proposal": proposal}
+    proposal_v2 = await copilot.propose_edit_v2(pack, resolved, req.user_prompt or "")
+
+    # 兼容：v1 调用端也需要 summary / prompt_delta / target_objects
+    proposal_legacy: dict = {
+        "summary": proposal_v2.get("summary", ""),
+        "prompt_delta": proposal_v2.get("prompt_delta", ""),
+        "copy_delta": proposal_v2.get("copy_delta", ""),
+        "target_objects": proposal_v2.get("target_objects", []),
+        "locked_objects": proposal_v2.get("locked_objects", []),
+        "steps": [
+            (s.get("reason") or s.get("action_type") or "")
+            for s in (proposal_v2.get("steps") or [])
+        ][:4],
+        "risks": list(proposal_v2.get("risks") or []),
+        "risk": (proposal_v2.get("risks") or [""])[0] if proposal_v2.get("risks") else "",
+    }
+
+    _record_session_event(node.get("plan_id", ""), node_id, variant_id or "", "proposal_proposed", {
+        "user_prompt": req.user_prompt,
+        "summary": proposal_v2.get("summary", ""),
+        "target_objects": proposal_v2.get("target_objects", []),
+        "selection_context": (sel.model_dump() if sel else {}),
+        "resolved_reference": proposal_v2.get("resolved_reference", {}),
+        "needs_clarification": bool(proposal_v2.get("needs_clarification")),
+    })
+    # 同时记 user_message 便于后续 direction_summary 聚合
+    if req.user_prompt:
+        _record_session_event(node.get("plan_id", ""), node_id, variant_id or "", "user_message", {
+            "text": req.user_prompt,
+        })
+
+    return {
+        # v1 字段：前端兼容
+        "proposal": proposal_legacy,
+        # v2 字段：右栏新卡渲染用
+        "proposal_v2": proposal_v2,
+        "edit_context": pack.model_dump(mode="json"),
+    }
+
+
+@router.get("/api/workspace/node/{node_id}/edit-context")
+async def workspace_edit_context(
+    node_id: str,
+    variant_id: str = "",
+    primary_object_id: str = "",
+    selected_object_ids: str = "",
+    selected_region: str = "",
+) -> dict:
+    """返回 EditContextPack，供右栏顶部"编辑上下文卡 + 主/辅对象 chips + 方向卡"绑数据。"""
+    from apps.growth_lab.services.edit_context_builder import build_edit_context_pack
+
+    store = _get_store()
+    ids = [x.strip() for x in (selected_object_ids or "").split(",") if x.strip()]
+    region_obj: dict | None = None
+    if selected_region:
+        try:
+            region_obj = json.loads(selected_region)
+            if not isinstance(region_obj, dict):
+                region_obj = None
+        except Exception:
+            region_obj = None
+    pack = build_edit_context_pack(
+        node_id,
+        variant_id=variant_id or None,
+        primary_object_id=primary_object_id or None,
+        selected_object_ids=ids or None,
+        selected_region=region_obj,
+        store=store,
+    )
+    if pack is None:
+        raise HTTPException(404, "node not found")
+    return pack.model_dump(mode="json")
 
 
 class WorkspaceCopilotApplyRequest(BaseModel):
     prompt_delta: str = ""
     copy_delta: str = ""
     generate_count: int = 1
+    # v2 字段（前端 renderProposal v2 会发）
+    apply_mode: Literal["execute", "preview_only", "step_by_step", "variants_only"] | None = "execute"
+    proposal_v2: dict | None = None
+    selection_context_snapshot: dict | None = None
+    base_variant_id: str | None = None
 
 
 @router.post("/api/workspace/node/{node_id}/apply-proposal")
 async def workspace_apply_proposal(node_id: str, req: WorkspaceCopilotApplyRequest) -> dict:
-    """把提案落到节点：更新 visual_spec / copy_spec 后立即触发一次生成。"""
+    """应用提案。v2 根据 apply_mode 选择 edit_variant / generate_for_node。"""
     from apps.growth_lab.services.visual_node_generator import VisualNodeGenerator
     store = _get_store()
     node = store.get_workspace_node(node_id)
     if not node:
         raise HTTPException(404, "node not found")
+
+    proposal = req.proposal_v2 or {}
+    sel_snap = req.selection_context_snapshot or {}
+    base_variant_id = (req.base_variant_id
+                       or sel_snap.get("pinned_variant_id")
+                       or node.get("active_variant_id", "") or "")
+    apply_mode = req.apply_mode or "execute"
+
+    # 组合 edit 指令
+    edit_instruction = (
+        req.prompt_delta
+        or proposal.get("prompt_delta")
+        or proposal.get("summary")
+        or ""
+    ).strip()
+    copy_delta = (req.copy_delta or proposal.get("copy_delta") or "").strip()
+
     changed = False
-    if req.prompt_delta:
-        # 把 delta 追加到 visual_spec（而不是覆盖），保留溯源
-        orig = node.get("visual_spec", "")
-        node["visual_spec"] = (orig + "\n【调整】" + req.prompt_delta).strip()
-        changed = True
-    if req.copy_delta:
-        orig = node.get("copy_spec", "")
-        node["copy_spec"] = (orig + "\n【调整】" + req.copy_delta).strip() if orig else req.copy_delta
-        changed = True
+    if apply_mode in {"execute", "step_by_step"}:
+        # persist visual_spec / copy_spec delta（保留溯源）
+        if edit_instruction:
+            orig = node.get("visual_spec", "")
+            node["visual_spec"] = (orig + "\n【调整】" + edit_instruction).strip() if orig else edit_instruction
+            changed = True
+        if copy_delta:
+            orig = node.get("copy_spec", "")
+            node["copy_spec"] = (orig + "\n【调整】" + copy_delta).strip() if orig else copy_delta
+            changed = True
     if changed:
         node["updated_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
         store.save_workspace_node(node)
 
     gen = VisualNodeGenerator(store)
-    batch_id = gen.generate_for_node(node_id, count=max(1, int(req.generate_count or 1)))
-    return {"ok": True, "batch_id": batch_id, "node": node}
+    count = max(1, int(req.generate_count or 1))
+    batch_id: str | None = None
+    executed_action = "noop"
+
+    if apply_mode == "preview_only":
+        executed_action = "preview_only"
+    elif apply_mode == "variants_only" and base_variant_id and edit_instruction:
+        # img2img 本地变体，不改 visual_spec
+        try:
+            batch_id = gen.edit_variant(
+                node_id, edit_instruction,
+                base_variant_id=base_variant_id, count=count,
+            )
+            executed_action = "edit_variant"
+        except Exception as exc:  # pragma: no cover
+            raise HTTPException(400, f"img2img 失败：{exc}")
+    elif apply_mode == "step_by_step":
+        # V1：先走一次 img2img 作为"第 1 步可视化"，后续步骤延后（前端分步触发）
+        if base_variant_id and edit_instruction:
+            batch_id = gen.edit_variant(
+                node_id, edit_instruction,
+                base_variant_id=base_variant_id, count=1,
+            )
+            executed_action = "edit_variant_step"
+        else:
+            batch_id = gen.generate_for_node(node_id, count=1)
+            executed_action = "generate_step"
+    else:
+        # execute：有底图优先 img2img，否则整图重生
+        if base_variant_id and edit_instruction:
+            try:
+                batch_id = gen.edit_variant(
+                    node_id, edit_instruction,
+                    base_variant_id=base_variant_id, count=count,
+                )
+                executed_action = "edit_variant"
+            except Exception:
+                batch_id = gen.generate_for_node(node_id, count=count)
+                executed_action = "generate_fallback"
+        else:
+            batch_id = gen.generate_for_node(node_id, count=count)
+            executed_action = "generate"
+
+    _record_session_event(node.get("plan_id", ""), node_id, base_variant_id or "", "proposal_applied", {
+        "apply_mode": apply_mode,
+        "executed_action": executed_action,
+        "prompt_delta": edit_instruction,
+        "copy_delta": copy_delta,
+        "generate_count": count,
+        "batch_id": batch_id,
+        "selection_context_snapshot": sel_snap,
+        "summary": (
+            f"[{apply_mode}] {proposal.get('summary') or edit_instruction[:40]}"
+            if edit_instruction else f"[{apply_mode}] 无指令执行"
+        ),
+    })
+    _refresh_direction_summary_safe(store, node)
+    return {
+        "ok": True,
+        "batch_id": batch_id,
+        "node": node,
+        "executed_action": executed_action,
+        "apply_mode": apply_mode,
+    }
+
+
+# ── 节点状态机 ──
+
+_NODE_STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "draft": {"generating", "failed"},
+    "generating": {"generated", "failed"},
+    "generated": {"reviewed", "generating", "draft", "failed"},
+    "reviewed": {"approved", "generated", "draft"},
+    "approved": {"reviewed", "draft"},
+    "failed": {"draft", "generating"},
+}
+
+
+def _transition_node_status(node: dict, target: str, *, actor: str = "user", note: str = "", report: dict | None = None) -> None:
+    current = node.get("status", "draft")
+    allowed = _NODE_STATUS_TRANSITIONS.get(current, set())
+    if target != current and target not in allowed:
+        raise HTTPException(400, f"状态转换非法：{current} → {target}")
+    now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+    history = node.get("status_history") or []
+    history.append({
+        "from": current, "to": target, "actor": actor,
+        "at": now, "note": note or "",
+    })
+    node["status"] = target
+    node["status_history"] = history
+    node["updated_at"] = now
+    if target == "reviewed":
+        node["reviewed_at"] = now
+    if target == "approved":
+        node["approved_at"] = now
+    if report is not None:
+        node["rule_report"] = report
+
+
+class WorkspaceNodeTransitionRequest(BaseModel):
+    note: str = ""
+    actor: str = "user"
+
+
+@router.post("/api/workspace/node/{node_id}/mark-reviewed")
+async def workspace_node_mark_reviewed(node_id: str, req: WorkspaceNodeTransitionRequest) -> dict:
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    _transition_node_status(node, "reviewed", actor=req.actor, note=req.note)
+    store.save_workspace_node(node)
+    _record_session_event(node["plan_id"], node_id, "", "mark_reviewed", {"note": req.note, "actor": req.actor})
+    _refresh_direction_summary_safe(store, node)
+    return {"ok": True, "node": node}
+
+
+@router.post("/api/workspace/node/{node_id}/approve")
+async def workspace_node_approve(node_id: str, req: WorkspaceNodeTransitionRequest) -> dict:
+    """审批通过。会先跑品牌规则 gate，不过直接返回规则报告。"""
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    try:
+        from apps.growth_lab.services.brand_rule_validator import validate_node_dict
+        plan = store.get_workspace_plan(node.get("plan_id", "")) or {}
+        brand_id = plan.get("brand_id", "") or "default"
+        report = validate_node_dict(node, brand_id=brand_id, store=store)
+    except Exception as exc:  # pragma: no cover
+        report = {"passed": True, "skipped": True, "reason": f"validator 缺失/异常：{exc}"}
+    if not report.get("passed", False):
+        return {"ok": False, "reason": "rule_failed", "report": report}
+    _transition_node_status(node, "approved", actor=req.actor, note=req.note, report=report)
+    store.save_workspace_node(node)
+    _record_session_event(node["plan_id"], node_id, "", "approve", {"report": report, "actor": req.actor})
+    _refresh_direction_summary_safe(store, node)
+    return {"ok": True, "node": node, "report": report}
+
+
+@router.post("/api/workspace/node/{node_id}/revert")
+async def workspace_node_revert(node_id: str, req: WorkspaceNodeTransitionRequest) -> dict:
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    prev = node.get("status", "draft")
+    # 允许 approved/reviewed/failed/generated → draft
+    if prev in {"approved", "reviewed", "failed"}:
+        target = "draft"
+    elif prev == "generated":
+        target = "draft"
+    else:
+        raise HTTPException(400, f"当前状态 {prev} 无需回退")
+    node["status"] = target
+    node["status_history"] = (node.get("status_history") or []) + [{
+        "from": prev, "to": target, "actor": req.actor,
+        "at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "note": req.note or "revert",
+    }]
+    node["reviewed_at"] = None
+    node["approved_at"] = None
+    store.save_workspace_node(node)
+    _record_session_event(node["plan_id"], node_id, "", "revert", {"from": prev, "to": target, "actor": req.actor})
+    return {"ok": True, "node": node}
+
+
+@router.get("/api/workspace/brand-rule/{brand_id}")
+async def workspace_brand_rule(brand_id: str) -> dict:
+    """返回某 brand 的规则定义（供左栏 Tab2 展示）。"""
+    from apps.growth_lab.services.brand_rule_validator import load_brand_rules
+    rules = load_brand_rules(brand_id)
+    return {"brand_id": brand_id, "rules": rules}
+
+
+@router.get("/api/workspace/plan/{plan_id}/timeline")
+async def workspace_plan_timeline(plan_id: str, node_id: str = "", limit: int = 500) -> dict:
+    """返回 plan 的会话/生成/审批事件时间线。"""
+    store = _get_store()
+    if not hasattr(store, "list_workspace_session_events"):
+        return {"events": [], "skipped": True}
+    events = store.list_workspace_session_events(plan_id=plan_id, node_id=node_id, limit=limit)
+    return {"events": events, "plan_id": plan_id, "node_id": node_id}
+
+
+@router.get("/api/workspace/plan/{plan_id}/rule-report")
+async def workspace_plan_rule_report(plan_id: str, brand_id: str = "") -> dict:
+    """对整个 plan 跑品牌规则 gate，返回节点级 + plan 级报告。"""
+    from apps.growth_lab.services.brand_rule_validator import validate_plan
+    store = _get_store()
+    plan = store.get_workspace_plan(plan_id)
+    if not plan:
+        raise HTTPException(404, "plan not found")
+    nodes = store.list_workspace_nodes(plan_id=plan_id)
+    variants_by_node = {
+        n["node_id"]: store.list_workspace_variants(n["node_id"]) or []
+        for n in nodes
+    }
+    bid = brand_id or plan.get("brand_id") or "default"
+    report = validate_plan(plan, nodes, variants_by_node, brand_id=bid)
+    return report
+
+
+def _refresh_direction_summary_safe(store, node: dict) -> None:
+    """容错地刷新 ResultNode.direction_summary。失败不影响主流程。"""
+    try:
+        from apps.growth_lab.schemas.visual_workspace import ResultNode as _RN
+        from apps.growth_lab.services.direction_summary import refresh_direction_summary
+        rn = _RN.model_validate(node)
+        refresh_direction_summary(store, rn.plan_id, rn)
+    except Exception as exc:  # pragma: no cover
+        logger.debug("direction_summary refresh skip: %s", exc)
+
+
+def _record_session_event(plan_id: str, node_id: str, variant_id: str, event_type: str, payload: dict) -> None:
+    """Sprint 4 持久化到 workspace_session_events。V1 做容错调用（桩）。"""
+    try:
+        store = _get_store()
+        if hasattr(store, "insert_workspace_session_event"):
+            store.insert_workspace_session_event({
+                "plan_id": plan_id or "",
+                "node_id": node_id or "",
+                "variant_id": variant_id or "",
+                "type": event_type,
+                "payload": payload or {},
+            })
+    except Exception as exc:  # pragma: no cover
+        logger.debug("session event skip: %s", exc)
 
 
 class WorkspaceCompetitorRequest(BaseModel):
@@ -1768,6 +2265,24 @@ async def workspace_replan_frame(frame_id: str, req: WorkspaceReplanRequest) -> 
     return {"ok": True, **result}
 
 
+@router.post("/api/workspace/frame/{frame_id}/replan-preview")
+async def workspace_replan_frame_preview(frame_id: str, req: WorkspaceReplanRequest) -> dict:
+    """换模板 diff 预览（不落库）。"""
+    from apps.growth_lab.services.frame_replanner import FrameReplanner
+    if not req.new_template_id:
+        raise HTTPException(400, "new_template_id is required")
+    replanner = FrameReplanner(_get_store())
+    try:
+        preview = replanner.preview(
+            frame_id=frame_id,
+            new_template_id=req.new_template_id,
+            keep_assets=req.keep_assets,
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    return {"ok": True, "preview": preview}
+
+
 @router.get("/api/workspace/node/{node_id}/final-card")
 async def workspace_final_card(node_id: str) -> dict:
     """产出最终结果卡（交付给 Command Center / 复盘使用）。"""
@@ -1781,19 +2296,46 @@ async def workspace_final_card(node_id: str) -> dict:
 
 
 @router.get("/api/workspace/plan/{plan_id}/export")
-async def workspace_export_zip(plan_id: str):
-    """下载 plan 的交付包（ZIP）。"""
+async def workspace_export_zip(plan_id: str, force: int = 0):
+    """下载 plan 的交付包（ZIP，生产级）。
+
+    force=1：忽略品牌规则 gate 强制导出（report 仍会标红）。
+    """
     from apps.growth_lab.services.workspace_exporter import WorkspaceExporter
     exporter = WorkspaceExporter(_get_store())
     try:
-        data, filename = exporter.export_plan_zip(plan_id)
+        data, filename = exporter.export_plan_zip(plan_id, force=bool(force))
     except ValueError as e:
-        raise HTTPException(404, str(e)) from e
+        msg = str(e)
+        if "品牌规则 gate" in msg:
+            raise HTTPException(412, msg) from e
+        raise HTTPException(404, msg) from e
     return StreamingResponse(
         iter([data]),
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.post("/api/workspace/node/{node_id}/promote-to-template-asset")
+async def workspace_promote_to_template_asset(node_id: str) -> dict:
+    """把 approved 节点 + active 变体沉淀为 assets/promoted_main_images/ 下的 YAML+图。"""
+    from apps.growth_lab.services.workspace_exporter import WorkspaceExporter
+    exporter = WorkspaceExporter(_get_store())
+    try:
+        result = exporter.promote_to_template_asset(node_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    try:
+        n = _get_store().get_workspace_node(node_id) or {}
+        _record_session_event(
+            n.get("plan_id", ""), node_id, "",
+            "promote_to_template_asset",
+            {"template_id": result.get("template_id", "")},
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.post("/api/workspace/plan/{plan_id}/push-to-asset-graph")

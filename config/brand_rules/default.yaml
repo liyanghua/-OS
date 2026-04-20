@@ -1,0 +1,42 @@
+# 品牌规则 · 默认兜底
+# 所有未指定 brand_id 的 plan 都会走这套规则。
+brand_id: default
+brand_name: "默认品牌"
+
+# 产品主色（VLM gate 预留；V1 不启用颜色偏移校验）
+product_colors: []
+
+# Logo 区域（VLM gate 预留；V1 不启用 logo 遮挡校验）
+# 可选 zones：top_left / top_right / bottom_left / bottom_right / center
+# forbidden: 禁止出现其他元素
+# reserved: 预留必须放 logo
+logo_zones: {}
+
+# 必选关键词——全 plan 的文案（headline/copy_spec）至少命中 1 个
+# V1 默认不强制，可在具体品牌 yaml 覆盖
+must_keywords: []
+
+# 禁用词——广告法常见违规词，命中一个即失败
+avoid_keywords:
+  - "最好"
+  - "最佳"
+  - "第一"
+  - "顶级"
+  - "国家级"
+  - "绝对"
+  - "100%"
+  - "根治"
+  - "彻底"
+
+# 主图尺寸规格
+main_image_specs:
+  aspect_ratio: "1:1"
+  min_pixels: 800
+  max_file_kb: 500
+  allow_watermark: false
+
+# 审批策略
+approval:
+  # true: 所有节点必须通过 gate，plan 才能整体导出
+  # false: 只导出通过的节点，其他节点在 report 中标红
+  require_all_nodes_pass: false

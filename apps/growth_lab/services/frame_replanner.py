@@ -30,6 +30,64 @@ class FrameReplanner:
     def __init__(self, store: GrowthLabStore | None = None) -> None:
         self._store = store or GrowthLabStore()
 
+    def preview(
+        self,
+        *,
+        frame_id: str,
+        new_template_id: str,
+        keep_assets: bool = True,
+    ) -> dict:
+        """返回换模板的 diff 预览（不落库）。"""
+        frame = self._store.get_workspace_frame(frame_id)
+        if not frame:
+            raise ValueError(f"frame not found: {frame_id}")
+        new_template = get_template_library().get(new_template_id)
+        if not new_template:
+            raise ValueError(f"template not found: {new_template_id}")
+        existing_nodes = self._store.list_workspace_nodes(frame_id=frame_id)
+        node_by_slot: dict[int, dict] = {n["slot_index"]: n for n in existing_nodes}
+
+        will_update: list[dict] = []
+        will_create: list[dict] = []
+        for i, slot in enumerate(new_template.slots):
+            slot_idx = slot.index or (i + 1)
+            existing = node_by_slot.pop(slot_idx, None)
+            if existing and keep_assets:
+                will_update.append({
+                    "slot_index": slot_idx,
+                    "node_id": existing.get("node_id", ""),
+                    "old_role": existing.get("role", ""),
+                    "new_role": slot.role,
+                    "old_visual": (existing.get("visual_spec") or "")[:60],
+                    "new_visual": (slot.visual_spec or "")[:60],
+                    "keeps_variants": bool(existing.get("variant_ids")),
+                    "active_variant_id": existing.get("active_variant_id", ""),
+                })
+            else:
+                will_create.append({
+                    "slot_index": slot_idx,
+                    "role": slot.role,
+                    "visual_spec": (slot.visual_spec or "")[:80],
+                })
+        will_archive: list[dict] = []
+        for n in node_by_slot.values():
+            will_archive.append({
+                "slot_index": n.get("slot_index"),
+                "node_id": n.get("node_id", ""),
+                "role": n.get("role", ""),
+                "has_active": bool(n.get("active_variant_id")),
+            })
+        return {
+            "frame_id": frame_id,
+            "old_template_id": frame.get("template_id", ""),
+            "new_template_id": new_template.template_id,
+            "new_template_name": new_template.name,
+            "will_update": will_update,
+            "will_create": will_create,
+            "will_archive": will_archive,
+            "keep_assets": keep_assets,
+        }
+
     def replan(
         self,
         *,

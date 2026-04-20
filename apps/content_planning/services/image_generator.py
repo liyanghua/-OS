@@ -193,10 +193,29 @@ class ImageGeneratorService:
     # ── OpenRouter / Gemini ──────────────────────────────────────────
 
     @staticmethod
+    def _resolve_local_path(file_path: str) -> Path | None:
+        """把 URL/相对路径 规整成文件系统路径。
+        支持：
+        - 绝对文件系统路径
+        - `/generated-images/{oid}/{name}` → `_GENERATED_DIR / oid / name`
+        - 其它以 '/' 开头的 URL 路径暂不支持（返回 None）
+        """
+        if not file_path:
+            return None
+        # URL 形式的 serve path
+        if file_path.startswith("/generated-images/"):
+            rel = file_path[len("/generated-images/"):]
+            candidate = _GENERATED_DIR / rel
+            return candidate if candidate.is_file() else None
+        # 文件系统路径直通
+        p = Path(file_path)
+        return p if p.is_file() else None
+
+    @staticmethod
     def _local_path_to_data_uri(file_path: str) -> str:
         """将本地图片文件转为 base64 data URI，供 OpenRouter multimodal 调用。"""
-        p = Path(file_path)
-        if not p.is_file():
+        p = ImageGeneratorService._resolve_local_path(file_path)
+        if not p:
             logger.warning("Local ref image not found: %s", file_path)
             return ""
         mime = "image/jpeg"
@@ -421,14 +440,25 @@ class ImageGeneratorService:
         _ds_trace = dict(prompt_sent=prompt.prompt, ref_image_sent=prompt.ref_image_url)
         t0 = time.perf_counter()
         try:
-            if prompt.ref_image_url:
+            # DashScope 只能访问公网可达 URL；本地 serve path 或空直接降级到纯文生图
+            ref_url = prompt.ref_image_url
+            ref_is_public = bool(ref_url) and ref_url.startswith("http") and not ref_url.startswith(("http://localhost", "http://127.0.0.1"))
+            if prompt.ref_image_url and not ref_is_public:
+                logger.info("DashScope: ref_image_url 非公网可达（%s），此通道跳过 img2img，转 OpenRouter", ref_url[:80])
+                elapsed = int((time.perf_counter() - t0) * 1000)
+                return ImageResult(
+                    slot_id=prompt.slot_id, status="failed",
+                    error="ref image 非公网 URL，DashScope 跳过", elapsed_ms=elapsed,
+                    provider="dashscope", **_ds_trace,
+                )
+            if ref_is_public:
                 rsp = ImageSynthesis.async_call(
                     model="wanx2.1-imageedit",
                     prompt=prompt.prompt,
                     negative_prompt=prompt.negative_prompt or None,
                     n=1,
                     function="stylization_all",
-                    base_image_url=prompt.ref_image_url,
+                    base_image_url=ref_url,
                     api_key=self._dashscope_key,
                 )
                 if rsp.status_code != 200:

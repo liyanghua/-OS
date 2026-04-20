@@ -16,9 +16,11 @@ from apps.growth_lab.schemas.visual_workspace import (
     CompilePlan,
     Frame,
     IntentContext,
+    ObjectNode,
     ResultNode,
     ScriptTemplate,
     TemplateBinding,
+    TemplateSlot,
 )
 from apps.growth_lab.services.category_adapter import adapt_skeleton
 from apps.growth_lab.services.template_library import get_template_library
@@ -305,6 +307,7 @@ class VisualPlanCompiler:
                 brand_rule_refs=list(template.default_brand_rules),
                 status="draft",
             )
+            node.objects = self._default_objects_for(node, slot, intent)
             nodes.append(node)
 
         frame.node_ids = [n.node_id for n in nodes]
@@ -318,6 +321,129 @@ class VisualPlanCompiler:
             return slot_count
         # grid：按每行 4 个排布
         return 4
+
+    @staticmethod
+    def _default_objects_for(node: ResultNode, slot: TemplateSlot, intent: IntentContext) -> list[ObjectNode]:
+        """按 result_type 与 slot role 生成一组默认对象（V1 静态模板，不做识别）。"""
+        product_label = intent.product_name or "商品"
+        slot_role_raw = (slot.role or "").strip()
+        role_lc = slot_role_raw.lower()
+        headline = (slot.headline or "").strip()
+        subheadline = (slot.subheadline or "").strip()
+
+        # 把 slot.role 中的关键词映射到对象 role（V1 近似）
+        has_pain_contrast = any(k in slot_role_raw for k in ["痛点", "对比", "before", "after", "Before", "After"])
+        has_lifestyle = any(k in slot_role_raw for k in ["人物", "场景", "真人", "生活", "使用"])
+        has_tech = any(k in slot_role_raw for k in ["成分", "工艺", "科技", "专利", "技术", "参数"])
+
+        hero_role = "hero_product"
+        bg_role = "lifestyle_bg" if has_lifestyle else "clean_bg"
+        title_role = "title_copy"
+        sub_role = "subtitle_copy"
+
+        def _mk(
+            type_: str,
+            label: str,
+            *,
+            hint: str = "",
+            editable: bool = True,
+            locked: bool = False,
+            order: int = 0,
+            role: str | None = None,
+            semantic: str | None = None,
+            actions: list[str] | None = None,
+        ) -> ObjectNode:
+            return ObjectNode(
+                node_id=node.node_id,
+                type=type_,  # type: ignore[arg-type]
+                label=label,
+                editable=editable,
+                locked=locked,
+                prompt_hint=hint,
+                order=order,
+                role=role,
+                semantic_description=semantic,
+                editable_actions=actions or [],
+            )
+
+        # 基础三件套
+        objs: list[ObjectNode] = [
+            _mk(
+                "product", f"{product_label}（主体）",
+                hint="保持颜色与logo一致", locked=True, order=1,
+                role=hero_role,
+                semantic=f"商品主体：{product_label}，需保持识别度",
+                actions=["reposition", "scale", "relight"],
+            ),
+            _mk(
+                "background", "背景",
+                hint="可调氛围/饱和度/场景", order=2,
+                role=bg_role,
+                semantic="画面背景/场景氛围",
+                actions=["replace", "blur", "recolor"],
+            ),
+            _mk(
+                "copy", headline or "标题文案",
+                hint=subheadline or "主视觉文案", order=3,
+                role=title_role,
+                semantic=headline or "画面主标题",
+                actions=["rewrite", "shorten", "translate"],
+            ),
+        ]
+        if subheadline:
+            objs.append(_mk(
+                "copy", subheadline, hint="副标题/描述", order=4,
+                role=sub_role, semantic=subheadline,
+                actions=["rewrite", "shorten"],
+            ))
+
+        if has_pain_contrast:
+            objs.append(_mk(
+                "decoration", "Before 区", hint="痛点展示侧", order=5,
+                role="before_area",
+                semantic="左侧/前态：展示使用前的痛点",
+                actions=["recolor", "emphasize"],
+            ))
+            objs.append(_mk(
+                "decoration", "After 区", hint="效果展示侧", order=6,
+                role="after_area",
+                semantic="右侧/后态：展示使用后效果",
+                actions=["recolor", "emphasize"],
+            ))
+
+        if has_tech:
+            objs.append(_mk(
+                "decoration", "技术/成分标注", hint="标签/徽章/数字", order=7,
+                role="trust_badge",
+                semantic="成分/工艺/参数等可信元素",
+                actions=["relabel", "reposition"],
+            ))
+
+        if node.result_type in {"buyer_show", "video_shot"} or has_lifestyle:
+            if all(o.type != "person" for o in objs):
+                objs.append(_mk(
+                    "person", "人物",
+                    hint="与商品互动的人物", order=8,
+                    role="lifestyle_person",
+                    semantic="使用场景中的用户/模特",
+                    actions=["restyle", "reposition"],
+                ))
+
+        if node.result_type in {"main_image", "detail_module"}:
+            objs.append(_mk(
+                "logo", "品牌Logo",
+                hint="位置与比例锁定", editable=False, locked=True, order=9,
+                role="brand_logo",
+                semantic="品牌识别符号，不可修改",
+                actions=[],
+            ))
+
+        # 同步把 slot role/objective 写到 node
+        if not node.slot_role:
+            node.slot_role = slot_role_raw or None
+        if not node.slot_objective:
+            node.slot_objective = (slot.visual_spec or headline or "").strip() or None
+        return objs
 
     @staticmethod
     def _collect_intent_refs(intent: IntentContext) -> list[str]:

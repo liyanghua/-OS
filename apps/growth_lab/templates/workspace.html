@@ -139,17 +139,168 @@
       color: var(--muted); font-size: 13px; text-align: center; pointer-events: none;
     }
 
-    /* Right column */
+    /* Right column — sticky 三明治 */
     .ws-right {
       grid-column: 3 / 4; grid-row: 2 / 4;
       background: var(--surface); border-left: 1px solid var(--border);
-      display: flex; flex-direction: column; overflow: hidden;
+      display: grid; grid-template-rows: auto 1fr auto; height: 100%;
+      overflow: hidden;
     }
-    .ws-right-section { padding: 14px; border-bottom: 1px solid var(--border); }
-    .ws-right-section:last-child { flex: 1; overflow-y: auto; border-bottom: none; }
-    .ws-right-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .ws-right-top {
+      border-bottom: 1px solid var(--border); background: var(--surface);
+      max-height: 46vh; overflow-y: auto;
+    }
+    .ws-right-middle {
+      overflow-y: auto; padding: 0; min-height: 120px;
+    }
+    .ws-right-bottom {
+      border-top: 1px solid var(--border); background: var(--surface);
+      padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .ws-right-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .ws-right-section:last-child { border-bottom: none; }
+    .ws-right-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
     .ws-right-kv { font-size: 12px; line-height: 1.6; color: var(--ink); }
     .ws-right-kv .k { color: var(--muted); font-size: 11px; margin-top: 6px; }
+    .ws-right-kv .v { color: var(--ink); font-size: 12px; }
+    .ws-right-sub { color: var(--muted); font-size: 11px; font-weight: 500; }
+
+    /* Context card / direction card / chips */
+    .ctx-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 7px; padding: 9px 11px; margin-bottom: 8px;
+    }
+    .ctx-card h4 { font-size: 11.5px; font-weight: 700; margin: 0 0 6px; color: var(--ink); display: flex; align-items: center; gap: 6px; }
+    .ctx-card h4 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); display: inline-block; }
+    .ctx-card .ctx-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 11.5px; padding: 2px 0; }
+    .ctx-card .ctx-row .k { color: var(--muted); min-width: 64px; }
+    .ctx-card .ctx-row .v { color: var(--ink); text-align: right; flex: 1; word-break: break-word; }
+
+    .chip-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .obj-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; padding: 3px 8px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--bg); color: var(--ink);
+      cursor: pointer; position: relative;
+    }
+    .obj-chip.primary {
+      background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600;
+    }
+    .obj-chip.secondary {
+      background: var(--primary-light); color: var(--primary); border-color: var(--primary); font-weight: 500;
+    }
+    .obj-chip.locked { opacity: .6; }
+    .obj-chip .chip-x {
+      margin-left: 2px; font-size: 10px; opacity: .7;
+      padding: 0 2px; cursor: pointer;
+    }
+    .obj-chip .chip-x:hover { opacity: 1; }
+    .obj-chip.add {
+      border-style: dashed; color: var(--muted); background: transparent;
+    }
+
+    /* Proposal v2 card */
+    .prop-card {
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+      background: #fff; display: flex; flex-direction: column; gap: 8px;
+    }
+    .prop-card .prop-summary {
+      font-weight: 700; font-size: 12.5px; line-height: 1.5; color: var(--ink);
+    }
+    .prop-section {
+      border-top: 1px dashed var(--border); padding-top: 6px; font-size: 11.5px; color: var(--ink);
+    }
+    .prop-section:first-of-type { border-top: none; padding-top: 0; }
+    .prop-section h5 {
+      font-size: 10.5px; font-weight: 700; margin: 0 0 4px; color: var(--muted); letter-spacing: .4px;
+    }
+    .prop-section ul { margin: 0; padding-left: 16px; font-size: 11.5px; line-height: 1.5; }
+    .prop-section li { margin-bottom: 2px; }
+    .prop-step {
+      border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 11px;
+      display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; background: var(--bg);
+    }
+    .prop-step .st-head { display: flex; gap: 6px; align-items: center; font-weight: 600; }
+    .badge-strength {
+      font-size: 9.5px; padding: 1px 5px; border-radius: 3px; font-weight: 700; letter-spacing: .3px;
+    }
+    .badge-strength.subtle { background: #e0f2fe; color: #0369a1; }
+    .badge-strength.moderate { background: #fef3c7; color: #92400e; }
+    .badge-strength.strong { background: #fee2e2; color: #991b1b; }
+    .prop-targets .tag {
+      display: inline-block; font-size: 10.5px; padding: 2px 7px; border-radius: 999px;
+      background: var(--primary-light); color: var(--primary); margin-right: 4px; margin-bottom: 2px;
+    }
+    .prop-targets .tag.locked { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
+    .prop-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* Conversation input */
+    .conv-input-wrap {
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .conv-input-pin {
+      display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--muted);
+      padding: 2px 0;
+    }
+    .conv-input-pin img {
+      width: 24px; height: 24px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border);
+    }
+    .conv-input-pin .pin-close {
+      margin-left: auto; cursor: pointer; font-size: 12px; color: var(--muted);
+      width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+    }
+    .conv-input-pin .pin-close:hover { background: var(--bg); color: var(--ink); }
+    .conv-input-row { display: flex; gap: 6px; align-items: flex-end; }
+    .conv-input-row textarea {
+      flex: 1; min-height: 46px; padding: 6px 8px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: 12px; font-family: inherit; resize: vertical;
+      background: var(--bg); outline: none;
+    }
+    .conv-input-row textarea:focus { border-color: var(--primary); background: #fff; }
+    .conv-quick-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+
+    /* Clarification card */
+    .clarify-card {
+      border: 1px solid #f59e0b; background: #fef3c7; border-radius: 8px; padding: 10px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .clarify-card .clarify-q { font-size: 12.5px; font-weight: 600; color: #92400e; }
+    .clarify-card .clarify-sug { display: flex; gap: 4px; flex-wrap: wrap; }
+
+    /* Canvas node object popover */
+    .canvas-obj-popover {
+      position: absolute; z-index: 50; display: none;
+      background: var(--surface); border: 1px solid var(--primary);
+      border-radius: 8px; padding: 6px; min-width: 220px; max-width: 320px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+    }
+    .canvas-obj-popover .cop-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 2px 4px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+    }
+    .canvas-obj-popover .cop-title { font-size: 11.5px; font-weight: 700; color: var(--ink); }
+    .canvas-obj-popover .cop-close { cursor: pointer; color: var(--muted); font-size: 14px; padding: 0 4px; }
+    .canvas-obj-popover .cop-row {
+      display: flex; align-items: center; gap: 6px; padding: 4px 6px;
+      border-radius: 4px; font-size: 11.5px; cursor: default;
+    }
+    .canvas-obj-popover .cop-row:hover { background: var(--bg); }
+    .canvas-obj-popover .cop-label { flex: 1; color: var(--ink); font-weight: 500; }
+    .canvas-obj-popover .cop-role { color: var(--muted); font-size: 10.5px; }
+    .canvas-obj-popover .cop-acts { display: flex; gap: 2px; }
+    .canvas-obj-popover .cop-acts button {
+      padding: 2px 6px; font-size: 10.5px; border: 1px solid var(--border);
+      background: #fff; border-radius: 3px; cursor: pointer; font-family: inherit;
+      color: var(--ink);
+    }
+    .canvas-obj-popover .cop-acts button:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .canvas-obj-popover .cop-acts button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .node-obj-handle {
+      cursor: pointer;
+    }
+    .node-obj-handle:hover circle { fill: var(--primary); }
+    .node-obj-handle:hover text { fill: #fff; }
 
     /* Bottom bar */
     .ws-bottom {
@@ -230,9 +381,15 @@
       <div class="ws-title" id="ws-task-title">未命名任务</div>
       <div class="ws-subtitle" id="ws-task-subtitle">从编译器进入 或 新建任务</div>
     </div>
+    <span id="ws-template-badge" title="模板匹配摘要"
+          style="display:none; cursor:pointer; font-size:11.5px; padding:4px 10px; border-radius:999px; background:var(--primary-light); color:var(--primary); border:1px solid var(--primary); max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+          onclick="switchTab('template')"></span>
+    <span id="ws-status-chip" style="display:none; font-size:11.5px; padding:4px 10px; border-radius:999px; background:#f3f4f6; color:#374151; border:1px solid var(--border);"></span>
     <div class="ws-output-chips" id="ws-output-chips"></div>
     <div class="ws-topbar-spacer"></div>
     <button class="btn btn-ghost btn-sm" onclick="openNewTask()">＋ 新建任务</button>
+    <button class="btn btn-ghost btn-sm" onclick="recompilePlan()" title="保留意图，按最新模板重新编译">↻ 重新编译</button>
+    <button class="btn btn-ghost btn-sm" onclick="openSwapTemplate()" title="换一套模板（保留已生成变体）">↺ 换模板</button>
     <button class="btn btn-primary btn-sm" onclick="generateAllFrames()">⚡ 自动生成全部</button>
     <button class="btn btn-ghost btn-sm" onclick="pushToAssetGraph()">⬆ 推送资产图谱</button>
     <button class="btn btn-success btn-sm" onclick="exportProduction()">导出生产包</button>
@@ -242,7 +399,9 @@
   <div class="ws-left">
     <div class="ws-tabs">
       <div class="ws-tab active" data-tab="intent" onclick="switchTab('intent')">意图</div>
-      <div class="ws-tab" data-tab="template" onclick="switchTab('template')">模板</div>
+      <div class="ws-tab" data-tab="template" onclick="switchTab('template')">模板策略</div>
+      <div class="ws-tab" data-tab="compile" onclick="switchTab('compile')">编译计划</div>
+      <div class="ws-tab" data-tab="tree" onclick="switchTab('tree')">结构树</div>
       <div class="ws-tab" data-tab="plans" onclick="switchTab('plans')">历史</div>
       <div class="ws-tab" data-tab="help" onclick="switchTab('help')">帮助</div>
     </div>
@@ -278,8 +437,35 @@
     </div>
 
     <div class="ws-tab-body" id="tab-template" style="display:none;">
-      <div class="ws-section-title">业务专家模板库</div>
+      <div class="ws-section-title">当前绑定模板</div>
+      <div id="binding-list" style="margin-bottom:10px;">
+        <div style="color:var(--muted); font-size:12px;">编译 plan 后在此查看绑定。</div>
+      </div>
+      <div class="ws-section-title" style="margin-top:14px;">品牌规则</div>
+      <div id="brand-rule-panel" style="margin-bottom:10px;">
+        <div style="color:var(--muted); font-size:12px;">加载中…</div>
+      </div>
+      <div class="ws-section-title" style="margin-top:14px;">模板库</div>
       <div id="tpl-list"></div>
+    </div>
+
+    <div class="ws-tab-body" id="tab-compile" style="display:none;">
+      <div class="ws-section-title">编译计划</div>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">系统把 意图+模板 展开成哪些输出节点、按什么顺序生成与评估。</div>
+      <div id="compile-plan-body">
+        <div style="color:var(--muted); font-size:12px;">先编译一个 plan 再看。</div>
+      </div>
+    </div>
+
+    <div class="ws-tab-body" id="tab-tree" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="ws-section-title" style="margin:0;">结果结构树</div>
+        <button class="btn btn-ghost btn-sm" onclick="loadPlanTree()" title="刷新">↻</button>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin:4px 0 8px;">Plan → Frame → 节点 → 对象。点任一级跳到画布并选中。</div>
+      <div id="tree-body">
+        <div style="color:var(--muted); font-size:12px;">先编译一个 plan 再看。</div>
+      </div>
     </div>
 
     <div class="ws-tab-body" id="tab-plans" style="display:none;">
@@ -336,66 +522,125 @@
     <div class="ws-minimap" id="ws-minimap" style="display:none;">
       <svg id="minimap-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
+
+    <div class="canvas-obj-popover" id="canvas-obj-popover"></div>
   </div>
 
-  <!-- Right column (4 段 AI 控制台) -->
+  <!-- Right column — sticky 三明治（顶部上下文+chips / 中间滚动 / 底部对话输入） -->
   <div class="ws-right" id="ws-right">
-    <!-- 段1：当前上下文 -->
-    <div class="ws-right-section" id="right-context">
-      <div class="ws-right-title">① 当前上下文</div>
-      <div class="ws-right-kv" id="right-context-body">
-        <div style="color:var(--muted); font-size:12px;">选中一个节点以查看。</div>
+
+    <!-- ① 顶部：编辑上下文卡 + 当前方向卡 + 主/辅对象 chips -->
+    <div class="ws-right-top" id="right-top">
+      <div class="ws-right-section" id="right-context">
+        <div class="ctx-card" id="ctx-card-edit">
+          <h4><span class="dot"></span>编辑上下文</h4>
+          <div id="ctx-card-body">
+            <div style="color:var(--muted); font-size:11.5px;">选中一个节点以开始。</div>
+          </div>
+        </div>
+        <div class="ctx-card" id="ctx-card-direction">
+          <h4 style="color:#7c3aed;"><span class="dot" style="background:#7c3aed;"></span>当前方向</h4>
+          <div id="ctx-card-direction-body" style="font-size:11.5px; color:var(--ink); line-height:1.5;">
+            <span style="color:var(--muted);">先出一版再总结方向。</span>
+          </div>
+        </div>
+        <div class="ws-right-title" style="margin:6px 0 4px;">
+          主/辅对象 <span class="ws-right-sub">点 chip 可以调整角色</span>
+        </div>
+        <div class="chip-row" id="obj-chips">
+          <span style="font-size:11px; color:var(--muted);">暂未选择</span>
+        </div>
       </div>
     </div>
 
-    <!-- 段2：为什么长这样（溯源） -->
-    <div class="ws-right-section" id="right-sources">
-      <div class="ws-right-title">② 为什么长这样</div>
-      <div class="source-list" id="sources-list">
-        <div style="color:var(--muted); font-size:12px;">暂无溯源信息。</div>
+    <!-- ② 中间滚动区：推荐动作 / Proposal v2 / mini compare / 节点变体 / 溯源折叠 -->
+    <div class="ws-right-middle" id="right-middle">
+      <div class="ws-right-section" id="right-suggestions">
+        <div class="ws-right-title">
+          ③ 推荐动作
+          <button class="btn btn-ghost btn-sm" onclick="refreshSuggestions(true)" title="用 LLM 重新生成建议">LLM</button>
+        </div>
+        <div id="suggestions-list" style="display:flex; flex-direction:column; gap:6px;">
+          <div style="color:var(--muted); font-size:11.5px;">选中节点后会自动生成。</div>
+        </div>
+      </div>
+
+      <div class="ws-right-section" id="right-proposal">
+        <div class="ws-right-title">④ 执行提案</div>
+        <div id="copilot-proposal">
+          <div style="color:var(--muted); font-size:11.5px;">
+            在底部输入你想改的内容，比如「把右边更柔和，文案更短」。
+          </div>
+        </div>
+      </div>
+
+      <div class="ws-right-section" id="right-compare" style="display:none;">
+        <div class="ws-right-title">候选对比 <span class="ws-right-sub">点选采纳为 active</span></div>
+        <div id="compare-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px;"></div>
+      </div>
+
+      <div class="ws-right-section" id="right-variants">
+        <div class="ws-right-title">节点变体</div>
+        <div id="node-variants" style="display:flex; flex-direction:column; gap:6px;">
+          <div style="color:var(--muted); font-size:11.5px;">选中节点后展示变体。</div>
+        </div>
+      </div>
+
+      <div class="ws-right-section" id="right-sources-wrap">
+        <details id="right-sources-details">
+          <summary style="font-size:12px; font-weight:700; cursor:pointer; user-select:none;">
+            为什么长这样（溯源）
+          </summary>
+          <div class="source-list" id="sources-list" style="margin-top:8px;">
+            <div style="color:var(--muted); font-size:11.5px;">暂无溯源信息。</div>
+          </div>
+        </details>
       </div>
     </div>
 
-    <!-- 段3：建议动作区 -->
-    <div class="ws-right-section" id="right-suggestions">
-      <div class="ws-right-title">
-        ③ 建议动作
-        <button class="btn btn-ghost btn-sm" onclick="refreshSuggestions(true)" title="用 LLM 重新生成建议">LLM</button>
+    <!-- ③ 底部 sticky：对话输入 + 底图缩略 + 状态机 -->
+    <div class="ws-right-bottom" id="right-bottom">
+      <div class="conv-input-wrap" id="conv-input-wrap">
+        <div id="conv-input-pin" class="conv-input-pin" style="display:none;">
+          <div id="conv-pin-thumb-wrap" style="position:relative; display:inline-block; line-height:0;">
+            <img id="conv-pin-thumb" src="" alt="底图" />
+            <div id="conv-pin-region" style="position:absolute; display:none; border:2px solid var(--primary); background:rgba(37, 99, 235, 0.12); pointer-events:none;"></div>
+          </div>
+          <span id="conv-pin-label">底图：—</span>
+          <button id="conv-pin-region-btn" class="btn btn-ghost btn-sm" style="padding:2px 6px; font-size:10.5px;" onclick="toggleRegionSelectMode()" title="Shift+在缩略图拖框即可框选区域">框选区域</button>
+          <span class="pin-close" onclick="clearPinnedImage()" title="取消 pin">×</span>
+        </div>
+        <div id="copilot-empty-hint" style="display:none; font-size:11px; color:var(--muted); background:var(--bg); border:1px dashed var(--border); border-radius:6px; padding:6px 8px; line-height:1.5;">
+          还没选对象。随便打字也可以，我会按整图处理；或在画布/历史里点一张图加入对话。
+        </div>
+        <div class="conv-input-row">
+          <textarea id="copilot-input" placeholder="例：把右边更柔和，文案更短"></textarea>
+        </div>
+        <div class="conv-quick-btns" id="conv-quick-btns">
+          <button class="btn btn-primary btn-sm" id="btn-edit-variant" onclick="editActiveVariant()" title="以 pinned 图为底做 img2img">发送（微调）</button>
+          <button class="btn btn-ghost btn-sm" id="btn-propose" onclick="proposeEdit()" title="让 AI 先给提案，确认后再出图">让 AI 生成提案</button>
+          <button class="btn btn-ghost btn-sm" id="btn-gen-node" onclick="generateSelectedNode(1)">直接出图</button>
+          <button class="btn btn-ghost btn-sm" id="btn-batch4" onclick="generateSelectedNode(4)" title="一次出 4 张对比变体">+4 对比变体</button>
+        </div>
+        <div id="right-status-actions" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:2px;"></div>
       </div>
-      <div id="suggestions-list" style="display:flex; flex-direction:column; gap:6px;">
-        <div style="color:var(--muted); font-size:12px;">选中节点后会自动生成。</div>
-      </div>
-    </div>
-
-    <!-- 段4：对话编辑器 + 执行提案 + 节点变体 -->
-    <div class="ws-right-section" id="right-actions">
-      <div class="ws-right-title">④ 对话编辑 <span style="font-size:10px; color:var(--muted); font-weight:500;">一句话指令</span></div>
-      <div id="copilot-empty-hint" style="display:none; font-size:11.5px; color:var(--muted); background:var(--bg); border:1px dashed var(--border); border-radius:6px; padding:8px 10px; margin-bottom:6px; line-height:1.5;">
-        还没选图。去左侧"历史"tab 点一张缩略图，或在画布上点一个节点 —— 然后这里就能直接对话式改图。
-      </div>
-      <div id="copilot-selected-info" style="display:none; font-size:11px; color:var(--primary); background:var(--primary-light); border-radius:6px; padding:6px 8px; margin-bottom:6px;"></div>
-      <textarea id="copilot-input" placeholder="例：把右边更柔和，文案更短"
-        style="width:100%; min-height:46px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; resize:vertical; background:var(--bg); outline:none;"></textarea>
-      <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
-        <button class="btn btn-primary btn-sm" id="btn-edit-variant" onclick="editActiveVariant()" title="以当前采纳图为底图做图生图微调，保留构图">微调当前图</button>
-        <button class="btn btn-ghost btn-sm" id="btn-propose" onclick="proposeEdit()" title="修改意图后重新文生图，不保留原构图">重新生成</button>
-        <button class="btn btn-ghost btn-sm" id="btn-gen-node" onclick="generateSelectedNode(1)">直接出图</button>
-      </div>
-      <div style="font-size:11px; color:var(--muted); margin-top:4px;">
-        默认"微调当前图"走图生图（保构图）；需要整体换思路时点"重新生成"。
-      </div>
-      <div id="copilot-proposal" style="margin-top:8px;"></div>
-
-      <div class="ws-right-title" style="margin-top:14px;">节点变体</div>
-      <div id="node-variants" style="display:flex; flex-direction:column; gap:6px;"></div>
     </div>
   </div>
 
-  <!-- Bottom bar -->
-  <div class="ws-bottom">
-    <div id="ws-bottom-status" style="font-size:12px; color:var(--muted);">就绪</div>
-    <div style="flex:1;"></div>
-    <div style="font-size:11px; color:var(--muted);" id="ws-stats">0 Frame · 0 节点</div>
+  <!-- Bottom bar: 状态 + 时间线 -->
+  <div class="ws-bottom" style="flex-direction:column; padding:4px 10px; height:auto; min-height:64px; align-items:stretch; gap:4px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div id="ws-bottom-status" style="font-size:12px; color:var(--muted);">就绪</div>
+      <div style="flex:1;"></div>
+      <select id="timeline-filter" onchange="loadTimeline()" style="font-size:11px; padding:2px 6px; border:1px solid var(--border); border-radius:4px; background:#fff;">
+        <option value="">全部节点</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="loadTimeline()" title="刷新时间线">↻</button>
+      <div style="font-size:11px; color:var(--muted);" id="ws-stats">0 Frame · 0 节点</div>
+    </div>
+    <div id="ws-timeline" style="display:flex; align-items:center; gap:4px; overflow-x:auto; overflow-y:hidden; height:38px; padding:2px 0;">
+      <div style="font-size:11px; color:var(--muted);">时间线：指令 / 提案 / 变体完成 / 审批</div>
+    </div>
   </div>
 </div>
 
@@ -429,6 +674,19 @@ const state = {
   panStart: { x: 0, y: 0 },
   // 轮询
   pollTimers: new Set(),
+  // v2 对话编辑运行时
+  edit: {
+    pack: null,
+    primaryObjectId: null,
+    secondaryObjectIds: [],
+    focusedObjectId: null,
+    pinnedVariantId: null,
+    pinnedImageUrl: null,
+    directionSummary: '',
+    lastUserMessages: [],
+    lastProposalSummary: '',
+    lastResolved: null,
+  },
 };
 
 const OUTPUT_TYPE_LABEL = {
@@ -446,8 +704,10 @@ function switchTab(name) {
   document.querySelectorAll('.ws-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('[id^="tab-"]').forEach(b => b.style.display = 'none');
   document.getElementById('tab-' + name).style.display = '';
-  if (name === 'template') loadTemplates();
+  if (name === 'template') { loadTemplates(); loadBindings(); loadBrandRulePanel(); }
   if (name === 'plans') loadPlans();
+  if (name === 'compile') loadCompilePlan();
+  if (name === 'tree') loadPlanTree();
 }
 
 /* ── 输出类型多选 ── */
@@ -519,6 +779,78 @@ async function loadPlan(planId) {
   renderCanvas();
   fitToView();
   document.getElementById('canvas-hint').style.display = state.frames.length ? 'none' : 'block';
+  populateTimelineFilter();
+  loadTimeline();
+}
+
+function populateTimelineFilter() {
+  const sel = document.getElementById('timeline-filter');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部节点</option>' + (state.nodes || []).map(n => `
+    <option value="${n.node_id}">#${n.slot_index} ${escapeHtml(n.role || n.title || '')}</option>
+  `).join('');
+  if (cur) sel.value = cur;
+}
+
+async function loadTimeline() {
+  const bar = document.getElementById('ws-timeline');
+  if (!bar || !state.planId) return;
+  const sel = document.getElementById('timeline-filter');
+  const nodeId = sel ? sel.value : '';
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/plan/${state.planId}/timeline${nodeId ? '?node_id=' + encodeURIComponent(nodeId) : ''}`);
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    renderTimeline(d.events || []);
+  } catch (e) {
+    bar.innerHTML = `<div style="font-size:11px; color:#b91c1c;">时间线加载失败：${escapeHtml(e.message || e)}</div>`;
+  }
+}
+
+function renderTimeline(events) {
+  const bar = document.getElementById('ws-timeline');
+  if (!bar) return;
+  if (!events.length) {
+    bar.innerHTML = `<div style="font-size:11px; color:var(--muted);">暂无事件。发起指令、通过审批或生图后这里会出现节点。</div>`;
+    return;
+  }
+  const typeMap = {
+    edit_instruction: {label:'指令', bg:'#dbeafe', fg:'#1e40af'},
+    proposal: {label:'提案', bg:'#ede9fe', fg:'#6d28d9'},
+    apply_proposal: {label:'采纳', bg:'#f0fdf4', fg:'#166534'},
+    variant_done: {label:'出图', bg:'#ecfdf5', fg:'#047857'},
+    variant_failed: {label:'失败', bg:'#fef2f2', fg:'#b91c1c'},
+    mark_reviewed: {label:'审阅', bg:'#f5f3ff', fg:'#6d28d9'},
+    approve: {label:'审批', bg:'#ecfdf5', fg:'#047857'},
+    revert: {label:'撤回', bg:'#fef3c7', fg:'#92400e'},
+    default: {label:'事件', bg:'#f3f4f6', fg:'#374151'},
+  };
+  bar.innerHTML = events.map((e, idx) => {
+    const m = typeMap[e.type] || typeMap.default;
+    const time = (e.created_at || '').slice(11, 16);
+    const nodeRef = e.node_id ? ((state.nodes || []).find(n => n.node_id === e.node_id) || {}) : {};
+    const nodeLabel = nodeRef.node_id ? `#${nodeRef.slot_index || '?'}` : '';
+    const summary = (e.payload && (e.payload.user_prompt || e.payload.summary || e.payload.note || e.payload.edit_instruction || '')).toString();
+    const tip = `${e.type}\n${e.created_at || ''}\n${summary.slice(0, 120)}`;
+    return `
+      <div onclick="jumpTimeline('${e.node_id}', '${e.variant_id}')" title="${escapeHtml(tip)}"
+           style="cursor:${e.node_id ? 'pointer' : 'default'}; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:2px; padding:3px 8px; border-radius:6px; background:${m.bg}; border:1px solid ${m.fg}22;">
+        <div style="font-size:9px; color:${m.fg}; font-weight:700;">${time}${nodeLabel ? ' · ' + nodeLabel : ''}</div>
+        <div style="font-size:10px; color:${m.fg};">${m.label}${summary ? '：' + escapeHtml(summary.slice(0, 14)) : ''}</div>
+      </div>
+    `;
+  }).join('');
+  bar.scrollLeft = bar.scrollWidth;
+}
+
+function jumpTimeline(nodeId, variantId) {
+  if (!nodeId) return;
+  const node = (state.nodes || []).find(n => n.node_id === nodeId);
+  if (!node) return;
+  if (variantId) node.active_variant_id = variantId;
+  selectNode(nodeId);
+  if (typeof scrollNodeIntoView === 'function') scrollNodeIntoView(nodeId);
 }
 
 function renderTopbar() {
@@ -536,6 +868,72 @@ function renderTopbar() {
   document.getElementById('ws-output-chips').innerHTML = chips;
   document.getElementById('ws-stats').textContent =
     `${state.frames.length} Frame · ${state.nodes.length} 节点`;
+  renderTemplateBadge();
+  renderStatusChip();
+}
+
+function renderTemplateBadge() {
+  const el = document.getElementById('ws-template-badge');
+  if (!el) return;
+  const bindings = (state.plan && state.plan.template_bindings) || [];
+  if (!bindings.length) { el.style.display = 'none'; return; }
+  const parts = bindings.map(b => {
+    const snap = b.adapted_template_snapshot;
+    const base = (b.template_id || '').slice(0, 24);
+    return snap ? `${b.frame_key}:${base}·借框架` : `${b.frame_key}:${base}`;
+  });
+  el.style.display = '';
+  el.textContent = '📋 ' + parts.join(' / ');
+  const detail = bindings.map(b => `${b.frame_key} · ${b.template_id}\n原因：${b.binding_reason || '—'}`).join('\n\n');
+  el.title = detail;
+}
+
+function renderStatusChip() {
+  const el = document.getElementById('ws-status-chip');
+  if (!el) return;
+  if (!state.nodes || !state.nodes.length) { el.style.display = 'none'; return; }
+  const c = {draft:0, generating:0, generated:0, reviewed:0, approved:0, failed:0};
+  for (const n of state.nodes) c[n.status || 'draft'] = (c[n.status || 'draft'] || 0) + 1;
+  let label = '编辑中', bg = '#eef2ff', fg = '#4338ca', border = '#c7d2fe';
+  if (c.failed > 0) { label = `异常 ${c.failed}`; bg = '#fef2f2'; fg = '#b91c1c'; border = '#fecaca'; }
+  else if (c.generating > 0) { label = `生成中 ${c.generating}`; bg = '#fff7ed'; fg = '#c2410c'; border = '#fed7aa'; }
+  else if (c.approved === state.nodes.length) { label = '全部通过'; bg = '#ecfdf5'; fg = '#047857'; border = '#a7f3d0'; }
+  else if (c.reviewed + c.approved === state.nodes.length) { label = '待审批'; bg = '#f5f3ff'; fg = '#6d28d9'; border = '#ddd6fe'; }
+  else if (c.generated + c.reviewed + c.approved > 0) { label = `已生成 ${c.generated + c.reviewed + c.approved}/${state.nodes.length}`; bg = '#ecfdf5'; fg = '#047857'; border = '#a7f3d0'; }
+  else { label = '未出图'; }
+  el.style.display = '';
+  el.textContent = '● ' + label;
+  el.style.background = bg; el.style.color = fg; el.style.borderColor = border;
+}
+
+async function recompilePlan() {
+  if (!state.planId) { toast('当前无 plan'); return; }
+  if (!confirm('将按当前意图与模板重新编译整个 plan（保留原 plan 数据，生成新 plan）。继续？')) return;
+  const intent = (state.plan && state.plan.intent) || {};
+  try {
+    const r = await fetch('/growth-lab/api/workspace/compile', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({intent: intent}),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    toast('已重新编译');
+    location.href = `/growth-lab/workspace?plan_id=${d.plan.plan_id}`;
+  } catch (e) {
+    toast('重新编译失败：' + (e.message || e));
+  }
+}
+
+function openSwapTemplate() {
+  // 优先选中 frame
+  let frame = state.frames.find(f => f.frame_id === state.selectedFrameId);
+  if (!frame && state.selectedNodeId) {
+    const node = state.nodes.find(n => n.node_id === state.selectedNodeId);
+    if (node) frame = state.frames.find(f => f.frame_id === node.frame_id);
+  }
+  if (!frame) frame = state.frames[0];
+  if (!frame) { toast('当前无 frame'); return; }
+  openReplanDialog(frame.frame_id, frame.frame_key, frame.template_id);
 }
 
 /* ── 画布渲染 ── */
@@ -708,7 +1106,51 @@ function buildNode(node) {
   status.textContent = `${statusLabel} · ${variants.length} 变体`;
   g.appendChild(status);
 
-  g.addEventListener('click', (e) => { e.stopPropagation(); selectNode(node.node_id); });
+  g.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // 已经选中且有 activeV → 点第二下 pin 入对话
+    if (state.selectedNodeId === node.node_id && activeV && activeV.asset_url) {
+      pinImageForEditing(node.node_id, activeV.variant_id, activeV.asset_url);
+    } else {
+      selectNode(node.node_id);
+      if (activeV && activeV.asset_url) {
+        pinImageForEditing(node.node_id, activeV.variant_id, activeV.asset_url);
+      }
+    }
+  });
+
+  // 对象浮层入口（右上角 "⊕ 对象"）
+  const handleG = document.createElementNS(SVG_NS, 'g');
+  handleG.setAttribute('class', 'node-obj-handle');
+  handleG.setAttribute('transform', `translate(${node.width - 28}, 8)`);
+  const handleBg = document.createElementNS(SVG_NS, 'circle');
+  handleBg.setAttribute('cx', 10); handleBg.setAttribute('cy', 10); handleBg.setAttribute('r', 10);
+  handleBg.setAttribute('fill', '#fff');
+  handleBg.setAttribute('stroke', 'var(--border)');
+  handleG.appendChild(handleBg);
+  const handleIcon = document.createElementNS(SVG_NS, 'text');
+  handleIcon.setAttribute('x', 10); handleIcon.setAttribute('y', 14);
+  handleIcon.setAttribute('text-anchor', 'middle');
+  handleIcon.setAttribute('font-size', '12');
+  handleIcon.setAttribute('fill', 'var(--ink)');
+  handleIcon.textContent = '⊕';
+  handleG.appendChild(handleIcon);
+  const hTitle = document.createElementNS(SVG_NS, 'title');
+  hTitle.textContent = '查看/选择此节点的对象';
+  handleG.appendChild(hTitle);
+  handleG.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectNode(node.node_id);
+    openCanvasObjectPopover(node.node_id, e.clientX, e.clientY);
+  });
+  g.appendChild(handleG);
+
+  // 右键：直接打开对象浮层
+  g.addEventListener('contextmenu', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    selectNode(node.node_id);
+    openCanvasObjectPopover(node.node_id, e.clientX, e.clientY);
+  });
 
   return g;
 }
@@ -759,67 +1201,525 @@ function selectNode(nodeId) {
 
 function updateCopilotEmptyState(node) {
   const hint = document.getElementById('copilot-empty-hint');
-  const info = document.getElementById('copilot-selected-info');
   const btnEdit = document.getElementById('btn-edit-variant');
   const btnProp = document.getElementById('btn-propose');
   const btnGen = document.getElementById('btn-gen-node');
   const ta = document.getElementById('copilot-input');
-  if (!node) {
-    if (hint) hint.style.display = 'block';
-    if (info) { info.style.display = 'none'; info.innerHTML = ''; }
-    [btnEdit, btnProp, btnGen].forEach(b => { if (b) { b.disabled = true; b.style.opacity = 0.5; b.style.cursor = 'not-allowed'; } });
-    if (ta) ta.disabled = true;
+  if (ta) ta.disabled = false;
+  [btnEdit, btnProp, btnGen].forEach(b => { if (b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; } });
+  if (hint) hint.style.display = node ? 'none' : 'block';
+  updateTextareaPlaceholder();
+}
+
+/* ── v2 编辑 runtime：EditContextPack + chips + pinned image ── */
+
+function resetEditRuntime(keepPinned) {
+  const keep = keepPinned && state.edit ? {
+    pinnedVariantId: state.edit.pinnedVariantId,
+    pinnedImageUrl: state.edit.pinnedImageUrl,
+  } : { pinnedVariantId: null, pinnedImageUrl: null };
+  state.edit = {
+    pack: null,
+    primaryObjectId: null,
+    secondaryObjectIds: [],
+    focusedObjectId: null,
+    pinnedVariantId: keep.pinnedVariantId,
+    pinnedImageUrl: keep.pinnedImageUrl,
+    directionSummary: '',
+    lastUserMessages: state.edit ? (state.edit.lastUserMessages || []) : [],
+    lastProposalSummary: state.edit ? (state.edit.lastProposalSummary || '') : '',
+    lastResolved: null,
+  };
+}
+
+async function fetchEditContext(opts) {
+  if (!state.selectedNodeId) return null;
+  const params = new URLSearchParams();
+  const o = opts || {};
+  if (o.variantId || state.edit.pinnedVariantId) {
+    params.set('variant_id', o.variantId || state.edit.pinnedVariantId);
+  }
+  const primary = o.primary !== undefined ? o.primary : state.edit.primaryObjectId;
+  if (primary) params.set('primary_object_id', primary);
+  const secondary = o.secondary !== undefined ? o.secondary : state.edit.secondaryObjectIds;
+  if (secondary && secondary.length) params.set('selected_object_ids', secondary.join(','));
+  const region = o.selectedRegion !== undefined ? o.selectedRegion : state.edit.selectedRegion;
+  if (region) params.set('selected_region', JSON.stringify(region));
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${state.selectedNodeId}/edit-context?` + params.toString());
+    if (!r.ok) return null;
+    const pack = await r.json();
+    state.edit.pack = pack;
+    state.edit.directionSummary = (pack.visual_state && pack.visual_state.current_direction_summary) || '';
+    renderContextCards(pack);
+    renderObjectChips(pack);
+    updateTextareaPlaceholder();
+    updatePinnedThumbUI();
+    return pack;
+  } catch (e) { return null; }
+}
+
+function renderContextCards(pack) {
+  const body = document.getElementById('ctx-card-body');
+  if (!body) return;
+  if (!pack) {
+    body.innerHTML = `<div style="color:var(--muted); font-size:11.5px;">选中一个节点以开始。</div>`;
+    const db = document.getElementById('ctx-card-direction-body');
+    if (db) db.innerHTML = `<span style="color:var(--muted);">先出一版再总结方向。</span>`;
     return;
   }
-  if (hint) hint.style.display = 'none';
-  [btnEdit, btnProp, btnGen].forEach(b => { if (b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; } });
-  if (ta) ta.disabled = false;
-  const variants = state.variantsByNode[node.node_id] || [];
-  const active = variants.find(v => v.variant_id === node.active_variant_id) || variants.slice(-1)[0];
-  if (info) {
-    const thumb = active && active.asset_url
-      ? `<img src="${active.asset_url}" style="width:44px; height:44px; object-fit:cover; border-radius:4px; border:1px solid var(--border);" />`
+  const tpl = pack.template_context || {};
+  const cur = pack.current_variant || {};
+  const sel = pack.selection_context || {};
+  const primary = findSummaryById(pack, sel.primary_object_id);
+  const primaryLabel = primary ? primary.label : (sel.mode === 'scene' ? '整图 scene' : '—');
+  const nodeTitle = pack.node_title || pack.node_id;
+  const variantIdShort = cur.variant_id ? String(cur.variant_id).slice(0, 6) : '—';
+  const rev = (cur.revision_index !== undefined && cur.variant_id) ? `#${cur.revision_index + 1}` : '';
+  const constraints = (tpl.template_constraints || []).slice(0, 3).join('；') || '—';
+  body.innerHTML = `
+    <div class="ctx-row"><span class="k">当前节点</span><span class="v">${escapeHtml(nodeTitle)}</span></div>
+    <div class="ctx-row"><span class="k">模板角色</span><span class="v">${escapeHtml(tpl.slot_role || pack.node_type || '—')}</span></div>
+    <div class="ctx-row"><span class="k">当前版本</span><span class="v">${variantIdShort} ${rev}</span></div>
+    <div class="ctx-row"><span class="k">主对象</span><span class="v">${escapeHtml(primaryLabel)}</span></div>
+    <div class="ctx-row"><span class="k">限制</span><span class="v" style="font-size:11px;">${escapeHtml(constraints)}</span></div>
+  `;
+  const db = document.getElementById('ctx-card-direction-body');
+  if (db) {
+    const dir = (pack.visual_state && pack.visual_state.current_direction_summary) || '';
+    const recent = (pack.recent_history && pack.recent_history.last_user_requests) || [];
+    const recentLine = recent.length
+      ? `<div style="color:var(--muted); font-size:10.5px; margin-top:4px;">近期：${recent.slice(-2).map(escapeHtml).join('；')}</div>`
       : '';
-    const roleText = node.role ? escapeHtml(node.role) : (node.result_type || '节点');
-    info.innerHTML = `
-      <div style="display:flex; gap:8px; align-items:center;">
-        ${thumb}
-        <div style="flex:1; min-width:0;">
-          <div style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">正在改：${roleText}</div>
-          <div style="color:var(--muted); font-size:10.5px;">${active ? '底图：' + escapeHtml((active.variant_id || '').slice(0,8)) : '还没有生成图片，先点"直接出图"'}</div>
+    db.innerHTML = dir
+      ? `<span>${escapeHtml(dir)}</span>${recentLine}`
+      : `<span style="color:var(--muted);">先出一版再总结方向。</span>${recentLine}`;
+  }
+}
+
+function findSummaryById(pack, id) {
+  if (!pack || !id) return null;
+  const vs = pack.visual_state || {};
+  const all = (vs.object_summaries || []).concat((vs.copy_blocks || []).map(c => ({
+    object_id: c.object_id, type: 'copy', role: c.role, label: c.label, locked: c.locked,
+  })));
+  return all.find(o => o.object_id === id) || null;
+}
+
+function renderObjectChips(pack) {
+  const host = document.getElementById('obj-chips');
+  if (!host) return;
+  if (!pack) {
+    host.innerHTML = `<span style="font-size:11px; color:var(--muted);">暂未选择</span>`;
+    return;
+  }
+  const vs = pack.visual_state || {};
+  const sel = pack.selection_context || {};
+  const objs = (vs.object_summaries || []).concat((vs.copy_blocks || []).map(c => ({
+    object_id: c.object_id, type: 'copy', role: c.role, label: c.label, locked: c.locked,
+  })));
+  const primaryId = sel.primary_object_id;
+  const secondaryIds = new Set(sel.secondary_object_ids || []);
+  const parts = [];
+  if (primaryId) {
+    const o = objs.find(x => x.object_id === primaryId);
+    if (o) parts.push(renderChipHTML(o, 'primary'));
+  } else {
+    parts.push(`<span class="obj-chip primary" title="未选具体对象，按整图处理">整图 scene</span>`);
+  }
+  for (const sid of secondaryIds) {
+    const o = objs.find(x => x.object_id === sid);
+    if (o) parts.push(renderChipHTML(o, 'secondary'));
+  }
+  // add 可选池（未被选择的最多 4 个）
+  const free = objs.filter(o => o.object_id !== primaryId && !secondaryIds.has(o.object_id)).slice(0, 4);
+  for (const o of free) parts.push(renderChipHTML(o, 'add'));
+  host.innerHTML = parts.join('');
+}
+
+function renderChipHTML(o, role) {
+  const lockCls = o.locked ? ' locked' : '';
+  const esc = escapeHtml(o.label || o.type || 'obj');
+  const clickHandler = role === 'add'
+    ? `onclick="setChipPrimary('${o.object_id}')"`
+    : `onclick="showChipMenu(event, '${o.object_id}', '${role}')"`;
+  const xBtn = (role === 'primary' || role === 'secondary')
+    ? `<span class="chip-x" onclick="event.stopPropagation(); removeChip('${o.object_id}')" title="从选择中移除">×</span>`
+    : '';
+  const prefix = role === 'add' ? '＋ ' : '';
+  return `<span class="obj-chip ${role}${lockCls}" ${clickHandler} title="${o.role || o.type || ''}">${prefix}${esc}${xBtn}</span>`;
+}
+
+function setChipPrimary(objectId) {
+  if (!state.selectedNodeId) return;
+  state.edit.primaryObjectId = objectId;
+  state.edit.secondaryObjectIds = (state.edit.secondaryObjectIds || []).filter(x => x !== objectId);
+  fetchEditContext();
+}
+
+function removeChip(objectId) {
+  if (state.edit.primaryObjectId === objectId) {
+    state.edit.primaryObjectId = null;
+  }
+  state.edit.secondaryObjectIds = (state.edit.secondaryObjectIds || []).filter(x => x !== objectId);
+  fetchEditContext();
+}
+
+function showChipMenu(ev, objectId, role) {
+  ev.stopPropagation();
+  // 简化：右键->锁定 其它->切换主/辅
+  if (ev.shiftKey) {
+    // shift 切换辅助
+    const arr = state.edit.secondaryObjectIds || [];
+    state.edit.secondaryObjectIds = arr.includes(objectId)
+      ? arr.filter(x => x !== objectId)
+      : arr.concat([objectId]);
+  } else if (role === 'primary') {
+    // 点主对象=改为辅助
+    state.edit.primaryObjectId = null;
+    const arr = state.edit.secondaryObjectIds || [];
+    if (!arr.includes(objectId)) state.edit.secondaryObjectIds = arr.concat([objectId]);
+  } else {
+    // secondary → 升主对象
+    state.edit.secondaryObjectIds = (state.edit.secondaryObjectIds || []).filter(x => x !== objectId);
+    state.edit.primaryObjectId = objectId;
+  }
+  fetchEditContext();
+}
+
+/* ── 画布节点对象浮层 ── */
+
+async function openCanvasObjectPopover(nodeId, clientX, clientY) {
+  const pop = document.getElementById('canvas-obj-popover');
+  if (!pop) return;
+  // 确保 pack 为此 node 的
+  if (!state.edit.pack || state.edit.pack.node_id !== nodeId) {
+    await fetchEditContext();
+  }
+  const pack = state.edit.pack;
+  if (!pack) { toast('该节点暂无对象信息'); return; }
+  const node = state.nodes.find(n => n.node_id === nodeId);
+  const vs = pack.visual_state || {};
+  const objs = [
+    ...(vs.object_summaries || []),
+    ...((vs.copy_blocks || []).map(c => ({
+      object_id: c.object_id, type: 'copy', role: c.role, label: c.label, locked: c.locked,
+    }))),
+  ];
+  const sel = pack.selection_context || {};
+  const primaryId = sel.primary_object_id;
+  const secIds = new Set(sel.secondary_object_ids || []);
+  const rowHTML = (o) => {
+    const isPrimary = o.object_id === primaryId;
+    const isSecondary = secIds.has(o.object_id);
+    const isLocked = !!o.locked;
+    const roleText = escapeHtml(o.role || o.type || '');
+    return `
+      <div class="cop-row" data-object-id="${o.object_id}">
+        <div style="display:flex; flex-direction:column; flex:1; min-width:0;">
+          <span class="cop-label">${escapeHtml(o.label || o.type || 'obj')}</span>
+          <span class="cop-role">${roleText}</span>
+        </div>
+        <div class="cop-acts">
+          <button class="${isPrimary ? 'active' : ''}" onclick="copAction('primary','${o.object_id}')" title="设为主对象">主</button>
+          <button class="${isSecondary ? 'active' : ''}" onclick="copAction('secondary','${o.object_id}')" title="加入/移除辅助">辅</button>
+          <button onclick="copAction('chat','${o.object_id}')" title="加入对话并聚焦此对象">对话</button>
+          <button class="${isLocked ? 'active' : ''}" onclick="copAction('lock','${o.object_id}')" title="锁定/解锁">${isLocked ? '🔓' : '🔒'}</button>
+          <button onclick="copAction('info','${o.object_id}')" title="查看对象说明">?</button>
         </div>
       </div>`;
-    info.style.display = 'flex';
+  };
+  pop.innerHTML = `
+    <div class="cop-head">
+      <div class="cop-title">节点对象 · ${escapeHtml(node ? (node.role || node.title || '') : '')}</div>
+      <span class="cop-close" onclick="closeCanvasObjectPopover()">×</span>
+    </div>
+    ${objs.length ? objs.map(rowHTML).join('') : '<div style="padding:8px; color:var(--muted); font-size:11px;">暂无对象</div>'}
+  `;
+  // 位置：先用鼠标位置，再夹紧到 wrap 区域
+  const wrap = document.getElementById('canvas-wrap');
+  const rect = wrap.getBoundingClientRect();
+  let left = clientX - rect.left + 8;
+  let top = clientY - rect.top + 8;
+  pop.style.display = 'block';
+  const popRect = pop.getBoundingClientRect();
+  if (left + popRect.width > rect.width - 8) left = rect.width - popRect.width - 8;
+  if (top + popRect.height > rect.height - 8) top = rect.height - popRect.height - 8;
+  pop.style.left = `${Math.max(8, left)}px`;
+  pop.style.top = `${Math.max(8, top)}px`;
+  state.edit.popoverNodeId = nodeId;
+}
+
+function closeCanvasObjectPopover() {
+  const pop = document.getElementById('canvas-obj-popover');
+  if (pop) pop.style.display = 'none';
+  state.edit.popoverNodeId = null;
+}
+
+function copAction(kind, objectId) {
+  if (kind === 'primary') {
+    if (state.edit.primaryObjectId === objectId) {
+      state.edit.primaryObjectId = null;
+    } else {
+      state.edit.primaryObjectId = objectId;
+      state.edit.secondaryObjectIds = (state.edit.secondaryObjectIds || []).filter(x => x !== objectId);
+    }
+  } else if (kind === 'secondary') {
+    const arr = state.edit.secondaryObjectIds || [];
+    state.edit.secondaryObjectIds = arr.includes(objectId) ? arr.filter(x => x !== objectId) : arr.concat([objectId]);
+    if (state.edit.primaryObjectId === objectId) state.edit.primaryObjectId = null;
+  } else if (kind === 'chat') {
+    state.edit.primaryObjectId = objectId;
+    state.edit.secondaryObjectIds = (state.edit.secondaryObjectIds || []).filter(x => x !== objectId);
+    const ta = document.getElementById('copilot-input');
+    if (ta) ta.focus();
+    closeCanvasObjectPopover();
+  } else if (kind === 'lock') {
+    // V1 前端临时记状态；服务端锁字段暂不写入
+    state.edit.objectLocks = state.edit.objectLocks || {};
+    state.edit.objectLocks[objectId] = !state.edit.objectLocks[objectId];
+    toast(state.edit.objectLocks[objectId] ? '已标记锁定（本地）' : '已解锁（本地）');
+  } else if (kind === 'info') {
+    const pack = state.edit.pack;
+    const all = pack ? [
+      ...((pack.visual_state && pack.visual_state.object_summaries) || []),
+      ...(((pack.visual_state && pack.visual_state.copy_blocks) || []).map(c => ({
+        object_id: c.object_id, type: 'copy', role: c.role, label: c.label,
+        semantic_description: c.content, locked: c.locked,
+      }))),
+    ] : [];
+    const o = all.find(x => x.object_id === objectId);
+    if (o) {
+      toast(`${o.label || o.type}：${o.semantic_description || o.role || '—'}`);
+    }
+    return;
+  }
+  fetchEditContext().then(() => {
+    if (state.edit.popoverNodeId) {
+      const pop = document.getElementById('canvas-obj-popover');
+      if (pop && pop.style.display === 'block') {
+        // 重新渲染：用 popover 当前位置
+        const rect = pop.getBoundingClientRect();
+        openCanvasObjectPopover(state.edit.popoverNodeId, rect.left, rect.top);
+      }
+    }
+  });
+}
+
+// 点空白关闭
+document.addEventListener('click', (e) => {
+  const pop = document.getElementById('canvas-obj-popover');
+  if (!pop || pop.style.display !== 'block') return;
+  if (!pop.contains(e.target) && !(e.target.closest && e.target.closest('.node-obj-handle'))) {
+    closeCanvasObjectPopover();
+  }
+});
+
+/* ── 统一点图加入对话 ── */
+
+function pinImageForEditing(nodeId, variantId, imageUrl, opts) {
+  const o = opts || {};
+  if (nodeId && state.selectedNodeId !== nodeId) {
+    selectNode(nodeId);
+  }
+  state.edit.pinnedVariantId = variantId || null;
+  state.edit.pinnedImageUrl = imageUrl || null;
+  if (o.asPrimaryObjectId) {
+    state.edit.primaryObjectId = o.asPrimaryObjectId;
+  } else if (o.asPrimaryObjectId === null) {
+    // 整图：清掉主对象，落在 scene
+    state.edit.primaryObjectId = null;
+  }
+  updatePinnedThumbUI();
+  updateTextareaPlaceholder();
+  fetchEditContext({ variantId: variantId || undefined });
+  const ta = document.getElementById('copilot-input');
+  if (ta) { ta.focus(); }
+  const right = document.getElementById('right-bottom');
+  if (right && right.scrollIntoView) right.scrollIntoView({ block: 'end', behavior: 'smooth' });
+}
+
+function clearPinnedImage() {
+  state.edit.pinnedVariantId = null;
+  state.edit.pinnedImageUrl = null;
+  state.edit.selectedRegion = null;
+  updatePinnedThumbUI();
+  updateTextareaPlaceholder();
+  hideRegionOverlay();
+}
+
+/* ── 区域框选（shift+drag 缩略图） ── */
+
+function toggleRegionSelectMode() {
+  state.edit.regionSelectArmed = !state.edit.regionSelectArmed;
+  const btn = document.getElementById('conv-pin-region-btn');
+  if (btn) {
+    btn.textContent = state.edit.regionSelectArmed ? '框选中…（在缩略图拖动）' : '框选区域';
+    btn.style.borderColor = state.edit.regionSelectArmed ? 'var(--primary)' : '';
+    btn.style.background = state.edit.regionSelectArmed ? 'var(--primary-light)' : '';
+  }
+  if (!state.edit.regionSelectArmed) hideRegionOverlay();
+}
+
+function hideRegionOverlay() {
+  const rg = document.getElementById('conv-pin-region');
+  if (rg) rg.style.display = 'none';
+}
+
+function showRegionOverlayFromNormalized(rect) {
+  const img = document.getElementById('conv-pin-thumb');
+  const overlay = document.getElementById('conv-pin-region');
+  if (!img || !overlay || !rect) return;
+  const w = img.clientWidth, h = img.clientHeight;
+  if (!w || !h) return;
+  overlay.style.display = 'block';
+  overlay.style.left = `${rect.x * w}px`;
+  overlay.style.top = `${rect.y * h}px`;
+  overlay.style.width = `${rect.w * w}px`;
+  overlay.style.height = `${rect.h * h}px`;
+}
+
+function bindRegionSelectOnThumb() {
+  const img = document.getElementById('conv-pin-thumb');
+  const wrap = document.getElementById('conv-pin-thumb-wrap');
+  const overlay = document.getElementById('conv-pin-region');
+  if (!img || !wrap || !overlay || wrap.dataset.regionBound) return;
+  wrap.dataset.regionBound = '1';
+  let dragging = false;
+  let startX = 0, startY = 0;
+  let curW = 0, curH = 0;
+
+  wrap.addEventListener('mousedown', (e) => {
+    // 仅在 shift 或 armed 模式触发
+    if (!e.shiftKey && !state.edit.regionSelectArmed) return;
+    e.preventDefault(); e.stopPropagation();
+    const r = img.getBoundingClientRect();
+    curW = r.width; curH = r.height;
+    if (!curW || !curH) return;
+    dragging = true;
+    startX = e.clientX - r.left; startY = e.clientY - r.top;
+    overlay.style.display = 'block';
+    overlay.style.left = `${startX}px`; overlay.style.top = `${startY}px`;
+    overlay.style.width = `0px`; overlay.style.height = `0px`;
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const r = img.getBoundingClientRect();
+    const x = Math.max(0, Math.min(curW, e.clientX - r.left));
+    const y = Math.max(0, Math.min(curH, e.clientY - r.top));
+    const left = Math.min(startX, x), top = Math.min(startY, y);
+    const w = Math.abs(x - startX), h = Math.abs(y - startY);
+    overlay.style.left = `${left}px`; overlay.style.top = `${top}px`;
+    overlay.style.width = `${w}px`; overlay.style.height = `${h}px`;
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    if (!dragging) return;
+    dragging = false;
+    const r = img.getBoundingClientRect();
+    const w = parseFloat(overlay.style.width || '0');
+    const h = parseFloat(overlay.style.height || '0');
+    if (w < 6 || h < 6) {
+      overlay.style.display = 'none';
+      state.edit.selectedRegion = null;
+      return;
+    }
+    const left = parseFloat(overlay.style.left || '0');
+    const top = parseFloat(overlay.style.top || '0');
+    const region = {
+      x: Math.max(0, Math.min(1, left / r.width)),
+      y: Math.max(0, Math.min(1, top / r.height)),
+      w: Math.max(0, Math.min(1, w / r.width)),
+      h: Math.max(0, Math.min(1, h / r.height)),
+    };
+    state.edit.selectedRegion = region;
+    toast(`已选区域 ${(region.w * 100).toFixed(0)}%×${(region.h * 100).toFixed(0)}%。再次描述即针对此区域`);
+    // 同步到后端，让提案时使用
+    fetchEditContext({ selectedRegion: region });
+    state.edit.regionSelectArmed = false;
+    const btn = document.getElementById('conv-pin-region-btn');
+    if (btn) { btn.textContent = '框选区域'; btn.style.background=''; btn.style.borderColor=''; }
+  });
+}
+
+function updatePinnedThumbUI() {
+  const wrap = document.getElementById('conv-input-pin');
+  const thumb = document.getElementById('conv-pin-thumb');
+  const label = document.getElementById('conv-pin-label');
+  if (!wrap || !thumb || !label) return;
+  if (state.edit.pinnedImageUrl) {
+    thumb.src = state.edit.pinnedImageUrl;
+    const short = state.edit.pinnedVariantId ? String(state.edit.pinnedVariantId).slice(0, 6) : '';
+    const reg = state.edit.selectedRegion;
+    const regBadge = reg ? ` · 区域 ${(reg.w * 100).toFixed(0)}%×${(reg.h * 100).toFixed(0)}%` : '';
+    label.textContent = `底图：${short || 'pinned'}${regBadge}`;
+    wrap.style.display = 'flex';
+    bindRegionSelectOnThumb();
+    // 回绘已有 region
+    if (reg) {
+      setTimeout(() => showRegionOverlayFromNormalized(reg), 0);
+    } else {
+      hideRegionOverlay();
+    }
+  } else {
+    thumb.src = '';
+    wrap.style.display = 'none';
+  }
+}
+
+function updateTextareaPlaceholder() {
+  const ta = document.getElementById('copilot-input');
+  if (!ta) return;
+  const pack = state.edit && state.edit.pack;
+  if (!pack) {
+    ta.placeholder = '选中一个节点以开始对话，例如：把右边更柔和，文案更短';
+    return;
+  }
+  const sel = pack.selection_context || {};
+  const primary = findSummaryById(pack, sel.primary_object_id);
+  if (!primary) {
+    ta.placeholder = '按整图处理。输入你想怎么改，例如：整体更温暖，主体更突出。';
+    return;
+  }
+  const role = (primary.role || primary.type || '').toLowerCase();
+  if (role.includes('hero') || role === 'product') {
+    ta.placeholder = '针对主体：例如 更大、换角度、更干净的白底、光影更柔';
+  } else if (role.includes('title') || role.includes('headline')) {
+    ta.placeholder = '针对标题文案：例如 更短、更有冲击、换一句对比式';
+  } else if (role.includes('subtitle') || role.includes('copy')) {
+    ta.placeholder = '针对文案：例如 换表达方式，更口语，加一条数字信任背书';
+  } else if (role.includes('bg') || role === 'background') {
+    ta.placeholder = '针对背景：例如 换成居家阳光场景、氛围更温暖、饱和度低一点';
+  } else if (role.includes('person')) {
+    ta.placeholder = '针对人物：例如 表情更放松、视线看向主体、换年轻一点的';
+  } else {
+    ta.placeholder = `针对「${primary.label}」：描述你想怎么改`;
   }
 }
 
 function renderRightPanel(node) {
-  const ctx = document.getElementById('right-context-body');
   const sources = document.getElementById('sources-list');
   const variantsEl = document.getElementById('node-variants');
   const suggestions = document.getElementById('suggestions-list');
   const proposal = document.getElementById('copilot-proposal');
   if (!node) {
-    ctx.innerHTML = `<div style="color:var(--muted); font-size:12px;">选中一个节点以查看。</div>`;
-    sources.innerHTML = `<div style="color:var(--muted); font-size:12px;">暂无溯源信息。</div>`;
-    suggestions.innerHTML = `<div style="color:var(--muted); font-size:12px;">选中节点后会自动生成。</div>`;
-    proposal.innerHTML = '';
-    variantsEl.innerHTML = '';
+    resetEditRuntime(false);
+    renderContextCards(null);
+    renderObjectChips(null);
+    if (sources) sources.innerHTML = `<div style="color:var(--muted); font-size:12px;">暂无溯源信息。</div>`;
+    if (suggestions) suggestions.innerHTML = `<div style="color:var(--muted); font-size:12px;">选中节点后会自动生成。</div>`;
+    if (proposal) proposal.innerHTML = `<div style="color:var(--muted); font-size:11.5px;">在底部输入你想改的内容。</div>`;
+    if (variantsEl) variantsEl.innerHTML = `<div style="color:var(--muted); font-size:11.5px;">选中节点后展示变体。</div>`;
     document.getElementById('btn-gen-node').disabled = true;
     document.getElementById('btn-propose').disabled = true;
     return;
   }
   document.getElementById('btn-gen-node').disabled = false;
   document.getElementById('btn-propose').disabled = false;
-  ctx.innerHTML = `
-    <div class="k">角色</div><div>${escapeHtml(node.role || '')}</div>
-    <div class="k">视觉要求</div><div>${escapeHtml(node.visual_spec || '—')}</div>
-    <div class="k">文案方向</div><div>${escapeHtml(node.copy_spec || '—')}</div>
-    <div class="k">比例 · 状态</div><div>${escapeHtml(node.aspect_ratio || '1:1')} · ${escapeHtml(node.status || '')}</div>
-    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-      <button class="btn btn-ghost btn-sm" onclick="viewFinalCard('${node.node_id}')">查看最终结果卡</button>
-    </div>
-  `;
+  // 节点切换：保留已 pin 的底图（如来自历史），清掉 primary/secondary 选择
+  resetEditRuntime(true);
+  fetchEditContext();
 
   renderLineage(node, sources);
 
@@ -836,28 +1736,155 @@ function renderRightPanel(node) {
   variantsEl.innerHTML = variants.map(v => {
     const url = v.asset_url || '';
     const isActive = v.variant_id === node.active_variant_id;
+    const isPinned = state.edit.pinnedVariantId === v.variant_id;
     const editMode = (v.extra && v.extra.mode === 'edit');
     const baseId = (v.extra && v.extra.base_variant_id) ? String(v.extra.base_variant_id).slice(0, 6) : '';
+    const clickable = url ? `onclick="pinImageForEditing('${node.node_id}', '${v.variant_id}', '${url}')"` : '';
     const thumb = url
-      ? `<img src="${url}" style="width:100%; border-radius:4px;" />`
+      ? `<img src="${url}" ${clickable} style="width:100%; border-radius:4px; cursor:pointer;" title="点图加入对话" />`
       : `<div style="height:80px; background:var(--bg); border-radius:4px; display:flex;align-items:center;justify-content:center; font-size:11px; color:var(--muted);">${v.status === 'done' ? '无图' : (v.status || 'pending')}</div>`;
     const tagBits = [];
-    if (isActive) tagBits.push(`<span style="background:var(--primary); color:#fff; font-size:9px; padding:1px 5px; border-radius:3px;">编辑底图</span>`);
+    if (isPinned) tagBits.push(`<span style="background:#7c3aed; color:#fff; font-size:9px; padding:1px 5px; border-radius:3px;">已加入对话</span>`);
+    else if (isActive) tagBits.push(`<span style="background:var(--primary); color:#fff; font-size:9px; padding:1px 5px; border-radius:3px;">编辑底图</span>`);
     if (editMode) tagBits.push(`<span style="background:#fff7ed; color:#c2410c; font-size:9px; padding:1px 5px; border-radius:3px; border:1px solid #fed7aa;">微调${baseId ? '·'+baseId : ''}</span>`);
     return `
-      <div style="border:1px solid ${isActive ? 'var(--primary)' : 'var(--border)'}; border-radius:6px; padding:6px; position:relative;">
+      <div style="border:1px solid ${isPinned ? '#7c3aed' : (isActive ? 'var(--primary)' : 'var(--border)')}; border-radius:6px; padding:6px; position:relative;">
         ${tagBits.length ? `<div style="position:absolute; top:4px; left:4px; display:flex; gap:4px;">${tagBits.join('')}</div>` : ''}
         ${thumb}
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px; gap:4px;">
           <span style="font-size:10px; color:var(--muted);">${v.status || ''}</span>
           <div style="display:flex; gap:4px;">
-            ${url && !isActive ? `<button class="btn btn-ghost btn-sm" onclick="editVariantFrom('${node.node_id}', '${v.variant_id}')" title="以这张为底图微调">微调这张</button>` : ''}
+            ${url ? `<button class="btn btn-ghost btn-sm" onclick="pinImageForEditing('${node.node_id}', '${v.variant_id}', '${url}')" title="把这张设为对话底图">${isPinned ? '已 pin' : '加入对话'}</button>` : ''}
             ${url ? `<button class="btn btn-ghost btn-sm" onclick="setActiveVariant('${node.node_id}', '${v.variant_id}')">${isActive ? '已采纳' : '采纳'}</button>` : ''}
           </div>
         </div>
       </div>
     `;
   }).join('') || `<div style="color:var(--muted); font-size:11px;">暂无变体</div>`;
+
+  // 最近一个 batch 的对比 grid（>=2 张同批次变体）
+  renderCompareGrid(node, variants);
+  renderStatusActions(node);
+}
+
+function renderCompareGrid(node, variants) {
+  const wrap = document.getElementById('right-compare');
+  const grid = document.getElementById('compare-grid');
+  if (!wrap || !grid) return;
+  const withBatch = (variants || []).filter(v => v.asset_url && (v.extra && v.extra.batch_tag));
+  const groups = new Map();
+  for (const v of withBatch) {
+    const bid = (v.extra || {}).batch_tag;
+    if (!groups.has(bid)) groups.set(bid, []);
+    groups.get(bid).push(v);
+  }
+  let latest = null; let latestMax = 0;
+  for (const [bid, arr] of groups.entries()) {
+    if (arr.length < 2) continue;
+    const t = Math.max(...arr.map(v => +new Date(v.created_at || 0)));
+    if (t > latestMax) { latestMax = t; latest = arr; }
+  }
+  if (!latest) { wrap.style.display = 'none'; grid.innerHTML = ''; return; }
+  wrap.style.display = '';
+  grid.innerHTML = latest.slice(0, 4).map(v => {
+    const isActive = v.variant_id === node.active_variant_id;
+    const isPinned = state.edit.pinnedVariantId === v.variant_id;
+    const border = isPinned ? '#7c3aed' : (isActive ? 'var(--primary)' : 'transparent');
+    return `
+      <div onclick="pinImageForEditing('${node.node_id}', '${v.variant_id}', '${v.asset_url}')"
+           ondblclick="setActiveVariant('${node.node_id}', '${v.variant_id}')"
+           title="单击加入对话，双击采纳"
+           style="cursor:pointer; border:2px solid ${border}; border-radius:6px; overflow:hidden; position:relative;">
+        <img src="${v.asset_url}" style="width:100%; display:block;" />
+        ${isPinned ? '<span style="position:absolute; top:4px; left:4px; background:#7c3aed; color:#fff; font-size:9px; padding:2px 5px; border-radius:3px;">对话中</span>'
+          : (isActive ? '<span style="position:absolute; top:4px; left:4px; background:var(--primary); color:#fff; font-size:9px; padding:2px 5px; border-radius:3px;">已选</span>' : '')}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderStatusActions(node) {
+  const el = document.getElementById('right-status-actions');
+  if (!el) return;
+  const s = node.status || 'draft';
+  const hasActive = !!node.active_variant_id;
+  const actions = [];
+  if (hasActive && s === 'generated') {
+    actions.push(`<button class="btn btn-ghost btn-sm" onclick="markReviewed('${node.node_id}')" title="审阅通过，进入待审批">✓ 标记审阅</button>`);
+  }
+  if (hasActive && (s === 'reviewed' || s === 'generated')) {
+    actions.push(`<button class="btn btn-success btn-sm" onclick="approveNode('${node.node_id}')" title="执行品牌规则 gate 并审批通过">✅ 审批通过</button>`);
+  }
+  if (s === 'approved') {
+    actions.push(`<span style="font-size:11px; padding:4px 10px; border-radius:999px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;">✓ 已通过</span>`);
+    actions.push(`<button class="btn btn-ghost btn-sm" onclick="promoteToTemplateAsset('${node.node_id}')" title="把当前节点+active 沉淀为模板样例">⬆ 沉淀为模板</button>`);
+  }
+  if (s !== 'draft') {
+    actions.push(`<button class="btn btn-ghost btn-sm" onclick="revertNode('${node.node_id}')" title="回退到 draft 重做">↺ 回退</button>`);
+  }
+  el.innerHTML = actions.join('') || `<span style="font-size:11px; color:var(--muted);">先出图再审阅/审批</span>`;
+}
+
+async function markReviewed(nodeId) {
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/mark-reviewed`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({actor: 'user', note: ''}),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    toast('已标记审阅');
+    await loadPlan(state.planId);
+    selectNode(nodeId);
+  } catch (e) { toast('标记失败：' + e.message); }
+}
+
+async function approveNode(nodeId) {
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/approve`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({actor: 'user', note: ''}),
+    });
+    const data = await r.json();
+    if (!r.ok || data.ok === false) {
+      const report = data.report || {};
+      const hitWords = (report.avoid_hits || []).map(h => h.keyword).join(' / ');
+      const imgIssues = (report.image_check && report.image_check.issues) || [];
+      alert('品牌规则 gate 未通过：\n' +
+        (hitWords ? `禁词命中：${hitWords}\n` : '') +
+        (imgIssues.length ? `图像：${imgIssues.join(' / ')}\n` : '') +
+        (report.skipped ? `\n原因：${report.reason || ''}` : ''));
+      return;
+    }
+    toast('✅ 审批通过');
+    await loadPlan(state.planId);
+    selectNode(nodeId);
+  } catch (e) { toast('审批失败：' + e.message); }
+}
+
+async function revertNode(nodeId) {
+  if (!confirm('确认回退到 draft？')) return;
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/revert`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({actor: 'user', note: ''}),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    toast('已回退');
+    await loadPlan(state.planId);
+    selectNode(nodeId);
+  } catch (e) { toast('回退失败：' + e.message); }
+}
+
+async function promoteToTemplateAsset(nodeId) {
+  if (!confirm('把当前节点沉淀为模板样例（写入 assets/）？')) return;
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/promote-to-template-asset`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    toast('已沉淀：' + (d.path || d.template_id || ''));
+  } catch (e) { toast('沉淀失败：' + e.message); }
 }
 
 function escapeHtml(s) {
@@ -1176,9 +2203,34 @@ function useSuggestionAsPrompt(idx) {
   document.getElementById('copilot-input').focus();
 }
 
+function buildSelectionContextPayload() {
+  const e = state.edit || {};
+  return {
+    mode: e.primaryObjectId
+      ? (e.secondaryObjectIds && e.secondaryObjectIds.length ? 'multi_object' : 'object')
+      : (e.pinnedVariantId ? 'scene' : 'scene'),
+    primary_object_id: e.primaryObjectId || null,
+    secondary_object_ids: e.secondaryObjectIds || [],
+    selected_object_ids: [
+      ...(e.primaryObjectId ? [e.primaryObjectId] : []),
+      ...(e.secondaryObjectIds || []),
+    ],
+    selected_region: e.selectedRegion || null,
+    pinned_variant_id: e.pinnedVariantId || null,
+    pinned_image_url: e.pinnedImageUrl || null,
+  };
+}
+
+function buildConversationStatePayload() {
+  return {
+    last_user_messages: (state.edit && state.edit.lastUserMessages || []).slice(-5),
+    last_proposal_summary: (state.edit && state.edit.lastProposalSummary) || '',
+  };
+}
+
 async function proposeEdit() {
   const nodeId = state.selectedNodeId;
-  if (!nodeId) return;
+  if (!nodeId) { toast('请先选中一个节点'); return; }
   const text = document.getElementById('copilot-input').value.trim();
   if (!text) { toast('请先输入指令'); return; }
   const btn = document.getElementById('btn-propose');
@@ -1186,42 +2238,155 @@ async function proposeEdit() {
   try {
     const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/propose-edit`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ user_prompt: text }),
+      body: JSON.stringify({
+        user_prompt: text,
+        selection_context: buildSelectionContextPayload(),
+        conversation_state: buildConversationStatePayload(),
+      }),
     });
     if (!r.ok) throw new Error(await r.text());
     const data = await r.json();
-    const p = data.proposal || {};
-    renderProposal(nodeId, p);
+    const v2 = data.proposal_v2 || data.proposal || {};
+    // 缓存对话历史
+    state.edit.lastUserMessages = (state.edit.lastUserMessages || []).concat([text]).slice(-5);
+    state.edit.lastResolved = v2.resolved_reference || null;
+    state.edit.lastProposalSummary = v2.summary || '';
+    if (data.edit_context) {
+      state.edit.pack = data.edit_context;
+      renderContextCards(data.edit_context);
+      renderObjectChips(data.edit_context);
+    }
+    renderProposal(nodeId, v2);
   } catch (e) {
     toast('提案失败: ' + e.message);
   } finally {
-    btn.disabled = false; btn.textContent = '生成提案';
+    btn.disabled = false; btn.textContent = '让 AI 生成提案';
   }
 }
 
 function renderProposal(nodeId, p) {
   const el = document.getElementById('copilot-proposal');
-  if (!p || (!p.summary && !p.prompt_delta && !p.copy_delta)) {
-    el.innerHTML = `<div style="color:var(--muted); font-size:11px;">无可用提案</div>`;
+  if (!p || (!p.summary && !(p.steps && p.steps.length) && !p.prompt_delta)) {
+    el.innerHTML = `<div style="color:var(--muted); font-size:11.5px;">无可用提案。在底部输入想法后点"让 AI 生成提案"。</div>`;
     return;
   }
+  state.lastProposal = p;
+  state.lastProposalNodeId = nodeId;
+  // 澳清分支
+  if (p.needs_clarification) {
+    const q = p.clarification_question || '这条指令里的对象还不明确。';
+    const suggestions = (p.suggested_objects || []).slice(0, 6);
+    const sugHTML = suggestions.length
+      ? suggestions.map(s => `<span class="obj-chip add" onclick="document.getElementById('copilot-input').focus();">${escapeHtml(s)}</span>`).join('')
+      : '';
+    el.innerHTML = `
+      <div class="clarify-card">
+        <div class="clarify-q">🤔 ${escapeHtml(q)}</div>
+        <div style="font-size:11px; color:#92400e;">你可以：</div>
+        <div class="clarify-sug">
+          <button class="btn btn-ghost btn-sm" onclick="toast('在画布上点一个对象，或点 chip 指派主对象');">去画布选对象</button>
+          <button class="btn btn-ghost btn-sm" onclick="forceSceneAndPropose()">按整图处理</button>
+          ${sugHTML}
+        </div>
+        <div style="display:flex; gap:4px; margin-top:4px;">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('copilot-proposal').innerHTML=''; state.lastProposal=null;">取消</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const pack = state.edit.pack;
+  const allObjs = pack ? [
+    ...((pack.visual_state && pack.visual_state.object_summaries) || []),
+    ...(((pack.visual_state && pack.visual_state.copy_blocks) || []).map(c => ({
+      object_id: c.object_id, label: c.label, locked: c.locked, type: 'copy', role: c.role,
+    }))),
+  ] : [];
+  const labelOf = (id) => {
+    const o = allObjs.find(x => x.object_id === id);
+    return o ? (o.label || o.type) : (id ? id.slice(0, 6) : '—');
+  };
+
+  const targets = (p.target_objects || []);
+  const locked = (p.locked_objects || []);
+  const steps = (p.steps || []);
+  const risks = (p.risks && p.risks.length ? p.risks : (p.risk ? [p.risk] : []));
+  const interp = (p.interpretation_basis || []);
+  const preserve = (p.preserve_rules || []);
+
+  const targetHtml = targets.length
+    ? targets.map(t => `<span class="tag">${escapeHtml(labelOf(t))}</span>`).join('')
+    : '<span style="color:var(--muted); font-size:11px;">未指定具体对象，按整图处理</span>';
+  const lockedHtml = locked.length
+    ? locked.map(t => `<span class="tag locked">🔒 ${escapeHtml(labelOf(t))}</span>`).join('')
+    : '';
+
+  const stepsHtml = steps.length ? steps.map(s => {
+    const strength = (s.strength || 'moderate').toLowerCase();
+    const stLabel = { subtle: '微调', moderate: '中度', strong: '大改' }[strength] || '中度';
+    const tids = (s.target_object_ids || []).map(labelOf).join('、') || '整图';
+    return `
+      <div class="prop-step">
+        <div class="st-head">
+          <span class="badge-strength ${strength}">${stLabel}</span>
+          <span>${escapeHtml(s.action_type || 'refine')}</span>
+          <span style="color:var(--muted); font-size:10.5px;">→ ${escapeHtml(tids)}</span>
+        </div>
+        ${s.reason ? `<div style="color:var(--muted); font-size:10.5px;">${escapeHtml(s.reason)}</div>` : ''}
+      </div>`;
+  }).join('') : `<div style="color:var(--muted); font-size:11px;">无具体步骤</div>`;
+
   el.innerHTML = `
-    <div style="padding:8px; border:1px dashed var(--primary); border-radius:6px; background: var(--primary-light); font-size:11.5px; line-height:1.5;">
-      <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">执行提案</div>
-      ${p.summary ? `<div style="margin-bottom:4px;">${escapeHtml(p.summary)}</div>` : ''}
-      ${p.prompt_delta ? `<div style="color:var(--muted);"><b>prompt 调整：</b>${escapeHtml(truncate(p.prompt_delta, 140))}</div>` : ''}
-      ${p.copy_delta ? `<div style="color:var(--muted);"><b>文案调整：</b>${escapeHtml(truncate(p.copy_delta, 80))}</div>` : ''}
-      ${p.risk ? `<div style="color:var(--accent-warn); margin-top:4px;">⚠ ${escapeHtml(p.risk)}</div>` : ''}
-      <div style="display:flex; gap:4px; margin-top:6px;">
-        <button class="btn btn-primary btn-sm" onclick='applyProposal("${nodeId}", ${JSON.stringify(p).replace(/'/g, "&#39;")})'>采纳并生成</button>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('copilot-proposal').innerHTML = ''">忽略</button>
+    <div class="prop-card">
+      <div class="prop-summary">🤖 ${escapeHtml(p.summary || '—')}</div>
+      ${interp.length ? `
+        <div class="prop-section">
+          <h5>① 理解依据</h5>
+          <ul>${interp.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
+        </div>` : ''}
+      <div class="prop-section prop-targets">
+        <h5>② 修改对象</h5>
+        <div>${targetHtml} ${lockedHtml}</div>
+      </div>
+      <div class="prop-section">
+        <h5>③ 执行动作</h5>
+        ${stepsHtml}
+      </div>
+      ${preserve.length ? `
+        <div class="prop-section">
+          <h5>④ 必须保留</h5>
+          <ul>${preserve.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
+        </div>` : ''}
+      ${risks.length ? `
+        <div class="prop-section">
+          <h5 style="color:#b91c1c;">⑤ 风险</h5>
+          <ul style="color:#b91c1c;">${risks.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
+        </div>` : ''}
+      <div class="prop-section">
+        <h5>⑥ 操作</h5>
+        <div class="prop-actions">
+          <button class="btn btn-primary btn-sm" onclick="execProposal('execute')" title="保存 delta 并出图（默认走 img2img）">执行</button>
+          <button class="btn btn-ghost btn-sm" onclick="execProposal('variants_only')" title="只出变体，不改 node 的 spec">只出变体</button>
+          <button class="btn btn-ghost btn-sm" onclick="execProposal('step_by_step')" title="按步骤逐条确认">分步执行</button>
+          <button class="btn btn-ghost btn-sm" onclick="execProposal('preview_only')" title="不落库，仅保留提案内容">仅预览</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('copilot-proposal').innerHTML=''; state.lastProposal=null;">取消</button>
+        </div>
       </div>
     </div>
   `;
 }
 
-async function applyProposal(nodeId, proposal) {
-  const p = typeof proposal === 'string' ? JSON.parse(proposal) : proposal;
+function forceSceneAndPropose() {
+  state.edit.primaryObjectId = null;
+  state.edit.secondaryObjectIds = [];
+  toast('已按整图处理，重新生成提案…');
+  proposeEdit();
+}
+
+async function execProposal(mode) {
+  const nodeId = state.lastProposalNodeId;
+  const p = state.lastProposal;
+  if (!nodeId || !p) { toast('无可用提案'); return; }
   try {
     const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/apply-proposal`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1229,22 +2394,33 @@ async function applyProposal(nodeId, proposal) {
         prompt_delta: p.prompt_delta || '',
         copy_delta: p.copy_delta || '',
         generate_count: 1,
+        apply_mode: mode,
+        proposal_v2: p,
+        selection_context_snapshot: buildSelectionContextPayload(),
+        base_variant_id: state.edit.pinnedVariantId || '',
       }),
     });
     if (!r.ok) throw new Error(await r.text());
     const data = await r.json();
-    toast('已采纳，生成中…');
-    pollBatch(data.batch_id);
+    toast(`已${mode === 'preview_only' ? '保留提案' : '入队'}（${data.executed_action || mode}）`);
+    if (data.batch_id) pollBatch(data.batch_id);
     document.getElementById('copilot-input').value = '';
     document.getElementById('copilot-proposal').innerHTML = '';
-    // 本地 node 状态更新
+    state.lastProposal = null;
     const node = state.nodes.find(n => n.node_id === nodeId);
-    if (node) { node.status = 'generating'; renderCanvas(); if (nodeId === state.selectedNodeId) renderRightPanel(node); }
+    if (node && mode !== 'preview_only') {
+      node.status = 'generating';
+      renderCanvas();
+      if (nodeId === state.selectedNodeId) renderRightPanel(node);
+    }
   } catch (e) { toast('应用提案失败: ' + e.message); }
 }
 
 async function editActiveVariant() {
-  return editVariantFrom(state.selectedNodeId, '');
+  // pinned variant 优先，其次 active
+  const nodeId = state.selectedNodeId;
+  const pinned = state.edit.pinnedVariantId || '';
+  return editVariantFrom(nodeId, pinned);
 }
 
 async function editVariantFrom(nodeId, baseVariantId) {
@@ -1254,12 +2430,15 @@ async function editVariantFrom(nodeId, baseVariantId) {
   const btn = document.getElementById('btn-edit-variant');
   const orig = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '微调中…'; }
+  // 追加到对话历史，便于方向总结
+  state.edit.lastUserMessages = (state.edit.lastUserMessages || []).concat([text]).slice(-5);
+  const effectiveBase = baseVariantId || state.edit.pinnedVariantId || '';
   try {
     const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/edit-variant`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         user_prompt: text,
-        base_variant_id: baseVariantId || '',
+        base_variant_id: effectiveBase,
         count: 1,
       }),
     });
@@ -1321,6 +2500,215 @@ async function loadTemplates() {
   }).join('') || `<div style="color:var(--muted); font-size:12px;">暂无模板</div>`;
 }
 
+/* ── 模板绑定 / 品牌规则 / 编译计划 / 结构树 ── */
+async function loadBindings() {
+  const el = document.getElementById('binding-list');
+  if (!el) return;
+  const plan = state.plan || {};
+  const bindings = plan.template_bindings || [];
+  if (!bindings.length) {
+    el.innerHTML = `<div style="color:var(--muted); font-size:12px;">当前 plan 尚无模板绑定。</div>`;
+    return;
+  }
+  el.innerHTML = bindings.map(b => {
+    const snap = b.adapted_template_snapshot;
+    return `
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;">
+        <div style="font-size:12.5px; font-weight:700;">${escapeHtml(b.frame_key || '')} · ${escapeHtml(b.template_id || '')}</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:4px; line-height:1.5;">${escapeHtml(b.binding_reason || '—')}</div>
+        ${(b.locked_fields || []).length ? `<div style="font-size:10.5px; color:#b45309; margin-top:4px;">锁定：${(b.locked_fields||[]).map(escapeHtml).join(' / ')}</div>` : ''}
+        ${snap ? `<div style="font-size:10.5px; color:#2563eb; margin-top:4px;">借框架自：${escapeHtml(snap.original_name || snap.original_template_id || '')}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadBrandRulePanel() {
+  const el = document.getElementById('brand-rule-panel');
+  if (!el) return;
+  try {
+    const brandId = (state.plan && state.plan.brand_id) || 'default';
+    const r = await fetch(`/growth-lab/api/workspace/brand-rule/${encodeURIComponent(brandId)}`);
+    if (!r.ok) { el.innerHTML = `<div style="color:var(--muted); font-size:12px;">未配置品牌规则。</div>`; return; }
+    const data = await r.json();
+    const r2 = data.rules || {};
+    const must = (r2.must_keywords || []).map(escapeHtml).join(' / ') || '—';
+    const avoid = (r2.avoid_keywords || []).map(escapeHtml).join(' / ') || '—';
+    const specs = r2.main_image_specs || {};
+    el.innerHTML = `
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--bg);">
+        <div style="font-size:12.5px; font-weight:700;">品牌：${escapeHtml(r2.brand_id || brandId)}</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.6;">
+          必选词：<span style="color:#16a34a;">${must}</span><br/>
+          禁用词：<span style="color:#dc2626;">${avoid}</span><br/>
+          主图规格：${escapeHtml(specs.aspect_ratio || '—')} · 最小 ${specs.min_pixels || '—'}px · ≤ ${specs.max_file_kb || '—'}KB
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div style="color:#b91c1c; font-size:12px;">加载失败：${escapeHtml(e.message || e)}</div>`;
+  }
+}
+
+async function loadCompilePlan() {
+  const el = document.getElementById('compile-plan-body');
+  if (!el) return;
+  if (!state.planId) { el.innerHTML = `<div style="color:var(--muted); font-size:12px;">先编译一个 plan。</div>`; return; }
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/plan/${state.planId}/tree`);
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    const cp = d.compile_plan || {};
+    const intent = d.intent || {};
+    const outputRows = (d.frames || []).map(f => `
+      <li><b>${escapeHtml(f.frame_key)}</b> · ${escapeHtml(f.title || '')} · ${f.nodes.length} 个输出节点</li>
+    `).join('') || `<li style="color:var(--muted);">无</li>`;
+    const genRules = JSON.stringify(cp.generation_rules || {}, null, 2);
+    const evalRules = JSON.stringify(cp.evaluation_rules || {}, null, 2);
+    el.innerHTML = `
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px;">
+        <div style="font-size:12.5px; font-weight:700;">意图摘要</div>
+        <div style="font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.6;">
+          商品：${escapeHtml(intent.product_name || '—')}<br/>
+          人群：${escapeHtml(intent.audience || '—')}<br/>
+          输出：${(intent.output_types || []).map(escapeHtml).join(' / ') || '—'}<br/>
+          必须：${(intent.must_have || []).map(escapeHtml).join(' / ') || '—'} · 避免：${(intent.avoid || []).map(escapeHtml).join(' / ') || '—'}
+        </div>
+      </div>
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px;">
+        <div style="font-size:12.5px; font-weight:700;">输出节点序列</div>
+        <ul style="font-size:11.5px; color:var(--text); margin:6px 0 0 18px; padding:0; line-height:1.6;">${outputRows}</ul>
+      </div>
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px;">
+        <div style="font-size:12.5px; font-weight:700;">生成规则</div>
+        <pre style="margin:6px 0 0; font-size:10.5px; white-space:pre-wrap; word-break:break-all; color:var(--muted);">${escapeHtml(genRules)}</pre>
+      </div>
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px;">
+        <div style="font-size:12.5px; font-weight:700;">评估规则</div>
+        <pre style="margin:6px 0 0; font-size:10.5px; white-space:pre-wrap; word-break:break-all; color:var(--muted);">${escapeHtml(evalRules)}</pre>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div style="color:#b91c1c; font-size:12px;">加载失败：${escapeHtml(e.message || e)}</div>`;
+  }
+}
+
+async function loadPlanTree() {
+  const el = document.getElementById('tree-body');
+  if (!el) return;
+  if (!state.planId) { el.innerHTML = `<div style="color:var(--muted); font-size:12px;">先编译一个 plan。</div>`; return; }
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/plan/${state.planId}/tree`);
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    state.planTree = d;
+    renderPlanTree(d);
+  } catch (e) {
+    el.innerHTML = `<div style="color:#b91c1c; font-size:12px;">加载失败：${escapeHtml(e.message || e)}</div>`;
+  }
+}
+
+function renderPlanTree(tree) {
+  const el = document.getElementById('tree-body');
+  if (!el) return;
+  const statusColor = {
+    draft: '#6b7280', generating: '#2563eb', generated: '#16a34a',
+    reviewed: '#8b5cf6', approved: '#059669', failed: '#dc2626'
+  };
+  const objTypeLabel = {
+    product: '商品', background: '背景', copy: '文案',
+    person: '人物', decoration: '装饰', logo: 'Logo'
+  };
+  const framesHtml = (tree.frames || []).map(f => {
+    const nodesHtml = (f.nodes || []).map(n => {
+      const active = n.node_id === state.selectedNodeId;
+      const col = statusColor[n.status] || '#6b7280';
+      const objs = (n.objects || []).map(o => {
+        const isPrim = active && state.edit.primaryObjectId === o.object_id;
+        const isSec = active && (state.edit.secondaryObjectIds || []).includes(o.object_id);
+        const localLocked = (state.edit.objectLocks && state.edit.objectLocks[o.object_id]) || o.locked;
+        const bg = isPrim ? 'var(--primary-light)' : (isSec ? '#ecfccb' : 'transparent');
+        const badge = isPrim ? '<span style="font-size:9px; padding:0 4px; border-radius:2px; background:var(--primary); color:#fff;">主</span>'
+          : (isSec ? '<span style="font-size:9px; padding:0 4px; border-radius:2px; background:#65a30d; color:#fff;">辅</span>' : '');
+        return `
+        <div class="tree-obj" data-object-id="${o.object_id}" data-node-id="${n.node_id}"
+             onclick="handleTreeObjClick(event, '${n.node_id}', '${o.object_id}')"
+             title="点击=设主 / Shift+点=追加辅 / ⌘/Ctrl+点=切换锁定"
+             style="padding:3px 6px 3px 24px; display:flex; align-items:center; gap:5px; font-size:11px; color:${localLocked ? '#b45309' : 'var(--muted)'}; background:${bg}; border-radius:3px; cursor:pointer;">
+          <span style="width:8px; height:8px; border-radius:50%; background:${localLocked ? '#f59e0b' : '#cbd5e1'}; display:inline-block;"></span>
+          <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(objTypeLabel[o.type] || o.type)}：${escapeHtml(o.label || '')}</span>
+          ${badge}
+          ${localLocked ? '<span style="color:#b45309;">🔒</span>' : ''}
+        </div>
+      `;}).join('');
+      return `
+        <div class="tree-node" data-node-id="${n.node_id}"
+             onclick="jumpToTreeNode('${n.node_id}')"
+             style="cursor:pointer; padding:5px 6px 5px 12px; border-left:2px solid ${col}; background:${active ? 'var(--primary-light)' : 'transparent'}; margin:2px 0; border-radius:4px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+            <div style="font-size:11.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${n.slot_index} ${escapeHtml(n.role || n.title || '')}</div>
+            <span style="font-size:9.5px; padding:1px 5px; border-radius:3px; background:${col}; color:#fff;">${escapeHtml(n.status)}</span>
+          </div>
+          <div style="font-size:10px; color:var(--muted); margin-top:2px;">${n.variant_count} 变体 · ${(n.objects||[]).length} 对象</div>
+          ${objs}
+        </div>
+      `;
+    }).join('') || `<div style="color:var(--muted); font-size:11px; padding:4px 12px;">该 Frame 无节点</div>`;
+    return `
+      <div style="padding:8px 0;">
+        <div style="font-size:12px; font-weight:700; padding:3px 4px; color:var(--text); background:var(--bg-soft, transparent);">📦 ${escapeHtml(f.frame_key)}（${f.nodes.length}）</div>
+        <div>${nodesHtml}</div>
+      </div>
+    `;
+  }).join('') || `<div style="color:var(--muted); font-size:12px;">无 Frame</div>`;
+  const counts = tree.counts || {};
+  el.innerHTML = `
+    <div style="font-size:10.5px; color:var(--muted); padding:4px 6px; margin-bottom:6px; background:var(--primary-light); border-radius:4px;">
+      ${counts.frames || 0} Frame · ${counts.nodes || 0} 节点 · 已生成 ${counts.generated || 0} · 审阅 ${counts.reviewed || 0} · 通过 ${counts.approved || 0}
+    </div>
+    ${framesHtml}
+  `;
+}
+
+function jumpToTreeNode(nodeId) {
+  const node = (state.nodes || []).find(n => n.node_id === nodeId);
+  if (!node) { toast('节点已失效，刷新重试'); return; }
+  selectNode(nodeId);
+  if (typeof scrollNodeIntoView === 'function') scrollNodeIntoView(nodeId);
+}
+
+function handleTreeObjClick(ev, nodeId, objectId) {
+  ev.stopPropagation();
+  // 若不是当前选中节点，先切
+  if (state.selectedNodeId !== nodeId) {
+    selectNode(nodeId);
+  }
+  const meta = ev.metaKey || ev.ctrlKey;
+  if (meta) {
+    // ⌘/Ctrl+点 → 切换锁定（V1 客户端状态）
+    state.edit.objectLocks = state.edit.objectLocks || {};
+    state.edit.objectLocks[objectId] = !state.edit.objectLocks[objectId];
+    toast(state.edit.objectLocks[objectId] ? '已标记锁定（本地）' : '已解锁（本地）');
+    if (state.planTree) renderPlanTree(state.planTree);
+    return;
+  }
+  if (ev.shiftKey) {
+    // shift+点 → 追加/移除辅助
+    const arr = state.edit.secondaryObjectIds || [];
+    if (state.edit.primaryObjectId === objectId) state.edit.primaryObjectId = null;
+    state.edit.secondaryObjectIds = arr.includes(objectId)
+      ? arr.filter(x => x !== objectId)
+      : arr.concat([objectId]);
+  } else {
+    // 普通点 → 设主对象
+    state.edit.primaryObjectId = objectId;
+    state.edit.secondaryObjectIds = (state.edit.secondaryObjectIds || []).filter(x => x !== objectId);
+  }
+  fetchEditContext().then(() => {
+    if (state.planTree) renderPlanTree(state.planTree);
+  });
+}
+
 async function loadPlans() {
   const el = document.getElementById('plan-list');
   el.innerHTML = `<div style="color:var(--muted); font-size:12px;">加载中…</div>`;
@@ -1366,7 +2754,7 @@ async function loadPlans() {
       ].filter(Boolean).join(' · ');
       return `
         <div class="gal-thumb" title="${escapeHtml(tip)}"
-             onclick="openFromGallery('${g.plan_id}', '${v.node_id}', '${v.variant_id}')"
+             onclick="openFromGallery('${g.plan_id}', '${v.node_id}', '${v.variant_id}', '${v.asset_url || ''}')"
              style="position:relative; width:72px; height:72px; border-radius:6px; overflow:hidden; cursor:pointer; border:1px solid ${active ? 'var(--primary)' : 'var(--border)'}; flex:0 0 auto;">
           <img src="${v.asset_url}" style="width:100%; height:100%; object-fit:cover; display:block;" />
           ${active ? `<span style="position:absolute; top:2px; left:2px; background:var(--primary); color:#fff; font-size:9px; padding:1px 4px; border-radius:3px;">采纳</span>` : ''}
@@ -1396,21 +2784,17 @@ function jumpToPlan(planId) {
   location.href = `/growth-lab/workspace?plan_id=${planId}`;
 }
 
-function openFromGallery(planId, nodeId, variantId) {
-  // 同一个 plan 内部直接局部跳转，不全页刷新
+function openFromGallery(planId, nodeId, variantId, imageUrl) {
   if (planId === state.planId) {
-    selectNode(nodeId);
-    if (variantId) {
-      const node = state.nodes.find(n => n.node_id === nodeId);
-      if (node) {
-        node.active_variant_id = variantId;
-        renderRightPanel(node);
-      }
-    }
+    // 通过 pinImageForEditing 统一入口：选节点、设 pin、刷新上下文、聚焦 textarea
+    pinImageForEditing(nodeId, variantId, imageUrl || null);
     scrollNodeIntoView(nodeId);
-    document.getElementById('copilot-input').focus();
-    // 切回"意图"tab，避免挡住右栏
-    switchTab('intent');
+    const right = document.getElementById('right-bottom');
+    if (right) {
+      right.style.boxShadow = '0 0 0 2px var(--primary)';
+      setTimeout(() => { right.style.boxShadow = ''; }, 1200);
+    }
+    toast('已加入对话，在下方输入你想怎么改');
     return;
   }
   const params = new URLSearchParams();
@@ -1476,21 +2860,101 @@ async function openReplanDialog(frameId, frameKey, currentTplId) {
   const category = catMap[frameKey];
   const candidates = state.templates.filter(t => t.category === category);
   if (!candidates.length) { toast('该 Frame 没有可切换的模板'); return; }
-  const lines = candidates.map((t, i) => `${i+1}. ${t.name} (${t.template_id}) ${t.template_id === currentTplId ? '[当前]' : ''}`).join('\n');
-  const input = prompt(`输入要切换的模板编号：\n\n${lines}\n\n(已生成的节点资产会按 slot 保留)`);
-  const idx = parseInt(input, 10) - 1;
-  if (isNaN(idx) || idx < 0 || idx >= candidates.length) return;
-  const tpl = candidates[idx];
-  if (tpl.template_id === currentTplId) { toast('与当前模板相同'); return; }
-  toast(`切换到 ${tpl.name}...`);
-  const res = await fetch(`/growth-lab/api/workspace/frame/${frameId}/replan`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ new_template_id: tpl.template_id, keep_assets: true }),
+  showReplanModal(frameId, frameKey, currentTplId, candidates);
+}
+
+function showReplanModal(frameId, frameKey, currentTplId, candidates) {
+  let modal = document.getElementById('replan-modal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'replan-modal';
+  modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9999; display:flex; align-items:center; justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#fff; width:760px; max-width:92vw; max-height:86vh; overflow:hidden; border-radius:10px; display:flex; flex-direction:column;">
+      <div style="padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px;">
+        <div style="font-weight:700; font-size:14px;">换模板 · ${escapeHtml(frameKey)}</div>
+        <div style="flex:1;"></div>
+        <label style="font-size:12px; display:flex; gap:4px; align-items:center;">
+          <input type="checkbox" id="replan-keep-assets" checked /> 保留已生成资产
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('replan-modal').remove()">关闭</button>
+      </div>
+      <div style="display:grid; grid-template-columns:260px 1fr; flex:1; min-height:400px;">
+        <div style="border-right:1px solid var(--border); overflow:auto;" id="replan-list"></div>
+        <div style="overflow:auto; padding:12px 16px;" id="replan-diff">
+          <div style="color:var(--muted); font-size:12px;">选择左侧候选模板查看 diff 预览。</div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  const listEl = modal.querySelector('#replan-list');
+  listEl.innerHTML = candidates.map((t, i) => `
+    <div class="replan-item" data-tpl="${t.template_id}" style="padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; ${t.template_id === currentTplId ? 'background:#eff6ff;' : ''}">
+      <div style="font-size:12.5px; font-weight:600;">${escapeHtml(t.name)} ${t.template_id === currentTplId ? '<span style=\"font-size:10px; color:var(--primary);\">[当前]</span>' : ''}</div>
+      <div style="font-size:10.5px; color:var(--muted);">${escapeHtml(t.template_id)} · ${(t.slot_count || t.slots_count || 0)} slot</div>
+    </div>
+  `).join('');
+  listEl.querySelectorAll('.replan-item').forEach(el => {
+    el.addEventListener('click', async () => {
+      listEl.querySelectorAll('.replan-item').forEach(x => x.style.background = '');
+      el.style.background = '#eff6ff';
+      const tplId = el.dataset.tpl;
+      await renderReplanDiff(frameId, tplId, currentTplId);
+    });
   });
-  const data = await res.json();
-  if (!data.ok) { toast('换模板失败'); return; }
-  toast(`已切换：保留${data.updated} · 新增${data.created} · 归档${data.archived}`);
-  await loadPlan(state.planId);
+}
+
+async function renderReplanDiff(frameId, newTplId, currentTplId) {
+  const area = document.getElementById('replan-diff');
+  const keep = document.getElementById('replan-keep-assets').checked;
+  area.innerHTML = '<div style="color:var(--muted); font-size:12px;">预览中…</div>';
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/frame/${frameId}/replan-preview`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ new_template_id: newTplId, keep_assets: keep }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.detail || '预览失败');
+    const p = d.preview || {};
+    const isSame = newTplId === currentTplId;
+    const renderList = (arr, color, label) => arr.length
+      ? `<div style="margin-top:8px;"><div style="font-size:12px; font-weight:600; color:${color};">${label}（${arr.length}）</div>
+          <ul style="font-size:11.5px; line-height:1.6; margin:4px 0 0 16px; padding:0;">
+          ${arr.map(i => `<li>slot#${i.slot_index} · ${escapeHtml(i.role || i.old_role || '')}${i.new_role && i.new_role !== i.old_role ? ` → ${escapeHtml(i.new_role)}` : ''}${i.keeps_variants ? ' · <span style=\"color:#059669;\">保留图</span>' : ''}${i.has_active ? ' · <span style=\"color:#b45309;\">原 active</span>' : ''}</li>`).join('')}
+          </ul></div>`
+      : '';
+    area.innerHTML = `
+      <div style="font-size:13px; font-weight:600;">${escapeHtml(p.new_template_name || '')}</div>
+      <div style="font-size:11px; color:var(--muted); margin-top:2px;">${escapeHtml(p.old_template_id)} → ${escapeHtml(p.new_template_id)} ${isSame ? '<span style=\"color:#b45309;\">（与当前相同）</span>' : ''}</div>
+      ${renderList(p.will_update || [], '#0369a1', '🔁 复用 slot（保语义更新）')}
+      ${renderList(p.will_create || [], '#059669', '➕ 新增 slot')}
+      ${renderList(p.will_archive || [], '#b45309', '📦 归档 slot（资产保留）')}
+      <div style="margin-top:14px; display:flex; gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="applyReplan('${frameId}', '${newTplId}')" ${isSame ? 'disabled' : ''}>应用换模板</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('replan-modal').remove()">取消</button>
+      </div>
+    `;
+  } catch (e) {
+    area.innerHTML = `<div style="color:#b91c1c; font-size:12px;">预览失败：${escapeHtml(String(e.message || e))}</div>`;
+  }
+}
+
+async function applyReplan(frameId, newTplId) {
+  const keep = document.getElementById('replan-keep-assets').checked;
+  try {
+    const res = await fetch(`/growth-lab/api/workspace/frame/${frameId}/replan`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_template_id: newTplId, keep_assets: keep }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error('换模板失败');
+    toast(`已切换：保留${data.updated} · 新增${data.created} · 归档${data.archived}`);
+    const modal = document.getElementById('replan-modal');
+    if (modal) modal.remove();
+    await loadPlan(state.planId);
+  } catch (e) {
+    toast('换模板失败：' + (e.message || e));
+  }
 }
 
 async function viewFinalCard(nodeId) {
@@ -1498,19 +2962,55 @@ async function viewFinalCard(nodeId) {
   const data = await res.json();
   const card = data.card || {};
   const src = card.source || {};
-  alert([
-    `最终结果卡 · ${card.title || ''}`,
-    `状态：${card.status}  类型：${card.result_type}  比例：${card.aspect_ratio}`,
-    `角色：${card.role}`,
-    card.asset_url ? `资产：${card.asset_url}` : '（尚未有 active 变体）',
-    '',
-    '溯源：',
-    `  商品：${(src.intent || {}).product_name || ''}`,
-    `  模板 Slot：${src.template_slot_ref}`,
-    `  品牌规则：${(src.brand_rule_refs || []).join(', ')}`,
-    '',
-    `变体数：${card.variant_count}`,
-  ].join('\n'));
+  const intent = src.intent || {};
+  const node = state.nodes.find(n => n.node_id === nodeId) || {};
+  const status = card.status || node.status || '';
+  const statusColor = status === 'approved' ? '#059669' : (status === 'reviewed' ? '#0369a1' : '#6b7280');
+
+  let modal = document.getElementById('final-card-modal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'final-card-modal';
+  modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9999; display:flex; align-items:center; justify-content:center;';
+  const canPromote = status === 'approved' && !!card.asset_url;
+  modal.innerHTML = `
+    <div style="background:#fff; width:760px; max-width:94vw; max-height:90vh; overflow:auto; border-radius:10px; padding:18px 22px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="font-size:15px; font-weight:700;">最终结果卡</div>
+        <span style="font-size:11px; padding:2px 8px; border-radius:999px; color:#fff; background:${statusColor};">${escapeHtml(status || '—')}</span>
+        <div style="flex:1;"></div>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('final-card-modal').remove()">关闭</button>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px;">
+        <div>
+          ${card.asset_url
+            ? `<img src="${card.asset_url}" style="width:100%; border-radius:8px; border:1px solid var(--border);" />`
+            : '<div style="height:300px; background:var(--bg); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted);">暂无 active 变体</div>'}
+        </div>
+        <div style="font-size:12px; line-height:1.7;">
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(card.title || node.title || '')}</div>
+          <div style="color:var(--muted); margin-bottom:8px;">${escapeHtml(card.result_type || '')} · ${escapeHtml(card.aspect_ratio || '')}</div>
+          <div><b>角色：</b>${escapeHtml(card.role || '')}</div>
+          <div><b>视觉要求：</b>${escapeHtml(node.visual_spec || '—')}</div>
+          <div><b>文案方向：</b>${escapeHtml(node.copy_spec || '—')}</div>
+          <div style="margin-top:8px; padding-top:6px; border-top:1px dashed var(--border);">
+            <div><b>溯源 · 商品：</b>${escapeHtml(intent.product_name || '')}</div>
+            <div><b>类目：</b>${escapeHtml(intent.product_category || intent.category || '')}</div>
+            <div><b>模板 Slot：</b>${escapeHtml(src.template_slot_ref || '')}</div>
+            <div><b>Frame 模板：</b>${escapeHtml(src.frame_template_id || '')}</div>
+            <div><b>品牌规则：</b>${(src.brand_rule_refs || []).map(escapeHtml).join(', ') || '—'}</div>
+            <div><b>变体数：</b>${card.variant_count || 0}</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+        ${canPromote
+          ? `<button class="btn btn-primary btn-sm" onclick="promoteToTemplateAsset('${nodeId}'); document.getElementById('final-card-modal').remove();">⬆ 沉淀为模板样例 (assets/)</button>`
+          : '<div style="font-size:11px; color:var(--muted);">只有 approved + 有 active 变体才能沉淀为模板</div>'}
+        ${card.asset_url ? `<a class="btn btn-ghost btn-sm" href="${card.asset_url}" target="_blank">下载图片</a>` : ''}
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
 }
 
 function setBottomStatus(msg) { document.getElementById('ws-bottom-status').textContent = msg; }
@@ -1609,17 +3109,20 @@ function fitToView() {
   updateCopilotEmptyState(null);
   if (state.planId) {
     await loadPlan(state.planId);
-    // URL 携带 node_id / variant_id 时自动定位 + 选中，便于从"生图历史"跳回继续对话改图
     if (state.initialNodeId) {
       const node = state.nodes.find(n => n.node_id === state.initialNodeId);
       if (node) {
-        if (state.initialVariantId) {
-          node.active_variant_id = state.initialVariantId;
-        }
+        if (state.initialVariantId) node.active_variant_id = state.initialVariantId;
         selectNode(node.node_id);
         scrollNodeIntoView(node.node_id);
         const input = document.getElementById('copilot-input');
-        if (input) { input.focus(); }
+        if (input) input.focus();
+        const right = document.getElementById('right-actions');
+        if (right) {
+          right.style.boxShadow = '0 0 0 2px var(--primary)';
+          setTimeout(() => { right.style.boxShadow = ''; }, 1500);
+        }
+        toast('已从生图历史选中：在右栏 ④ 输入怎么改它');
       }
     }
   } else if (state.specId) {

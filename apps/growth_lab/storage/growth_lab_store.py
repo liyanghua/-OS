@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -193,6 +194,17 @@ class GrowthLabStore:
                     node_id TEXT NOT NULL DEFAULT '',
                     asset_url TEXT NOT NULL DEFAULT '',
                     status TEXT NOT NULL DEFAULT 'pending',
+                    payload_json TEXT NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_session_events (
+                    session_event_id TEXT PRIMARY KEY,
+                    plan_id TEXT NOT NULL DEFAULT '',
+                    node_id TEXT NOT NULL DEFAULT '',
+                    variant_id TEXT NOT NULL DEFAULT '',
+                    type TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT '',
                     payload_json TEXT NOT NULL
                 )
             """)
@@ -511,7 +523,7 @@ class GrowthLabStore:
         )
 
     def delete_workspace_plan_cascade(self, plan_id: str) -> None:
-        """删除计划及其所有 frame / node / variant。"""
+        """删除计划及其所有 frame / node / variant / session_events。"""
         with self._connect() as conn:
             conn.execute(
                 "DELETE FROM workspace_variants WHERE node_id IN "
@@ -521,4 +533,71 @@ class GrowthLabStore:
             conn.execute("DELETE FROM workspace_nodes WHERE plan_id = ?", (plan_id,))
             conn.execute("DELETE FROM workspace_frames WHERE plan_id = ?", (plan_id,))
             conn.execute("DELETE FROM workspace_plans WHERE plan_id = ?", (plan_id,))
+            conn.execute("DELETE FROM workspace_session_events WHERE plan_id = ?", (plan_id,))
             conn.commit()
+
+    # ── 工作台会话事件（V1 对话历史 + 审计 + 时间线） ──
+
+    def insert_workspace_session_event(self, event: dict) -> str:
+        import uuid as _uuid
+        event_id = event.get("session_event_id") or _uuid.uuid4().hex[:16]
+        created_at = event.get("created_at") or datetime.now(tz=timezone.utc).isoformat()
+        payload = event.get("payload") or {}
+        record = {
+            "session_event_id": event_id,
+            "plan_id": event.get("plan_id", ""),
+            "node_id": event.get("node_id", ""),
+            "variant_id": event.get("variant_id", ""),
+            "type": event.get("type", ""),
+            "created_at": created_at,
+            "payload": payload,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO workspace_session_events "
+                "(session_event_id, plan_id, node_id, variant_id, type, created_at, payload_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event_id, record["plan_id"], record["node_id"], record["variant_id"],
+                    record["type"], created_at,
+                    json.dumps(payload, ensure_ascii=False, default=str),
+                ),
+            )
+            conn.commit()
+        return event_id
+
+    def list_workspace_session_events(
+        self, *, plan_id: str = "", node_id: str = "", limit: int = 500,
+    ) -> list[dict]:
+        conditions = []
+        params: list[Any] = []
+        if plan_id:
+            conditions.append("plan_id = ?")
+            params.append(plan_id)
+        if node_id:
+            conditions.append("node_id = ?")
+            params.append(node_id)
+        where = " AND ".join(conditions) if conditions else "1=1"
+        sql = (
+            "SELECT session_event_id, plan_id, node_id, variant_id, type, created_at, payload_json "
+            f"FROM workspace_session_events WHERE {where} ORDER BY created_at ASC, rowid ASC LIMIT ?"
+        )
+        params.append(limit)
+        out: list[dict] = []
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        for r in rows:
+            try:
+                payload = json.loads(r["payload_json"]) if r["payload_json"] else {}
+            except Exception:
+                payload = {}
+            out.append({
+                "session_event_id": r["session_event_id"],
+                "plan_id": r["plan_id"],
+                "node_id": r["node_id"],
+                "variant_id": r["variant_id"],
+                "type": r["type"],
+                "created_at": r["created_at"],
+                "payload": payload,
+            })
+        return out

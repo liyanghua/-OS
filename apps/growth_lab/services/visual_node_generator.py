@@ -194,6 +194,7 @@ class VisualNodeGenerator:
 
         variants_to_save: list[Variant] = []
         variant_dicts: list[dict[str, Any]] = []
+        pending_batch_tag = uuid.uuid4().hex[:12]
         for _ in range(max(1, count)):
             v = Variant(
                 node_id=node_id,
@@ -201,6 +202,7 @@ class VisualNodeGenerator:
                 provider="",
                 status="pending",
                 asset_type="image",
+                extra={"batch_tag": pending_batch_tag, "batch_size": max(1, count)},
             )
             variants_to_save.append(v)
 
@@ -282,6 +284,7 @@ class VisualNodeGenerator:
 
         variants_to_save: list[Variant] = []
         variant_dicts: list[dict[str, Any]] = []
+        pending_batch_tag = uuid.uuid4().hex[:12]
         for _ in range(max(1, count)):
             v = Variant(
                 node_id=node_id,
@@ -293,6 +296,8 @@ class VisualNodeGenerator:
                     "mode": "edit",
                     "base_variant_id": target_variant_id,
                     "edit_instruction": user_prompt.strip(),
+                    "batch_tag": pending_batch_tag,
+                    "batch_size": max(1, count),
                 },
             )
             variants_to_save.append(v)
@@ -352,11 +357,50 @@ class VisualNodeGenerator:
                         if not node.get("active_variant_id"):
                             node["active_variant_id"] = variant_id
                     else:
-                        # 节点整体仍可能 generating（其他 variant 未完成），这里保守不覆盖
                         if not node.get("active_variant_id"):
                             node["status"] = "failed"
                     node["updated_at"] = datetime.now(UTC).isoformat()
                     store.save_workspace_node(node)
+
+                    # 记 workspace_session_events（容错）
+                    summary_line = ""
+                    try:
+                        extra = stored.get("extra") or {}
+                        mode = extra.get("mode", "generate")
+                        instr = extra.get("edit_instruction") or ""
+                        summary_line = (
+                            f"按「{instr[:40]}」生成变体" if instr else (
+                                "img2img 编辑完成" if mode == "edit" else "生成新变体"
+                            )
+                        ) if result_url else "生成失败"
+                        if hasattr(store, "insert_workspace_session_event"):
+                            store.insert_workspace_session_event({
+                                "plan_id": node.get("plan_id", ""),
+                                "node_id": node_id,
+                                "variant_id": variant_id,
+                                "type": "variant_done" if result_url else "variant_failed",
+                                "payload": {
+                                    "provider": stored.get("provider", ""),
+                                    "mode": mode,
+                                    "base_variant_id": extra.get("base_variant_id", ""),
+                                    "edit_instruction": instr,
+                                    "asset_url": result_url,
+                                    "summary": summary_line,
+                                },
+                            })
+                    except Exception:
+                        pass
+                    # 回写 direction_summary（容错）
+                    if result_url:
+                        try:
+                            from apps.growth_lab.services.direction_summary import (
+                                refresh_direction_summary,
+                            )
+                            from apps.growth_lab.schemas.visual_workspace import ResultNode as _RN
+                            rn = _RN.model_validate(node)
+                            refresh_direction_summary(store, rn.plan_id, rn)
+                        except Exception:
+                            pass
 
         return _cb
 
