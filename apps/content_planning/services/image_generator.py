@@ -37,6 +37,7 @@ _GENERATED_DIR = Path(__file__).resolve().parents[3] / "data" / "generated_image
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _DASHSCOPE_DEFAULT_MODEL = os.environ.get("IMAGE_GEN_MODEL", "wanx2.1-t2i-turbo")
 _DASHSCOPE_FALLBACK_MODEL = "wanx-v1"
+_DASHSCOPE_IMAGE_EDIT_MODEL = os.environ.get("DASHSCOPE_IMAGE_EDIT_MODEL", "qwen-image-edit")
 _POLL_INTERVAL = 2.0
 _MAX_POLL_SECONDS = 120.0
 
@@ -117,6 +118,10 @@ class ImageGeneratorService:
         _ensure_env()
         self._openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
         self._openrouter_model = os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-3.1-flash-image-preview")
+        fallbacks_raw = os.environ.get("OPENROUTER_IMAGE_MODEL_FALLBACKS", "")
+        self._openrouter_fallbacks = [
+            m.strip() for m in fallbacks_raw.split(",") if m.strip() and m.strip() != self._openrouter_model
+        ]
         self._dashscope_key = os.environ.get("DASHSCOPE_API_KEY", "")
 
     def is_available(self) -> bool:
@@ -238,11 +243,45 @@ class ImageGeneratorService:
             cleaned = cleaned[:600]
         return cleaned
 
+    @staticmethod
+    def _is_openrouter_tos_error(exc: Exception) -> bool:
+        """识别 OpenRouter/上游 provider 内容策略拒单（403 ToS）。"""
+        import openai as _openai
+        if isinstance(exc, _openai.PermissionDeniedError):
+            return True
+        msg = str(exc)
+        return ("Terms Of Service" in msg) or ("prohibited" in msg and "provider" in msg)
+
     def _generate_openrouter(
         self,
         prompt: ImagePrompt,
         opportunity_id: str,
         on_progress: Callable[[str, str, dict[str, Any]], None] | None = None,
+    ) -> ImageResult:
+        """先用主模型调 OpenRouter；若被上游内容策略 403 拒绝，按 fallback 模型链逐个重试。"""
+        model_chain = [self._openrouter_model] + self._openrouter_fallbacks
+        last_result: ImageResult | None = None
+        for idx, model_name in enumerate(model_chain):
+            result = self._generate_openrouter_once(prompt, opportunity_id, on_progress, model_name)
+            if result.status == "completed":
+                return result
+            last_result = result
+            # 仅在可识别为 ToS/403 时才继续 fallback；其它错误（网络/鉴权等）直接跳出
+            err_msg = result.error or ""
+            is_tos = ("Terms Of Service" in err_msg) or ("PermissionDenied" in err_msg) or ("403" in err_msg and "prohibited" in err_msg.lower())
+            if not is_tos:
+                break
+            if idx + 1 < len(model_chain):
+                logger.warning("OpenRouter ToS 403 from %s, fallback to %s", model_name, model_chain[idx + 1])
+        return last_result or ImageResult(slot_id=prompt.slot_id, status="failed",
+                                          error="OpenRouter: 无可用模型", provider="openrouter")
+
+    def _generate_openrouter_once(
+        self,
+        prompt: ImagePrompt,
+        opportunity_id: str,
+        on_progress: Callable[[str, str, dict[str, Any]], None] | None,
+        model_name: str,
     ) -> ImageResult:
         import openai
 
@@ -267,7 +306,7 @@ class ImageGeneratorService:
             _prompt_sent = text_instruction
 
             logger.info("OpenRouter request: slot=%s, model=%s, has_ref=%s, prompt_len=%d",
-                        prompt.slot_id, self._openrouter_model, bool(prompt.ref_image_url), len(safe_prompt))
+                        prompt.slot_id, model_name, bool(prompt.ref_image_url), len(safe_prompt))
 
             if prompt.ref_image_url:
                 if prompt.mode == "edit":
@@ -298,7 +337,7 @@ class ImageGeneratorService:
                 user_msg_content = text_instruction
 
             raw_response = client.chat.completions.with_raw_response.create(
-                model=self._openrouter_model,
+                model=model_name,
                 messages=[
                     {"role": "user", "content": user_msg_content},
                 ],
@@ -429,6 +468,125 @@ class ImageGeneratorService:
 
     # ── DashScope 通义万相 ───────────────────────────────────────────
 
+    def _resolve_dashscope_image_ref(self, ref_image_url: str) -> str:
+        """把参考图 URL 规整成 DashScope MultiModalConversation 可消费的形式。
+
+        - 公网 http(s) URL（非 localhost）→ 原样返回
+        - `/generated-images/...` 本地 serve path → 解析成 `file://<abs>` 供 SDK 自动上传 OSS
+        - 绝对文件系统路径 → 转 `file://<abs>`
+        - 无法解析 → 返回 ""
+        """
+        if not ref_image_url:
+            return ""
+        is_public = ref_image_url.startswith("http") and not ref_image_url.startswith(("http://localhost", "http://127.0.0.1"))
+        if is_public:
+            return ref_image_url
+        local_path = self._resolve_local_path(ref_image_url)
+        if local_path:
+            return f"file://{local_path.resolve()}"
+        return ""
+
+    def _extract_qwen_image_edit_url(self, rsp: Any) -> str:
+        """从 MultiModalConversation 响应中取出生成的图片 URL。"""
+        try:
+            choices = getattr(rsp.output, "choices", None) or rsp.output.get("choices", [])
+            if not choices:
+                return ""
+            first = choices[0]
+            msg = getattr(first, "message", None) or first.get("message", {})
+            content = getattr(msg, "content", None) or msg.get("content", [])
+            if isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and item.get("image"):
+                        return item["image"]
+            elif isinstance(content, str):
+                # 极少数模型返回纯文本形态
+                import re
+                m = re.search(r"https?://\S+\.(?:png|jpg|jpeg|webp)\S*", content)
+                if m:
+                    return m.group(0)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("parse qwen-image-edit response failed: %s", exc)
+        return ""
+
+    def _generate_dashscope_image_edit(
+        self,
+        prompt: ImagePrompt,
+        opportunity_id: str,
+        image_ref: str,
+        on_progress: Callable[[str, str, dict[str, Any]], None] | None,
+        t0: float,
+        trace: dict[str, Any],
+    ) -> ImageResult:
+        """走 MultiModalConversation + qwen-image-edit，支持本地 file:// 自动上传 OSS。"""
+        from dashscope import MultiModalConversation
+
+        instruction = prompt.prompt.strip()
+        if prompt.mode == "edit":
+            instruction = (
+                "请在保持整体构图、主体位置、相机角度与产品细节不变的前提下，"
+                f"按以下指令编辑图中内容：{instruction}"
+            )
+        if prompt.negative_prompt:
+            instruction += f"\n避免：{prompt.negative_prompt.strip()}"
+
+        messages = [{
+            "role": "user",
+            "content": [
+                {"image": image_ref},
+                {"text": instruction},
+            ],
+        }]
+        try:
+            rsp = MultiModalConversation.call(
+                model=_DASHSCOPE_IMAGE_EDIT_MODEL,
+                messages=messages,
+                api_key=self._dashscope_key,
+                result_format="message",
+            )
+        except Exception as exc:  # noqa: BLE001
+            elapsed = int((time.perf_counter() - t0) * 1000)
+            logger.warning("DashScope qwen-image-edit exception: %s", exc, exc_info=True)
+            return ImageResult(slot_id=prompt.slot_id, status="failed",
+                               error=f"qwen-image-edit: {exc}", elapsed_ms=elapsed,
+                               provider="dashscope-qwen-image-edit", **trace)
+
+        status_code = getattr(rsp, "status_code", 0)
+        if status_code != 200:
+            _code = getattr(rsp, "code", "") or ""
+            _msg = getattr(rsp, "message", "") or ""
+            elapsed = int((time.perf_counter() - t0) * 1000)
+            logger.warning("DashScope qwen-image-edit failed: slot=%s code=%s msg=%s",
+                           prompt.slot_id, _code, _msg)
+            return ImageResult(slot_id=prompt.slot_id, status="failed",
+                               error=f"qwen-image-edit: {_code} {_msg}".strip(),
+                               elapsed_ms=elapsed,
+                               provider="dashscope-qwen-image-edit", **trace)
+
+        remote_url = self._extract_qwen_image_edit_url(rsp)
+        if not remote_url:
+            elapsed = int((time.perf_counter() - t0) * 1000)
+            return ImageResult(slot_id=prompt.slot_id, status="failed",
+                               error="qwen-image-edit: 响应未找到图片 URL",
+                               elapsed_ms=elapsed,
+                               provider="dashscope-qwen-image-edit", **trace)
+
+        local_path = self._save_from_url(remote_url, opportunity_id, prompt.slot_id)
+        if not local_path:
+            elapsed = int((time.perf_counter() - t0) * 1000)
+            return ImageResult(slot_id=prompt.slot_id, status="failed",
+                               error="qwen-image-edit: 下载输出图失败",
+                               elapsed_ms=elapsed,
+                               provider="dashscope-qwen-image-edit", **trace)
+        elapsed = int((time.perf_counter() - t0) * 1000)
+        serve_url = f"/generated-images/{opportunity_id}/{local_path.name}"
+        logger.warning("DashScope qwen-image-edit OK: slot=%s elapsed=%dms", prompt.slot_id, elapsed)
+        if on_progress:
+            on_progress(prompt.slot_id, "completed", {"image_url": serve_url, "provider": "dashscope-qwen-image-edit"})
+        return ImageResult(slot_id=prompt.slot_id, status="completed",
+                           image_url=serve_url, elapsed_ms=elapsed,
+                           provider="dashscope-qwen-image-edit", **trace)
+
     def _generate_dashscope(
         self,
         prompt: ImagePrompt,
@@ -440,47 +598,28 @@ class ImageGeneratorService:
         _ds_trace = dict(prompt_sent=prompt.prompt, ref_image_sent=prompt.ref_image_url)
         t0 = time.perf_counter()
         try:
-            # DashScope 只能访问公网可达 URL；本地 serve path 或空直接降级到纯文生图
-            ref_url = prompt.ref_image_url
-            ref_is_public = bool(ref_url) and ref_url.startswith("http") and not ref_url.startswith(("http://localhost", "http://127.0.0.1"))
-            if prompt.ref_image_url and not ref_is_public:
-                logger.info("DashScope: ref_image_url 非公网可达（%s），此通道跳过 img2img，转 OpenRouter", ref_url[:80])
-                elapsed = int((time.perf_counter() - t0) * 1000)
-                return ImageResult(
-                    slot_id=prompt.slot_id, status="failed",
-                    error="ref image 非公网 URL，DashScope 跳过", elapsed_ms=elapsed,
-                    provider="dashscope", **_ds_trace,
+            # 有参考图 → 走 qwen-image-edit（MultiModalConversation）：公网 URL 原样；本地路径 SDK 自动传 OSS。
+            if prompt.ref_image_url:
+                image_ref = self._resolve_dashscope_image_ref(prompt.ref_image_url)
+                if not image_ref:
+                    elapsed = int((time.perf_counter() - t0) * 1000)
+                    logger.info("DashScope: ref_image_url 无法解析（%s），跳过", prompt.ref_image_url[:80])
+                    return ImageResult(slot_id=prompt.slot_id, status="failed",
+                                       error="ref image 无法解析", elapsed_ms=elapsed,
+                                       provider="dashscope", **_ds_trace)
+                return self._generate_dashscope_image_edit(
+                    prompt, opportunity_id, image_ref, on_progress, t0, _ds_trace,
                 )
-            if ref_is_public:
-                rsp = ImageSynthesis.async_call(
-                    model="wanx2.1-imageedit",
-                    prompt=prompt.prompt,
-                    negative_prompt=prompt.negative_prompt or None,
-                    n=1,
-                    function="stylization_all",
-                    base_image_url=ref_url,
-                    api_key=self._dashscope_key,
-                )
-                if rsp.status_code != 200:
-                    _err_detail = getattr(rsp, 'message', '') or getattr(rsp, 'code', '') or str(rsp.status_code)
-                    logger.warning("DashScope imageedit failed (%s), falling back to text-only", _err_detail)
-                    rsp = ImageSynthesis.async_call(
-                        model=_DASHSCOPE_DEFAULT_MODEL,
-                        prompt=prompt.prompt,
-                        negative_prompt=prompt.negative_prompt or None,
-                        n=1,
-                        size=prompt.size,
-                        api_key=self._dashscope_key,
-                    )
-            else:
-                rsp = ImageSynthesis.async_call(
-                    model=_DASHSCOPE_DEFAULT_MODEL,
-                    prompt=prompt.prompt,
-                    negative_prompt=prompt.negative_prompt or None,
-                    n=1,
-                    size=prompt.size,
-                    api_key=self._dashscope_key,
-                )
+
+            # 纯文生图：走 wanx t2i
+            rsp = ImageSynthesis.async_call(
+                model=_DASHSCOPE_DEFAULT_MODEL,
+                prompt=prompt.prompt,
+                negative_prompt=prompt.negative_prompt or None,
+                n=1,
+                size=prompt.size,
+                api_key=self._dashscope_key,
+            )
 
             if rsp.status_code != 200:
                 rsp = ImageSynthesis.async_call(
