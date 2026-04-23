@@ -1,83 +1,158 @@
 template_id: brand_detail_report
-category: brand_detail_report
-name: 品牌级详情页策划报告
+category: detail_module
+name: 品牌级详情页策划报告（9 模块）
 description: |
-  来源：业务专家洁面乳品牌详情页策划报告。
-  表格形式展示 9 个模块：首屏海报→核心卖点展示→功能演示→材质特写→使用场景→人物互动→品牌故事→信任背书→规格参数。
-  每模块包含：主标题/副标题/视觉重点描述/对应卖点。
-version: v1
+  来源：业务专家《品牌级详情页策划案报告》模块脚本（assets/主图&详情策划模板/详情页策划/品牌级详情页策划案报告_模块脚本.md）。
+  9 个模块按"品牌势能建立 → 产品体验表达 → 品牌与信任建设 → 转化收口"展开：
+  首屏海报 → 核心卖点展示 → 功能演示 → 材质特写 → 使用场景 → 人物互动 → 品牌故事 → 信任背书 → 规格参数。
+  每个模块一屏聚焦单一叙事，主标题 + 副标题 + 视觉重点 + 对应卖点形成闭环。
+version: v2
 default_brand_rules:
-  - 保持高端调性
-  - 品牌符号贯穿
+  - 保持高端调性，品牌符号贯穿
+  - 一屏聚焦单一叙事
+  - 主标题加粗，副标题辅助展开
+  - 避免信息过载
 slots:
   - index: 1
     role: 首屏海报
-    visual_spec: 产品主图置于高光级洗手台场景，结合黑白墙面背景与品牌视觉符号
-    copy_spec: "主标题：品牌名.产品名；副标题：直击品牌定位一句话"
+    headline: 产品主体 · 洁面仪式乳
+    subheadline: 不只是洗净一步，更是品牌符号开启的高端洁面时刻
+    visual_spec: >
+      产品主包装置于高光极简洗手台场景，结合黑白高级背景与品牌视觉符号；
+      主体居中、留白克制，突出品牌识别与奢华气质，首屏即传达品牌调性。
+    copy_spec: "主标题：品牌名 + 产品名；副标题：一句话点出品牌定位与洁面仪式感"
     aspect_ratio: "3:4"
+    generation_hints:
+      - hero_poster
+      - brand_symbol_emphasis
     extra:
+      narrative_stage: 品牌势能建立
       mapped_selling_point: 高端品牌与品牌符号辨识度
 
   - index: 2
     role: 核心卖点展示
-    visual_spec: 品牌历史/奢侈品感/系列视觉资产结合；画面强调独家材料与品牌气质
-    copy_spec: 主副标题呼应，引出识别度
+    headline: 不是随手洗，是品牌符号开场
+    subheadline: 品牌符号让基础洁面也有被一眼认出的审美表达
+    visual_spec: >
+      品牌符号元素（如山茶花/LOGO）与产品同框，强化品牌符号记忆点；
+      画面简洁留白、质感高级，让品牌识别度成为第一眼卖点。
+    copy_spec: 主副标题呼应，引出品牌识别度与审美表达
     aspect_ratio: "3:4"
+    generation_hints:
+      - brand_symbol_hero
+      - clean_composition
     extra:
-      mapped_selling_point: 品牌识别度与品质感高级
+      narrative_stage: 品牌势能建立
+      mapped_selling_point: 品牌符号识别度
 
   - index: 3
     role: 功能演示
-    visual_spec: 乳状洁面演示场景，清洁日常污垢的转化过程（泡沫上脸→按摩→冲洗）
-    copy_spec: 细腻起泡、温和改善
+    headline: 细腻起泡，温和收场
+    subheadline: 乳状泡沫丰绵密，洁净日常污垢同时减少粗糙拉扯感
+    visual_spec: >
+      展示乳霜到丰盈泡沫的转化过程，泡沫上脸触感特写与手部使用动作；
+      关键帧需传达"温和、细腻、卫生、便捷"的洁面体验。
+    copy_spec: 动作词加粗，如"起泡""温和"，突出乳状泡沫体验
     aspect_ratio: "3:4"
+    generation_hints:
+      - foam_transformation
+      - gentle_touch
     extra:
+      narrative_stage: 产品体验表达
       mapped_selling_point: 乳状泡沫体验
 
   - index: 4
     role: 材质特写
-    visual_spec: 光泽质感管身配光泽黑墨，从氨基、开盖到视觉，每步都有讲究
-    copy_spec: 放入洗手盆，就有讲究
+    headline: 放上洗手台，就有讲究
+    subheadline: 光滑亮面管身配高光黑盖，每一步都更利落、更卫生、更有仪式感
+    visual_spec: >
+      包装局部高光反射、盖体细节、材质触感与开合动作近景；
+      强调高级材质与精工质感，画面以质感光线塑造仪式感。
+    copy_spec: 关键词加粗，如"亮面管身""高光黑盖"，突出包装精工
     aspect_ratio: "3:4"
+    generation_hints:
+      - packaging_macro
+      - luxury_material
     extra:
+      narrative_stage: 产品体验表达
       mapped_selling_point: 包装材质与仪式感
 
   - index: 5
     role: 使用场景
-    visual_spec: 早晨清晨开启状态；夜晚洗去疲惫感；让基础护肤也成为属于自己的仪式
-    copy_spec: 日常仪式与居家仪式感
+    headline: 晨晚一洗，把节奏交还给自己
+    subheadline: 早晨清醒开启状态，夜晚洗去通勤疲惫，让基础护肤也成为悦己片刻
+    visual_spec: >
+      都市女性在晨起与夜间洗手台前使用产品的切换场景；
+      光线柔和自然，突出"日常节奏 / 洁面情绪价值"。
+    copy_spec: 场景词加粗，如"晨晚""节奏"，突出日常仪式情绪
     aspect_ratio: "3:4"
+    generation_hints:
+      - morning_evening_scene
+      - emotional_self_care
     extra:
-      mapped_selling_point: 日常仪式感情绪价值
+      narrative_stage: 产品体验表达
+      mapped_selling_point: 日常悦己与洁面仪式感
 
   - index: 6
     role: 人物互动
-    visual_spec: 精致生活，不止体现在妆容之后；对于重视形象与生活品质的都市女性
-    copy_spec: 新锐白领女性高要求浴室场景
+    headline: 精致生活，不止体现在妆容之后
+    subheadline: 重视形象与生活品质的都市女性，连洁面这一步也值得有品牌格调
+    visual_spec: >
+      新锐白领女性在高质感浴室、梳妆空间中的自然生活化状态；
+      氛围高级、克制、自我欣赏，传达身份表达与生活方式。
+    copy_spec: 人群/身份描述加粗，如"都市女性""品牌格调"
     aspect_ratio: "3:4"
+    generation_hints:
+      - lifestyle_portrait
+      - premium_bathroom
     extra:
-      mapped_selling_point: 生活方式身份表达
+      narrative_stage: 产品体验表达
+      mapped_selling_point: 生活方式与身份表达
 
   - index: 7
     role: 品牌故事
-    visual_spec: 从品牌符号到识别叙事，都是品牌的表达；将产品从基础清洁升级为可感知的日常护肤仪式
-    copy_spec: 品牌故事视觉语言、系列产品资产
+    headline: 从品牌符号到护肤感受，都是品牌式表达
+    subheadline: 以品牌历史 × 奢护认知 × 视觉资产，把基础清洁升级为日常奢护
+    visual_spec: >
+      品牌经典视觉语言、符号体系、产品系列感陈列；
+      画面需有时间维度与资产纵深，强化品牌历史与长期价值认知。
+    copy_spec: 品牌叙事文案，突出"历史""体系""资产"
     aspect_ratio: "3:4"
+    generation_hints:
+      - brand_heritage
+      - product_lineup
     extra:
-      mapped_selling_point: 品牌历史奢华背书
+      narrative_stage: 品牌与信任建设
+      mapped_selling_point: 品牌历史与奢华背书
 
   - index: 8
     role: 信任背书
-    visual_spec: 全球高端美妆品牌认证/高端资产可直接感知的包装与使用场景，共同构成安心感
-    copy_spec: 品牌权威信任、系列产品系列；官方资本渠道直属
+    headline: 高端洁面选择，看得见的品牌信任
+    subheadline: 全球高端美妆品牌认知 × 清晰品牌资产 × 可感知体验 = 购买安心感
+    visual_spec: >
+      品牌权威感信息、系列产品阵列、识别符号与高端专柜/官方渠道氛围图；
+      构图需传达"可靠、正统、可验证"。
+    copy_spec: 信任要素加粗，如"全球认知""官方渠道"
     aspect_ratio: "3:4"
+    generation_hints:
+      - trust_wall
+      - official_channel
     extra:
+      narrative_stage: 品牌与信任建设
       mapped_selling_point: 品牌背书与可信度
 
   - index: 9
     role: 规格参数
-    visual_spec: 产品信息一目了然；主副标题呼应产品形态与使用方式
-    copy_spec: 产品名称.品类.品牌商历史.使用贴心建议.容量与包装清晰讲解
+    headline: 产品信息一目了然
+    subheadline: 产品名称、品类、洁面步骤、包装形态与使用方式清晰呈现
+    visual_spec: >
+      2 列参数表格（左名右值，细灰边框）+ 产品外观展示；
+      版式简洁清晰，白底黑字小字（≥12 号），帮助快速完成购买判断。
+    copy_spec: 参数清单：产品名称 / 品类 / 使用建议 / 容量 / 包装
     aspect_ratio: "3:4"
+    generation_hints:
+      - parameter_table
+      - spec_layout
     extra:
+      narrative_stage: 转化收口
       mapped_selling_point: 产品全貌与购买决策支持

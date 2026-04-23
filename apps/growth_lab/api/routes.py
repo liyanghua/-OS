@@ -2278,6 +2278,200 @@ async def workspace_deconstruct_competitor(
     return {"ok": True, "analysis": analysis, "node": node}
 
 
+def _compose_remix_prompts_from_analysis(
+    analysis: dict,
+    *,
+    product_name: str = "",
+    audience: str = "",
+) -> list[dict]:
+    """基于 32 维拆解结果，本地组装 3-5 条二创 smart prompt chip。"""
+    if not isinstance(analysis, dict):
+        return []
+    summary = (analysis.get("summary") or "").strip()
+    borrow = [str(x).strip() for x in (analysis.get("borrow_ideas") or []) if str(x).strip()]
+    comp = analysis.get("composition_color") or {}
+    disp = analysis.get("display_copy") or {}
+    bg = analysis.get("background_mood") or {}
+    scene = analysis.get("scene_quality") or {}
+
+    def _pick(d: dict, *keys: str) -> str:
+        for k in keys:
+            v = d.get(k)
+            if v and str(v).strip():
+                return str(v).strip()
+        return ""
+
+    main_color = _pick(comp, "主色调", "色彩情绪")
+    composition = _pick(comp, "构图方式", "主体物位置")
+    copy_angle = _pick(disp, "卖点文案", "标题文字")
+    bg_style = _pick(bg, "背景类型", "氛围营造")
+    scene_usage = _pick(scene, "使用场景", "生活化元素")
+
+    product_label = product_name or "本品"
+    audience_label = audience or "目标人群"
+    chips: list[dict] = []
+
+    if composition or main_color:
+        chips.append({
+            "title": "借构图配色",
+            "prompt": (
+                f"借鉴竞品的{composition or '主体构图'}与{main_color or '色彩基调'}，"
+                f"用于{product_label}，突出商品主体与品牌识别，避免复刻竞品文案与 logo。"
+            ),
+        })
+    if copy_angle:
+        chips.append({
+            "title": "换文案角度",
+            "prompt": (
+                f"保留竞品画面骨架，但把{copy_angle}替换为{product_label}针对{audience_label}的差异化卖点文案，"
+                f"文字占比适中，主视觉呼吸感。"
+            ),
+        })
+    if bg_style:
+        chips.append({
+            "title": "换背景氛围",
+            "prompt": (
+                f"参考竞品构图但换为{bg_style}风格的背景氛围，{product_label}置中高光突出，"
+                f"色彩对比清晰，整体更符合电商主图点击率导向。"
+            ),
+        })
+    if scene_usage:
+        chips.append({
+            "title": "强化场景",
+            "prompt": (
+                f"在竞品构图基础上加入{scene_usage}类真实使用场景，让 {audience_label} 代入感更强，"
+                f"保持 {product_label} 作为绝对主体。"
+            ),
+        })
+    if borrow:
+        chips.append({
+            "title": "综合借鉴",
+            "prompt": (
+                f"综合借鉴：{'；'.join(borrow[:3])}。"
+                f"应用到 {product_label}，生成一张在电商场景下具有差异化的新主图。"
+                + (f" 竞品一句话：{summary}" if summary else "")
+            ),
+        })
+
+    # 保证至少 3 条
+    if len(chips) < 3:
+        chips.append({
+            "title": "常规二创",
+            "prompt": (
+                f"以竞品图为视觉参考，生成一张 {product_label} 的电商主图，"
+                f"主体突出、品牌可识别、色调明朗，避免复刻竞品的文字与 logo。"
+            ),
+        })
+    return chips[:5]
+
+
+class WorkspaceRemixSuggestRequest(BaseModel):
+    use_llm: bool = False
+
+
+@router.post("/api/workspace/node/{node_id}/suggest-remix-prompts")
+async def workspace_suggest_remix_prompts(
+    node_id: str, req: WorkspaceRemixSuggestRequest | None = None,
+) -> dict:
+    """基于竞品节点的 32 维拆解结果，返回 3-5 条可一键套用的二创 prompt。"""
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    if (node.get("result_type") or "") != "competitor_ref":
+        raise HTTPException(400, "只有竞品节点支持 remix 提示")
+
+    extra = node.get("extra") or {}
+    analysis = extra.get("competitor_analysis") or {}
+    if not analysis:
+        return {"ok": True, "prompts": [], "reason": "未拆解，先运行拆解"}
+
+    plan = store.get_workspace_plan(node.get("plan_id", "")) if node.get("plan_id") else None
+    intent = (plan or {}).get("intent", {}) if plan else {}
+    product_name = (intent.get("product_name") or "").strip()
+    audience = (intent.get("audience") or "").strip()
+
+    chips = _compose_remix_prompts_from_analysis(
+        analysis, product_name=product_name, audience=audience,
+    )
+
+    use_llm = bool(req.use_llm) if req else False
+    if use_llm:
+        try:
+            from apps.content_planning.adapters.llm_router import LLMMessage, llm_router
+            sys = (
+                "你是电商主图二创策划师。给定一段竞品拆解 JSON + 本品商品名/人群，"
+                "产出 3-5 条可直接喂给文生图模型的 prompt，每条 60~100 字，"
+                "强调差异化、保持本品品牌识别、避免复刻竞品文字/LOGO。"
+                "严格输出 JSON 数组，每项 {title, prompt}。不要 code fence。"
+            )
+            import json as _json
+            user = _json.dumps({
+                "product_name": product_name,
+                "audience": audience,
+                "competitor_analysis": analysis,
+            }, ensure_ascii=False)[:4000]
+            resp = await llm_router.achat(
+                [LLMMessage(role="system", content=sys),
+                 LLMMessage(role="user", content=user)],
+                temperature=0.6, max_tokens=900,
+            )
+            raw = (resp.content or "").strip()
+            if raw.startswith("```"):
+                import re as _re
+                raw = _re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=_re.DOTALL)
+            parsed = _json.loads(raw) if raw else None
+            if isinstance(parsed, list) and parsed:
+                llm_chips = []
+                for item in parsed[:5]:
+                    if not isinstance(item, dict):
+                        continue
+                    title = str(item.get("title") or "LLM 二创").strip()
+                    prompt = str(item.get("prompt") or "").strip()
+                    if prompt:
+                        llm_chips.append({"title": title, "prompt": prompt})
+                if llm_chips:
+                    chips = llm_chips
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("suggest-remix-prompts llm 回退 %s", exc)
+
+    return {"ok": True, "prompts": chips, "source": "llm" if use_llm else "rule"}
+
+
+class WorkspaceRemixRequest(BaseModel):
+    prompt: str = ""
+    mode: str = "generate"  # generate | edit
+    aspect_ratio: str = "1:1"
+    count: int = 1
+
+
+@router.post("/api/workspace/node/{node_id}/remix-competitor")
+async def workspace_remix_competitor(
+    node_id: str, req: WorkspaceRemixRequest,
+) -> dict:
+    """基于竞品参考图做一次二创生成，返回 batch_id。产物就地挂到该竞品节点下。"""
+    from apps.growth_lab.services.visual_node_generator import VisualNodeGenerator
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    gen = VisualNodeGenerator(store)
+    try:
+        batch_id = gen.remix_from_competitor(
+            node_id,
+            req.prompt or "",
+            mode=(req.mode or "generate"),
+            aspect_ratio=(req.aspect_ratio or "1:1"),
+            count=max(1, int(req.count or 1)),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:  # pragma: no cover
+        logger.warning("remix-competitor 失败：%s", exc)
+        raise HTTPException(500, f"二创失败：{exc}")
+    return {"ok": True, "batch_id": batch_id}
+
+
 class WorkspaceNodeUpdateRequest(BaseModel):
     active_variant_id: str | None = None
     status: str | None = None

@@ -28,6 +28,16 @@ from apps.growth_lab.storage.growth_lab_store import GrowthLabStore
 logger = logging.getLogger(__name__)
 
 
+# ResultNode.result_type → EditContextPack.node_type 映射（两套 Literal 名字不同）
+_RESULT_TO_NODE_TYPE: dict[str, str] = {
+    "main_image": "main_image",
+    "detail_module": "detail",
+    "video_shot": "video_shots",
+    "buyer_show": "buyer_show",
+    "competitor_ref": "competitor",
+}
+
+
 def _get_store(store: GrowthLabStore | None) -> GrowthLabStore:
     return store or GrowthLabStore()
 
@@ -312,7 +322,7 @@ def build_edit_context_pack(
         plan_id=plan.plan_id or node.plan_id,
         frame_id=node.frame_id,
         node_id=node.node_id,
-        node_type=(node.result_type or "main_image"),  # type: ignore[arg-type]
+        node_type=_RESULT_TO_NODE_TYPE.get(node.result_type or "main_image", "main_image"),
         node_title=node.slot_role or node.result_type,
         node_objective=node.slot_objective,
         node_status=node.status,

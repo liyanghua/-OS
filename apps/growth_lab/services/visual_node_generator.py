@@ -364,6 +364,128 @@ class VisualNodeGenerator:
                     node_id, target_variant_id, count, batch_id)
         return batch_id
 
+    # ── 竞品二创 ──
+
+    def remix_from_competitor(
+        self,
+        node_id: str,
+        user_prompt: str,
+        *,
+        mode: str = "generate",
+        aspect_ratio: str = "1:1",
+        count: int = 1,
+    ) -> str:
+        """基于竞品节点的参考图 + 智能提示做二创。
+
+        - 参考图：node.extra.competitor_image_url
+        - prompt：用户从 smart chip 点击或手动编辑的 prompt，服务端再追加 intent 商品/人群 + borrow_ideas 摘要
+        - mode="generate"：参考图作为 style reference；mode="edit"：以参考图为底图做保构图微调
+        返回 batch_id。
+        """
+        node = self._store.get_workspace_node(node_id)
+        if not node:
+            raise ValueError(f"节点不存在: {node_id}")
+        if (node.get("result_type") or "") != "competitor_ref":
+            raise ValueError("只有竞品节点支持二创")
+        if not (user_prompt or "").strip():
+            raise ValueError("请先给出二创方向（prompt）")
+
+        extra = node.get("extra") or {}
+        ref_url = (extra.get("competitor_image_url") or "").strip()
+        if not ref_url:
+            raise ValueError("竞品参考图为空，请先完成拆解并填入竞品图 URL")
+
+        analysis = extra.get("competitor_analysis") or {}
+        borrow = [str(x).strip() for x in (analysis.get("borrow_ideas") or []) if str(x).strip()]
+        avoid_ideas = [str(x).strip() for x in (analysis.get("avoid_ideas") or []) if str(x).strip()]
+
+        plan = self._store.get_workspace_plan(node.get("plan_id", "")) if node.get("plan_id") else None
+        intent = (plan or {}).get("intent", {}) if plan else {}
+
+        product_name = (intent.get("product_name") or "").strip()
+        audience = (intent.get("audience") or "").strip()
+
+        prompt_parts: list[str] = []
+        if product_name:
+            prompt_parts.append(f"商品：{product_name}")
+        if audience:
+            prompt_parts.append(f"人群：{audience}")
+        prompt_parts.append(f"二创方向：{user_prompt.strip()}")
+        if borrow:
+            prompt_parts.append("借鉴竞品打法：" + "；".join(borrow[:3]))
+        prompt_parts.append("以竞品图为视觉参考，输出一张差异化的本品电商主图；保持本品品牌识别，不复制竞品 logo/文字。")
+        base_prompt = "\n".join(prompt_parts)
+
+        avoid_intent = [a for a in (intent.get("avoid") or []) if isinstance(a, str) and a.strip()]
+        negative_bits: list[str] = []
+        negative_bits.extend(avoid_intent[:4])
+        negative_bits.extend(avoid_ideas[:3])
+        negative_bits.append("不抄袭竞品文案/logo/slogan/画面元素")
+        seen: set[str] = set()
+        dedup_neg: list[str] = []
+        for b in negative_bits:
+            if b and b not in seen:
+                dedup_neg.append(b)
+                seen.add(b)
+        negative_prompt = "、".join(dedup_neg)
+
+        size = _size_for_node(aspect_ratio or node.get("aspect_ratio") or "1:1")
+        mode_norm = "edit" if str(mode).lower() == "edit" else "generate"
+        provider_hint, model_id = _resolve_image_model((intent or {}).get("model_preference"))
+
+        variants_to_save: list[Variant] = []
+        variant_dicts: list[dict[str, Any]] = []
+        pending_batch_tag = uuid.uuid4().hex[:12]
+        for _ in range(max(1, count)):
+            v = Variant(
+                node_id=node_id,
+                prompt_sent=base_prompt,
+                provider="",
+                status="pending",
+                asset_type="image",
+                extra={
+                    "mode": mode_norm,
+                    "remix_kind": "competitor",
+                    "competitor_image_url": ref_url,
+                    "edit_instruction": user_prompt.strip(),
+                    "batch_tag": pending_batch_tag,
+                    "batch_size": max(1, count),
+                },
+            )
+            variants_to_save.append(v)
+            variant_dicts.append({
+                "variant_id": v.variant_id,
+                "source_opportunity_id": plan.get("plan_id", "") if plan else "",
+                "image_variant_spec": {
+                    "base_prompt": base_prompt,
+                    "negative_prompt": negative_prompt,
+                    "size": size,
+                    "reference_image_urls": [ref_url],
+                    "provider_hint": provider_hint,
+                    "model": model_id,
+                    "mode": mode_norm,
+                },
+                "_node_id": node_id,
+            })
+
+        for v in variants_to_save:
+            self._store.save_workspace_variant(v.model_dump(mode="json"))
+
+        node["status"] = "generating"
+        node["updated_at"] = datetime.now(UTC).isoformat()
+        node["variant_ids"] = (node.get("variant_ids") or []) + [v.variant_id for v in variants_to_save]
+        node.setdefault("extra", {})
+        node["extra"]["last_remix_prompt"] = user_prompt.strip()
+        self._store.save_workspace_node(node)
+
+        queue = VariantBatchQueue(on_slot_done=self._make_on_done())
+        batch_id = queue.enqueue_batch(variant_dicts)
+        self._queue_last_private = queue
+        _register_batch(batch_id, queue)
+        logger.info("remix_from_competitor enqueued: node=%s mode=%s count=%d batch=%s",
+                    node_id, mode_norm, count, batch_id)
+        return batch_id
+
     def _make_on_done(self):
         store = self._store
 

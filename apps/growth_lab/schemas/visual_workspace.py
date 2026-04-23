@@ -247,6 +247,8 @@ class ResultNode(BaseModel):
     slot_role: str | None = None      # 结构化的 slot role（pain_contrast / lifestyle / tech_highlight …）
     slot_objective: str | None = None  # 针对 slot_role 的短目标
     direction_summary: str | None = None  # 多轮编辑沉淀的方向摘要
+    # 节点自由态扩展字段：竞品拆解结果 / 32 维度清单 / 二创 prompt 缓存等
+    extra: dict[str, Any] = Field(default_factory=dict)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 

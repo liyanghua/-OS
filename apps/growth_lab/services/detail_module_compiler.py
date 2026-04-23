@@ -1,10 +1,11 @@
-"""DetailModuleCompiler — 详情页 8 模块专用 prompt 增强器。
+"""DetailModuleCompiler — 详情页 9 模块专用 prompt 增强器。
 
 视觉工作台的详情 Frame 由 VisualPlanCompiler 生成节点骨架后，
 再通过本 compiler 把"模块级文案+视觉"诉求编译成可送入图像生成的 prompt。
 
-关键：一屏一卖点、模块有上下文（第 n 模块在 "吸引→设计→材料→…" 叙事链路中的位置），
-由此给每个模块加上"紧贴上下文"的 prompt 前缀。
+关键：一屏一卖点、模块在"品牌势能建立 → 产品体验表达 → 品牌与信任建设 → 转化收口"
+的叙事链路中各有定位，由此给每个模块加上"紧贴上下文"的 prompt 前缀。
+模块划分对齐《品牌级详情页策划案报告》模块脚本（9 个模块）。
 """
 
 from __future__ import annotations
@@ -16,19 +17,34 @@ logger = logging.getLogger(__name__)
 
 
 _MODULE_NARRATIVE_ROLE = {
-    1: "开篇吸睛，第一眼让用户记住产品",
-    2: "呈现独特设计的差异化爽点",
-    3: "强调材料/成分的安全或功能性",
-    4: "工艺或制作的专业背书",
-    5: "核心功能解决真实痛点",
-    6: "使用过程的便捷与简单",
-    7: "耐用性/性价比数据化表达",
-    8: "关键参数清单，帮助决策",
+    1: "首屏海报，品牌势能建立，第一眼传达品牌符号与奢华气质",
+    2: "核心卖点展示，强化品牌符号识别度的审美表达",
+    3: "功能演示，展示乳霜到泡沫的温和细腻转化体验",
+    4: "材质特写，突出高级包装材质与仪式感",
+    5: "使用场景，晨晚切换中的日常悦己与洁面仪式情绪",
+    6: "人物互动，都市女性的生活方式与身份表达",
+    7: "品牌故事，品牌历史与奢护认知的纵深背书",
+    8: "信任背书，全球高端认知与官方渠道构成的可信度",
+    9: "规格参数，产品全貌与购买决策收口",
 }
+
+_MODULE_NARRATIVE_STAGE = {
+    1: "品牌势能建立",
+    2: "品牌势能建立",
+    3: "产品体验表达",
+    4: "产品体验表达",
+    5: "产品体验表达",
+    6: "产品体验表达",
+    7: "品牌与信任建设",
+    8: "品牌与信任建设",
+    9: "转化收口",
+}
+
+_TOTAL_MODULES = 9
 
 
 class DetailModuleCompiler:
-    """详情页 8 模块专用 prompt 增强器。"""
+    """详情页 9 模块专用 prompt 增强器。"""
 
     def enhance_node_prompt(
         self,
@@ -42,10 +58,13 @@ class DetailModuleCompiler:
         narrative_role = _MODULE_NARRATIVE_ROLE.get(
             slot_idx, "一屏一卖点的详情模块",
         )
+        narrative_stage = _MODULE_NARRATIVE_STAGE.get(slot_idx, "")
 
-        parts: list[str] = [
-            f"[详情页第 {slot_idx}/8 模块 · 叙事定位：{narrative_role}]",
-        ]
+        header = f"[详情页第 {slot_idx}/{_TOTAL_MODULES} 模块"
+        if narrative_stage:
+            header += f" · 阶段：{narrative_stage}"
+        header += f" · 叙事定位：{narrative_role}]"
+        parts: list[str] = [header]
         if intent.get("product_name"):
             parts.append(f"商品：{intent['product_name']}")
         if intent.get("audience"):

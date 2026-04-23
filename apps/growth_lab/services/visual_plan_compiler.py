@@ -40,10 +40,12 @@ _FRAME_KEY_CONFIG: dict[str, dict[str, Any]] = {
     },
     "detail": {
         "category": "detail_module",
-        "layout": "column",
-        "node_size": (260.0, 340.0),
-        "gap": 24.0,
+        "layout": "grid",
+        "node_size": (220.0, 300.0),  # 贴近 3:4 详情单屏比例
+        "gap": 18.0,
         "title": "详情 Frame",
+        # 9 模块按 3×3 排列，屏幕一屏可览
+        "grid_cols": 3,
     },
     "video_shots": {
         "category": "video_shot_list",
@@ -62,9 +64,11 @@ _FRAME_KEY_CONFIG: dict[str, dict[str, Any]] = {
     "competitor": {
         "category": "competitor_deconstruct",
         "layout": "column",
-        "node_size": (320.0, 220.0),
+        "node_size": (320.0, 260.0),
         "gap": 20.0,
         "title": "竞品对标 Frame",
+        # 竞品拆解收敛为单节点：一张图 → 一次 32 维拆解 → 就地二创
+        "single_node": True,
     },
 }
 
@@ -284,35 +288,77 @@ class VisualPlanCompiler:
 
         padding_left = 20.0
         padding_top = 52.0  # frame header 高度
-        cols = max(1, self._cols_for(frame_key, len(template.slots), cfg))
 
-        for i, slot in enumerate(template.slots):
-            col = i % cols
-            row = i // cols
-            node_x = origin_x + padding_left + col * (node_w + gap)
-            node_y = origin_y + padding_top + row * (node_h + gap)
+        # 特殊：single_node=True 时（如竞品拆解），只生成一个节点，
+        # 把全部 slots 的 dimensions 合并到 node.extra.competitor_dimensions。
+        if cfg.get("single_node"):
+            slots_iter = list(template.slots) or []
+            first_slot = slots_iter[0] if slots_iter else TemplateSlot(index=1, role=cfg["title"])
             node = ResultNode(
                 plan_id=plan_id,
                 frame_id=frame.frame_id,
-                slot_index=slot.index or (i + 1),
-                role=slot.role,
+                slot_index=1,
+                role=cfg["title"],
                 result_type=result_type,
-                title=f"{cfg['title']} · {slot.role}",
-                objective=slot.role,
-                visual_spec=slot.visual_spec,
-                copy_spec=slot.copy_spec,
-                aspect_ratio=slot.aspect_ratio or "1:1",
-                canvas_x=node_x,
-                canvas_y=node_y,
+                title=cfg["title"],
+                objective="基于竞品参考图拆解与二创",
+                visual_spec=first_slot.visual_spec,
+                copy_spec=first_slot.copy_spec,
+                aspect_ratio=first_slot.aspect_ratio or "1:1",
+                canvas_x=origin_x + padding_left,
+                canvas_y=origin_y + padding_top,
                 width=node_w,
                 height=node_h,
-                template_slot_ref=f"{template.template_id}#{slot.index}",
+                template_slot_ref=f"{template.template_id}#all",
                 intent_ref_fields=self._collect_intent_refs(intent),
                 brand_rule_refs=list(template.default_brand_rules),
                 status="draft",
             )
-            node.objects = self._default_objects_for(node, slot, intent)
+            # 把 4 组 8 维拆解清单塞进 extra，供前端分组渲染
+            groups: list[dict[str, Any]] = []
+            for s in slots_iter:
+                dims = []
+                if isinstance(s.extra, dict):
+                    dims = list(s.extra.get("dimensions") or [])
+                groups.append({
+                    "index": s.index,
+                    "role": s.role,
+                    "visual_spec": s.visual_spec,
+                    "dimensions": dims,
+                })
+            node.extra["competitor_dimensions"] = groups
+            node.slot_role = "competitor_deconstruct"
+            node.slot_objective = "一张图 → 32 维拆解 → 基于智能提示二创"
             nodes.append(node)
+        else:
+            cols = max(1, self._cols_for(frame_key, len(template.slots), cfg))
+            for i, slot in enumerate(template.slots):
+                col = i % cols
+                row = i // cols
+                node_x = origin_x + padding_left + col * (node_w + gap)
+                node_y = origin_y + padding_top + row * (node_h + gap)
+                node = ResultNode(
+                    plan_id=plan_id,
+                    frame_id=frame.frame_id,
+                    slot_index=slot.index or (i + 1),
+                    role=slot.role,
+                    result_type=result_type,
+                    title=f"{cfg['title']} · {slot.role}",
+                    objective=slot.role,
+                    visual_spec=slot.visual_spec,
+                    copy_spec=slot.copy_spec,
+                    aspect_ratio=slot.aspect_ratio or "1:1",
+                    canvas_x=node_x,
+                    canvas_y=node_y,
+                    width=node_w,
+                    height=node_h,
+                    template_slot_ref=f"{template.template_id}#{slot.index}",
+                    intent_ref_fields=self._collect_intent_refs(intent),
+                    brand_rule_refs=list(template.default_brand_rules),
+                    status="draft",
+                )
+                node.objects = self._default_objects_for(node, slot, intent)
+                nodes.append(node)
 
         frame.node_ids = [n.node_id for n in nodes]
         return frame, nodes
@@ -323,8 +369,9 @@ class VisualPlanCompiler:
             return 1
         if cfg["layout"] == "row":
             return slot_count
-        # grid：按每行 4 个排布
-        return 4
+        # grid：允许 cfg 指定每行列数；缺省为 4
+        cols = cfg.get("grid_cols") or 4
+        return max(1, int(cols))
 
     @staticmethod
     def _default_objects_for(node: ResultNode, slot: TemplateSlot, intent: IntentContext) -> list[ObjectNode]:
