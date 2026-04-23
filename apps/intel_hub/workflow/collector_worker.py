@@ -44,11 +44,12 @@ async def execute_keyword_search(
 
     payload = job.payload
     mc_config.KEYWORDS = payload.get("keywords", mc_config.KEYWORDS)
-    mc_config.CRAWLER_MAX_NOTES_COUNT = payload.get("max_notes", 10)
+    mc_config.CRAWLER_MAX_NOTES_COUNT = payload.get("max_notes", 20)
     mc_config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = payload.get("max_comments", 10)
     mc_config.CRAWLER_TYPE = "search"
     mc_config.PLATFORM = payload.get("platform", "xhs")
     mc_config.LOGIN_TYPE = payload.get("login_type", "qrcode")
+    mc_config.SORT_TYPE = payload.get("sort_type", getattr(mc_config, "SORT_TYPE", "popularity_descending"))
 
     account_id: str | None = None
     if session_service:

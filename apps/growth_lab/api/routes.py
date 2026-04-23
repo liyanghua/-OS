@@ -1586,7 +1586,15 @@ async def edit_workspace_variant(node_id: str, req: WorkspaceEditVariantRequest)
         "base_variant_id": req.base_variant_id,
         "batch_id": batch_id,
     })
-    return {"batch_id": batch_id, "node_id": node_id, "mode": "edit"}
+    # 本次 edit 落库后，当前轮次 = 从上次 reset 至今的 edit 事件数
+    rounds = _compute_edit_round(node.get("plan_id", ""), node_id)
+    return {
+        "batch_id": batch_id,
+        "node_id": node_id,
+        "mode": "edit",
+        "rounds": rounds,
+        "escalation_hint": rounds >= 3,
+    }
 
 
 @router.post("/api/workspace/frame/{frame_id}/generate-all")
@@ -1932,6 +1940,241 @@ async def workspace_propose_edit(
         # v2 字段：右栏新卡渲染用
         "proposal_v2": proposal_v2,
         "edit_context": pack.model_dump(mode="json"),
+    }
+
+
+def _compute_edit_round(plan_id: str, node_id: str) -> int:
+    """基于 session_events 计算该节点当前连续 edit 轮次。
+
+    统计自最后一次 round_reset（采纳/切换 pin 等）之后的 edit_instruction 数量，
+    至少返回 1（当前这次编辑就是第 1 轮）。失败返回 1。
+    """
+    try:
+        store = _get_store()
+        if not hasattr(store, "list_workspace_session_events"):
+            return 1
+        events = store.list_workspace_session_events(plan_id=plan_id or "", node_id=node_id, limit=200)
+    except Exception:
+        return 1
+    count_after_reset = 0
+    for ev in events:
+        t = ev.get("type") or ""
+        if t == "edit_round_reset":
+            count_after_reset = 0
+            continue
+        if t in {"edit_instruction", "edit_escalated"}:
+            count_after_reset += 1
+    return max(1, count_after_reset or 1)
+
+
+def _reset_edit_rounds(plan_id: str, node_id: str, reason: str = "") -> None:
+    """写一条 edit_round_reset 事件，之后的 edit 计数将从 0 开始。"""
+    _record_session_event(
+        plan_id or "", node_id or "", "", "edit_round_reset", {"reason": reason or ""},
+    )
+
+
+class WorkspaceAnalyzeEditRequest(BaseModel):
+    user_prompt: str = ""
+    selection_context: WorkspaceSelectionContextPayload | None = None
+
+
+@router.post("/api/workspace/node/{node_id}/analyze-edit")
+async def workspace_analyze_edit(node_id: str, req: WorkspaceAnalyzeEditRequest) -> dict:
+    """对话编辑 v2：用 VLM 看 pinned 图 + 用户指令 → 给出结构化分析卡。"""
+    from apps.growth_lab.services.edit_context_builder import build_edit_context_pack
+    from apps.growth_lab.services.workspace_copilot import get_workspace_copilot
+
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+
+    sel = req.selection_context
+    primary = sel.primary_object_id if sel else None
+    secondary = list(sel.secondary_object_ids) if sel else []
+    selected = list({*(
+        ([primary] if primary else []) + secondary + (sel.selected_object_ids if sel else [])
+    )})
+    selected = [s for s in selected if s]
+    region = sel.selected_region if sel else None
+    pinned_variant_id = sel.pinned_variant_id if sel else None
+    pinned_image_url = (sel.pinned_image_url if sel else None) or ""
+
+    pack = build_edit_context_pack(
+        node_id,
+        variant_id=pinned_variant_id,
+        primary_object_id=primary,
+        selected_object_ids=selected or None,
+        selected_region=region,
+        store=store,
+    )
+    if pack is None:
+        raise HTTPException(404, "node context unavailable")
+
+    # 未显式传 pinned_image_url 时兜底从 pack.current_variant 取
+    if not pinned_image_url and pack.current_variant and pack.current_variant.image_url:
+        pinned_image_url = pack.current_variant.image_url or ""
+
+    plan_id = node.get("plan_id", "")
+    # 这里的 round 是"本次分析所处的轮次 = 已发生的 edit 数 + 1"
+    prev_rounds = _compute_edit_round(plan_id, node_id)
+    # 如果从未 edit 过，_compute 返回 1 但实际是"准备进行第 1 轮"——都当作 1
+    analysis_round = prev_rounds
+
+    copilot = get_workspace_copilot()
+    pack_dict = await copilot.analyze_edit_with_vision(
+        pack,
+        user_prompt=req.user_prompt or "",
+        pinned_image_url=pinned_image_url,
+        round_num=analysis_round,
+        escalation_threshold=3,
+    )
+
+    _record_session_event(plan_id, node_id, pinned_variant_id or "", "edit_analyze", {
+        "user_prompt": req.user_prompt or "",
+        "round": pack_dict.get("round", analysis_round),
+        "options_count": len(pack_dict.get("options") or []),
+        "degraded": bool(pack_dict.get("degraded")),
+        "degrade_reason": pack_dict.get("degrade_reason") or "",
+    })
+
+    return {"analysis": pack_dict}
+
+
+@router.get("/api/workspace/node/{node_id}/edit-rounds")
+async def workspace_edit_rounds(node_id: str) -> dict:
+    """读取当前节点的连续 edit 轮次，用于前端判断是否展示 escalate 卡。"""
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    plan_id = node.get("plan_id", "")
+    rounds = _compute_edit_round(plan_id, node_id)
+    return {
+        "node_id": node_id,
+        "rounds": rounds,
+        "escalation_hint": rounds >= 3,
+        "threshold": 3,
+    }
+
+
+@router.post("/api/workspace/node/{node_id}/reset-edit-rounds")
+async def workspace_reset_edit_rounds(node_id: str) -> dict:
+    """手动清零节点 edit 轮次（切换 pin 底图、用户主动"重新开始"时调用）。"""
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+    _reset_edit_rounds(node.get("plan_id", ""), node_id, reason="manual_reset")
+    return {"ok": True, "node_id": node_id, "rounds": 0}
+
+
+class WorkspaceEscalateRegenerateRequest(BaseModel):
+    user_prompt: str = ""
+    strong_model: str | None = None
+    base_variant_id: str | None = None
+
+
+@router.post("/api/workspace/node/{node_id}/escalate-regenerate")
+async def workspace_escalate_regenerate(
+    node_id: str, req: WorkspaceEscalateRegenerateRequest,
+) -> dict:
+    """综合多轮上下文 → LLM 合成 prompt → 强模型 + mode=edit 入队。"""
+    from apps.growth_lab.services.edit_context_builder import build_edit_context_pack
+    from apps.growth_lab.services.visual_node_generator import (
+        VisualNodeGenerator,
+        _resolve_image_model,
+    )
+    from apps.growth_lab.services.workspace_copilot import get_workspace_copilot
+
+    store = _get_store()
+    node = store.get_workspace_node(node_id)
+    if not node:
+        raise HTTPException(404, "node not found")
+
+    plan_id = node.get("plan_id", "")
+    base_variant_id = (req.base_variant_id or node.get("active_variant_id") or "")
+    pack = build_edit_context_pack(
+        node_id,
+        variant_id=base_variant_id or None,
+        store=store,
+    )
+    if pack is None:
+        raise HTTPException(404, "node context unavailable")
+
+    # 汇总最近的 user_message + edit_instruction 文本 + 历次 analyze understanding
+    recent_user_msgs: list[str] = []
+    recent_understandings: list[str] = []
+    try:
+        if hasattr(store, "list_workspace_session_events"):
+            events = store.list_workspace_session_events(
+                plan_id=plan_id or "", node_id=node_id, limit=60,
+            )
+            for ev in events[-40:]:
+                t = ev.get("type") or ""
+                payload = ev.get("payload") or {}
+                if t == "edit_instruction":
+                    txt = str(payload.get("user_prompt") or "").strip()
+                    if txt:
+                        recent_user_msgs.append(txt)
+                elif t == "user_message":
+                    txt = str(payload.get("text") or "").strip()
+                    if txt:
+                        recent_user_msgs.append(txt)
+                elif t == "edit_analyze":
+                    txt = str(payload.get("user_prompt") or "").strip()
+                    if txt:
+                        recent_user_msgs.append(txt)
+    except Exception as exc:  # pragma: no cover
+        logger.debug("escalate history collect skip: %s", exc)
+
+    copilot = get_workspace_copilot()
+    summary_pack = await copilot.escalate_regenerate(
+        pack,
+        user_prompt=req.user_prompt or "",
+        recent_user_requests=recent_user_msgs[-5:],
+        recent_understandings=recent_understandings,
+    )
+    comp_prompt = str(summary_pack.get("prompt") or "").strip()
+    if not comp_prompt:
+        raise HTTPException(500, "escalate 未生成有效 prompt")
+
+    # 默认使用 gemini 图像编辑（强模型）
+    strong_model_key = (req.strong_model or "gemini").strip()
+    provider_hint_override, model_override = _resolve_image_model(strong_model_key)
+
+    gen = VisualNodeGenerator(store)
+    try:
+        batch_id = gen.edit_variant(
+            node_id,
+            user_prompt=comp_prompt,
+            base_variant_id=base_variant_id,
+            count=1,
+            model_override=model_override or None,
+            provider_hint_override=provider_hint_override or None,
+            origin="escalated",
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    _record_session_event(plan_id, node_id, base_variant_id or "", "edit_escalated", {
+        "user_prompt": req.user_prompt or "",
+        "synth_prompt_preview": comp_prompt[:200],
+        "summary": summary_pack.get("summary", ""),
+        "strong_model": strong_model_key,
+        "used_model": f"{provider_hint_override}:{model_override}".strip(":") if model_override else "",
+        "batch_id": batch_id,
+        "degraded": bool(summary_pack.get("degraded")),
+    })
+
+    return {
+        "batch_id": batch_id,
+        "used_model": f"{provider_hint_override}:{model_override}".strip(":") if model_override else strong_model_key,
+        "summary": summary_pack.get("summary", ""),
+        "prompt": comp_prompt,
+        "degraded": bool(summary_pack.get("degraded")),
+        "degrade_reason": summary_pack.get("degrade_reason") or "",
     }
 
 
@@ -2488,6 +2731,7 @@ async def update_workspace_node(node_id: str, req: WorkspaceNodeUpdateRequest) -
     if not n:
         raise HTTPException(404, "node not found")
     changed = False
+    prev_active = n.get("active_variant_id") or ""
     for field in ("active_variant_id", "status", "copy_spec", "visual_spec"):
         val = getattr(req, field)
         if val is not None:
@@ -2502,6 +2746,9 @@ async def update_workspace_node(node_id: str, req: WorkspaceNodeUpdateRequest) -
     if changed:
         n["updated_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
         store.save_workspace_node(n)
+    # 采纳某个变体（active_variant_id 变更）→ edit 轮次清零
+    if req.active_variant_id is not None and req.active_variant_id != prev_active:
+        _reset_edit_rounds(n.get("plan_id", ""), node_id, reason=f"set_active:{req.active_variant_id}")
     return {"ok": True, "node": n}
 
 

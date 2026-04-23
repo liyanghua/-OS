@@ -428,3 +428,55 @@ class OnboardingResult(BaseModel):
     ready_to_compile: bool = False
     missing_fields: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
+
+
+# ── Conversational Edit v2（意图分析卡 + 升级强模型） ─────────
+
+
+class EditAnalysisOption(BaseModel):
+    """VLM 给出的一条可点击"优化方向"。"""
+
+    label: str = ""                # chip 文案 ≤14 字
+    rationale: str = ""            # 为什么值得这样改 ≤40 字
+    prompt_delta: str = ""         # 可直接拼到 img2img 的具体描述
+    strength: Literal["subtle", "moderate", "strong"] = "moderate"
+
+
+class EditAnalysisPack(BaseModel):
+    """analyze-edit 返回的结构化分析包。"""
+
+    understanding: str = ""                             # VLM 对问题的理解（≤60 字）
+    root_causes: list[str] = Field(default_factory=list)   # ≤3 诊断要点
+    options: list[EditAnalysisOption] = Field(default_factory=list)  # 2-4 方向
+    keep: list[str] = Field(default_factory=list)       # 必须保留项
+    risks: list[str] = Field(default_factory=list)      # 风险/副作用
+    model_used: str = ""                                # VLM provider:model
+    round: int = 1                                      # 当前节点连续 edit 轮次
+    escalation_hint: bool = False                       # round>=3 时 true
+    degraded: bool = False                              # True=规则降级，LLM/VLM 不可用
+    degrade_reason: str = ""
+
+
+class AnalyzeEditRequest(BaseModel):
+    """POST analyze-edit 入参。"""
+
+    user_prompt: str = ""
+    selection_context: SelectionContext | None = None
+
+
+class EscalateRegenerateRequest(BaseModel):
+    """POST escalate-regenerate 入参。"""
+
+    user_prompt: str = ""
+    strong_model: str | None = None                     # 默认走 gemini 图像编辑
+
+
+class EscalateRegenerateResponse(BaseModel):
+    """POST escalate-regenerate 返回。"""
+
+    batch_id: str = ""
+    used_model: str = ""
+    summary: str = ""
+    prompt: str = ""
+    degraded: bool = False
+    degrade_reason: str = ""

@@ -278,10 +278,17 @@ class VisualNodeGenerator:
         *,
         base_variant_id: str = "",
         count: int = 1,
+        model_override: str | None = None,
+        provider_hint_override: str | None = None,
+        origin: str = "edit",
     ) -> str:
         """以 active 变体（或指定 base_variant_id）为底图做图生图微调。
 
         返回 batch_id。底图缺失或无 asset_url 时抛 ValueError。
+
+        model_override / provider_hint_override：用于"升级到更强模型"场景，
+        优先级高于 intent.model_preference；传入空字符串视为不覆盖。
+        origin：标记到 variant.extra，便于区分常规微调 / escalated。
         """
         node = self._store.get_workspace_node(node_id)
         if not node:
@@ -314,6 +321,10 @@ class VisualNodeGenerator:
         # edit 模式下，DashScope 会统一走 qwen-image-edit（忽略 model 覆盖）；
         # 若回退到 OpenRouter，则把用户选的模型作为首选。这里仍然透传 provider_hint + model。
         provider_hint, model_id = _resolve_image_model((intent or {}).get("model_preference"))
+        if provider_hint_override:
+            provider_hint = provider_hint_override
+        if model_override:
+            model_id = model_override
 
         variants_to_save: list[Variant] = []
         variant_dicts: list[dict[str, Any]] = []
@@ -331,6 +342,7 @@ class VisualNodeGenerator:
                     "edit_instruction": user_prompt.strip(),
                     "batch_tag": pending_batch_tag,
                     "batch_size": max(1, count),
+                    "origin": origin or "edit",
                 },
             )
             variants_to_save.append(v)

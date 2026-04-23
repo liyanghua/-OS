@@ -326,6 +326,69 @@
     }
     .conv-quick-chips .qc-chip:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
 
+    /* Conversational Edit v2: 意图分析卡 */
+    .conv-analysis {
+      border: 1px solid #c7d2fe; background: #eef2ff; border-radius: 8px;
+      padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
+      font-size: 12px; color: var(--ink);
+    }
+    .conv-analysis.degraded { border-color: #fde68a; background: #fffbeb; }
+    .conv-analysis .ca-head {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 10.5px; font-weight: 700; color: var(--primary);
+      text-transform: uppercase; letter-spacing: .3px;
+    }
+    .conv-analysis.degraded .ca-head { color: #92400e; }
+    .conv-analysis .ca-head .ca-round-badge {
+      padding: 1px 6px; border-radius: 999px; background: #fff; color: var(--primary);
+      border: 1px solid #c7d2fe; font-weight: 600; text-transform: none; letter-spacing: 0;
+    }
+    .conv-analysis.degraded .ca-head .ca-round-badge { color: #92400e; border-color: #fde68a; }
+    .conv-analysis .ca-head .ca-close {
+      margin-left: auto; cursor: pointer; color: var(--muted);
+      width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 50%; font-size: 12px; font-weight: 400;
+    }
+    .conv-analysis .ca-head .ca-close:hover { background: #fff; color: var(--ink); }
+    .conv-analysis .ca-understanding {
+      color: var(--ink); font-size: 12px; line-height: 1.55; font-weight: 500;
+    }
+    .conv-analysis .ca-options {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;
+    }
+    .conv-analysis .ca-option-chip {
+      padding: 4px 10px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
+      background: #fff; color: var(--primary); border: 1px solid #a5b4fc; font-weight: 600;
+      transition: background .15s, color .15s;
+    }
+    .conv-analysis .ca-option-chip:hover {
+      background: var(--primary); color: #fff;
+    }
+    .conv-analysis .ca-option-chip .ca-strength {
+      margin-left: 4px; font-size: 10px; opacity: 0.7; font-weight: 500;
+    }
+    .conv-analysis .ca-meta-row {
+      display: flex; gap: 10px; font-size: 10.5px; color: var(--muted); flex-wrap: wrap;
+    }
+    .conv-analysis .ca-meta-row .ca-keep,
+    .conv-analysis .ca-meta-row .ca-risks { line-height: 1.4; }
+    .conv-analysis .ca-meta-row strong { color: var(--ink); font-weight: 600; }
+    .conv-analysis .ca-escalate {
+      margin-top: 4px; padding: 7px 8px; border-radius: 6px;
+      background: #fff7ed; border: 1px solid #fdba74; color: #9a3412;
+      display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; line-height: 1.5;
+    }
+    .conv-analysis .ca-escalate .ca-esc-actions { display: flex; gap: 6px; }
+    .conv-analysis .ca-escalate .btn-esc-confirm {
+      background: #ea580c; color: #fff; border: 1px solid #c2410c;
+      padding: 3px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+    }
+    .conv-analysis .ca-escalate .btn-esc-confirm:hover { background: #c2410c; }
+    .conv-analysis .ca-escalate .btn-esc-dismiss {
+      background: #fff; color: var(--muted); border: 1px solid var(--border);
+      padding: 3px 10px; border-radius: 6px; font-size: 11.5px; cursor: pointer;
+    }
+
     /* Slash / @ autocomplete popup */
     .composer-ac {
       position: absolute; z-index: 120; background: var(--surface);
@@ -740,6 +803,7 @@
     <div class="ws-right-bottom" id="right-bottom">
       <div class="conv-input-wrap" id="conv-input-wrap" style="position:relative;">
         <div class="conv-quick-chips" id="conv-quick-chips"></div>
+        <div id="conv-analysis" class="conv-analysis" style="display:none;"></div>
         <div id="conv-input-pin" class="conv-input-pin" style="display:none;">
           <div id="conv-pin-thumb-wrap" style="position:relative; display:inline-block; line-height:0;">
             <img id="conv-pin-thumb" src="" alt="底图" />
@@ -839,6 +903,10 @@ const state = {
     lastUserMessages: [],
     lastProposalSummary: '',
     lastResolved: null,
+    // v2 意图分析卡：{ understanding, options[], keep, risks, round, escalation_hint, degraded }
+    analysis: null,
+    rounds: 0,            // 前端缓存的当前节点 edit 轮次
+    escalationDismissed: false,  // 用户点了"继续调整"后在本轮剩余时间内不再自动弹
   },
 };
 
@@ -2053,6 +2121,13 @@ document.addEventListener('click', (e) => {
 
 function pinImageForEditing(nodeId, variantId, imageUrl, opts) {
   const o = opts || {};
+  // 切换到不同底图 → 清当前分析卡 + 重置本地 edit 轮次（后端由用户采纳/手动清零）
+  const prevPinned = state.edit.pinnedVariantId;
+  if (prevPinned !== (variantId || null)) {
+    state.edit.analysis = null;
+    state.edit.escalationDismissed = false;
+    _renderAnalysisCard();
+  }
   if (nodeId && state.selectedNodeId !== nodeId) {
     selectNode(nodeId);
   }
@@ -2067,19 +2142,34 @@ function pinImageForEditing(nodeId, variantId, imageUrl, opts) {
   updatePinnedThumbUI();
   updateTextareaPlaceholder();
   fetchEditContext({ variantId: variantId || undefined });
+  // 异步读取后端当前轮次
+  _refreshEditRounds(nodeId);
   const ta = document.getElementById('copilot-input');
   if (ta) { ta.focus(); }
   const right = document.getElementById('right-bottom');
   if (right && right.scrollIntoView) right.scrollIntoView({ block: 'end', behavior: 'smooth' });
 }
 
+async function _refreshEditRounds(nodeId) {
+  if (!nodeId) return;
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/edit-rounds`);
+    if (!r.ok) return;
+    const d = await r.json();
+    state.edit.rounds = d.rounds || 0;
+  } catch (e) { /* 静默 */ }
+}
+
 function clearPinnedImage() {
   state.edit.pinnedVariantId = null;
   state.edit.pinnedImageUrl = null;
   state.edit.selectedRegion = null;
+  state.edit.analysis = null;
+  state.edit.escalationDismissed = false;
   updatePinnedThumbUI();
   updateTextareaPlaceholder();
   hideRegionOverlay();
+  _renderAnalysisCard();
 }
 
 /* ── 区域框选（shift+drag 缩略图） ── */
@@ -3177,27 +3267,162 @@ async function execProposal(mode) {
   } catch (e) { toast('应用提案失败: ' + e.message); }
 }
 
+/* ── 对话编辑 v2：启发式 + 意图分析卡 + 三轮升级 ── */
+
+// 启发式判定：是否需要先跑一次 VLM 意图分析
+// 触发条件：有 pinned 底图 + (含负面/调整类关键词 | 文本长度 ≥ 10)
+const _NEG_WORD_RE = /(不真实|塑料感|假|奇怪|丑|生硬|呆板|不好看|不够|偏|少了|多了|太|过于|过度|稀|重|弱|模糊|刺眼|粗糙|单调|廉价|低质|俗|违和|怪)/;
+function shouldAnalyzeEdit(text) {
+  if (!state.edit.pinnedImageUrl) return false;
+  const t = (text || '').trim();
+  if (!t) return false;
+  if (t.length >= 10) return true;
+  return _NEG_WORD_RE.test(t);
+}
+
+function _collectSelectionContextForEdit() {
+  return {
+    mode: state.edit.primaryObjectId ? 'object' : 'scene',
+    primary_object_id: state.edit.primaryObjectId || null,
+    secondary_object_ids: state.edit.secondaryObjectIds || [],
+    selected_object_ids: (state.edit.secondaryObjectIds || []).concat(state.edit.primaryObjectId ? [state.edit.primaryObjectId] : []),
+    selected_region: state.edit.selectedRegion || null,
+    pinned_variant_id: state.edit.pinnedVariantId || null,
+    pinned_image_url: state.edit.pinnedImageUrl || null,
+  };
+}
+
+function _renderAnalysisCard() {
+  const el = document.getElementById('conv-analysis');
+  if (!el) return;
+  const a = state.edit.analysis;
+  if (!a) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.classList.toggle('degraded', !!a.degraded);
+  const modelLabel = a.model_used || (a.degraded ? '规则降级' : '—');
+  const round = a.round || state.edit.rounds || 1;
+  const showEscalate = !!a.escalation_hint && !state.edit.escalationDismissed;
+  const parts = [];
+  parts.push(`<div class="ca-head">
+    <span>${a.degraded ? '规则建议' : '意图分析'}</span>
+    <span class="ca-round-badge">第 ${round}/3 轮 · ${escapeHtml(modelLabel)}</span>
+    <span class="ca-close" onclick="dismissAnalysis()" title="关闭">×</span>
+  </div>`);
+  if (a.understanding) {
+    parts.push(`<div class="ca-understanding">${escapeHtml(a.understanding)}</div>`);
+  }
+  const opts = a.options || [];
+  if (opts.length) {
+    const chips = opts.map((o, i) => {
+      const strength = o.strength || 'moderate';
+      const strengthLabel = {subtle:'轻', moderate:'中', strong:'强'}[strength] || '';
+      const title = o.rationale ? escapeHtml(o.rationale) : '';
+      return `<span class="ca-option-chip" title="${title}" onclick="applyAnalysisOption(${i})">${escapeHtml(o.label)}<span class="ca-strength">${strengthLabel}</span></span>`;
+    }).join('');
+    parts.push(`<div class="ca-options">${chips}</div>`);
+  }
+  const meta = [];
+  if ((a.keep || []).length) {
+    meta.push(`<div class="ca-keep"><strong>保留：</strong>${(a.keep || []).map(escapeHtml).join('、')}</div>`);
+  }
+  if ((a.risks || []).length) {
+    meta.push(`<div class="ca-risks"><strong>风险：</strong>${(a.risks || []).map(escapeHtml).join('；')}</div>`);
+  }
+  if (meta.length) parts.push(`<div class="ca-meta-row">${meta.join('')}</div>`);
+  if (showEscalate) {
+    parts.push(`<div class="ca-escalate">
+      <div>已连续调整 ${round} 轮仍未采纳，要不要换更强图像模型（Gemini Image）综合本次上下文重新生成一张？</div>
+      <div class="ca-esc-actions">
+        <button class="btn-esc-confirm" onclick="escalateRegenerate()">综合生成</button>
+        <button class="btn-esc-dismiss" onclick="dismissEscalation()">继续调整</button>
+      </div>
+    </div>`);
+  }
+  el.innerHTML = parts.join('');
+  el.style.display = 'flex';
+}
+
+function dismissAnalysis() {
+  state.edit.analysis = null;
+  _renderAnalysisCard();
+}
+
+function dismissEscalation() {
+  state.edit.escalationDismissed = true;
+  _renderAnalysisCard();
+}
+
+async function applyAnalysisOption(idx) {
+  const a = state.edit.analysis || {};
+  const opts = a.options || [];
+  const opt = opts[idx];
+  if (!opt) return;
+  const ta = document.getElementById('copilot-input');
+  if (!ta) return;
+  const cur = (ta.value || '').trim();
+  const delta = (opt.prompt_delta || opt.label || '').trim();
+  if (!delta) return;
+  ta.value = cur ? `${cur}；${delta}` : delta;
+  // chip 选中后立即发送（跳过二次分析）
+  state.edit.analysis = null;
+  _renderAnalysisCard();
+  const nodeId = state.selectedNodeId;
+  const pinned = state.edit.pinnedVariantId || '';
+  return editVariantFrom(nodeId, pinned, { skipAnalyze: true });
+}
+
+async function _runAnalyzeEdit(nodeId, text) {
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/analyze-edit`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        user_prompt: text,
+        selection_context: _collectSelectionContextForEdit(),
+      }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    state.edit.analysis = data.analysis || null;
+    if (state.edit.analysis && typeof state.edit.analysis.round === 'number') {
+      state.edit.rounds = state.edit.analysis.round;
+    }
+    _renderAnalysisCard();
+    return true;
+  } catch (e) {
+    toast('分析失败，按原指令发送');
+    return false;
+  }
+}
+
 async function editActiveVariant() {
   // onboarding 模式下：主发送按钮改为 onboarding 回传
   if (state.onboarding && state.onboarding.active) {
     const t = document.getElementById('copilot-input').value.trim();
     return onboardingSend(t);
   }
-  // pinned variant 优先，其次 active
   const nodeId = state.selectedNodeId;
   const pinned = state.edit.pinnedVariantId || '';
   return editVariantFrom(nodeId, pinned);
 }
 
-async function editVariantFrom(nodeId, baseVariantId) {
+async function editVariantFrom(nodeId, baseVariantId, opts) {
   if (!nodeId) { toast('请先选中一个节点'); return; }
   const text = document.getElementById('copilot-input').value.trim();
   if (!text) { toast('请先输入调整指令'); return; }
+  const options = opts || {};
+  // 启发式触发分析：命中 + 当前没有活跃分析卡 + 不是强制跳过
+  if (!options.skipAnalyze && !state.edit.analysis && shouldAnalyzeEdit(text)) {
+    const btn0 = document.getElementById('btn-edit-variant');
+    const origLabel = btn0 ? btn0.textContent : '';
+    if (btn0) { btn0.disabled = true; btn0.textContent = '分析中…'; }
+    const ok = await _runAnalyzeEdit(nodeId, text);
+    if (btn0) { btn0.disabled = false; btn0.textContent = origLabel || '发送（微调）'; }
+    // 分析成功：停止这次发送，让用户点 chip 或再次点发送
+    if (ok && state.edit.analysis) return;
+  }
   appendUserBubble(text);
   const btn = document.getElementById('btn-edit-variant');
   const orig = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '微调中…'; }
-  // 追加到对话历史，便于方向总结
   state.edit.lastUserMessages = (state.edit.lastUserMessages || []).concat([text]).slice(-5);
   const effectiveBase = baseVariantId || state.edit.pinnedVariantId || '';
   try {
@@ -3217,12 +3442,68 @@ async function editVariantFrom(nodeId, baseVariantId) {
     toast('已入队微调（img2img）');
     pollBatch(data.batch_id);
     document.getElementById('copilot-input').value = '';
+    // 同步轮次 + escalate 提示
+    if (typeof data.rounds === 'number') {
+      state.edit.rounds = data.rounds;
+      if (data.escalation_hint && !state.edit.escalationDismissed) {
+        // 触发提示：若没有活跃分析卡，直接生成一个"仅提示"卡片
+        if (!state.edit.analysis) {
+          state.edit.analysis = {
+            understanding: '已连续调整 ' + data.rounds + ' 轮，建议换更强模型综合上下文重新生成',
+            options: [],
+            keep: [],
+            risks: [],
+            model_used: '',
+            round: data.rounds,
+            escalation_hint: true,
+            degraded: false,
+          };
+          _renderAnalysisCard();
+        } else {
+          state.edit.analysis.round = data.rounds;
+          state.edit.analysis.escalation_hint = true;
+          _renderAnalysisCard();
+        }
+      }
+    }
     const node = state.nodes.find(n => n.node_id === nodeId);
     if (node) { node.status = 'generating'; renderCanvas(); if (nodeId === state.selectedNodeId) renderRightPanel(node); }
   } catch (e) {
     toast('微调失败：' + (e.message || e));
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = orig || '微调当前图'; }
+    if (btn) { btn.disabled = false; btn.textContent = orig || '发送（微调）'; }
+  }
+}
+
+async function escalateRegenerate() {
+  const nodeId = state.selectedNodeId;
+  if (!nodeId) { toast('请先选中一个节点'); return; }
+  const text = (document.getElementById('copilot-input').value || '').trim();
+  const baseVariantId = state.edit.pinnedVariantId || '';
+  toast('正在综合上下文，切到更强模型…');
+  try {
+    const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/escalate-regenerate`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        user_prompt: text,
+        strong_model: 'gemini',
+        base_variant_id: baseVariantId,
+      }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    if (data.summary && typeof appendAgentMessage === 'function') {
+      appendAgentMessage({ role: 'assistant', kind: 'escalate', title: '综合强模型', html: escapeHtml(data.summary) });
+    }
+    toast('已用强模型入队（' + (data.used_model || 'gemini') + '）');
+    if (data.batch_id) pollBatch(data.batch_id);
+    // escalate 之后清掉分析卡，避免重复触发
+    state.edit.analysis = null;
+    state.edit.escalationDismissed = true;
+    _renderAnalysisCard();
+    document.getElementById('copilot-input').value = '';
+  } catch (e) {
+    toast('升级生成失败：' + (e.message || e));
   }
 }
 
@@ -3234,6 +3515,11 @@ async function setActiveVariant(nodeId, variantId) {
     });
     if (!r.ok) throw new Error(await r.text());
     toast('已采纳');
+    // 采纳 = 一次对话编辑结束，清掉本地 edit 状态（后端也已自动 reset）
+    state.edit.analysis = null;
+    state.edit.rounds = 0;
+    state.edit.escalationDismissed = false;
+    _renderAnalysisCard();
     await loadPlan(state.planId);
     selectNode(nodeId);
   } catch (e) { toast('更新失败: ' + e.message); }

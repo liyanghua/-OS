@@ -47,10 +47,11 @@ class CrawlJobRequest(BaseModel):
     platform: str = "xhs"
     job_type: str = "keyword_search"
     keywords: str = ""
-    max_notes: int = 10
+    max_notes: int = 20
     max_comments: int = 10
     priority: int = 5
     login_type: str = "qrcode"
+    sort_type: str = "popularity_descending"
 
 
 class B2BBootstrapRequest(BaseModel):
@@ -585,6 +586,7 @@ def create_app(
                 "max_notes": req.max_notes,
                 "max_comments": req.max_comments,
                 "login_type": req.login_type,
+                "sort_type": req.sort_type,
             },
             priority=req.priority,
         )
@@ -616,6 +618,71 @@ def create_app(
             return {"job_id": job_id, "message": "任务已重新入队"}
         raise HTTPException(status_code=400, detail="任务不可重试")
 
+    @app.get("/crawl-jobs/{job_id}/progress")
+    async def crawl_job_progress(job_id: str) -> dict[str, Any]:
+        """单任务进度：合并 job 状态 + 全局 crawl_status + 该关键词已落地条数。"""
+        job = job_queue.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        keyword = str((job.payload or {}).get("keywords", "") or "")
+        max_notes = int((job.payload or {}).get("max_notes", 20) or 20)
+
+        notes_collected = 0
+        if keyword and job.status in ("running", "completed"):
+            notes_collected = _count_notes_by_source_keyword(keyword)
+
+        status_path = resolve_repo_path("data/crawl_status.json")
+        global_status: dict[str, Any] = {}
+        if status_path.exists():
+            try:
+                global_status = json.loads(status_path.read_text(encoding="utf-8"))
+            except Exception:
+                global_status = {}
+
+        elapsed_ms = 0
+        try:
+            from datetime import datetime as _dt
+            if job.started_at:
+                start = _dt.fromisoformat(job.started_at)
+                if job.completed_at:
+                    end = _dt.fromisoformat(job.completed_at)
+                else:
+                    end = _dt.now(tz=start.tzinfo)
+                elapsed_ms = max(0, int((end - start).total_seconds() * 1000))
+        except Exception:
+            elapsed_ms = 0
+
+        progress_pct = min(100, notes_collected * 100 // max(1, max_notes))
+        if job.status == "completed":
+            progress_pct = 100
+        elif job.status in ("failed", "dead"):
+            progress_pct = min(progress_pct, 99)
+
+        result_url = ""
+        if job.status == "completed" and keyword:
+            from urllib.parse import quote as _urlq
+            result_url = f"/notes?category={_urlq(keyword)}"
+
+        return {
+            "job_id": job_id,
+            "status": job.status,
+            "keyword": keyword,
+            "max_notes": max_notes,
+            "notes_collected": notes_collected,
+            "progress_pct": progress_pct,
+            "started_at": job.started_at,
+            "completed_at": job.completed_at,
+            "elapsed_ms": elapsed_ms,
+            "error": job.error or "",
+            "result_url": result_url,
+            "global_status": {
+                "status": global_status.get("status", ""),
+                "current_keyword": global_status.get("current_keyword", ""),
+                "notes_found": global_status.get("notes_found", 0),
+                "notes_saved": global_status.get("notes_saved", 0),
+            },
+        }
+
     @app.get("/sessions")
     async def list_sessions(platform: str | None = None) -> dict[str, Any]:
         sessions = session_svc.list_sessions(platform)
@@ -640,7 +707,9 @@ def create_app(
 
     _notes_cache: dict[str, Any] = {}
 
-    def _get_notes() -> list[dict[str, Any]]:
+    def _get_notes(*, force_reload: bool = False) -> list[dict[str, Any]]:
+        if force_reload:
+            _notes_cache.pop("records", None)
         if "records" not in _notes_cache:
             all_records: list[dict[str, Any]] = []
             for src in settings.mediacrawler_sources:
@@ -660,25 +729,82 @@ def create_app(
             _notes_cache["records"] = deduped
         return _notes_cache["records"]
 
+    def _count_notes_by_source_keyword(keyword: str) -> int:
+        """统计已落地的笔记中 source_keyword == keyword 的数量；每次强制刷新缓存。"""
+        if not keyword:
+            return 0
+        kw = keyword.strip()
+        notes = _get_notes(force_reload=True)
+        return sum(1 for n in notes if (n.get("keyword") or "").strip() == kw)
+
+    def _build_category_index(notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """按笔记的采集关键词（source_keyword）构建分类索引。"""
+        counter: dict[str, int] = {}
+        for n in notes:
+            kw = (n.get("keyword") or "").strip() or "未分类"
+            counter[kw] = counter.get(kw, 0) + 1
+        items = [{"key": k, "count": v} for k, v in counter.items()]
+        # 未分类沉底；其余按 count desc、再按 key 字典序
+        items.sort(key=lambda x: (x["key"] == "未分类", -x["count"], x["key"]))
+        return items
+
     @app.get("/notes")
-    async def notes_list(request: Request, page: int = 1, page_size: int = 12, keyword: str | None = None) -> Any:
+    async def notes_list(
+        request: Request,
+        page: int = 1,
+        page_size: int = 24,
+        category: str | None = None,
+        q: str | None = None,
+        keyword: str | None = None,  # 向后兼容旧链接：等价 q
+    ) -> Any:
         all_notes = _get_notes()
-        if keyword:
-            keyword_lower = keyword.lower()
-            all_notes = [n for n in all_notes if keyword_lower in (n.get("title", "") + n.get("raw_text", "")).lower()]
-        total = len(all_notes)
+        total_all = len(all_notes)
+        categories = _build_category_index(all_notes)
+
+        # 向后兼容：旧 ?keyword=xxx → 视为 q
+        if not q and keyword:
+            q = keyword
+
+        filtered = all_notes
+        if category:
+            want = category.strip()
+            if want == "未分类":
+                filtered = [n for n in filtered if not (n.get("keyword") or "").strip()]
+            else:
+                filtered = [n for n in filtered if (n.get("keyword") or "").strip() == want]
+        if q:
+            needle = q.lower()
+            filtered = [
+                n for n in filtered
+                if needle in (str(n.get("title", "")) + str(n.get("raw_text", ""))).lower()
+            ]
+
+        total = len(filtered)
         start = (max(page, 1) - 1) * page_size
-        page_notes = all_notes[start : start + page_size]
+        page_notes = filtered[start : start + page_size]
+
         if _wants_html(request):
             return _render("notes.html", {
                 "request": request,
                 "notes": page_notes,
                 "total": total,
+                "total_all": total_all,
                 "page": page,
                 "page_size": page_size,
-                "keyword": keyword or "",
+                "categories": categories,
+                "current_category": category or "",
+                "q": q or "",
             })
-        return {"total": total, "page": page, "page_size": page_size, "items": page_notes}
+        return {
+            "total": total,
+            "total_all": total_all,
+            "page": page,
+            "page_size": page_size,
+            "categories": categories,
+            "current_category": category or "",
+            "q": q or "",
+            "items": page_notes,
+        }
 
     @app.get("/notes/{note_id}")
     async def note_detail(request: Request, note_id: str) -> Any:

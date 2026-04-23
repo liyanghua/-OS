@@ -734,6 +734,390 @@ class WorkspaceCopilot:
             items.append({"source": "竞品", "content": ref})
         return items
 
+    # ── Conversational Edit v2：意图分析卡 + 三轮升级 ──
+
+    async def analyze_edit_with_vision(
+        self,
+        pack: Any,
+        *,
+        user_prompt: str,
+        pinned_image_url: str,
+        round_num: int = 1,
+        escalation_threshold: int = 3,
+    ) -> dict:
+        """结合 pinned 图 + 用户指令 + 节点上下文，调多模态 VLM 给出结构化分析。
+
+        返回 EditAnalysisPack 对应的 dict，VLM 不可用时返回规则降级（degraded=True）。
+        """
+        from apps.growth_lab.schemas.visual_workspace import EditContextPack
+
+        if not isinstance(pack, EditContextPack):
+            pack = EditContextPack.model_validate(pack)
+
+        round_num = max(1, int(round_num or 1))
+        escalation_hint = round_num >= escalation_threshold
+
+        # slot 上下文摘要（role / objective / 可编辑对象 / 锁定项 / intent 风格）
+        editable_objects = [s.label for s in pack.visual_state.object_summaries if not s.locked]
+        locked_objects = [s.label for s in pack.visual_state.object_summaries if s.locked]
+        intent_dict = pack.intent_context.model_dump(mode="json") if pack.intent_context else {}
+        template_ctx = pack.template_context.model_dump(mode="json") if pack.template_context else {}
+
+        # 若没有 pinned 图或 VLM 不可用 → 规则降级
+        if not pinned_image_url:
+            return self._fallback_analysis(
+                user_prompt=user_prompt,
+                round_num=round_num,
+                escalation_hint=escalation_hint,
+                reason="no_pinned_image",
+                editable_objects=editable_objects,
+                locked_objects=locked_objects,
+            )
+
+        try:
+            from apps.growth_lab.services.vlm_client import (
+                call_vlm_multimodal,
+                candidate_providers,
+                safe_json_obj,
+            )
+        except Exception as exc:  # pragma: no cover
+            logger.warning("[Copilot] vlm_client 不可用：%s", exc)
+            return self._fallback_analysis(
+                user_prompt=user_prompt,
+                round_num=round_num,
+                escalation_hint=escalation_hint,
+                reason="vlm_client_import_error",
+                editable_objects=editable_objects,
+                locked_objects=locked_objects,
+            )
+
+        if not candidate_providers():
+            return self._fallback_analysis(
+                user_prompt=user_prompt,
+                round_num=round_num,
+                escalation_hint=escalation_hint,
+                reason="no_vision_provider",
+                editable_objects=editable_objects,
+                locked_objects=locked_objects,
+            )
+
+        system_prompt = _ANALYZE_EDIT_SYSTEM_PROMPT
+        context_text = json.dumps({
+            "node": {
+                "role": pack.node_title or "",
+                "objective": pack.node_objective or "",
+                "type": pack.node_type,
+                "slot_role": template_ctx.get("slot_role") or "",
+            },
+            "intent": {
+                "product_name": intent_dict.get("product_name", ""),
+                "audience": intent_dict.get("audience", ""),
+                "style_tags": intent_dict.get("style_tags") or [],
+                "must_have": intent_dict.get("must_have") or [],
+                "avoid": intent_dict.get("avoid") or [],
+            },
+            "editable_objects": editable_objects,
+            "locked_objects": locked_objects,
+            "recent_user_requests": list(pack.recent_history.last_user_requests or [])[-3:],
+            "user_prompt": user_prompt or "",
+            "round": round_num,
+        }, ensure_ascii=False)
+
+        resp = await call_vlm_multimodal(
+            system_prompt=system_prompt,
+            user_text=context_text,
+            image_urls=[pinned_image_url],
+            temperature=0.35,
+            max_tokens=1200,
+            force_json=True,
+        )
+        if not resp.content:
+            return self._fallback_analysis(
+                user_prompt=user_prompt,
+                round_num=round_num,
+                escalation_hint=escalation_hint,
+                reason=resp.raw_reason or "vlm_empty",
+                editable_objects=editable_objects,
+                locked_objects=locked_objects,
+            )
+
+        parsed = safe_json_obj(resp.content)
+        if not parsed:
+            logger.warning(
+                "[Copilot] analyze-edit VLM 响应无法解析 preview=%s",
+                (resp.content or "")[:200],
+            )
+            return self._fallback_analysis(
+                user_prompt=user_prompt,
+                round_num=round_num,
+                escalation_hint=escalation_hint,
+                reason="json_parse_failed",
+                editable_objects=editable_objects,
+                locked_objects=locked_objects,
+            )
+
+        options_raw = parsed.get("options") or []
+        options: list[dict] = []
+        for o in options_raw[:4]:
+            if not isinstance(o, dict):
+                continue
+            label = str(o.get("label") or "").strip()
+            if not label:
+                continue
+            options.append({
+                "label": label[:14],
+                "rationale": str(o.get("rationale") or "").strip()[:80],
+                "prompt_delta": str(o.get("prompt_delta") or "").strip()[:500],
+                "strength": str(o.get("strength") or "moderate").strip().lower()
+                    if str(o.get("strength") or "moderate").strip().lower() in {"subtle", "moderate", "strong"}
+                    else "moderate",
+            })
+        if not options:
+            # 兜底：至少给 1 条指令直达 chip
+            options = [{
+                "label": "按原指令调整",
+                "rationale": "VLM 没返回方向，直接按用户指令执行",
+                "prompt_delta": (user_prompt or "").strip()[:500],
+                "strength": "moderate",
+            }]
+
+        return {
+            "understanding": str(parsed.get("understanding") or "").strip()[:120],
+            "root_causes": [str(x).strip()[:60] for x in (parsed.get("root_causes") or [])][:3],
+            "options": options,
+            "keep": [str(x).strip()[:60] for x in (parsed.get("keep") or [])][:4],
+            "risks": [str(x).strip()[:80] for x in (parsed.get("risks") or [])][:3],
+            "model_used": f"{resp.provider}:{resp.model}".strip(":"),
+            "round": round_num,
+            "escalation_hint": escalation_hint,
+            "degraded": False,
+            "degrade_reason": "",
+        }
+
+    @staticmethod
+    def _fallback_analysis(
+        *,
+        user_prompt: str,
+        round_num: int,
+        escalation_hint: bool,
+        reason: str,
+        editable_objects: list[str],
+        locked_objects: list[str],
+    ) -> dict:
+        """VLM 不可用时的规则降级：按常见抱怨词给 2 条通用方向。"""
+        text = (user_prompt or "").strip()
+        options: list[dict] = []
+
+        if "塑料" in text or "假" in text or "不真实" in text:
+            options.append({
+                "label": "增强材质真实感",
+                "rationale": "替换光源与反射细节，消除塑料感",
+                "prompt_delta": "以柔和自然光呈现真实材质纹理，消除塑料感与塑胶反射，强调产品本身的光泽与质感",
+                "strength": "moderate",
+            })
+            options.append({
+                "label": "改为真实场景",
+                "rationale": "从 CGI 感切到更具生活氛围的真实背景",
+                "prompt_delta": "把背景从 CG 棚拍切换为真实生活场景，加入自然漫反射与细微阴影",
+                "strength": "moderate",
+            })
+        if "太" in text or "过" in text or "不够" in text:
+            options.append({
+                "label": "调整强度",
+                "rationale": "按指令微调对应视觉要素的强弱",
+                "prompt_delta": text,
+                "strength": "subtle",
+            })
+        if not options:
+            options.append({
+                "label": "按原指令执行",
+                "rationale": "未识别到具体方向，直接使用用户指令",
+                "prompt_delta": text or "按当前指令调整",
+                "strength": "moderate",
+            })
+        return {
+            "understanding": text[:80] if text else "未获取到具体反馈",
+            "root_causes": [],
+            "options": options[:3],
+            "keep": locked_objects[:4],
+            "risks": ["VLM 不可用，已回退到规则建议"] if reason != "no_pinned_image" else [],
+            "model_used": "",
+            "round": max(1, int(round_num or 1)),
+            "escalation_hint": escalation_hint,
+            "degraded": True,
+            "degrade_reason": reason,
+        }
+
+    async def escalate_regenerate(
+        self,
+        pack: Any,
+        *,
+        user_prompt: str,
+        recent_user_requests: list[str] | None = None,
+        recent_understandings: list[str] | None = None,
+    ) -> dict:
+        """汇总多轮上下文 → LLM 合成一条具体的强化 prompt。
+
+        返回 { summary, prompt, keep, degraded, degrade_reason }。
+        调用方拿到 prompt 后组 ImagePrompt(mode=edit, model=强模型) 入队。
+        """
+        from apps.growth_lab.schemas.visual_workspace import EditContextPack
+
+        if not isinstance(pack, EditContextPack):
+            pack = EditContextPack.model_validate(pack)
+
+        intent_dict = pack.intent_context.model_dump(mode="json") if pack.intent_context else {}
+        template_ctx = pack.template_context.model_dump(mode="json") if pack.template_context else {}
+        editable_objects = [s.label for s in pack.visual_state.object_summaries if not s.locked]
+        locked_objects = [s.label for s in pack.visual_state.object_summaries if s.locked]
+        current_prompt = pack.current_variant.model_dump(mode="json") if pack.current_variant else {}
+
+        merged_user_msgs = list(recent_user_requests or []) or list(pack.recent_history.last_user_requests or [])
+        merged_user_msgs = [m for m in merged_user_msgs if m and m.strip()][-5:]
+        if user_prompt and user_prompt.strip():
+            merged_user_msgs.append(user_prompt.strip())
+
+        # 没有任何上下文 → 降级：直接用 user_prompt
+        if not merged_user_msgs:
+            return {
+                "summary": "用户未提供明确上下文，保持原 prompt",
+                "prompt": (user_prompt or "").strip() or "按当前方向优化",
+                "keep": locked_objects[:4],
+                "degraded": True,
+                "degrade_reason": "no_context",
+            }
+
+        try:
+            from apps.content_planning.adapters.llm_router import LLMMessage, llm_router
+        except ImportError:
+            return self._fallback_escalate(
+                user_prompt=user_prompt,
+                merged_user_msgs=merged_user_msgs,
+                locked_objects=locked_objects,
+                reason="llm_router_import_error",
+            )
+
+        payload = json.dumps({
+            "node": {
+                "role": pack.node_title or "",
+                "objective": pack.node_objective or "",
+                "slot_role": template_ctx.get("slot_role") or "",
+            },
+            "intent": {
+                "product_name": intent_dict.get("product_name", ""),
+                "audience": intent_dict.get("audience", ""),
+                "must_have": intent_dict.get("must_have") or [],
+                "avoid": intent_dict.get("avoid") or [],
+                "style_tags": intent_dict.get("style_tags") or [],
+            },
+            "editable_objects": editable_objects,
+            "locked_objects": locked_objects,
+            "recent_user_requests": merged_user_msgs,
+            "recent_understandings": [u for u in (recent_understandings or []) if u][-3:],
+            "current_variant": {
+                "variant_id": current_prompt.get("variant_id", ""),
+                "image_url": current_prompt.get("image_url", ""),
+            },
+        }, ensure_ascii=False)
+
+        try:
+            resp = await llm_router.achat(
+                [
+                    LLMMessage(role="system", content=_ESCALATE_SYSTEM_PROMPT),
+                    LLMMessage(role="user", content=payload),
+                ],
+                temperature=0.25, max_tokens=700,
+            )
+            obj = _safe_json_obj(resp.content)
+            summary = str(obj.get("summary") or "").strip()[:80]
+            prompt = str(obj.get("prompt") or "").strip()
+            keep = [str(x).strip()[:60] for x in (obj.get("keep") or [])][:6]
+            if prompt:
+                return {
+                    "summary": summary or "综合多轮反馈后强化生成",
+                    "prompt": prompt[:1200],
+                    "keep": keep or locked_objects[:4],
+                    "degraded": False,
+                    "degrade_reason": "",
+                }
+        except Exception as exc:
+            logger.warning("[Copilot] escalate_regenerate LLM 失败 %s", exc)
+
+        return self._fallback_escalate(
+            user_prompt=user_prompt,
+            merged_user_msgs=merged_user_msgs,
+            locked_objects=locked_objects,
+            reason="llm_failed",
+        )
+
+    @staticmethod
+    def _fallback_escalate(
+        *,
+        user_prompt: str,
+        merged_user_msgs: list[str],
+        locked_objects: list[str],
+        reason: str,
+    ) -> dict:
+        joined = "；".join(merged_user_msgs[-3:])
+        prompt = (
+            f"综合以下用户反馈进行图像编辑：{joined}。"
+            f"{('保留：' + '、'.join(locked_objects[:3]) + '。') if locked_objects else ''}"
+            "强调真实材质、合理光影、整体高级感；避免塑料感、CG 棚拍感与不自然反射。"
+        )
+        return {
+            "summary": f"综合 {len(merged_user_msgs)} 轮反馈（规则降级）",
+            "prompt": prompt[:1200],
+            "keep": locked_objects[:4],
+            "degraded": True,
+            "degrade_reason": reason,
+        }
+
+
+_ANALYZE_EDIT_SYSTEM_PROMPT = """\
+你是视觉工作台的资深图像调优助手。用户对一张当前图提出了不满意的反馈，你需要：
+1) 先"看"给你的图片（通过 image_url 传入），理解用户抱怨点的真实视觉根因；
+2) 结合节点的 role / intent / 锁定对象，给出 2-4 条可点击的优化方向。
+
+严格输出 JSON（不要 code fence、不要解释）：
+{
+  "understanding": "一句话总结你对问题的理解（≤60字）",
+  "root_causes": ["诊断要点1（可从材质/光影/构图/对象/文案/色彩切入）", "≤3 条"],
+  "options": [
+    {
+      "label": "chip 文案（≤14字，动宾短语）",
+      "rationale": "为什么值得这么改（≤40字）",
+      "prompt_delta": "直接可拼到 img2img 的具体英文/中文描述（≤120字），要具体到材质/光照/构图等视觉要素",
+      "strength": "subtle|moderate|strong"
+    }
+  ],
+  "keep": ["必须保留的要点，≤4条（如：保持产品正面、保持 logo 位置）"],
+  "risks": ["风险/副作用，≤3条"]
+}
+
+约束：
+- options 里每条都必须真正能提升真实感/质感/构图/文案，不要泛泛（禁止出现"整体优化""更好看"等空话）。
+- prompt_delta 要指向具体可执行的画面要素，便于 img2img 直接叠加。
+- 若图片本身没有明显问题，options 至少给 1 条"按原指令调整"。
+- 不要修改 locked_objects 里的对象。
+"""
+
+_ESCALATE_SYSTEM_PROMPT = """\
+你是资深图像总监。用户连续多轮对同一张图不满意，请综合历次反馈，给出一条【更具体、更可执行】的图像编辑指令，
+目标是修复用户反复提到的问题，一次性到位。
+
+严格输出 JSON（不要 code fence）：
+{
+  "summary": "这次综合要改什么、为什么（≤40字）",
+  "prompt": "给图像模型的完整编辑描述（150~400字），包含：材质/光影/构图/色彩/氛围/保留项；避免塑料感等反复被吐槽的问题",
+  "keep": ["必须保留的要点列表，≤5条"]
+}
+
+约束：
+- prompt 不要引用'如上所述/见下'，必须自包含。
+- 若用户反馈含'不真实/塑料感'等材质问题，prompt 中必须包含具体的材质与光照描述。
+- 不要输出风险/多余解释，只输出 JSON。
+"""
+
 
 _instance: WorkspaceCopilot | None = None
 
