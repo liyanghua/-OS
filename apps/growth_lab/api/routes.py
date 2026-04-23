@@ -16,7 +16,7 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from starlette.responses import StreamingResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -1325,6 +1325,8 @@ class WorkspaceCompileRequest(BaseModel):
     template_overrides: dict[str, str] = Field(default_factory=dict)
     # {frame_key: True} → 强制"仅借框架"：骨架化并按 intent 重参数化，丢弃品类细节
     borrow_frame_only: dict[str, bool] = Field(default_factory=dict)
+    # 图像模型偏好：auto / wan25 / gemini / seedream / flux
+    model_preference: str = "auto"
 
 
 class WorkspaceGenerateNodeRequest(BaseModel):
@@ -1405,6 +1407,7 @@ async def compile_workspace(req: WorkspaceCompileRequest) -> dict:
         must_have=req.must_have,
         avoid=req.avoid,
         requested_counts=req.requested_counts,
+        model_preference=(req.model_preference or "auto"),
         source_spec_id=req.source_spec_id,
     )
     # 若传入了 source_spec_id 且字段不全，尝试用 spec 回填
@@ -1425,6 +1428,7 @@ async def compile_workspace(req: WorkspaceCompileRequest) -> dict:
         intent,
         template_overrides=req.template_overrides or None,
         borrow_frame_only=req.borrow_frame_only or None,
+        model_preference=req.model_preference or None,
     )
     plan_dict = plan.model_dump(mode="json")
     plan_dict["workspace_id"] = req.workspace_id
@@ -1771,6 +1775,73 @@ class WorkspaceCopilotProposeRequest(BaseModel):
     user_prompt: str = ""
     selection_context: WorkspaceSelectionContextPayload | None = None
     conversation_state: WorkspaceConversationState | None = None
+
+
+class WorkspaceOnboardingChatTurn(BaseModel):
+    role: str = "user"
+    content: str = ""
+
+
+class WorkspaceOnboardingRequest(BaseModel):
+    history: list[WorkspaceOnboardingChatTurn] = []
+    draft_intent: dict[str, Any] = {}
+
+
+@router.post("/api/workspace/onboarding")
+async def workspace_onboarding(req: WorkspaceOnboardingRequest) -> dict:
+    """对话式新建 plan：多轮收集意图，返回下一个问题或 ready_to_compile。"""
+    from apps.growth_lab.services.workspace_copilot import get_workspace_copilot
+
+    copilot = get_workspace_copilot()
+    history = [t.model_dump() for t in (req.history or [])]
+    return await copilot.onboarding_chat(history=history, draft_intent=req.draft_intent or {})
+
+
+_UPLOAD_ALLOWED_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}
+_UPLOAD_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+_UPLOAD_EXT_BY_MIME = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+
+
+@router.post("/api/workspace/upload-image")
+async def workspace_upload_image(file: UploadFile = File(...)) -> dict:
+    """上传参考图：返回可访问的 URL（落到 data/source_images/user-uploads/）。"""
+    import hashlib
+    import re as _re
+    from pathlib import Path as _Path
+
+    mime = (file.content_type or "").lower()
+    if mime not in _UPLOAD_ALLOWED_MIME:
+        raise HTTPException(415, f"不支持的图片类型：{mime or 'unknown'}")
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "空文件")
+    if len(data) > _UPLOAD_MAX_BYTES:
+        raise HTTPException(413, f"文件超过 {_UPLOAD_MAX_BYTES // (1024 * 1024)} MB 上限")
+
+    src_dir = _Path(__file__).resolve().parents[3] / "data" / "source_images" / "user-uploads"
+    src_dir.mkdir(parents=True, exist_ok=True)
+
+    sha1 = hashlib.sha1(data).hexdigest()[:12]
+    raw_name = (file.filename or "ref").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    raw_stem, _, _raw_ext = raw_name.rpartition(".")
+    safe_stem = _re.sub(r"[^A-Za-z0-9._\-\u4e00-\u9fa5]+", "_", (raw_stem or raw_name))[:40] or "ref"
+    ext = _UPLOAD_EXT_BY_MIME.get(mime, ".bin")
+    fname = f"{sha1}_{safe_stem}{ext}"
+    fpath = src_dir / fname
+    if not fpath.exists():
+        fpath.write_bytes(data)
+    return {
+        "url": f"/source-images/user-uploads/{fname}",
+        "bytes": len(data),
+        "mime": mime,
+        "filename": fname,
+    }
 
 
 @router.get("/api/workspace/node/{node_id}/suggest-actions")

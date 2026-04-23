@@ -47,6 +47,27 @@ def _size_for_node(aspect_ratio: str) -> str:
     return _ASPECT_TO_SIZE.get(aspect_ratio or "1:1", "1024*1024")
 
 
+# 用户在 onboarding 里选的"模型偏好"到 (provider_hint, model_id) 的映射
+# auto 保持"provider=auto + 空 model"，保留现有 DashScope 优先、OpenRouter 回退行为
+_MODEL_PREFERENCE_MAP: dict[str, tuple[str, str]] = {
+    "auto": ("auto", ""),
+    "wan25": ("dashscope", "wan2.5-t2i-preview"),
+    "gemini": ("openrouter", "google/gemini-3.1-flash-image-preview"),
+    "seedream": ("openrouter", "bytedance-seed/seedream-4.5"),
+    "flux": ("openrouter", "black-forest-labs/flux.2-pro"),
+}
+
+
+def _resolve_image_model(pref: str | None) -> tuple[str, str]:
+    """把 intent.model_preference 映射为 (provider_hint, model_id)。
+
+    未识别的值当作 auto 处理。返回的 model_id 为空字符串时表示不做 per-request 覆盖，
+    由 ImageGeneratorService 使用自身默认模型。
+    """
+    key = (pref or "auto").strip().lower()
+    return _MODEL_PREFERENCE_MAP.get(key, _MODEL_PREFERENCE_MAP["auto"])
+
+
 def _lookup_slot_and_template(node: dict) -> tuple[Any, Any]:
     """通过 `template_slot_ref = '{template_id}#{slot_index}'` 回查模板与 slot。
 
@@ -192,6 +213,14 @@ class VisualNodeGenerator:
         negative_prompt = _compose_negative_prompt(node, intent)
         size = _size_for_node(node.get("aspect_ratio", "1:1"))
 
+        style_refs_raw = list((intent or {}).get("style_refs") or [])
+        ref_urls = [
+            s for s in style_refs_raw
+            if isinstance(s, str) and (s.startswith("http") or s.startswith("/"))
+        ][:1]
+
+        provider_hint, model_id = _resolve_image_model((intent or {}).get("model_preference"))
+
         variants_to_save: list[Variant] = []
         variant_dicts: list[dict[str, Any]] = []
         pending_batch_tag = uuid.uuid4().hex[:12]
@@ -206,7 +235,6 @@ class VisualNodeGenerator:
             )
             variants_to_save.append(v)
 
-            # 为 VariantBatchQueue 构造 variant dict（它期待的 shape）
             variant_dict = {
                 "variant_id": v.variant_id,
                 "source_opportunity_id": plan.get("plan_id", "") if plan else "",
@@ -214,8 +242,9 @@ class VisualNodeGenerator:
                     "base_prompt": prompt,
                     "negative_prompt": negative_prompt,
                     "size": size,
-                    "reference_image_urls": [],
-                    "provider_hint": "auto",
+                    "reference_image_urls": list(ref_urls),
+                    "provider_hint": provider_hint,
+                    "model": model_id,
                 },
                 "_node_id": node_id,
             }
@@ -282,6 +311,10 @@ class VisualNodeGenerator:
 
         size = _size_for_node(node.get("aspect_ratio", "1:1"))
 
+        # edit 模式下，DashScope 会统一走 qwen-image-edit（忽略 model 覆盖）；
+        # 若回退到 OpenRouter，则把用户选的模型作为首选。这里仍然透传 provider_hint + model。
+        provider_hint, model_id = _resolve_image_model((intent or {}).get("model_preference"))
+
         variants_to_save: list[Variant] = []
         variant_dicts: list[dict[str, Any]] = []
         pending_batch_tag = uuid.uuid4().hex[:12]
@@ -309,7 +342,8 @@ class VisualNodeGenerator:
                     "negative_prompt": negative_prompt,
                     "size": size,
                     "reference_image_urls": [base_asset_url],
-                    "provider_hint": "auto",
+                    "provider_hint": provider_hint,
+                    "model": model_id,
                     "mode": "edit",
                 },
                 "_node_id": node_id,

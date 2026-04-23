@@ -32,14 +32,14 @@
       background: var(--accent-warn); color: #fff; margin-left: 4px; vertical-align: top; }
 
     .workspace {
-      display: grid; grid-template-columns: 280px 1fr 320px;
-      grid-template-rows: 52px 1fr 64px;
+      display: grid; grid-template-columns: 1fr 380px;
+      grid-template-rows: 52px 28px 1fr 64px;
       height: calc(100vh - 48px);
     }
 
     /* Top bar */
     .ws-topbar {
-      grid-column: 1 / 4; grid-row: 1 / 2;
+      grid-column: 1 / 3; grid-row: 1 / 2;
       background: var(--surface); border-bottom: 1px solid var(--border);
       padding: 0 16px; display: flex; align-items: center; gap: 12px;
     }
@@ -53,32 +53,34 @@
       background: var(--primary-light); color: var(--primary); font-weight: 600;
     }
 
-    /* Left column */
-    .ws-left {
-      grid-column: 1 / 2; grid-row: 2 / 4;
-      background: var(--surface); border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; overflow: hidden;
+    /* Breadcrumb row (replaces left column) */
+    .ws-breadcrumb {
+      grid-column: 1 / 3; grid-row: 2 / 3;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 2px; padding: 0 14px;
+      overflow-x: auto; white-space: nowrap;
     }
-    .ws-tabs { display: flex; border-bottom: 1px solid var(--border); }
-    .ws-tab {
-      flex: 1; padding: 10px 6px; font-size: 12px; cursor: pointer; text-align: center;
-      color: var(--muted); border-bottom: 2px solid transparent; font-weight: 600;
+    .ws-breadcrumb .bc-item {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11.5px; padding: 3px 8px; border-radius: 5px;
+      color: var(--ink); background: transparent; border: 1px solid transparent;
+      cursor: pointer; transition: all .12s;
+      max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+      font-family: inherit;
     }
-    .ws-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
-    .ws-tab-body { flex: 1; overflow-y: auto; padding: 14px; font-size: 12.5px; }
-    .ws-section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;
-      letter-spacing: 0.3px; margin-bottom: 6px; }
-    .ws-row { margin-bottom: 12px; }
-    .ws-row label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
-    .ws-row input, .ws-row textarea, .ws-row select {
-      width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
-      font-size: 12px; font-family: inherit; background: var(--bg); outline: none; resize: vertical;
+    .ws-breadcrumb .bc-item:hover:not(:disabled) {
+      background: var(--primary-light); border-color: var(--primary); color: var(--primary);
     }
-    .ws-row textarea { min-height: 54px; }
+    .ws-breadcrumb .bc-item:disabled { opacity: .6; cursor: default; }
+    .ws-breadcrumb .bc-item .bc-k {
+      color: var(--muted); font-size: 10.5px; font-weight: 500; margin-right: 2px;
+    }
+    .ws-breadcrumb .bc-item .bc-v { color: var(--ink); font-weight: 600; }
+    .ws-breadcrumb .bc-sep { color: var(--border); font-size: 11px; padding: 0 2px; user-select: none; }
 
     /* Canvas area */
     .ws-canvas-wrap {
-      grid-column: 2 / 3; grid-row: 2 / 3;
+      grid-column: 1 / 2; grid-row: 3 / 4;
       position: relative; overflow: hidden;
       background-color: var(--canvas-bg);
       background-image:
@@ -141,7 +143,7 @@
 
     /* Right column — sticky 三明治 */
     .ws-right {
-      grid-column: 3 / 4; grid-row: 2 / 4;
+      grid-column: 2 / 3; grid-row: 3 / 5;
       background: var(--surface); border-left: 1px solid var(--border);
       display: grid; grid-template-rows: auto 1fr auto; height: 100%;
       overflow: hidden;
@@ -260,6 +262,87 @@
     .conv-input-row textarea:focus { border-color: var(--primary); background: #fff; }
     .conv-quick-btns { display: flex; gap: 4px; flex-wrap: wrap; }
 
+    /* Agent focus card (right column header, compact one-liner) */
+    .agent-focus {
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 4px; background: #fafbff;
+    }
+    .agent-focus .af-row {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      font-size: 11.5px; color: var(--ink);
+    }
+    .agent-focus .af-row .af-k { color: var(--muted); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+    .agent-focus .af-row .af-v { color: var(--ink); font-weight: 600; }
+    .agent-focus .af-dir {
+      font-size: 12px; color: #6d28d9; line-height: 1.45;
+      background: #f5f3ff; border-left: 3px solid #c4b5fd; padding: 4px 8px;
+      border-radius: 0 6px 6px 0; margin-top: 2px;
+      overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .agent-focus .af-muted { color: var(--muted); font-size: 11px; }
+
+    /* Agent timeline bubbles */
+    .agent-timeline {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 12px 12px 16px; overflow-y: auto;
+    }
+    .agent-msg {
+      display: flex; flex-direction: column; gap: 6px;
+      border-radius: 12px; padding: 10px 12px;
+      max-width: 100%; font-size: 12.5px; line-height: 1.55;
+    }
+    .agent-msg .msg-head {
+      display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .4px; font-weight: 700;
+    }
+    .agent-msg .msg-head .msg-tag { padding: 1px 6px; border-radius: 4px; background: var(--bg); color: var(--ink); }
+    .agent-msg .msg-head .msg-ts { margin-left: auto; font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: 0; }
+    .agent-msg.role-user {
+      background: var(--primary-light); align-self: flex-end; max-width: 92%;
+      border: 1px solid rgba(79,70,229,0.22);
+    }
+    .agent-msg.role-user .msg-body { color: var(--ink); white-space: pre-wrap; }
+    .agent-msg.role-assistant {
+      background: #fff; border: 1px solid var(--border);
+      border-left: 3px solid var(--primary);
+    }
+    .agent-msg.role-system {
+      background: #fffdf5; border: 1px dashed #f59e0b;
+    }
+    .agent-msg.role-assistant .msg-body { color: var(--ink); }
+    .agent-msg .msg-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .agent-msg .msg-actions .btn-sm { padding: 3px 8px; font-size: 11px; }
+    .agent-msg .msg-slot { /* 用于承接原渲染函数写入 */ }
+
+    /* Quick chips above composer */
+    .conv-quick-chips {
+      display: flex; gap: 4px; flex-wrap: wrap; padding-bottom: 2px;
+    }
+    .conv-quick-chips .qc-chip {
+      font-size: 11px; padding: 3px 8px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+      cursor: pointer; font-family: inherit;
+    }
+    .conv-quick-chips .qc-chip:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+
+    /* Slash / @ autocomplete popup */
+    .composer-ac {
+      position: absolute; z-index: 120; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 8px 20px rgba(15,23,42,.08);
+      min-width: 220px; max-width: 320px; padding: 4px 0;
+      max-height: 240px; overflow-y: auto;
+    }
+    .composer-ac .ac-item {
+      display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+      font-size: 12px; cursor: pointer;
+    }
+    .composer-ac .ac-item:hover, .composer-ac .ac-item.active {
+      background: var(--primary-light); color: var(--primary);
+    }
+    .composer-ac .ac-key { font-weight: 700; min-width: 60px; color: var(--primary); font-size: 11.5px; }
+    .composer-ac .ac-desc { color: var(--muted); font-size: 11px; flex: 1; }
+
     /* Clarification card */
     .clarify-card {
       border: 1px solid #f59e0b; background: #fef3c7; border-radius: 8px; padding: 10px;
@@ -304,10 +387,55 @@
 
     /* Bottom bar */
     .ws-bottom {
-      grid-column: 1 / 4; grid-row: 3 / 4;
+      grid-column: 1 / 2; grid-row: 4 / 5;
       background: var(--surface); border-top: 1px solid var(--border);
       padding: 0 16px; display: flex; align-items: center; gap: 10px;
     }
+
+    /* Drawer overlay */
+    .ws-drawer-mask {
+      position: fixed; inset: 48px 0 0 0; background: rgba(15, 23, 42, 0.28);
+      z-index: 140; opacity: 0; pointer-events: none; transition: opacity .18s;
+    }
+    .ws-drawer-mask.show { opacity: 1; pointer-events: auto; }
+    .ws-drawer {
+      position: fixed; top: 48px; bottom: 0; right: 0;
+      width: var(--ws-drawer-w, 480px); max-width: 96vw; background: var(--surface);
+      border-left: 1px solid var(--border); box-shadow: -8px 0 24px rgba(15,23,42,0.06);
+      z-index: 150; transform: translateX(calc(100% + 8px)); transition: transform .22s ease;
+      display: flex; flex-direction: column;
+    }
+    .ws-drawer.show { transform: translateX(0); }
+    .ws-drawer.resizing { transition: none; user-select: none; }
+    .ws-drawer-resizer {
+      position: absolute; left: -3px; top: 0; bottom: 0; width: 6px;
+      cursor: ew-resize; z-index: 151; background: transparent;
+      transition: background .15s;
+    }
+    .ws-drawer-resizer:hover, .ws-drawer-resizer.dragging { background: var(--primary, #2b59ff); opacity: 0.35; }
+    .ws-drawer .drawer-head {
+      display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ws-drawer .drawer-head .drawer-title { font-size: 13px; font-weight: 700; flex: 1; }
+    .ws-drawer .drawer-head .drawer-sub { font-size: 11px; color: var(--muted); }
+    .ws-drawer .drawer-close {
+      background: transparent; border: none; font-size: 18px; color: var(--muted);
+      cursor: pointer; width: 28px; height: 28px; border-radius: 6px;
+    }
+    .ws-drawer .drawer-close:hover { background: var(--bg); color: var(--ink); }
+    .ws-drawer .drawer-body {
+      flex: 1; overflow-y: auto; padding: 14px; font-size: 12.5px;
+    }
+    .ws-section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.3px; margin-bottom: 6px; }
+    .ws-row { margin-bottom: 12px; }
+    .ws-row label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    .ws-row input, .ws-row textarea, .ws-row select {
+      width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: 12px; font-family: inherit; background: var(--bg); outline: none; resize: vertical;
+    }
+    .ws-row textarea { min-height: 54px; }
 
     .btn {
       display: inline-flex; align-items: center; gap: 6px;
@@ -383,7 +511,7 @@
     </div>
     <span id="ws-template-badge" title="模板匹配摘要"
           style="display:none; cursor:pointer; font-size:11.5px; padding:4px 10px; border-radius:999px; background:var(--primary-light); color:var(--primary); border:1px solid var(--primary); max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-          onclick="switchTab('template')"></span>
+          onclick="openDrawer('template')"></span>
     <span id="ws-status-chip" style="display:none; font-size:11.5px; padding:4px 10px; border-radius:999px; background:#f3f4f6; color:#374151; border:1px solid var(--border);"></span>
     <div class="ws-output-chips" id="ws-output-chips"></div>
     <div class="ws-topbar-spacer"></div>
@@ -395,105 +523,155 @@
     <button class="btn btn-success btn-sm" onclick="exportProduction()">导出生产包</button>
   </div>
 
-  <!-- Left column -->
-  <div class="ws-left">
-    <div class="ws-tabs">
-      <div class="ws-tab active" data-tab="intent" onclick="switchTab('intent')">意图</div>
-      <div class="ws-tab" data-tab="template" onclick="switchTab('template')">模板策略</div>
-      <div class="ws-tab" data-tab="compile" onclick="switchTab('compile')">编译计划</div>
-      <div class="ws-tab" data-tab="tree" onclick="switchTab('tree')">结构树</div>
-      <div class="ws-tab" data-tab="plans" onclick="switchTab('plans')">历史</div>
-      <div class="ws-tab" data-tab="help" onclick="switchTab('help')">帮助</div>
-    </div>
-
-    <div class="ws-tab-body" id="tab-intent">
-      <div class="ws-section-title">任务意图</div>
-      <div class="ws-row"><label>商品/品牌</label><input id="in-product" placeholder="如 JOYRUQO 洁面乳" /></div>
-      <div class="ws-row"><label>目标人群</label><input id="in-audience" placeholder="如 25-30 岁敏感肌女性" /></div>
-      <div class="ws-row"><label>输出类型（可多选）</label>
-        <div class="ws-option-row" id="output-types">
-          <span class="ws-option-chip active" data-val="main_image">主图5张</span>
-          <span class="ws-option-chip" data-val="detail">详情8模块</span>
-          <span class="ws-option-chip" data-val="video_shots">视频分镜</span>
-          <span class="ws-option-chip" data-val="buyer_show">买家秀8张</span>
-          <span class="ws-option-chip" data-val="competitor">竞品对标</span>
-        </div>
-      </div>
-      <div class="ws-row"><label>仅借框架（跨品类）</label>
-        <div class="ws-option-row" id="borrow-frame-only" title="勾选后：只保留模板的叙事/构图骨架，丢弃原品类文案细节，由 AI 按当前意图重新填充">
-          <span class="ws-option-chip" data-val="main_image">主图</span>
-          <span class="ws-option-chip" data-val="detail">详情</span>
-          <span class="ws-option-chip" data-val="video_shots">视频</span>
-          <span class="ws-option-chip" data-val="buyer_show">买家秀</span>
-          <span class="ws-option-chip" data-val="competitor">竞品</span>
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">专家模板是洁面乳为主；非洁面乳品类建议勾选，让 AI 按你的意图重参数化。</div>
-      </div>
-      <div class="ws-row"><label>风格参考</label><input id="in-style" placeholder="如 极简高端、日系清新（逗号分隔）" /></div>
-      <div class="ws-row"><label>必须呈现</label><input id="in-must" placeholder="核心卖点1, 核心卖点2" /></div>
-      <div class="ws-row"><label>避免</label><input id="in-avoid" placeholder="如 真人大头照、夸张字体" /></div>
-      <div class="ws-row"><label>来源卖点 spec_id（可选）</label><input id="in-spec" placeholder="从编译器带入" /></div>
-      <button class="btn btn-primary" style="width: 100%;" onclick="compileNewPlan()">AI 一键编译</button>
-    </div>
-
-    <div class="ws-tab-body" id="tab-template" style="display:none;">
-      <div class="ws-section-title">当前绑定模板</div>
-      <div id="binding-list" style="margin-bottom:10px;">
-        <div style="color:var(--muted); font-size:12px;">编译 plan 后在此查看绑定。</div>
-      </div>
-      <div class="ws-section-title" style="margin-top:14px;">品牌规则</div>
-      <div id="brand-rule-panel" style="margin-bottom:10px;">
-        <div style="color:var(--muted); font-size:12px;">加载中…</div>
-      </div>
-      <div class="ws-section-title" style="margin-top:14px;">模板库</div>
-      <div id="tpl-list"></div>
-    </div>
-
-    <div class="ws-tab-body" id="tab-compile" style="display:none;">
-      <div class="ws-section-title">编译计划</div>
-      <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">系统把 意图+模板 展开成哪些输出节点、按什么顺序生成与评估。</div>
-      <div id="compile-plan-body">
-        <div style="color:var(--muted); font-size:12px;">先编译一个 plan 再看。</div>
-      </div>
-    </div>
-
-    <div class="ws-tab-body" id="tab-tree" style="display:none;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div class="ws-section-title" style="margin:0;">结果结构树</div>
-        <button class="btn btn-ghost btn-sm" onclick="loadPlanTree()" title="刷新">↻</button>
-      </div>
-      <div style="font-size:11px; color:var(--muted); margin:4px 0 8px;">Plan → Frame → 节点 → 对象。点任一级跳到画布并选中。</div>
-      <div id="tree-body">
-        <div style="color:var(--muted); font-size:12px;">先编译一个 plan 再看。</div>
-      </div>
-    </div>
-
-    <div class="ws-tab-body" id="tab-plans" style="display:none;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div class="ws-section-title" style="margin:0;">生图历史</div>
-        <button class="btn btn-ghost btn-sm" onclick="loadPlans()" title="刷新">↻</button>
-      </div>
-      <div style="font-size:11px; color:var(--muted); margin:4px 0 8px;">点任一缩略图 → 跳到对应节点，右栏可直接对话式改图（img2img）。</div>
-      <div id="plan-list"></div>
-    </div>
-
-    <div class="ws-tab-body" id="tab-help" style="display:none;">
-      <div class="ws-section-title">画布操作</div>
-      <div style="font-size:12px;line-height:1.8;color:var(--muted);">
-        · 空格+拖动 / 中键拖动 平移<br/>
-        · Ctrl+滚轮 缩放（0.25× ~ 4×）<br/>
-        · 单击节点 → 右栏显示上下文<br/>
-        · 点击节点的"生成"按钮 → 调用生成<br/>
-        · Frame 顶部"生成本组" → 批量生成
-      </div>
-      <div class="ws-section-title" style="margin-top:16px;">设计原则</div>
-      <div style="font-size:12px;line-height:1.8;color:var(--muted);">
-        AI 先做 80%，操盘手做关键 20%。<br/>
-        节点=一等公民，画布=空间容器。<br/>
-        每个模板都来自业务专家的真实打法。
-      </div>
-    </div>
+  <!-- Breadcrumb: 顶栏下方单行上下文摘要，点击对应项打开右侧抽屉 -->
+  <div class="ws-breadcrumb" id="ws-breadcrumb">
+    <button type="button" class="bc-item" id="bc-plan" onclick="openDrawer('intent')" title="当前任务意图">
+      <span class="bc-k">Plan</span><span class="bc-v" id="bc-plan-v">未命名</span>
+    </button>
+    <span class="bc-sep">·</span>
+    <button type="button" class="bc-item" id="bc-template" onclick="openDrawer('template')" title="模板与品牌规则">
+      <span class="bc-k">模板</span><span class="bc-v" id="bc-template-v">未绑定</span>
+    </button>
+    <span class="bc-sep">·</span>
+    <button type="button" class="bc-item" id="bc-stage" onclick="openDrawer('tree')" title="结构树 & 进度">
+      <span class="bc-k">阶段</span><span class="bc-v" id="bc-stage-v">—</span>
+    </button>
+    <span class="bc-sep">·</span>
+    <button type="button" class="bc-item" id="bc-brand" onclick="openDrawer('brand')" title="品牌规则">
+      <span class="bc-k">品牌</span><span class="bc-v" id="bc-brand-v">—</span>
+    </button>
+    <span class="bc-sep">·</span>
+    <button type="button" class="bc-item" id="bc-focus" onclick="focusSelectedOnCanvas()" title="跳到当前焦点">
+      <span class="bc-k">焦点</span><span class="bc-v" id="bc-focus-v">—</span>
+    </button>
+    <span class="bc-sep">·</span>
+    <button type="button" class="bc-item" id="bc-direction" onclick="openDrawer('intent')" title="当前方向摘要">
+      <span class="bc-k">方向</span><span class="bc-v" id="bc-direction-v">—</span>
+    </button>
+    <div style="flex:1;"></div>
+    <button type="button" class="bc-item" onclick="openDrawer('history')" title="生图历史">
+      <span class="bc-k">历史</span><span class="bc-v">📚</span>
+    </button>
+    <button type="button" class="bc-item" onclick="openDrawer('help')" title="操作帮助">
+      <span class="bc-k">帮助</span><span class="bc-v">?</span>
+    </button>
   </div>
+
+  <!-- Drawer: 右侧滑出式容器，承载原左栏所有 Tab 内容 -->
+  <div class="ws-drawer-mask" id="ws-drawer-mask" onclick="closeDrawer()"></div>
+  <aside class="ws-drawer" id="ws-drawer" role="dialog" aria-hidden="true">
+    <div class="ws-drawer-resizer" id="ws-drawer-resizer" title="拖拽调整宽度（双击切换 480/800）"></div>
+    <div class="drawer-head">
+      <div class="drawer-title" id="drawer-title">详情</div>
+      <span class="drawer-sub" id="drawer-sub"></span>
+      <button type="button" class="drawer-close" onclick="closeDrawer()" title="关闭 (Esc)">×</button>
+    </div>
+    <div class="drawer-body" id="drawer-body">
+      <!-- intent -->
+      <section data-drawer="intent" style="display:none;">
+        <div class="ws-section-title">任务意图</div>
+        <div class="ws-row"><label>商品/品牌</label><input id="in-product" placeholder="如 JOYRUQO 洁面乳" /></div>
+        <div class="ws-row"><label>目标人群</label><input id="in-audience" placeholder="如 25-30 岁敏感肌女性" /></div>
+        <div class="ws-row"><label>输出类型（可多选）</label>
+          <div class="ws-option-row" id="output-types">
+            <span class="ws-option-chip active" data-val="main_image">主图5张</span>
+            <span class="ws-option-chip" data-val="detail">详情8模块</span>
+            <span class="ws-option-chip" data-val="video_shots">视频分镜</span>
+            <span class="ws-option-chip" data-val="buyer_show">买家秀8张</span>
+            <span class="ws-option-chip" data-val="competitor">竞品对标</span>
+          </div>
+        </div>
+        <div class="ws-row"><label>仅借框架（跨品类）</label>
+          <div class="ws-option-row" id="borrow-frame-only" title="勾选后：只保留模板的叙事/构图骨架，丢弃原品类文案细节，由 AI 按当前意图重新填充">
+            <span class="ws-option-chip" data-val="main_image">主图</span>
+            <span class="ws-option-chip" data-val="detail">详情</span>
+            <span class="ws-option-chip" data-val="video_shots">视频</span>
+            <span class="ws-option-chip" data-val="buyer_show">买家秀</span>
+            <span class="ws-option-chip" data-val="competitor">竞品</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">专家模板以洁面乳为主；非洁面乳品类建议勾选，让 AI 按你的意图重参数化。</div>
+        </div>
+        <div class="ws-row"><label>风格参考</label><input id="in-style" placeholder="如 极简高端、日系清新（逗号分隔）" /></div>
+        <div class="ws-row"><label>必须呈现</label><input id="in-must" placeholder="核心卖点1, 核心卖点2" /></div>
+        <div class="ws-row"><label>避免</label><input id="in-avoid" placeholder="如 真人大头照、夸张字体" /></div>
+        <div class="ws-row"><label>来源卖点 spec_id（可选）</label><input id="in-spec" placeholder="从编译器带入" /></div>
+        <button class="btn btn-primary" style="width: 100%;" onclick="compileNewPlan()">AI 一键编译</button>
+        <div class="ws-section-title" style="margin-top:18px;">当前方向摘要</div>
+        <div id="drawer-direction-body" style="font-size:12px; color:var(--ink); line-height:1.6;">
+          <span style="color:var(--muted);">先出一版再总结方向。</span>
+        </div>
+      </section>
+
+      <!-- template -->
+      <section data-drawer="template" style="display:none;">
+        <div class="ws-section-title">当前绑定模板</div>
+        <div id="binding-list" style="margin-bottom:10px;">
+          <div style="color:var(--muted); font-size:12px;">编译 plan 后在此查看绑定。</div>
+        </div>
+        <div class="ws-section-title" style="margin-top:14px;">编译计划</div>
+        <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">系统把 意图+模板 展开成哪些输出节点、按什么顺序生成与评估。</div>
+        <div id="compile-plan-body" style="margin-bottom:10px;">
+          <div style="color:var(--muted); font-size:12px;">先编译一个 plan 再看。</div>
+        </div>
+        <div class="ws-section-title" style="margin-top:14px;">模板库</div>
+        <div id="tpl-list"></div>
+      </section>
+
+      <!-- tree -->
+      <section data-drawer="tree" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="ws-section-title" style="margin:0;">结果结构树</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadPlanTree()" title="刷新">↻</button>
+        </div>
+        <div style="font-size:11px; color:var(--muted); margin:4px 0 8px;">Plan → Frame → 节点 → 对象。点任一级跳到画布并选中。</div>
+        <div id="tree-body">
+          <div style="color:var(--muted); font-size:12px;">先编译一个 plan 再看。</div>
+        </div>
+      </section>
+
+      <!-- history -->
+      <section data-drawer="history" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="ws-section-title" style="margin:0;">生图历史</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadPlans()" title="刷新">↻</button>
+        </div>
+        <div style="font-size:11px; color:var(--muted); margin:4px 0 8px;">点任一缩略图 → 跳到对应节点，右栏可直接对话式改图（img2img）。</div>
+        <div id="plan-list"></div>
+      </section>
+
+      <!-- brand -->
+      <section data-drawer="brand" style="display:none;">
+        <div class="ws-section-title">品牌规则</div>
+        <div id="brand-rule-panel" style="margin-bottom:10px;">
+          <div style="color:var(--muted); font-size:12px;">加载中…</div>
+        </div>
+      </section>
+
+      <!-- help -->
+      <section data-drawer="help" style="display:none;">
+        <div class="ws-section-title">画布操作</div>
+        <div style="font-size:12px;line-height:1.8;color:var(--muted);">
+          · 空格+拖动 / 中键拖动 平移<br/>
+          · Ctrl+滚轮 缩放（0.25× ~ 4×）<br/>
+          · 单击节点 → 右栏显示上下文<br/>
+          · 点击节点的"生成"按钮 → 调用生成<br/>
+          · Frame 顶部"生成本组" → 批量生成
+        </div>
+        <div class="ws-section-title" style="margin-top:16px;">Agent 对话</div>
+        <div style="font-size:12px;line-height:1.8;color:var(--muted);">
+          · 输入 <code>/</code> 触发抽屉命令（/intent、/template、/tree、/history、/brand）<br/>
+          · 输入 <code>@</code> 选择当前节点对象加入选区<br/>
+          · 点画布/历史任一图 → 自动 pin 为底图
+        </div>
+        <div class="ws-section-title" style="margin-top:16px;">设计原则</div>
+        <div style="font-size:12px;line-height:1.8;color:var(--muted);">
+          AI 先做 80%，操盘手做关键 20%。<br/>
+          节点=一等公民，画布=空间容器。<br/>
+          每个模板都来自业务专家的真实打法。
+        </div>
+      </section>
+    </div>
+  </aside>
 
   <!-- Center canvas -->
   <div class="ws-canvas-wrap" id="canvas-wrap">
@@ -526,81 +704,39 @@
     <div class="canvas-obj-popover" id="canvas-obj-popover"></div>
   </div>
 
-  <!-- Right column — sticky 三明治（顶部上下文+chips / 中间滚动 / 底部对话输入） -->
+  <!-- Right column — Agent 时间线范式：焦点卡 / 消息流 / composer -->
   <div class="ws-right" id="ws-right">
 
-    <!-- ① 顶部：编辑上下文卡 + 当前方向卡 + 主/辅对象 chips -->
-    <div class="ws-right-top" id="right-top">
-      <div class="ws-right-section" id="right-context">
-        <div class="ctx-card" id="ctx-card-edit">
-          <h4><span class="dot"></span>编辑上下文</h4>
-          <div id="ctx-card-body">
-            <div style="color:var(--muted); font-size:11.5px;">选中一个节点以开始。</div>
-          </div>
-        </div>
-        <div class="ctx-card" id="ctx-card-direction">
-          <h4 style="color:#7c3aed;"><span class="dot" style="background:#7c3aed;"></span>当前方向</h4>
-          <div id="ctx-card-direction-body" style="font-size:11.5px; color:var(--ink); line-height:1.5;">
-            <span style="color:var(--muted);">先出一版再总结方向。</span>
-          </div>
-        </div>
-        <div class="ws-right-title" style="margin:6px 0 4px;">
-          主/辅对象 <span class="ws-right-sub">点 chip 可以调整角色</span>
-        </div>
-        <div class="chip-row" id="obj-chips">
-          <span style="font-size:11px; color:var(--muted);">暂未选择</span>
+    <!-- 顶部焦点一行卡：主对象 chip + direction 摘要（取代原 ctx-card 三块） -->
+    <div class="agent-focus" id="agent-focus">
+      <div class="af-row" id="af-node-row">
+        <span class="af-k">focus</span>
+        <span class="af-v" id="af-node-label">尚未选中节点</span>
+      </div>
+      <div class="af-row" id="af-objs-row" style="display:none;">
+        <span class="af-k">对象</span>
+        <span class="chip-row" id="obj-chips" style="flex:1;"></span>
+      </div>
+      <div class="af-dir" id="af-direction" style="display:none;"></div>
+    </div>
+
+    <!-- 中间：消息时间线（所有 agent 输出按时间顺序追加） -->
+    <div class="agent-timeline" id="agent-timeline">
+      <div class="agent-msg role-assistant" id="agent-welcome">
+        <div class="msg-head"><span>Agent</span></div>
+        <div class="msg-body">
+          你好！我是视觉工作台 agent。在下方直接描述你想做什么，比如<br/>
+          · "给男士做一款洁面乳主图"<br/>
+          · "把这张主图右边改柔和一点"<br/>
+          点画布任一张图会自动带入对话。
         </div>
       </div>
     </div>
 
-    <!-- ② 中间滚动区：推荐动作 / Proposal v2 / mini compare / 节点变体 / 溯源折叠 -->
-    <div class="ws-right-middle" id="right-middle">
-      <div class="ws-right-section" id="right-suggestions">
-        <div class="ws-right-title">
-          ③ 推荐动作
-          <button class="btn btn-ghost btn-sm" onclick="refreshSuggestions(true)" title="用 LLM 重新生成建议">LLM</button>
-        </div>
-        <div id="suggestions-list" style="display:flex; flex-direction:column; gap:6px;">
-          <div style="color:var(--muted); font-size:11.5px;">选中节点后会自动生成。</div>
-        </div>
-      </div>
-
-      <div class="ws-right-section" id="right-proposal">
-        <div class="ws-right-title">④ 执行提案</div>
-        <div id="copilot-proposal">
-          <div style="color:var(--muted); font-size:11.5px;">
-            在底部输入你想改的内容，比如「把右边更柔和，文案更短」。
-          </div>
-        </div>
-      </div>
-
-      <div class="ws-right-section" id="right-compare" style="display:none;">
-        <div class="ws-right-title">候选对比 <span class="ws-right-sub">点选采纳为 active</span></div>
-        <div id="compare-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px;"></div>
-      </div>
-
-      <div class="ws-right-section" id="right-variants">
-        <div class="ws-right-title">节点变体</div>
-        <div id="node-variants" style="display:flex; flex-direction:column; gap:6px;">
-          <div style="color:var(--muted); font-size:11.5px;">选中节点后展示变体。</div>
-        </div>
-      </div>
-
-      <div class="ws-right-section" id="right-sources-wrap">
-        <details id="right-sources-details">
-          <summary style="font-size:12px; font-weight:700; cursor:pointer; user-select:none;">
-            为什么长这样（溯源）
-          </summary>
-          <div class="source-list" id="sources-list" style="margin-top:8px;">
-            <div style="color:var(--muted); font-size:11.5px;">暂无溯源信息。</div>
-          </div>
-        </details>
-      </div>
-    </div>
-
-    <!-- ③ 底部 sticky：对话输入 + 底图缩略 + 状态机 -->
+    <!-- 底部 sticky：对话输入 + 底图缩略 + 动态快捷 chips -->
     <div class="ws-right-bottom" id="right-bottom">
-      <div class="conv-input-wrap" id="conv-input-wrap">
+      <div class="conv-input-wrap" id="conv-input-wrap" style="position:relative;">
+        <div class="conv-quick-chips" id="conv-quick-chips"></div>
         <div id="conv-input-pin" class="conv-input-pin" style="display:none;">
           <div id="conv-pin-thumb-wrap" style="position:relative; display:inline-block; line-height:0;">
             <img id="conv-pin-thumb" src="" alt="底图" />
@@ -614,7 +750,7 @@
           还没选对象。随便打字也可以，我会按整图处理；或在画布/历史里点一张图加入对话。
         </div>
         <div class="conv-input-row">
-          <textarea id="copilot-input" placeholder="例：把右边更柔和，文案更短"></textarea>
+          <textarea id="copilot-input" placeholder="例：把右边更柔和，文案更短（按 / 调用抽屉、@ 选对象）"></textarea>
         </div>
         <div class="conv-quick-btns" id="conv-quick-btns">
           <button class="btn btn-primary btn-sm" id="btn-edit-variant" onclick="editActiveVariant()" title="以 pinned 图为底做 img2img">发送（微调）</button>
@@ -622,7 +758,7 @@
           <button class="btn btn-ghost btn-sm" id="btn-gen-node" onclick="generateSelectedNode(1)">直接出图</button>
           <button class="btn btn-ghost btn-sm" id="btn-batch4" onclick="generateSelectedNode(4)" title="一次出 4 张对比变体">+4 对比变体</button>
         </div>
-        <div id="right-status-actions" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:2px;"></div>
+        <div id="composer-ac" class="composer-ac" style="display:none;"></div>
       </div>
     </div>
   </div>
@@ -674,6 +810,18 @@ const state = {
   panStart: { x: 0, y: 0 },
   // 轮询
   pollTimers: new Set(),
+  // 抽屉 & 右栏时间线（Veeso 改造）
+  drawer: null,
+  timeline: [],
+  // 对话式 onboarding（plan 为空时启用）
+  onboarding: {
+    active: false,
+    history: [],        // [{role, content}]
+    draft_intent: {},
+    ready: false,
+    missing: [],
+    suggestions: [],
+  },
   // v2 对话编辑运行时
   edit: {
     pack: null,
@@ -700,14 +848,287 @@ function toast(msg, dur) {
   setTimeout(() => el.classList.remove('show'), dur || 2200);
 }
 
-function switchTab(name) {
-  document.querySelectorAll('.ws-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-  document.querySelectorAll('[id^="tab-"]').forEach(b => b.style.display = 'none');
-  document.getElementById('tab-' + name).style.display = '';
-  if (name === 'template') { loadTemplates(); loadBindings(); loadBrandRulePanel(); }
-  if (name === 'plans') loadPlans();
-  if (name === 'compile') loadCompilePlan();
-  if (name === 'tree') loadPlanTree();
+/* ── Drawer overlay：承载原左栏所有 Tab ── */
+const DRAWER_TITLES = {
+  intent: { title: '任务意图 / 方向', sub: '定义编译意图与策略摘要' },
+  template: { title: '模板 & 编译计划', sub: '当前绑定 / 模板库 / 展开节点' },
+  tree: { title: '结构树', sub: 'Plan → Frame → 节点 → 对象' },
+  history: { title: '生图历史', sub: '跨 plan 浏览与复用' },
+  brand: { title: '品牌规则', sub: '调色/风格/安全词' },
+  help: { title: '帮助', sub: '画布 & 对话操作' },
+};
+
+function _applyDrawerWidth(w) {
+  const clamped = Math.max(340, Math.min(window.innerWidth * 0.96, Number(w) || 480));
+  document.documentElement.style.setProperty('--ws-drawer-w', clamped + 'px');
+  return clamped;
+}
+
+function _loadDrawerWidth() {
+  const raw = parseInt(localStorage.getItem('ws:drawer:w') || '0', 10);
+  _applyDrawerWidth(raw > 0 ? raw : 480);
+}
+
+(function bindDrawerResizer() {
+  const onReady = () => {
+    const handle = document.getElementById('ws-drawer-resizer');
+    const drawer = document.getElementById('ws-drawer');
+    if (!handle || !drawer) return;
+    _loadDrawerWidth();
+    let startX = 0, startW = 480, dragging = false;
+    const onMove = (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const newW = startW - dx;
+      _applyDrawerWidth(newW);
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      drawer.classList.remove('resizing');
+      handle.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ws-drawer-w'), 10);
+      if (cur > 0) localStorage.setItem('ws:drawer:w', String(cur));
+    };
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      dragging = true;
+      startX = e.clientX;
+      startW = drawer.getBoundingClientRect().width;
+      drawer.classList.add('resizing');
+      handle.classList.add('dragging');
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    handle.addEventListener('dblclick', () => {
+      const cur = drawer.getBoundingClientRect().width;
+      const target = cur < 640 ? 800 : 480;
+      const applied = _applyDrawerWidth(target);
+      localStorage.setItem('ws:drawer:w', String(applied));
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady);
+  else onReady();
+})();
+
+function openDrawer(kind) {
+  if (!kind) return;
+  const drawer = document.getElementById('ws-drawer');
+  const mask = document.getElementById('ws-drawer-mask');
+  const body = document.getElementById('drawer-body');
+  if (!drawer || !body) return;
+  _loadDrawerWidth();
+  body.querySelectorAll('section[data-drawer]').forEach(s => {
+    s.style.display = s.dataset.drawer === kind ? '' : 'none';
+  });
+  const meta = DRAWER_TITLES[kind] || { title: '详情', sub: '' };
+  document.getElementById('drawer-title').textContent = meta.title;
+  document.getElementById('drawer-sub').textContent = meta.sub || '';
+  drawer.classList.add('show');
+  drawer.setAttribute('aria-hidden', 'false');
+  mask.classList.add('show');
+  state.drawer = kind;
+  if (kind === 'template') { loadTemplates(); loadBindings(); loadCompilePlan(); }
+  if (kind === 'tree') loadPlanTree();
+  if (kind === 'history') loadPlans();
+  if (kind === 'brand') loadBrandRulePanel();
+  if (kind === 'intent') refreshDirectionSummaryInDrawer();
+}
+
+function closeDrawer() {
+  const drawer = document.getElementById('ws-drawer');
+  const mask = document.getElementById('ws-drawer-mask');
+  if (!drawer) return;
+  drawer.classList.remove('show');
+  drawer.setAttribute('aria-hidden', 'true');
+  mask && mask.classList.remove('show');
+  state.drawer = null;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (_composerAc && _composerAc.open) { _composerAcReset(); e.preventDefault(); return; }
+  if (state.drawer) { closeDrawer(); e.preventDefault(); }
+});
+
+function focusSelectedOnCanvas() {
+  if (!state.selectedNodeId) { toast('尚未选中节点'); return; }
+  closeDrawer();
+  try { focusNode(state.selectedNodeId); } catch (_) { /* noop */ }
+}
+
+/* ── Agent 时间线 helpers ──
+ * 原右栏 5 大独立面板（context/proposal/compare/variants/sources/suggestions）被删除，
+ * 转为按交互顺序追加到 #agent-timeline 的消息气泡。每次新写入前，旧同名 slot 的 id 会被保留
+ * 但加上 _history_N 后缀，让新创建的气泡拿到规范 id，旧函数无需改写。 */
+const SLOT_META = {
+  'copilot-proposal': { title: '执行提案 · Proposal', tag: 'proposal', role: 'assistant' },
+  'compare-grid':     { title: '候选对比',             tag: 'compare',  role: 'assistant', wrap: 'grid' },
+  'node-variants':    { title: '节点变体',             tag: 'variants', role: 'assistant' },
+  'sources-list':     { title: '为什么长这样（溯源）', tag: 'sources',  role: 'assistant', collapsed: true },
+  'suggestions-list': { title: '下一步建议',           tag: 'suggest',  role: 'assistant' },
+  'right-status-actions': { title: '待办',             tag: 'actions',  role: 'system' },
+};
+let _agentMsgSeq = 0;
+
+function appendAgentMessage({ role = 'assistant', kind = 'text', title = '', html = '', actions = [] } = {}) {
+  const tl = document.getElementById('agent-timeline');
+  if (!tl) return null;
+  const id = `agent-msg-${++_agentMsgSeq}`;
+  const el = document.createElement('div');
+  el.id = id;
+  el.className = `agent-msg role-${role}`;
+  el.dataset.kind = kind;
+  const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  el.innerHTML = `
+    <div class="msg-head">
+      ${title ? `<span class="msg-tag">${escapeHtml(title)}</span>` : ''}
+      <span class="msg-ts">${ts}</span>
+    </div>
+    <div class="msg-body">${html || ''}</div>
+    ${actions && actions.length ? `<div class="msg-actions"></div>` : ''}
+  `;
+  tl.appendChild(el);
+  if (actions && actions.length) {
+    const actsEl = el.querySelector('.msg-actions');
+    for (const a of actions) {
+      const b = document.createElement('button');
+      b.className = 'btn btn-ghost btn-sm';
+      b.textContent = a.label;
+      b.onclick = a.onClick;
+      if (a.primary) b.classList.replace('btn-ghost', 'btn-primary');
+      actsEl.appendChild(b);
+    }
+  }
+  tl.scrollTop = tl.scrollHeight;
+  return el;
+}
+
+function appendUserBubble(text) {
+  if (!text) return;
+  return appendAgentMessage({ role: 'user', kind: 'text', html: escapeHtml(text) });
+}
+
+/* 为时间线创建一个新气泡，气泡内含规范 id 的 slot，供原渲染函数直接写入。
+ * 重复调用时会把旧同名 slot 的 id 改成 `{id}__h{n}` 作为历史留存。 */
+function ensureSlotInTimeline(slotId, { role, title, wrap } = {}) {
+  const tl = document.getElementById('agent-timeline');
+  if (!tl) return null;
+  const meta = SLOT_META[slotId] || {};
+  const finalRole = role || meta.role || 'assistant';
+  const finalTitle = title || meta.title || slotId;
+  const finalWrap = wrap || meta.wrap;
+  // 把既存同名 slot 改名为历史
+  const prev = document.getElementById(slotId);
+  if (prev) {
+    prev.id = `${slotId}__h${_agentMsgSeq}`;
+    // 旧气泡加一个淡化提示
+    const parentMsg = prev.closest('.agent-msg');
+    if (parentMsg) parentMsg.style.opacity = '0.75';
+  }
+  const slotHtml = finalWrap === 'grid'
+    ? `<div id="${slotId}" style="display:grid; grid-template-columns:1fr 1fr; gap:6px;"></div>`
+    : `<div id="${slotId}"></div>`;
+  const wrapper = appendAgentMessage({
+    role: finalRole, kind: meta.tag || slotId, title: finalTitle, html: slotHtml,
+  });
+  return document.getElementById(slotId);
+}
+
+function renderQuickChips(items) {
+  const host = document.getElementById('conv-quick-chips');
+  if (!host) return;
+  host.innerHTML = '';
+  (items || []).forEach(it => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'qc-chip';
+    b.textContent = it.label;
+    b.title = it.hint || '';
+    b.onclick = it.onClick || (() => {
+      const ta = document.getElementById('copilot-input');
+      if (ta && it.prompt) { ta.value = it.prompt; ta.focus(); }
+    });
+    host.appendChild(b);
+  });
+}
+
+function refreshDirectionSummaryInDrawer() {
+  const el = document.getElementById('drawer-direction-body');
+  if (!el) return;
+  const txt = (state.edit && state.edit.directionSummary) || '';
+  if (txt) el.textContent = txt;
+  else el.innerHTML = '<span style="color:var(--muted);">先出一版再总结方向。</span>';
+}
+
+/* ── 顶栏面包屑刷新 ── */
+function setBreadcrumb(id, text, { disabled = false, title = '' } = {}) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  const v = btn.querySelector('.bc-v');
+  if (v) v.textContent = text || '—';
+  btn.disabled = !!disabled;
+  if (title) btn.title = title;
+}
+
+function updateBreadcrumb() {
+  const plan = state.plan || {};
+  const intent = plan.intent || {};
+  const planName = intent.product_name || plan.title || plan.name
+    || (state.planId ? state.planId.slice(0, 8) : '');
+  setBreadcrumb('bc-plan', planName || '新建', { disabled: false, title: intent.audience || '' });
+
+  const bindings = plan.template_bindings || [];
+  let tplText = '未绑定';
+  if (bindings.length) {
+    const first = bindings[0];
+    const base = (first.template_id || '').split('_')[0] || (first.template_id || '').slice(0, 16);
+    tplText = bindings.length > 1 ? `${base} +${bindings.length - 1}` : base;
+  }
+  setBreadcrumb('bc-template', tplText, { disabled: !bindings.length });
+
+  const total = state.nodes.length;
+  const gen = state.nodes.filter(n => ['generated', 'reviewed', 'approved'].includes(n.status)).length;
+  setBreadcrumb('bc-stage', total ? `生成 ${gen}/${total}` : '—', { disabled: !state.planId });
+
+  const brand = (intent.brand_code || intent.brand_name || plan.brand_code || plan.brand_name || '').toString();
+  setBreadcrumb('bc-brand', brand || '—', { disabled: !state.planId });
+
+  const sel = state.selectedNodeId ? (state.nodes.find(n => n.node_id === state.selectedNodeId) || {}) : {};
+  const focusText = sel.node_id
+    ? `${sel.role || sel.title || sel.frame_id || '节点'}${state.edit && state.edit.focusedObjectId ? ' · 对象 ' + state.edit.focusedObjectId.slice(0, 4) : ''}`
+    : '—';
+  setBreadcrumb('bc-focus', focusText, { disabled: !sel.node_id });
+
+  const dir = (state.edit && state.edit.directionSummary) || '';
+  const refsArr = Array.isArray(intent.style_refs) ? intent.style_refs.filter(_isRefUrlLike) : [];
+  const refTip = refsArr.length ? `参考图 ${refsArr.length} 张` : '';
+  const tipParts = [dir, refTip].filter(Boolean);
+  setBreadcrumb('bc-direction', dir ? (dir.length > 18 ? dir.slice(0, 17) + '…' : dir) : (refTip || '—'),
+                { disabled: !dir && !refTip, title: tipParts.join(' · ') });
+  // agent-focus 下方补一个"参考图 · N 张"小标
+  _renderAgentFocusRefBadge(refsArr.length);
+}
+
+function _renderAgentFocusRefBadge(n) {
+  const af = document.getElementById('af-direction');
+  if (!af) return;
+  let badge = document.getElementById('af-ref-badge');
+  if (!n) {
+    if (badge) badge.remove();
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'af-ref-badge';
+    badge.style.cssText = 'display:inline-block; margin-left:8px; font-size:11px; padding:1px 6px; border-radius:10px; background:var(--primary-light, #eef); color:var(--primary, #2b59ff); cursor:pointer;';
+    badge.title = '查看参考图';
+    badge.onclick = () => openDrawer('intent');
+    af.parentNode.insertBefore(badge, af.nextSibling);
+  }
+  badge.textContent = `参考图 · ${n} 张`;
 }
 
 /* ── 输出类型多选 ── */
@@ -781,6 +1202,7 @@ async function loadPlan(planId) {
   document.getElementById('canvas-hint').style.display = state.frames.length ? 'none' : 'block';
   populateTimelineFilter();
   loadTimeline();
+  updateBreadcrumb();
 }
 
 function populateTimelineFilter() {
@@ -1197,6 +1619,7 @@ function selectNode(nodeId) {
   renderCanvas();
   renderRightPanel(node);
   updateCopilotEmptyState(node);
+  updateBreadcrumb();
 }
 
 function updateCopilotEmptyState(node) {
@@ -1255,17 +1678,19 @@ async function fetchEditContext(opts) {
     renderObjectChips(pack);
     updateTextareaPlaceholder();
     updatePinnedThumbUI();
+    updateBreadcrumb();
     return pack;
   } catch (e) { return null; }
 }
 
 function renderContextCards(pack) {
-  const body = document.getElementById('ctx-card-body');
-  if (!body) return;
+  const label = document.getElementById('af-node-label');
+  const dirEl = document.getElementById('af-direction');
+  const objsRow = document.getElementById('af-objs-row');
   if (!pack) {
-    body.innerHTML = `<div style="color:var(--muted); font-size:11.5px;">选中一个节点以开始。</div>`;
-    const db = document.getElementById('ctx-card-direction-body');
-    if (db) db.innerHTML = `<span style="color:var(--muted);">先出一版再总结方向。</span>`;
+    if (label) label.textContent = '尚未选中节点';
+    if (dirEl) { dirEl.style.display = 'none'; dirEl.textContent = ''; }
+    if (objsRow) objsRow.style.display = 'none';
     return;
   }
   const tpl = pack.template_context || {};
@@ -1274,26 +1699,29 @@ function renderContextCards(pack) {
   const primary = findSummaryById(pack, sel.primary_object_id);
   const primaryLabel = primary ? primary.label : (sel.mode === 'scene' ? '整图 scene' : '—');
   const nodeTitle = pack.node_title || pack.node_id;
-  const variantIdShort = cur.variant_id ? String(cur.variant_id).slice(0, 6) : '—';
+  const variantIdShort = cur.variant_id ? String(cur.variant_id).slice(0, 6) : '';
   const rev = (cur.revision_index !== undefined && cur.variant_id) ? `#${cur.revision_index + 1}` : '';
-  const constraints = (tpl.template_constraints || []).slice(0, 3).join('；') || '—';
-  body.innerHTML = `
-    <div class="ctx-row"><span class="k">当前节点</span><span class="v">${escapeHtml(nodeTitle)}</span></div>
-    <div class="ctx-row"><span class="k">模板角色</span><span class="v">${escapeHtml(tpl.slot_role || pack.node_type || '—')}</span></div>
-    <div class="ctx-row"><span class="k">当前版本</span><span class="v">${variantIdShort} ${rev}</span></div>
-    <div class="ctx-row"><span class="k">主对象</span><span class="v">${escapeHtml(primaryLabel)}</span></div>
-    <div class="ctx-row"><span class="k">限制</span><span class="v" style="font-size:11px;">${escapeHtml(constraints)}</span></div>
-  `;
-  const db = document.getElementById('ctx-card-direction-body');
-  if (db) {
+  if (label) {
+    const parts = [escapeHtml(nodeTitle)];
+    if (tpl.slot_role || pack.node_type) parts.push(`<span class="af-muted">${escapeHtml(tpl.slot_role || pack.node_type)}</span>`);
+    if (variantIdShort) parts.push(`<span class="af-muted">${variantIdShort}${rev}</span>`);
+    parts.push(`<span class="af-muted">· 主对象 ${escapeHtml(primaryLabel)}</span>`);
+    label.innerHTML = parts.join(' ');
+  }
+  if (objsRow) objsRow.style.display = '';
+  if (dirEl) {
     const dir = (pack.visual_state && pack.visual_state.current_direction_summary) || '';
     const recent = (pack.recent_history && pack.recent_history.last_user_requests) || [];
-    const recentLine = recent.length
-      ? `<div style="color:var(--muted); font-size:10.5px; margin-top:4px;">近期：${recent.slice(-2).map(escapeHtml).join('；')}</div>`
-      : '';
-    db.innerHTML = dir
-      ? `<span>${escapeHtml(dir)}</span>${recentLine}`
-      : `<span style="color:var(--muted);">先出一版再总结方向。</span>${recentLine}`;
+    if (dir || recent.length) {
+      const recentLine = recent.length
+        ? `<div style="color:#7c3aed; font-size:10.5px; margin-top:2px; opacity:.75;">近期：${recent.slice(-2).map(escapeHtml).join('；')}</div>`
+        : '';
+      dirEl.innerHTML = dir ? `${escapeHtml(dir)}${recentLine}` : recentLine;
+      dirEl.style.display = '';
+    } else {
+      dirEl.style.display = 'none';
+      dirEl.textContent = '';
+    }
   }
 }
 
@@ -1309,10 +1737,13 @@ function findSummaryById(pack, id) {
 function renderObjectChips(pack) {
   const host = document.getElementById('obj-chips');
   if (!host) return;
+  const row = document.getElementById('af-objs-row');
   if (!pack) {
-    host.innerHTML = `<span style="font-size:11px; color:var(--muted);">暂未选择</span>`;
+    host.innerHTML = '';
+    if (row) row.style.display = 'none';
     return;
   }
+  if (row) row.style.display = '';
   const vs = pack.visual_state || {};
   const sel = pack.selection_context || {};
   const objs = (vs.object_summaries || []).concat((vs.copy_blocks || []).map(c => ({
@@ -1699,40 +2130,48 @@ function updateTextareaPlaceholder() {
 }
 
 function renderRightPanel(node) {
-  const sources = document.getElementById('sources-list');
-  const variantsEl = document.getElementById('node-variants');
-  const suggestions = document.getElementById('suggestions-list');
-  const proposal = document.getElementById('copilot-proposal');
   if (!node) {
     resetEditRuntime(false);
     renderContextCards(null);
     renderObjectChips(null);
-    if (sources) sources.innerHTML = `<div style="color:var(--muted); font-size:12px;">暂无溯源信息。</div>`;
-    if (suggestions) suggestions.innerHTML = `<div style="color:var(--muted); font-size:12px;">选中节点后会自动生成。</div>`;
-    if (proposal) proposal.innerHTML = `<div style="color:var(--muted); font-size:11.5px;">在底部输入你想改的内容。</div>`;
-    if (variantsEl) variantsEl.innerHTML = `<div style="color:var(--muted); font-size:11.5px;">选中节点后展示变体。</div>`;
     document.getElementById('btn-gen-node').disabled = true;
     document.getElementById('btn-propose').disabled = true;
     return;
   }
   document.getElementById('btn-gen-node').disabled = false;
   document.getElementById('btn-propose').disabled = false;
+  const isSwitch = state._lastRenderedNodeId !== node.node_id;
   // 节点切换：保留已 pin 的底图（如来自历史），清掉 primary/secondary 选择
   resetEditRuntime(true);
   fetchEditContext();
 
+  // 仅在节点切换时把旧 slot 改为历史，让本次渲染 append 成全新气泡
+  if (isSwitch) {
+    ['sources-list', 'node-variants', 'suggestions-list', 'compare-grid', 'right-status-actions'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.id = `${id}__n${_agentMsgSeq}`;
+        const host = el.closest('.agent-msg');
+        if (host) host.style.opacity = '0.7';
+      }
+    });
+  }
+
+  const sources = document.getElementById('sources-list') || ensureSlotInTimeline('sources-list');
   renderLineage(node, sources);
 
   const variants = state.variantsByNode[node.node_id] || [];
   // 默认拉取规则建议（快），LLM 按需手动触发
-  refreshSuggestions(false);
+  if (isSwitch) refreshSuggestions(false);
 
   // 竞品节点特殊 UI
   if (node.result_type === 'competitor_ref') {
     renderCompetitorPanel(node);
+    state._lastRenderedNodeId = node.node_id;
     return;
   }
 
+  const variantsEl = document.getElementById('node-variants') || ensureSlotInTimeline('node-variants');
   variantsEl.innerHTML = variants.map(v => {
     const url = v.asset_url || '';
     const isActive = v.variant_id === node.active_variant_id;
@@ -1765,12 +2204,10 @@ function renderRightPanel(node) {
   // 最近一个 batch 的对比 grid（>=2 张同批次变体）
   renderCompareGrid(node, variants);
   renderStatusActions(node);
+  state._lastRenderedNodeId = node.node_id;
 }
 
 function renderCompareGrid(node, variants) {
-  const wrap = document.getElementById('right-compare');
-  const grid = document.getElementById('compare-grid');
-  if (!wrap || !grid) return;
   const withBatch = (variants || []).filter(v => v.asset_url && (v.extra && v.extra.batch_tag));
   const groups = new Map();
   for (const v of withBatch) {
@@ -1784,8 +2221,13 @@ function renderCompareGrid(node, variants) {
     const t = Math.max(...arr.map(v => +new Date(v.created_at || 0)));
     if (t > latestMax) { latestMax = t; latest = arr; }
   }
-  if (!latest) { wrap.style.display = 'none'; grid.innerHTML = ''; return; }
-  wrap.style.display = '';
+  if (!latest) {
+    const existing = document.getElementById('compare-grid');
+    if (existing) { existing.innerHTML = ''; const host = existing.closest('.agent-msg'); if (host) host.style.display = 'none'; }
+    return;
+  }
+  const grid = document.getElementById('compare-grid') || ensureSlotInTimeline('compare-grid');
+  const host = grid.closest('.agent-msg'); if (host) host.style.display = '';
   grid.innerHTML = latest.slice(0, 4).map(v => {
     const isActive = v.variant_id === node.active_variant_id;
     const isPinned = state.edit.pinnedVariantId === v.variant_id;
@@ -1804,7 +2246,7 @@ function renderCompareGrid(node, variants) {
 }
 
 function renderStatusActions(node) {
-  const el = document.getElementById('right-status-actions');
+  const el = document.getElementById('right-status-actions') || ensureSlotInTimeline('right-status-actions');
   if (!el) return;
   const s = node.status || 'draft';
   const hasActive = !!node.active_variant_id;
@@ -2086,7 +2528,7 @@ async function refreshVariantsOnly() {
 
 /* ── 竞品节点特殊面板 ── */
 function renderCompetitorPanel(node) {
-  const variantsEl = document.getElementById('node-variants');
+  const variantsEl = document.getElementById('node-variants') || ensureSlotInTimeline('node-variants');
   const analysis = (node.extra || {}).competitor_analysis;
   const prevUrl = (node.extra || {}).competitor_image_url || '';
   variantsEl.innerHTML = `
@@ -2158,8 +2600,8 @@ async function runCompetitorDeconstruct(nodeId) {
 /* ── AI 建议 / 对话编辑 / 提案 ── */
 async function refreshSuggestions(useLLM) {
   const nodeId = state.selectedNodeId;
-  const el = document.getElementById('suggestions-list');
-  if (!nodeId) { el.innerHTML = `<div style="color:var(--muted); font-size:12px;">选中节点后会自动生成。</div>`; return; }
+  if (!nodeId) { renderQuickChips([]); return; }
+  const el = document.getElementById('suggestions-list') || ensureSlotInTimeline('suggestions-list');
   el.innerHTML = `<div style="color:var(--muted); font-size:12px;">${useLLM ? 'LLM 生成中…' : '加载中…'}</div>`;
   try {
     const r = await fetch(`/growth-lab/api/workspace/node/${nodeId}/suggest-actions?use_llm=${useLLM ? 1 : 0}`);
@@ -2167,17 +2609,23 @@ async function refreshSuggestions(useLLM) {
     const data = await r.json();
     const actions = data.actions || [];
     if (!actions.length) { el.innerHTML = `<div style="color:var(--muted); font-size:12px;">暂无建议</div>`; return; }
+    // 时间线里压缩为单行列表（标题 + 小按钮）；主动作改为上方 chips
     el.innerHTML = actions.map((a, i) => `
-      <div style="padding:8px; border:1px solid var(--border); border-radius:6px; display:flex; flex-direction:column; gap:4px;">
-        <div style="font-size:12px; font-weight:700;">${escapeHtml(a.label || '')}</div>
-        <div style="font-size:11px; color:var(--muted); line-height:1.4;">${escapeHtml(a.intent || '')}</div>
-        <div style="display:flex; gap:4px; margin-top:2px;">
-          <button class="btn btn-primary btn-sm" onclick="applySuggestion(${i})">执行</button>
-          <button class="btn btn-ghost btn-sm" onclick="useSuggestionAsPrompt(${i})">填入对话</button>
+      <div style="padding:6px 8px; border:1px solid var(--border); border-radius:6px; display:flex; align-items:center; gap:6px;">
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:12px; font-weight:600;">${escapeHtml(a.label || '')}</div>
+          <div style="font-size:11px; color:var(--muted); line-height:1.4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(a.intent || '')}</div>
         </div>
+        <button class="btn btn-primary btn-sm" onclick="applySuggestion(${i})" title="执行这条建议">执行</button>
       </div>
     `).join('');
     window._lastSuggestions = actions;
+    // 同时把前 5 条挂到 composer 上方 chips，点击预填 prompt
+    renderQuickChips(actions.slice(0, 5).map((a, i) => ({
+      label: (a.label || '').slice(0, 14) || '建议',
+      hint: a.intent || '',
+      onClick: () => useSuggestionAsPrompt(i),
+    })));
   } catch (e) {
     el.innerHTML = `<div style="color:var(--accent-neg); font-size:11px;">加载失败：${escapeHtml(e.message)}</div>`;
   }
@@ -2233,6 +2681,7 @@ async function proposeEdit() {
   if (!nodeId) { toast('请先选中一个节点'); return; }
   const text = document.getElementById('copilot-input').value.trim();
   if (!text) { toast('请先输入指令'); return; }
+  appendUserBubble(text);
   const btn = document.getElementById('btn-propose');
   btn.disabled = true; btn.textContent = '生成提案中…';
   try {
@@ -2265,7 +2714,14 @@ async function proposeEdit() {
 }
 
 function renderProposal(nodeId, p) {
-  const el = document.getElementById('copilot-proposal');
+  // 每个提案创建一条新的时间线气泡（旧的保留为历史）
+  const existing = document.getElementById('copilot-proposal');
+  if (existing) {
+    existing.id = `copilot-proposal__h${_agentMsgSeq}`;
+    const host = existing.closest('.agent-msg');
+    if (host) host.style.opacity = '0.7';
+  }
+  const el = ensureSlotInTimeline('copilot-proposal');
   if (!p || (!p.summary && !(p.steps && p.steps.length) && !p.prompt_delta)) {
     el.innerHTML = `<div style="color:var(--muted); font-size:11.5px;">无可用提案。在底部输入想法后点"让 AI 生成提案"。</div>`;
     return;
@@ -2417,6 +2873,11 @@ async function execProposal(mode) {
 }
 
 async function editActiveVariant() {
+  // onboarding 模式下：主发送按钮改为 onboarding 回传
+  if (state.onboarding && state.onboarding.active) {
+    const t = document.getElementById('copilot-input').value.trim();
+    return onboardingSend(t);
+  }
   // pinned variant 优先，其次 active
   const nodeId = state.selectedNodeId;
   const pinned = state.edit.pinnedVariantId || '';
@@ -2427,6 +2888,7 @@ async function editVariantFrom(nodeId, baseVariantId) {
   if (!nodeId) { toast('请先选中一个节点'); return; }
   const text = document.getElementById('copilot-input').value.trim();
   if (!text) { toast('请先输入调整指令'); return; }
+  appendUserBubble(text);
   const btn = document.getElementById('btn-edit-variant');
   const orig = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '微调中…'; }
@@ -3104,6 +3566,975 @@ function fitToView() {
   renderMinimap();
 }
 
+/* ── 对话式 Onboarding（无 plan 时启动） ──
+ * 右栏成为一个"创建助手"，多轮收集 output_types / product / audience / must_have / style；
+ * ready_to_compile 时在时间线插入"开始编译"卡，点击 → 调 /api/workspace/compile 并跳转。 */
+const ONBOARDING_FIELD_LABEL = {
+  output_types: '输出类型',
+  product_name: '产品 / 品牌',
+  audience: '目标人群',
+  must_have: '核心卖点',
+  style_refs: '整体风格',
+  avoid: '避免元素',
+};
+const ONBOARDING_OUTPUT_CHIPS = [
+  { id: 'main_image', label: '主图 5 张' },
+  { id: 'detail', label: '详情 8 模块' },
+  { id: 'video_shots', label: '视频分镜' },
+  { id: 'buyer_show', label: '买家秀 8 张' },
+  { id: 'competitor', label: '竞品对标' },
+];
+
+const ONBOARDING_FRAME_CATEGORY = {
+  main_image: 'main_image',
+  detail: 'detail_module',
+  video_shots: 'video_shot_list',
+  buyer_show: 'buyer_show',
+  competitor: 'competitor_deconstruct',
+};
+
+function startOnboarding() {
+  if (state.onboarding.active) return;
+  state.onboarding.active = true;
+  state.onboarding.history = [];
+  state.onboarding.draft_intent = {};
+  state.onboarding.ready = false;
+  state.onboarding.missing = [];
+  state.onboarding.suggestions = [];
+  state.onboarding._lastNextQ = '';
+  state.onboarding.template_phase = { active: false, queue: [], current: null, options: [], overrides: {}, borrow: {} };
+  state.onboarding.model_preference = 'auto';
+  state.onboarding.model_phase = { active: false, decided: false, outs: [] };
+  // 折叠画布提示
+  const hint = document.getElementById('canvas-hint');
+  if (hint) hint.style.display = 'none';
+  // 右栏焦点卡：展示"新建 Plan"
+  const lbl = document.getElementById('af-node-label');
+  if (lbl) lbl.textContent = '新建 plan · 对话式 onboarding';
+  const dir = document.getElementById('af-direction');
+  if (dir) { dir.textContent = '回答几个问题后我会帮你一键编译画布'; dir.style.display = ''; }
+  const objsRow = document.getElementById('af-objs-row');
+  if (objsRow) objsRow.style.display = 'none';
+  // composer：切换按钮文案
+  setComposerMode('onboarding');
+  // 欢迎语 + 第一个问题
+  const welcome = '你好～我是你的视觉工作台助手。告诉我几件事，我就能帮你一次性编出主图/详情/买家秀/分镜等。';
+  appendAgentMessage({ role: 'assistant', title: '欢迎', html: `<div>${escapeHtml(welcome)}</div>` });
+  // 首问：输出类型（用 chips）
+  renderOnboardingOutputChips();
+  // 参考图卡：上传 / URL / 历史 / spec
+  renderOnboardingRefCard();
+  renderOnboardingDraftCard();
+}
+
+function setComposerMode(mode) {
+  const ta = document.getElementById('copilot-input');
+  const btnEdit = document.getElementById('btn-edit-variant');
+  const btnProp = document.getElementById('btn-propose');
+  const btnGen = document.getElementById('btn-gen-node');
+  const btnBatch = document.getElementById('btn-batch4');
+  if (mode === 'onboarding') {
+    if (ta) ta.placeholder = '直接回答，或点上方 chip；Enter 发送';
+    if (btnEdit) { btnEdit.textContent = '发送'; btnEdit.title = '发送到 onboarding 助手'; }
+    [btnProp, btnGen, btnBatch].forEach(b => { if (b) b.style.display = 'none'; });
+  } else {
+    if (ta) ta.placeholder = '例：把右边更柔和，文案更短（按 / 调用抽屉、@ 选对象）';
+    if (btnEdit) { btnEdit.textContent = '发送（微调）'; btnEdit.title = '以 pinned 图为底做 img2img'; }
+    [btnProp, btnGen, btnBatch].forEach(b => { if (b) b.style.display = ''; });
+  }
+}
+
+function renderOnboardingOutputChips() {
+  const picked = new Set(state.onboarding.draft_intent.output_types || []);
+  const chips = ONBOARDING_OUTPUT_CHIPS.map(c => {
+    const on = picked.has(c.id);
+    return `<span class="obj-chip ${on ? 'primary' : ''}" onclick="toggleOnboardingOutput('${c.id}')">${on ? '✓ ' : ''}${escapeHtml(c.label)}</span>`;
+  }).join('');
+  appendAgentMessage({
+    role: 'assistant',
+    title: '想先产出哪种素材？（可多选）',
+    html: `<div id="onb-output-chips" style="display:flex; gap:6px; flex-wrap:wrap;">${chips}</div>`,
+    actions: [{ label: '下一步 →', primary: true, onClick: onboardingConfirmOutputs }],
+  });
+}
+
+function toggleOnboardingOutput(id) {
+  const cur = new Set(state.onboarding.draft_intent.output_types || []);
+  if (cur.has(id)) cur.delete(id); else cur.add(id);
+  state.onboarding.draft_intent.output_types = Array.from(cur);
+  // 重绘最近的 chips 块
+  const host = document.getElementById('onb-output-chips');
+  if (host) {
+    const picked = cur;
+    host.innerHTML = ONBOARDING_OUTPUT_CHIPS.map(c => {
+      const on = picked.has(c.id);
+      return `<span class="obj-chip ${on ? 'primary' : ''}" onclick="toggleOnboardingOutput('${c.id}')">${on ? '✓ ' : ''}${escapeHtml(c.label)}</span>`;
+    }).join('');
+  }
+  renderOnboardingDraftCard();
+}
+
+async function onboardingConfirmOutputs() {
+  const outs = state.onboarding.draft_intent.output_types || [];
+  if (!outs.length) { toast('至少选一个输出类型'); return; }
+  const summary = '已选：' + outs.map(x => OUTPUT_TYPE_LABEL[x] || x).join('、');
+  appendUserBubble(summary);
+  state.onboarding.history.push({ role: 'user', content: summary });
+  await onboardingStartModelPick(outs);
+}
+
+// ── 图像模型选择 phase（per plan 统一一个模型） ──────────────────────────
+
+const ONBOARDING_MODEL_OPTIONS = [
+  { id: 'auto',     label: '自动',          sub: '系统兜底：DashScope 优先，OpenRouter 回退' },
+  { id: 'wan25',    label: '万相 wan2.5',   sub: '阿里通义万相，通用电商图稳定' },
+  { id: 'gemini',   label: 'Gemini',        sub: 'Google Gemini Flash Image，理解力强' },
+  { id: 'seedream', label: '豆包 Seedream', sub: '字节 ByteDance Seed，国潮/人像见长' },
+  { id: 'flux',     label: 'Flux 2',        sub: 'Black Forest Labs，质感与细节见长' },
+];
+
+async function onboardingStartModelPick(outputTypes) {
+  const mp = state.onboarding.model_phase || (state.onboarding.model_phase = { active: false, decided: false, outs: [] });
+  mp.active = true;
+  mp.decided = false;
+  mp.outs = (outputTypes || []).slice();
+  renderModelPickCard();
+}
+
+function renderModelPickCard() {
+  const chips = ONBOARDING_MODEL_OPTIONS.map(o => {
+    return `<span class="obj-chip" onclick="onboardingPickModel('${escapeAttr(o.id)}')">${escapeHtml(o.label)}</span>`;
+  }).join('');
+  const lines = ONBOARDING_MODEL_OPTIONS.map(o => {
+    return `<div style="padding:3px 0;"><b>${escapeHtml(o.label)}</b> <span style="color:var(--muted); font-size:12px; margin-left:6px;">${escapeHtml(o.sub)}</span></div>`;
+  }).join('');
+  appendAgentMessage({
+    role: 'assistant',
+    title: '用哪款图像模型？（整 plan 统一使用）',
+    html: `<div>${lines}</div><div style="margin-top:8px; color:var(--muted); font-size:12px;">直接点下面的快捷键，或回复"万相 / Gemini / 豆包 / Flux / 自动"。</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">${chips}</div>`,
+  });
+}
+
+async function onboardingPickModel(key) {
+  const mp = state.onboarding.model_phase;
+  if (!mp || !mp.active) return;
+  const opt = ONBOARDING_MODEL_OPTIONS.find(o => o.id === key) || ONBOARDING_MODEL_OPTIONS[0];
+  state.onboarding.model_preference = opt.id;
+  appendUserBubble(`已选：${opt.label}`);
+  state.onboarding.history.push({ role: 'user', content: `model_pick ${opt.id}` });
+  mp.active = false;
+  mp.decided = true;
+  await onboardingStartTemplatePick(mp.outs || []);
+}
+
+function onboardingParseModelReply(text) {
+  const t = (text || '').trim().toLowerCase();
+  if (!t) return false;
+  if (/(自动|auto)/i.test(t)) { onboardingPickModel('auto'); return true; }
+  if (/(万相|wan\s*2?\.?5?|wanxiang)/i.test(t)) { onboardingPickModel('wan25'); return true; }
+  if (/(gemini|谷歌|google)/i.test(t)) { onboardingPickModel('gemini'); return true; }
+  if (/(豆包|seedream|seed\s*dream|doubao|bytedance)/i.test(t)) { onboardingPickModel('seedream'); return true; }
+  if (/(flux)/i.test(t)) { onboardingPickModel('flux'); return true; }
+  return false;
+}
+
+async function onboardingStartTemplatePick(outputTypes) {
+  const tp = state.onboarding.template_phase || (state.onboarding.template_phase = { active: false, queue: [], current: null, options: [], overrides: {}, borrow: {} });
+  tp.queue = outputTypes.slice();
+  tp.overrides = {};
+  tp.borrow = {};
+  tp.active = true;
+  await onboardingAskNextFrameTemplate();
+}
+
+async function onboardingAskNextFrameTemplate() {
+  const tp = state.onboarding.template_phase;
+  if (!tp) return;
+  while (tp.queue && tp.queue.length) {
+    const frameKey = tp.queue.shift();
+    const category = ONBOARDING_FRAME_CATEGORY[frameKey] || frameKey;
+    let options = [];
+    try {
+      const r = await fetch(`/growth-lab/api/workspace/templates?category=${encodeURIComponent(category)}`);
+      if (r.ok) {
+        const data = await r.json();
+        options = (data.items || []).map(t => ({ id: t.template_id, name: t.name || t.template_id, desc: t.description || '' }));
+      }
+    } catch (e) { /* ignore, use default */ }
+    if (!options.length) {
+      continue;
+    }
+    if (options.length === 1) {
+      tp.overrides[frameKey] = options[0].id;
+      continue;
+    }
+    tp.current = frameKey;
+    tp.options = options;
+    renderTemplatePickCard(frameKey, options);
+    return;
+  }
+  // 全部处理完：进入正常 intent 问答
+  tp.active = false;
+  tp.current = null;
+  tp.options = [];
+  const picked = Object.keys(tp.overrides).length;
+  const borrowed = Object.keys(tp.borrow).length;
+  if (picked || borrowed) {
+    const segs = [];
+    if (picked) segs.push(`已锁定 ${picked} 个模板`);
+    if (borrowed) segs.push(`${borrowed} 个仅借框架`);
+    appendAgentMessage({ role: 'assistant', html: `<div class="agent-hint">${segs.join('，')}，继续补充产品与受众信息</div>` });
+  }
+  await onboardingCall();
+}
+
+const ONBOARDING_FRAME_LABEL = {
+  main_image: '主图',
+  detail: '详情',
+  video_shots: '视频分镜',
+  buyer_show: '买家秀',
+  competitor: '竞品对标',
+};
+
+function renderTemplatePickCard(frameKey, options) {
+  const label = ONBOARDING_FRAME_LABEL[frameKey] || frameKey;
+  const lines = options.map((o, i) => {
+    const desc = o.desc ? `<span style="color:var(--muted); font-size:12px; margin-left:8px;">${escapeHtml(String(o.desc).slice(0, 60))}</span>` : '';
+    return `<div style="padding:4px 0;"><b>${i + 1}.</b> ${escapeHtml(o.name)} <span style="color:var(--muted); font-size:11px; font-family:monospace;">${escapeHtml(o.id)}</span>${desc}</div>`;
+  }).join('');
+  const chips = [
+    ...options.map((o, i) => `<span class="obj-chip" onclick="onboardingPickTemplate('${escapeAttr(o.id)}')">${i + 1}</span>`),
+    `<span class="obj-chip" onclick="onboardingPickTemplateDefault()">默认</span>`,
+    `<span class="obj-chip" onclick="onboardingPickTemplateBorrow()">仅借框架</span>`,
+    `<span class="obj-chip" onclick="onboardingSkipTemplate()">跳过</span>`,
+  ].join('');
+  appendAgentMessage({
+    role: 'assistant',
+    title: `「${label}」这一帧用哪套模板？`,
+    html: `<div>${lines}</div><div style="margin-top:8px; color:var(--muted); font-size:12px;">回复编号（1/2/3）或点下面快捷键；"默认"=交给系统选；"仅借框架"=只借模板节点骨架，提示词完全按你的意图重写。</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">${chips}</div>`,
+  });
+}
+
+function onboardingPickTemplate(templateId) {
+  const tp = state.onboarding.template_phase;
+  if (!tp || !tp.current) return;
+  tp.overrides[tp.current] = templateId;
+  const opt = (tp.options || []).find(o => o.id === templateId);
+  appendUserBubble(`已选：${(opt && opt.name) || templateId}`);
+  state.onboarding.history.push({ role: 'user', content: `template_pick ${tp.current}=${templateId}` });
+  onboardingAskNextFrameTemplate();
+}
+
+function onboardingPickTemplateDefault() {
+  const tp = state.onboarding.template_phase;
+  if (!tp || !tp.current) return;
+  appendUserBubble('默认（由系统选）');
+  state.onboarding.history.push({ role: 'user', content: `template_pick ${tp.current}=default` });
+  onboardingAskNextFrameTemplate();
+}
+
+function onboardingPickTemplateBorrow() {
+  const tp = state.onboarding.template_phase;
+  if (!tp || !tp.current) return;
+  tp.borrow[tp.current] = true;
+  appendUserBubble('仅借框架');
+  state.onboarding.history.push({ role: 'user', content: `template_pick ${tp.current}=borrow_only` });
+  onboardingAskNextFrameTemplate();
+}
+
+function onboardingSkipTemplate() { onboardingPickTemplateDefault(); }
+
+function onboardingParseTemplateReply(text) {
+  const tp = state.onboarding.template_phase;
+  if (!tp || !tp.current || !tp.options) return false;
+  const t = (text || '').trim().toLowerCase();
+  if (!t) return false;
+  if (/(默认|skip|跳过|default)/i.test(t)) { onboardingPickTemplateDefault(); return true; }
+  if (/(仅借框架|借框|borrow)/i.test(t)) { onboardingPickTemplateBorrow(); return true; }
+  // 纯数字
+  const mNum = t.match(/^\s*(\d{1,2})\s*$/);
+  if (mNum) {
+    const idx = parseInt(mNum[1], 10) - 1;
+    if (idx >= 0 && idx < tp.options.length) { onboardingPickTemplate(tp.options[idx].id); return true; }
+  }
+  // 模糊名匹配
+  const hit = tp.options.find(o => {
+    const n = String(o.name || '').toLowerCase();
+    const id = String(o.id || '').toLowerCase();
+    return (n && (n.includes(t) || t.includes(n))) || (id && (id.includes(t) || t.includes(id)));
+  });
+  if (hit) { onboardingPickTemplate(hit.id); return true; }
+  return false;
+}
+
+async function onboardingSend(text) {
+  const t = (text || '').trim();
+  if (!t) { toast('请输入内容'); return; }
+  // 模型选择阶段：优先匹配自动/万相/gemini/豆包/flux
+  const mp = state.onboarding.model_phase;
+  if (mp && mp.active) {
+    const ta0 = document.getElementById('copilot-input');
+    if (ta0) ta0.value = '';
+    const handled = onboardingParseModelReply(t);
+    if (!handled) {
+      appendUserBubble(t);
+      appendAgentMessage({
+        role: 'assistant',
+        html: `<div class="agent-hint">没识别到模型，点下面的快捷键，或回复"万相 / Gemini / 豆包 / Flux / 自动"。</div>`,
+      });
+    }
+    return;
+  }
+  // 模板选择阶段：优先解析；解析不到给个轻提示，不进 onboarding_chat
+  const tp = state.onboarding.template_phase;
+  if (tp && tp.active && tp.current) {
+    const ta = document.getElementById('copilot-input');
+    if (ta) ta.value = '';
+    const handled = onboardingParseTemplateReply(t);
+    if (!handled) {
+      appendUserBubble(t);
+      appendAgentMessage({
+        role: 'assistant',
+        html: `<div class="agent-hint">没匹配到模板，试试回复编号（1/2/...）、"默认"或"仅借框架"。</div>`,
+      });
+    }
+    return;
+  }
+  appendUserBubble(t);
+  state.onboarding.history.push({ role: 'user', content: t });
+  document.getElementById('copilot-input').value = '';
+  await onboardingCall();
+}
+
+function _onbFilledFieldCount(di) {
+  const keys = ['output_types','product_name','audience','must_have','style_refs','avoid'];
+  let n = 0;
+  for (const k of keys) {
+    const v = (di || {})[k];
+    if (Array.isArray(v) ? v.length > 0 : !!v) n++;
+  }
+  return n;
+}
+
+const ONBOARDING_FIELD_ORDER = ['output_types','product_name','audience','must_have','style_refs','avoid'];
+
+function _onbFirstMissing(di) {
+  for (const k of ONBOARDING_FIELD_ORDER) {
+    const v = (di || {})[k];
+    if (Array.isArray(v) ? v.length === 0 : !v) return k;
+  }
+  return null;
+}
+
+function _onbAssignToField(field, raw) {
+  const text = (raw || '').trim();
+  if (!text || !field) return false;
+  const di = state.onboarding.draft_intent || (state.onboarding.draft_intent = {});
+  if (field === 'output_types') {
+    const map = [['主图','main_image'],['详情','detail'],['视频','video_shots'],['分镜','video_shots'],['买家秀','buyer_show'],['竞品','competitor']];
+    const seen = new Set();
+    const out = [];
+    for (const [kw, code] of map) {
+      if (text.includes(kw) && !seen.has(code)) { out.push(code); seen.add(code); }
+    }
+    if (!out.length) return false;
+    di.output_types = out;
+  } else if (field === 'must_have' || field === 'style_refs' || field === 'avoid') {
+    const items = text.split(/[，,、;；]+/).map(s => s.trim()).filter(Boolean).slice(0, 6);
+    if (!items.length) return false;
+    di[field] = items;
+  } else {
+    di[field] = text.slice(0, 60);
+  }
+  return true;
+}
+
+async function onboardingCall() {
+  const btn = document.getElementById('btn-edit-variant');
+  if (btn) { btn.disabled = true; btn.textContent = '思考中…'; }
+  const beforeCount = _onbFilledFieldCount(state.onboarding.draft_intent);
+  try {
+    const r = await fetch('/growth-lab/api/workspace/onboarding', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        history: state.onboarding.history,
+        draft_intent: state.onboarding.draft_intent || {},
+      }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    // 合并 draft_intent（后端只会回补齐字段，但以后端为准）
+    state.onboarding.draft_intent = Object.assign({}, state.onboarding.draft_intent, data.draft_intent || {});
+    state.onboarding.ready = !!data.ready_to_compile;
+    state.onboarding.missing = data.missing_fields || [];
+    state.onboarding.suggestions = data.suggestions || [];
+    // ── Stall 检测：若本轮 next_question 与上一轮一样、且字段没新增，则把最近一条 user 消息塞到第一个缺失字段 ──
+    const afterCount = _onbFilledFieldCount(state.onboarding.draft_intent);
+    let stallApplied = null;
+    const nextQRaw = (data.next_question || '').trim();
+    if (
+      nextQRaw &&
+      state.onboarding._lastNextQ === nextQRaw &&
+      afterCount === beforeCount
+    ) {
+      const lastUser = [...(state.onboarding.history || [])].reverse().find(t => t.role === 'user');
+      const target = _onbFirstMissing(state.onboarding.draft_intent);
+      if (lastUser && target && _onbAssignToField(target, lastUser.content)) {
+        stallApplied = target;
+        state.onboarding.ready = false; // 强制重算
+      }
+    }
+    state.onboarding._lastNextQ = nextQRaw || state.onboarding._lastNextQ;
+    // 渲染助手回复
+    const msg = data.assistant_message || '';
+    const nextQ = data.next_question || '';
+    let bodyHtml = '';
+    if (msg) bodyHtml += `<div>${escapeHtml(msg)}</div>`;
+    if (nextQ) bodyHtml += `<div style="margin-top:6px; color:var(--muted); font-size:12px;">${escapeHtml(nextQ)}</div>`;
+    if ((data.suggestions || []).length) {
+      bodyHtml += `<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">` +
+        data.suggestions.map(s => `<span class="obj-chip" onclick="onboardingSuggestionClick('${escapeAttr(s)}')">${escapeHtml(s)}</span>`).join('') +
+        `</div>`;
+    }
+    if (bodyHtml) {
+      appendAgentMessage({ role: 'assistant', html: bodyHtml });
+      state.onboarding.history.push({ role: 'assistant', content: msg || nextQ });
+    }
+    if (stallApplied) {
+      const label = ONBOARDING_FIELD_LABEL[stallApplied] || stallApplied;
+      toast(`没识别到字段，已按当前问题填入「${label}」`);
+      // 重算 ready：本地补完字段后，可能已经够编译条件
+      const di = state.onboarding.draft_intent || {};
+      const filled = ['product_name','audience','must_have'].filter(k => {
+        const v = di[k]; return Array.isArray(v) ? v.length > 0 : !!v;
+      }).length;
+      const hasOuts = Array.isArray(di.output_types) && di.output_types.length > 0;
+      state.onboarding.ready = hasOuts && filled >= 2;
+    }
+    renderOnboardingDraftCard();
+    if (state.onboarding.ready) renderOnboardingCompileCard();
+  } catch (e) {
+    toast('onboarding 失败：' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '发送'; }
+  }
+}
+
+function onboardingSuggestionClick(text) {
+  const ta = document.getElementById('copilot-input');
+  if (ta) { ta.value = text; ta.focus(); }
+}
+
+/* ── 参考图卡：上传 / URL / 历史选 / spec 带入 ────────────────── */
+
+function _onbRefPreviews() {
+  if (!Array.isArray(state.onboarding.ref_previews)) state.onboarding.ref_previews = [];
+  return state.onboarding.ref_previews;
+}
+
+function _onbRefStrings() {
+  // style_refs 可能含 URL（参考图）+ 文本风格（混装），渲染时区分
+  const arr = state.onboarding.draft_intent.style_refs;
+  if (!Array.isArray(arr)) {
+    state.onboarding.draft_intent.style_refs = [];
+    return state.onboarding.draft_intent.style_refs;
+  }
+  return arr;
+}
+
+function _isRefUrlLike(s) {
+  return typeof s === 'string' && (/^https?:\/\//.test(s) || s.startsWith('/'));
+}
+
+function _onbAddRef(url, source) {
+  const u = (url || '').trim();
+  if (!u) return false;
+  const refs = _onbRefStrings();
+  if (refs.includes(u)) { toast('已添加过这张参考图'); return false; }
+  refs.push(u);
+  _onbRefPreviews().push({ url: u, source: source || 'manual' });
+  renderOnboardingRefThumbs();
+  renderOnboardingDraftCard();
+  return true;
+}
+
+function _onbRemoveRef(url) {
+  const refs = _onbRefStrings();
+  const idx = refs.indexOf(url);
+  if (idx >= 0) refs.splice(idx, 1);
+  const previews = _onbRefPreviews();
+  const pidx = previews.findIndex(p => p.url === url);
+  if (pidx >= 0) previews.splice(pidx, 1);
+  renderOnboardingRefThumbs();
+  renderOnboardingDraftCard();
+}
+
+function renderOnboardingRefThumbs() {
+  const host = document.getElementById('onb-ref-thumbs');
+  if (!host) return;
+  const previews = _onbRefPreviews();
+  if (!previews.length) {
+    host.innerHTML = `<div style="font-size:12px; color:var(--muted);">暂无参考图</div>`;
+    return;
+  }
+  host.innerHTML = previews.map(p => {
+    const safeUrl = escapeAttr(p.url);
+    const tag = p.source === 'upload' ? '上传'
+      : p.source === 'url' ? 'URL'
+      : p.source === 'gallery' ? '历史'
+      : p.source === 'spec' ? '编译器'
+      : '';
+    return `<div style="position:relative; width:48px; height:48px; border:1px solid var(--border); border-radius:6px; overflow:hidden; background:var(--bg-sub);">
+      <img src="${safeUrl}" alt="ref" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.opacity=0.3;this.alt='✕'"/>
+      <button onclick="_onbRemoveRef('${safeUrl}')" title="移除"
+        style="position:absolute; top:-4px; right:-4px; width:16px; height:16px; padding:0; line-height:14px;
+        font-size:10px; border-radius:50%; border:1px solid var(--border); background:#fff; cursor:pointer;">×</button>
+      ${tag ? `<span style="position:absolute; bottom:0; left:0; right:0; font-size:9px; line-height:12px; text-align:center; background:rgba(0,0,0,0.45); color:#fff;">${tag}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function onboardingPickFiles(input) {
+  if (!input || !input.files || !input.files.length) return;
+  const files = Array.from(input.files).slice(0, 8);
+  for (const f of files) {
+    if (!/^image\//.test(f.type || '')) { toast(`跳过非图片：${f.name}`); continue; }
+    if (f.size > 10 * 1024 * 1024) { toast(`跳过 >10MB：${f.name}`); continue; }
+    try {
+      const fd = new FormData();
+      fd.append('file', f, f.name);
+      const r = await fetch('/growth-lab/api/workspace/upload-image', { method: 'POST', body: fd });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      if (data.url) _onbAddRef(data.url, 'upload');
+    } catch (e) {
+      toast(`上传失败：${f.name} · ${e.message || e}`);
+    }
+  }
+  input.value = '';
+}
+
+function onboardingAddRefUrl() {
+  const inp = document.getElementById('onb-ref-url-input');
+  if (!inp) return;
+  const v = (inp.value || '').trim();
+  if (!v) { toast('请输入图片 URL'); return; }
+  if (!/^https?:\/\//.test(v) && !v.startsWith('/')) { toast('需要 http(s):// 或 / 开头'); return; }
+  if (_onbAddRef(v, 'url')) inp.value = '';
+}
+
+function _onbPickerCloseModal() {
+  const m = document.getElementById('onb-ref-picker-modal');
+  if (m) m.remove();
+}
+
+function _onbPickerHandleEsc(e) {
+  if (e.key === 'Escape') _onbPickerCloseModal();
+}
+
+window._onbPickerPickUrl = function(url, source) {
+  if (_onbAddRef(url, source || 'gallery')) toast('已加入参考图');
+};
+
+async function openRefPickerFromGallery() {
+  _onbPickerCloseModal();
+  const overlay = document.createElement('div');
+  overlay.id = 'onb-ref-picker-modal';
+  overlay.style.cssText = 'position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center;';
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) _onbPickerCloseModal(); });
+  overlay.innerHTML = `
+    <div style="width:min(720px,92vw); max-height:80vh; background:var(--bg, #fff); border-radius:10px; border:1px solid var(--border); box-shadow:0 20px 60px rgba(0,0,0,0.25); display:flex; flex-direction:column; overflow:hidden;">
+      <div style="padding:12px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px;">
+        <strong style="font-size:13px;">从生图历史选参考图</strong>
+        <span style="font-size:11px; color:var(--muted);">点击缩略图即加入</span>
+        <span style="flex:1;"></span>
+        <button class="btn btn-ghost btn-sm" onclick="_onbPickerCloseModal()">关闭</button>
+      </div>
+      <div id="onb-ref-picker-body" style="padding:12px 14px; overflow:auto; flex:1;">
+        <div style="color:var(--muted); font-size:12px;">加载中…</div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.addEventListener('keydown', _onbPickerHandleEsc, { once: true });
+
+  const body = document.getElementById('onb-ref-picker-body');
+  try {
+    const r = await fetch('/growth-lab/api/workspace/gallery?plan_limit=20&variant_limit_per_plan=24');
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    const groups = data.groups || [];
+    if (!groups.length) {
+      body.innerHTML = `<div style="color:var(--muted); font-size:12px;">暂无生图历史。</div>`;
+      return;
+    }
+    body.innerHTML = groups.map(g => {
+      const thumbs = (g.variants || []).map(v => {
+        const u = v.asset_url || '';
+        if (!u) return '';
+        const safeUrl = escapeAttr(u);
+        return `<div title="${escapeHtml(v.role || '')}" onclick="_onbPickerPickUrl('${safeUrl}','gallery')"
+          style="width:64px; height:64px; border:1px solid var(--border); border-radius:6px; overflow:hidden; cursor:pointer; flex:0 0 auto;">
+          <img src="${safeUrl}" style="width:100%; height:100%; object-fit:cover; display:block;"/>
+        </div>`;
+      }).join('');
+      if (!thumbs) return '';
+      return `<div style="margin-bottom:12px;">
+        <div style="font-size:12px; font-weight:600; margin-bottom:6px;">${escapeHtml(g.product_name || '(未命名)')}
+          <span style="color:var(--muted); font-weight:400; margin-left:6px;">${escapeHtml((g.audience || '').slice(0,30))}</span></div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">${thumbs}</div>
+      </div>`;
+    }).join('') || `<div style="color:var(--muted); font-size:12px;">没有可用缩略图。</div>`;
+  } catch (e) {
+    body.innerHTML = `<div style="color:#b91c1c; font-size:12px;">加载失败：${escapeHtml(e.message || e)}</div>`;
+  }
+}
+
+async function onboardingImportSpecRefs() {
+  const specId = state.specId;
+  if (!specId) { toast('当前没有 spec_id'); return; }
+  try {
+    const r = await fetch(`/growth-lab/api/compiler/specs/${specId}`);
+    if (!r.ok) throw new Error(await r.text());
+    const spec = await r.json();
+    const candidates = [];
+    const pushAll = (arr) => {
+      if (Array.isArray(arr)) {
+        arr.forEach(x => { if (_isRefUrlLike(x)) candidates.push(x); });
+      }
+    };
+    pushAll(spec.scenario_refs);
+    pushAll(spec.image_urls);
+    pushAll(spec.style_refs);
+    if (Array.isArray(spec.frames)) {
+      spec.frames.forEach(fr => {
+        pushAll(fr.scenario_refs);
+        pushAll(fr.image_urls);
+      });
+    }
+    const picks = [...new Set(candidates)].slice(0, 6);
+    if (!picks.length) { toast('当前 spec 没有可带入的参考图'); return; }
+    picks.forEach(u => _onbAddRef(u, 'spec'));
+    toast(`已带入 ${picks.length} 张 spec 参考图`);
+  } catch (e) {
+    toast('带入失败：' + (e.message || e));
+  }
+}
+
+function renderOnboardingRefCard() {
+  const html = `
+    <div id="onb-ref-card" style="font-size:12px;">
+      <div id="onb-ref-thumbs" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; min-height:18px;">
+        <div style="font-size:12px; color:var(--muted);">暂无参考图</div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer; margin:0;">
+          上传
+          <input type="file" accept="image/*" multiple style="display:none;" onchange="onboardingPickFiles(this)"/>
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="openRefPickerFromGallery()">从历史选</button>
+        ${state.specId ? `<button class="btn btn-ghost btn-sm" onclick="onboardingImportSpecRefs()">从编译器带入</button>` : ''}
+        <input id="onb-ref-url-input" type="url" placeholder="粘贴图片 URL，回车加入"
+          style="flex:1; min-width:160px; padding:4px 6px; font-size:12px; border:1px solid var(--border); border-radius:4px;"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();onboardingAddRefUrl();}"/>
+        <button class="btn btn-ghost btn-sm" onclick="onboardingAddRefUrl()">加入</button>
+      </div>
+    </div>`;
+  appendAgentMessage({
+    role: 'assistant',
+    title: '参考图（可选）',
+    html,
+  });
+  renderOnboardingRefThumbs();
+}
+
+function renderOnboardingDraftCard() {
+  const di = state.onboarding.draft_intent || {};
+  const order = ['output_types', 'product_name', 'audience', 'must_have', 'style_refs', 'avoid'];
+  const rows = order.map(k => {
+    const v = di[k];
+    const label = ONBOARDING_FIELD_LABEL[k] || k;
+    let valHtml = '';
+    let filled = false;
+    if (k === 'style_refs') {
+      const arr = Array.isArray(v) ? v : [];
+      const refs = arr.filter(_isRefUrlLike);
+      const texts = arr.filter(x => !_isRefUrlLike(x));
+      filled = arr.length > 0;
+      if (!arr.length) {
+        valHtml = '—';
+      } else {
+        const parts = [];
+        if (refs.length) {
+          const preview = refs.slice(0, 2).map(u => `<img src="${escapeAttr(u)}" style="width:18px; height:18px; vertical-align:middle; border-radius:3px; margin-right:2px; object-fit:cover;"/>`).join('');
+          parts.push(`<span style="display:inline-flex; align-items:center; gap:2px;">${preview}<span style="margin-left:4px;">参考图 ${refs.length} 张</span></span>`);
+        }
+        if (texts.length) parts.push(escapeHtml(texts.join('、')));
+        valHtml = parts.join(' · ');
+      }
+    } else {
+      let val = '';
+      if (Array.isArray(v)) val = v.length ? v.join('、') : '—';
+      else val = v ? String(v) : '—';
+      filled = Array.isArray(v) ? v.length > 0 : !!v;
+      valHtml = escapeHtml(val);
+    }
+    return `<tr>
+      <td style="padding:2px 8px 2px 0; color:var(--muted); white-space:nowrap;">${escapeHtml(label)}</td>
+      <td style="padding:2px 0; ${filled ? '' : 'color:var(--muted);'}">${valHtml}</td>
+    </tr>`;
+  }).join('');
+  const html = `<table style="width:100%; border-collapse:collapse; font-size:12px;">${rows}</table>`;
+  // 总是覆盖最新的"意图草稿"卡：不用 ensureSlotInTimeline（会保留历史），这里每轮只要最新
+  const existing = document.getElementById('onb-draft-card');
+  if (existing) {
+    existing.innerHTML = html;
+  } else {
+    appendAgentMessage({
+      role: 'system',
+      title: '意图草稿',
+      html: `<div id="onb-draft-card">${html}</div>`,
+    });
+  }
+}
+
+function renderOnboardingCompileCard() {
+  if (document.getElementById('onb-compile-card')) return; // 已渲染过
+  const html = `
+    <div id="onb-compile-card">
+      <div style="font-size:12px; color:var(--muted); margin-bottom:6px;">关键字段都齐了，可以开始编译了。</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="onboardingCompileNow()">开始编译</button>
+        <button class="btn btn-ghost btn-sm" onclick="onboardingKeepChatting()">再补几句</button>
+      </div>
+    </div>`;
+  appendAgentMessage({ role: 'assistant', title: '准备编译', html });
+}
+
+function onboardingKeepChatting() {
+  const card = document.getElementById('onb-compile-card');
+  if (card) card.closest('.agent-msg').style.opacity = '0.55';
+  toast('继续对话即可，随时点"开始编译"');
+}
+
+async function onboardingCompileNow() {
+  const di = state.onboarding.draft_intent || {};
+  const outs = di.output_types && di.output_types.length ? di.output_types : ['main_image'];
+  const tp = state.onboarding.template_phase || {};
+  const body = {
+    product_name: di.product_name || '',
+    audience: di.audience || '',
+    output_types: outs,
+    style_refs: di.style_refs || [],
+    must_have: di.must_have || [],
+    avoid: di.avoid || [],
+    template_overrides: tp.overrides || {},
+    borrow_frame_only: tp.borrow || {},
+    model_preference: state.onboarding.model_preference || 'auto',
+  };
+  const btn = document.querySelector('#onb-compile-card .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '编译中…'; }
+  setBottomStatus('正在编译（由对话 onboarding 提交）...');
+  try {
+    const r = await fetch('/growth-lab/api/workspace/compile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    toast(`已生成 ${data.frame_count} 个 Frame / ${data.node_count} 个节点`);
+    // 切出 onboarding 模式
+    state.onboarding.active = false;
+    setComposerMode('edit');
+    state.planId = data.plan_id;
+    history.replaceState({}, '', `?plan_id=${data.plan_id}`);
+    await loadPlan(data.plan_id);
+    setBottomStatus('编译完成');
+  } catch (e) {
+    toast('编译失败：' + (e.message || e));
+    setBottomStatus('编译失败');
+    if (btn) { btn.disabled = false; btn.textContent = '开始编译'; }
+  }
+}
+
+function escapeAttr(s) { return String(s || '').replace(/['\\]/g, '\\$&'); }
+
+/* ── Composer 自动补全：/ 命令 + @ 对象 ────────────────────
+ * 在 #copilot-input 中：
+ *  - 触发：输入 / 或 @ 且前一字符为空白/行首
+ *  - /: 打开命令面板（打开抽屉 / 一键动作）
+ *  - @: 列出当前 pack 的对象，回车插入 chip + 设为 primary
+ */
+const COMPOSER_SLASH_CMDS = [
+  { key: '/intent',   desc: '打开"任务意图 / 方向"抽屉',       run: () => openDrawer('intent') },
+  { key: '/template', desc: '打开"模板 & 编译计划"抽屉',       run: () => openDrawer('template') },
+  { key: '/tree',     desc: '打开"结构树"抽屉',                 run: () => openDrawer('tree') },
+  { key: '/history',  desc: '打开"生图历史"抽屉',               run: () => openDrawer('history') },
+  { key: '/brand',    desc: '打开"品牌规则"抽屉',               run: () => openDrawer('brand') },
+  { key: '/help',     desc: '画布 & 对话操作帮助',              run: () => openDrawer('help') },
+  { key: '/focus',    desc: '在画布聚焦当前节点',               run: () => focusSelectedOnCanvas() },
+  { key: '/compile',  desc: '当前 plan 重新编译（打开模板抽屉）', run: () => openDrawer('template') },
+  { key: '/suggest',  desc: '刷新下一步建议',                   run: () => { if (typeof refreshSuggestions === 'function') refreshSuggestions(1); } },
+  { key: '/clear',    desc: '清空对话输入',                     run: () => { const ta = document.getElementById('copilot-input'); if (ta) ta.value = ''; } },
+];
+
+const _composerAc = {
+  open: false,
+  mode: null,    // 'slash' | 'at'
+  items: [],
+  active: 0,
+  triggerStart: -1, // 触发符在 textarea 中的位置
+  query: '',
+};
+
+function _composerAcReset() {
+  _composerAc.open = false; _composerAc.mode = null; _composerAc.items = [];
+  _composerAc.active = 0; _composerAc.triggerStart = -1; _composerAc.query = '';
+  const box = document.getElementById('composer-ac');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+function _composerAcRender() {
+  const box = document.getElementById('composer-ac');
+  const ta = document.getElementById('copilot-input');
+  if (!box || !ta) return;
+  if (!_composerAc.open || !_composerAc.items.length) { box.style.display = 'none'; return; }
+  box.innerHTML = _composerAc.items.map((it, i) => `
+    <div class="ac-item ${i === _composerAc.active ? 'active' : ''}" data-idx="${i}">
+      <span class="ac-key">${escapeHtml(it.key)}</span>
+      <span class="ac-desc">${escapeHtml(it.desc || '')}</span>
+    </div>
+  `).join('');
+  // 贴近 textarea 左上方弹出（输入框在底部，所以 popup 向上贴）
+  const wrap = document.getElementById('conv-input-wrap');
+  const taRect = ta.getBoundingClientRect();
+  const wrapRect = wrap.getBoundingClientRect();
+  box.style.display = '';
+  box.style.left = `${Math.max(6, taRect.left - wrapRect.left)}px`;
+  // 放在 textarea 上方
+  box.style.bottom = `${wrapRect.height - (taRect.top - wrapRect.top) + 2}px`;
+  box.style.top = '';
+  // 绑定点击
+  box.querySelectorAll('.ac-item').forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      _composerAc.active = parseInt(el.dataset.idx || '0', 10);
+      _composerAcCommit();
+    });
+  });
+}
+
+function _composerCurrentContext() {
+  const ta = document.getElementById('copilot-input');
+  if (!ta) return null;
+  const val = ta.value;
+  const caret = ta.selectionStart || 0;
+  // 回溯到最近的 / 或 @（且前面是行首/空白）
+  for (let i = caret - 1; i >= 0; i--) {
+    const ch = val[i];
+    if (ch === ' ' || ch === '\n' || ch === '\t') break;
+    if (ch === '/' || ch === '@') {
+      const prev = i === 0 ? ' ' : val[i - 1];
+      if (prev === ' ' || prev === '\n' || prev === '\t' || i === 0) {
+        return { trigger: ch, start: i, query: val.slice(i + 1, caret) };
+      }
+      break;
+    }
+  }
+  return null;
+}
+
+function _composerAcUpdate() {
+  const ctx = _composerCurrentContext();
+  if (!ctx) { _composerAcReset(); return; }
+  if (ctx.trigger === '/') {
+    const q = ctx.query.toLowerCase();
+    const items = COMPOSER_SLASH_CMDS
+      .filter(c => !q || c.key.toLowerCase().includes(q))
+      .map(c => ({ key: c.key, desc: c.desc, run: c.run }));
+    _composerAc.mode = 'slash';
+    _composerAc.items = items;
+  } else if (ctx.trigger === '@') {
+    const q = ctx.query.toLowerCase();
+    const objs = ((state.edit && state.edit.pack && state.edit.pack.objects) || []).slice();
+    const items = objs.filter(o => {
+      const label = (o.display_name || o.name || o.object_id || '').toLowerCase();
+      return !q || label.includes(q);
+    }).slice(0, 10).map(o => ({
+      key: `@${o.display_name || o.name || o.object_id}`,
+      desc: o.role || o.object_type || '',
+      objectId: o.object_id,
+      displayName: o.display_name || o.name || o.object_id,
+    }));
+    _composerAc.mode = 'at';
+    _composerAc.items = items;
+  } else {
+    _composerAcReset(); return;
+  }
+  _composerAc.open = _composerAc.items.length > 0;
+  _composerAc.active = 0;
+  _composerAc.triggerStart = ctx.start;
+  _composerAc.query = ctx.query;
+  _composerAcRender();
+}
+
+function _composerAcCommit() {
+  const ta = document.getElementById('copilot-input');
+  if (!ta || !_composerAc.open || !_composerAc.items.length) return;
+  const item = _composerAc.items[_composerAc.active];
+  const val = ta.value;
+  const caret = ta.selectionStart || 0;
+  const start = _composerAc.triggerStart;
+  const before = val.slice(0, start);
+  const after = val.slice(caret);
+  if (_composerAc.mode === 'slash') {
+    // 执行命令并清除触发段
+    ta.value = before + after;
+    ta.selectionStart = ta.selectionEnd = before.length;
+    _composerAcReset();
+    try { item.run && item.run(); } catch (e) { /* noop */ }
+  } else if (_composerAc.mode === 'at') {
+    // 插入展示文本并把 object 加入 selection
+    const insert = `${item.displayName} `;
+    ta.value = before + insert + after;
+    ta.selectionStart = ta.selectionEnd = (before + insert).length;
+    _composerAcReset();
+    try {
+      if (item.objectId) {
+        state.edit.primaryObjectId = item.objectId;
+        if (typeof renderObjectChips === 'function' && state.edit.pack) renderObjectChips(state.edit.pack);
+        if (typeof fetchEditContext === 'function') fetchEditContext({ primary: item.objectId });
+      }
+    } catch (e) { /* noop */ }
+  }
+}
+
+function _composerAcKey(e) {
+  if (!_composerAc.open) return false;
+  if (e.key === 'ArrowDown') { _composerAc.active = (_composerAc.active + 1) % _composerAc.items.length; _composerAcRender(); e.preventDefault(); return true; }
+  if (e.key === 'ArrowUp')   { _composerAc.active = (_composerAc.active - 1 + _composerAc.items.length) % _composerAc.items.length; _composerAcRender(); e.preventDefault(); return true; }
+  if (e.key === 'Enter' || e.key === 'Tab') { _composerAcCommit(); e.preventDefault(); return true; }
+  if (e.key === 'Escape') { _composerAcReset(); e.preventDefault(); return true; }
+  return false;
+}
+
+(function bindComposerAc() {
+  const ta = document.getElementById('copilot-input');
+  if (!ta) return;
+  ta.addEventListener('input', _composerAcUpdate);
+  ta.addEventListener('keyup', (e) => {
+    if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) _composerAcUpdate();
+  });
+  ta.addEventListener('keydown', (e) => {
+    if (_composerAcKey(e)) return;
+    if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-edit-variant');
+      if (btn) btn.click();
+    }
+  });
+  ta.addEventListener('blur', () => setTimeout(_composerAcReset, 120));
+})();
+
 /* ── 启动 ── */
 (async () => {
   updateCopilotEmptyState(null);
@@ -3125,8 +4556,13 @@ function fitToView() {
         toast('已从生图历史选中：在右栏 ④ 输入怎么改它');
       }
     }
-  } else if (state.specId) {
-    document.getElementById('in-spec').value = state.specId;
+  } else {
+    if (state.specId) {
+      const inSpec = document.getElementById('in-spec');
+      if (inSpec) inSpec.value = state.specId;
+    }
+    // 没有 plan_id：进入对话式 onboarding
+    startOnboarding();
   }
 })();
 </script>

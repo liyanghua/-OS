@@ -91,16 +91,20 @@ class VisualPlanCompiler:
         frame_keys: list[str] | None = None,
         template_overrides: dict[str, str] | None = None,
         borrow_frame_only: dict[str, bool] | None = None,
+        model_preference: str | None = None,
     ) -> tuple[CompilePlan, list[Frame], list[ResultNode]]:
         """返回 (plan, frames, nodes)。
 
         frame_keys: 要生成的 Frame 序列，默认由 intent.output_types 推导。
         template_overrides: {frame_key: template_id} 强制指定模板。
         borrow_frame_only: {frame_key: True} 强制走"仅借框架 + 按 intent 重参数化"路径。
+        model_preference: auto / wan25 / gemini / seedream / flux，写到 plan.intent 供下游节点生成使用。
         """
         frame_keys = frame_keys or self._resolve_frame_keys(intent)
         template_overrides = template_overrides or {}
         borrow_frame_only = borrow_frame_only or {}
+        if model_preference:
+            intent.model_preference = model_preference
 
         plan = CompilePlan(intent=intent, status="compiling")
         frames: list[Frame] = []

@@ -92,6 +92,8 @@ class IntentContext(BaseModel):
     must_have: list[str] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)
     requested_counts: dict[str, int] = Field(default_factory=dict)
+    # 图像模型偏好：auto / wan25 / gemini / seedream / flux
+    model_preference: str = "auto"
     # 溯源
     source_spec_id: str = ""
     source_opportunity_ids: list[str] = Field(default_factory=list)
@@ -403,3 +405,24 @@ class ProposalV2(BaseModel):
     # 兼容 v1 渲染：保留旧字段冗余
     prompt_delta: str = ""
     copy_delta: str = ""
+
+
+# ── Onboarding（新建 plan 的对话式引导） ─────────
+
+
+class ChatTurn(BaseModel):
+    """对话历史的一轮消息（onboarding / agent 通用）。"""
+
+    role: Literal["user", "assistant", "system"] = "user"
+    content: str = ""
+
+
+class OnboardingResult(BaseModel):
+    """onboarding_chat 的返回——渐进收集意图直到可以一键编译。"""
+
+    draft_intent: IntentContext = Field(default_factory=IntentContext)
+    next_question: str | None = None
+    assistant_message: str = ""
+    ready_to_compile: bool = False
+    missing_fields: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)

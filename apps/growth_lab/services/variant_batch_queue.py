@@ -60,13 +60,25 @@ def _real_generate(variant: dict) -> str:
         ref_urls = spec.get("reference_image_urls") or []
         raw_mode = str(spec.get("mode", "generate") or "generate").lower()
         mode = "edit" if raw_mode == "edit" else "generate"
+        base_prompt = (spec.get("base_prompt") or "").strip()
+        if not base_prompt:
+            fallback_parts = [
+                variant.get("_node_label") or "",
+                variant.get("_node_title") or "",
+                spec.get("copy_spec") or "",
+            ]
+            base_prompt = "，".join(p for p in fallback_parts if p).strip()
+        if not base_prompt:
+            base_prompt = "高质量电商主图，洁净白底，产品居中，柔和自然光，专业摄影"
+            logger.warning("Variant %s 空 prompt 触发兜底", variant.get("variant_id", "?"))
         prompt = ImagePrompt(
             slot_id=variant.get("variant_id", "unknown"),
-            prompt=spec.get("base_prompt", ""),
+            prompt=base_prompt,
             negative_prompt=spec.get("negative_prompt", ""),
             size=spec.get("size", "1024*1024"),
             ref_image_url=ref_urls[0] if ref_urls else "",
             mode=mode,
+            model=(spec.get("model") or "").strip(),
         )
         provider_hint = spec.get("provider_hint", "auto")
         opp_id = variant.get("source_opportunity_id", "") or "growth_lab"

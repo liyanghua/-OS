@@ -108,6 +108,111 @@ def _safe_json_list(text: str) -> list[dict]:
     return []
 
 
+_FIELD_LABEL = {
+    "output_types": "输出类型",
+    "product_name": "产品名",
+    "audience": "目标人群",
+    "must_have": "核心卖点",
+    "style_refs": "风格",
+    "avoid": "避免",
+}
+
+_OUTPUT_KEYWORDS = [
+    ("买家秀", "buyer_show"),
+    ("视频分镜", "video_shots"),
+    ("分镜", "video_shots"),
+    ("视频", "video_shots"),
+    ("详情", "detail"),
+    ("竞品", "competitor"),
+    ("主图", "main_image"),
+]
+_AUDIENCE_RE = re.compile(
+    r"(\d+\s*-?\s*\d*\s*岁|男士|男性|女士|女性|宝妈|宝爸|学生党?|职场|"
+    r"新手|敏感肌|油皮|干皮|混油|老人|小孩|儿童|孕妇|银发)"
+)
+_STYLE_KEYWORDS = [
+    "极简", "高端", "复古", "港风", "日系", "韩系", "国潮", "ins 风", "ins风",
+    "明亮", "暗调", "高级灰", "莫兰迪", "清新", "森系", "中式", "新中式",
+    "蒸汽朋克", "赛博朋克", "胶片", "肌理感", "未来感", "科技感",
+]
+_LIST_SPLIT_RE = re.compile(r"[，,、;；]+")
+
+
+def _heuristic_extract(user_text: str, cur: dict, missing: list[str]) -> dict:
+    """轻量规则 NLU：把用户上一句按优先级归属到第一个缺失字段（或多字段命中）。
+
+    - 永远保守：只填空字段，不覆盖；返回 dict 只含本轮新抽取到的部分。
+    - 即使 LLM 已抽取，仍会跑一次（互补）。
+    """
+    out: dict = {}
+    text = (user_text or "").strip()
+    if not text or len(text) > 200:
+        return out
+
+    out_types: list[str] = []
+    seen: set[str] = set()
+    for kw, code in _OUTPUT_KEYWORDS:
+        if kw in text and code not in seen:
+            out_types.append(code)
+            seen.add(code)
+    if out_types and not cur.get("output_types"):
+        out["output_types"] = out_types
+
+    aud_hits = _AUDIENCE_RE.findall(text)
+    if aud_hits and not cur.get("audience"):
+        unique_aud: list[str] = []
+        for a in aud_hits:
+            a = a.strip()
+            if a and a not in unique_aud:
+                unique_aud.append(a)
+        out["audience"] = "、".join(unique_aud[:3])
+
+    style_hits = [s for s in _STYLE_KEYWORDS if s in text]
+    if style_hits and not cur.get("style_refs"):
+        out["style_refs"] = style_hits[:5]
+
+    if not cur.get("avoid"):
+        avoid_items: list[str] = []
+        for m in re.finditer(r"(?:不要|避免|别|忌)\s*([\u4e00-\u9fa5A-Za-z0-9，,、；; ]+)", text):
+            chunk = m.group(1).strip()
+            for piece in _LIST_SPLIT_RE.split(chunk):
+                piece = re.sub(r"^(?:不要|避免|别|忌)\s*", "", piece.strip())
+                if piece and piece not in avoid_items:
+                    avoid_items.append(piece)
+        if avoid_items:
+            out["avoid"] = avoid_items[:5]
+
+    list_items = [s.strip() for s in _LIST_SPLIT_RE.split(text) if s.strip()]
+    output_kw_set = {kw for kw, _ in _OUTPUT_KEYWORDS}
+    pure_items = [
+        it for it in list_items
+        if it not in output_kw_set and not _AUDIENCE_RE.fullmatch(it)
+    ]
+    if (
+        not cur.get("must_have")
+        and "must_have" in missing
+        and "must_have" not in out
+        and len(pure_items) >= 2
+        and not out.get("output_types")
+    ):
+        out["must_have"] = pure_items[:6]
+
+    if not cur.get("product_name") and "product_name" in (missing or []):
+        cleaned = text
+        for a in aud_hits:
+            cleaned = cleaned.replace(a, "")
+        for kw in output_kw_set:
+            cleaned = cleaned.replace(kw, "")
+        for s in style_hits:
+            cleaned = cleaned.replace(s, "")
+        cleaned = cleaned.strip(" ，,。.!?；;、")
+        if "product_name" not in out and cleaned and len(cleaned) <= 30 and not _AUDIENCE_RE.search(cleaned):
+            if not _LIST_SPLIT_RE.search(cleaned):
+                out["product_name"] = cleaned
+
+    return out
+
+
 def _safe_json_obj(text: str) -> dict:
     if not text:
         return {}
@@ -445,6 +550,175 @@ class WorkspaceCopilot:
             "prompt_delta": str(obj.get("prompt_delta") or user_prompt or "")[:500],
             "copy_delta": str(obj.get("copy_delta") or "")[:200],
             "risk": "",
+        }
+
+    async def onboarding_chat(
+        self,
+        history: list[dict] | None = None,
+        draft_intent: dict | None = None,
+    ) -> dict:
+        """对话式收集意图 → 渐进补齐字段，满足阈值即 ready_to_compile。
+
+        入参：
+            history: [{role, content}, ...]  前端累积对话
+            draft_intent: {product_name, audience, output_types, style_refs,
+                           must_have, avoid, ...}
+        返回（OnboardingResult dict）：
+            {draft_intent, next_question, assistant_message,
+             ready_to_compile, missing_fields, suggestions}
+        """
+        from apps.growth_lab.schemas.visual_workspace import IntentContext  # 局部 import
+
+        hist = list(history or [])
+        cur = dict(draft_intent or {})
+        # 字段优先级（从高到低）
+        field_priority = [
+            ("output_types", "想先产出哪种素材？主图 / 详情 / 视频分镜 / 买家秀 / 竞品对标（可多选）"),
+            ("product_name", "产品或品牌是什么？（例：JOYRUQO 氨基酸洁面乳）"),
+            ("audience", "目标人群是谁？（例：25-30 岁敏感肌女性 / 职场男性 / 宝妈…）"),
+            ("must_have", "必须呈现的核心卖点有哪些？（逗号分隔）"),
+            ("style_refs", "希望整体风格是什么？（例：极简高端 / 日系清新 / 港风复古）"),
+        ]
+
+        def _missing_key_fields() -> list[str]:
+            out: list[str] = []
+            for key, _ in field_priority:
+                v = cur.get(key)
+                if not v:
+                    out.append(key)
+                elif isinstance(v, list) and not v:
+                    out.append(key)
+            return out
+
+        # 先尝试让 LLM 抽取 / 反问
+        assistant_msg = ""
+        next_q: str | None = None
+        suggestions: list[str] = []
+        llm_ok = False
+        obj: dict = {}
+        raw_resp = ""
+        last_user_text = ""
+        for turn in reversed(hist):
+            if (turn or {}).get("role") == "user":
+                last_user_text = str(turn.get("content") or "").strip()
+                break
+
+        try:
+            from apps.content_planning.adapters.llm_router import LLMMessage, llm_router
+
+            system = (
+                "你是视觉工作台的 onboarding agent，帮操盘手用对话补齐一次编译所需意图。\n"
+                "强制规则：\n"
+                "1) 必须先把 history 最后一条 user 消息抽取并归属到 draft_intent 对应字段，再决定 next_question；\n"
+                "   - 输出类型关键词：'主图'→main_image，'详情'→detail，'视频/分镜'→video_shots，'买家秀'→buyer_show，'竞品'→competitor；\n"
+                "   - 含数字+岁 / 男士 / 女士 / 宝妈 / 学生 / 职场 等 → audience；\n"
+                "   - 含'极简/日系/港风/复古/高端/暗调/明亮' 等 → style_refs；\n"
+                "   - '不要 / 避免 / 别' 后的内容 → avoid；\n"
+                "   - 短名词短语（≤30 字、无人群词）→ product_name；\n"
+                "   - 用顿号/逗号/分号切分得到列表。\n"
+                "2) 已存在的字段不要清空也不要覆盖；只补齐空值。\n"
+                "3) next_question 永远问当前 missing_fields 的第一个；若已 ready 则置 null。\n"
+                "4) ready_to_compile：output_types 非空 且 product_name/audience/must_have 中至少 2 项有值。\n"
+                "5) 输出严格单个 JSON 对象，不要 code fence、不要解释、不要前后缀文本。\n"
+                "JSON schema：\n"
+                "{\n"
+                "  \"draft_intent\": {\"product_name\": str, \"audience\": str, \"output_types\": [str],\n"
+                "                    \"style_refs\": [str], \"must_have\": [str], \"avoid\": [str]},\n"
+                "  \"assistant_message\": \"一句话回应（10-30 字）\",\n"
+                "  \"next_question\": \"问 missing 第一个字段，或 null\",\n"
+                "  \"ready_to_compile\": bool,\n"
+                "  \"missing_fields\": [str],\n"
+                "  \"suggestions\": [str]\n"
+                "}\n"
+                "示例：\n"
+                "USER 最后一句='主图，男士洁面乳' 且 draft_intent 为空 →\n"
+                "{\"draft_intent\":{\"output_types\":[\"main_image\"],\"product_name\":\"男士洁面乳\"},"
+                "\"assistant_message\":\"已记录主图与产品名\",\"next_question\":\"目标人群是谁？\","
+                "\"ready_to_compile\":false,\"missing_fields\":[\"audience\",\"must_have\",\"style_refs\"],"
+                "\"suggestions\":[\"25-30 岁男士\",\"敏感肌\"]}"
+            )
+            user_payload = {
+                "draft_intent": cur,
+                "history": hist[-12:],
+                "field_priority": [k for k, _ in field_priority],
+                "current_missing": _missing_key_fields(),
+                "latest_user_message": last_user_text,
+            }
+            resp = await llm_router.achat(
+                [LLMMessage(role="system", content=system),
+                 LLMMessage(role="user", content=json.dumps(user_payload, ensure_ascii=False))],
+                temperature=0.2, max_tokens=600,
+            )
+            raw_resp = (resp.content or "")[:400]
+            obj = _safe_json_obj(resp.content)
+            if obj:
+                di = obj.get("draft_intent") or {}
+                if isinstance(di, dict):
+                    for k, v in di.items():
+                        if v and not cur.get(k):
+                            cur[k] = v
+                assistant_msg = str(obj.get("assistant_message") or "")[:400]
+                next_q = obj.get("next_question")
+                if next_q is not None:
+                    next_q = str(next_q)[:200] or None
+                suggestions = [str(s)[:60] for s in (obj.get("suggestions") or [])][:5]
+                llm_ok = True
+            else:
+                logger.info("[Copilot] onboarding LLM 未返回 JSON，raw=%s", raw_resp)
+        except ImportError:
+            logger.info("[Copilot] onboarding LLM 不可用（ImportError），走规则兜底")
+        except Exception as exc:
+            logger.warning("[Copilot] onboarding_chat LLM 失败 %s", exc)
+
+        # 规则 NLU 兜底：哪怕 LLM 抽取了部分字段，也再跑一次启发式补缺
+        extracted = _heuristic_extract(last_user_text, cur, _missing_key_fields())
+        if extracted:
+            for k, v in extracted.items():
+                if not cur.get(k):
+                    cur[k] = v
+                elif isinstance(cur.get(k), list) and isinstance(v, list):
+                    merged = list(cur[k])
+                    for item in v:
+                        if item and item not in merged:
+                            merged.append(item)
+                    cur[k] = merged
+
+        missing = _missing_key_fields()
+        # 兜底问句：LLM 没给或与缺失不符时，按优先级补一个
+        if not next_q:
+            for key, prompt in field_priority:
+                if key in missing:
+                    next_q = prompt
+                    break
+        if not assistant_msg:
+            if extracted:
+                labels = "、".join(_FIELD_LABEL.get(k, k) for k in extracted.keys())
+                assistant_msg = f"收到，已记录{labels}。"
+            elif last_user_text:
+                assistant_msg = "收到～继续补充下面这条就好。"
+            else:
+                assistant_msg = "我们一步步来。"
+
+        # ready 判定：output_types 必须有；且 product/audience/must_have 至少补了 2 项
+        has_outputs = bool(cur.get("output_types"))
+        filled_soft = sum(1 for k in ("product_name", "audience", "must_have") if cur.get(k))
+        ready = bool(obj.get("ready_to_compile")) if llm_ok and obj else False
+        if not ready:
+            ready = has_outputs and filled_soft >= 2
+
+        # 标准化 IntentContext
+        try:
+            normalized = IntentContext.model_validate(cur).model_dump(mode="json")
+        except Exception:
+            normalized = cur
+
+        return {
+            "draft_intent": normalized,
+            "assistant_message": assistant_msg,
+            "next_question": None if ready else next_q,
+            "ready_to_compile": ready,
+            "missing_fields": missing,
+            "suggestions": suggestions,
         }
 
     def explain_lineage(self, node: dict) -> list[dict]:

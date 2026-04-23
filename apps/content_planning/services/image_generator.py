@@ -35,9 +35,59 @@ _ensure_env()
 _GENERATED_DIR = Path(__file__).resolve().parents[3] / "data" / "generated_images"
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-_DASHSCOPE_DEFAULT_MODEL = os.environ.get("IMAGE_GEN_MODEL", "wanx2.1-t2i-turbo")
-_DASHSCOPE_FALLBACK_MODEL = "wanx-v1"
+_DASHSCOPE_DEFAULT_MODEL = os.environ.get("IMAGE_GEN_MODEL", "wan2.5-t2i-preview")
+_DASHSCOPE_FALLBACK_MODEL = os.environ.get("IMAGE_GEN_FALLBACK_MODEL", "wanx2.1-t2i-turbo")
 _DASHSCOPE_IMAGE_EDIT_MODEL = os.environ.get("DASHSCOPE_IMAGE_EDIT_MODEL", "qwen-image-edit")
+
+# wan2.5-t2i-preview 要求总像素 [1280*1280, 1440*1440]，宽高比 [1:4, 4:1]；
+# wanx2.1/2.2 系列要求 [512, 1440] 单边且 <= 1440*1440。
+# 这里只存两套常用比例；未在表里的 aspect 会退回到 1:1。
+_WAN25_SIZE_BY_ASPECT = {
+    "1:1": "1280*1280",
+    "3:4": "1104*1472",
+    "4:3": "1472*1104",
+    "9:16": "960*1696",
+    "16:9": "1696*960",
+}
+_WANX21_SIZE_BY_ASPECT = {
+    "1:1": "1024*1024",
+    "3:4": "864*1152",
+    "4:3": "1152*864",
+    "9:16": "720*1280",
+    "16:9": "1280*720",
+}
+
+
+def _aspect_from_size(size: str) -> str:
+    """把 '1024*1024' 等尺寸字符串反推一个最接近的比例标签。"""
+    try:
+        w, _, h = (size or "").partition("*")
+        w_i = int(w); h_i = int(h)
+        if w_i <= 0 or h_i <= 0:
+            return "1:1"
+        ratio = w_i / h_i
+        if abs(ratio - 1.0) < 0.05:
+            return "1:1"
+        if abs(ratio - 3 / 4) < 0.05:
+            return "3:4"
+        if abs(ratio - 4 / 3) < 0.05:
+            return "4:3"
+        if abs(ratio - 9 / 16) < 0.05:
+            return "9:16"
+        if abs(ratio - 16 / 9) < 0.05:
+            return "16:9"
+    except Exception:
+        pass
+    return "1:1"
+
+
+def _size_for_dashscope_model(model_name: str, requested_size: str) -> str:
+    """按模型映射到对应分辨率档位，避免 wan2.5 拒收小尺寸 / wanx 拒收大尺寸。"""
+    aspect = _aspect_from_size(requested_size)
+    if "wan2.5" in (model_name or "").lower():
+        return _WAN25_SIZE_BY_ASPECT.get(aspect, _WAN25_SIZE_BY_ASPECT["1:1"])
+    # wanx2.1 / wanx-v1 / 其它
+    return _WANX21_SIZE_BY_ASPECT.get(aspect, requested_size or "1024*1024")
 _POLL_INTERVAL = 2.0
 _MAX_POLL_SECONDS = 120.0
 
@@ -51,6 +101,10 @@ class ImagePrompt(BaseModel):
     mode: Literal["generate", "edit"] = Field(
         default="generate",
         description="generate=常规文生图/参考图生成；edit=以 ref_image_url 为底图的图生图微调（保构图）",
+    )
+    model: str = Field(
+        default="",
+        description="per-request 模型覆盖（如 wan2.5-t2i-preview / google/gemini-3.1-flash-image-preview）；留空则由服务按 provider 使用默认模型",
     )
 
 
@@ -203,16 +257,19 @@ class ImageGeneratorService:
         支持：
         - 绝对文件系统路径
         - `/generated-images/{oid}/{name}` → `_GENERATED_DIR / oid / name`
+        - `/source-images/{rel}` → `data/source_images/{rel}`（含用户上传的参考图）
         - 其它以 '/' 开头的 URL 路径暂不支持（返回 None）
         """
         if not file_path:
             return None
-        # URL 形式的 serve path
         if file_path.startswith("/generated-images/"):
             rel = file_path[len("/generated-images/"):]
             candidate = _GENERATED_DIR / rel
             return candidate if candidate.is_file() else None
-        # 文件系统路径直通
+        if file_path.startswith("/source-images/"):
+            rel = file_path[len("/source-images/"):]
+            candidate = Path(__file__).resolve().parents[3] / "data" / "source_images" / rel
+            return candidate if candidate.is_file() else None
         p = Path(file_path)
         return p if p.is_file() else None
 
@@ -229,6 +286,8 @@ class ImageGeneratorService:
             mime = "image/png"
         elif ext == ".webp":
             mime = "image/webp"
+        elif ext == ".gif":
+            mime = "image/gif"
         raw = p.read_bytes()
         b64 = base64.b64encode(raw).decode()
         return f"data:{mime};base64,{b64}"
@@ -258,21 +317,45 @@ class ImageGeneratorService:
         opportunity_id: str,
         on_progress: Callable[[str, str, dict[str, Any]], None] | None = None,
     ) -> ImageResult:
-        """先用主模型调 OpenRouter；若被上游内容策略 403 拒绝，按 fallback 模型链逐个重试。"""
-        model_chain = [self._openrouter_model] + self._openrouter_fallbacks
+        """先用主模型调 OpenRouter；若被上游内容策略 403 拒绝，按 fallback 模型链逐个重试。
+
+        若 prompt.model 非空（用户在 onboarding 选了具体模型），把它放到链路首位，
+        仍然保留默认主模型 + 环境 fallback 作为兜底。
+        """
+        chain: list[str] = []
+        if prompt.model:
+            chain.append(prompt.model)
+        chain.append(self._openrouter_model)
+        chain.extend(self._openrouter_fallbacks)
+        # 去重但保持顺序
+        seen: set[str] = set()
+        model_chain: list[str] = []
+        for m in chain:
+            if m and m not in seen:
+                seen.add(m)
+                model_chain.append(m)
         last_result: ImageResult | None = None
         for idx, model_name in enumerate(model_chain):
             result = self._generate_openrouter_once(prompt, opportunity_id, on_progress, model_name)
             if result.status == "completed":
                 return result
             last_result = result
-            # 仅在可识别为 ToS/403 时才继续 fallback；其它错误（网络/鉴权等）直接跳出
+            # 可继续 fallback 的错误：
+            # - ToS/403（上游内容策略拒绝）
+            # - 模型不存在/404（"No endpoints found"）
+            # - OpenRouter 400 "is not a valid model ID"（配置里写错了 ID）
             err_msg = result.error or ""
-            is_tos = ("Terms Of Service" in err_msg) or ("PermissionDenied" in err_msg) or ("403" in err_msg and "prohibited" in err_msg.lower())
-            if not is_tos:
+            err_lower = err_msg.lower()
+            is_tos = ("Terms Of Service" in err_msg) or ("PermissionDenied" in err_msg) or ("403" in err_msg and "prohibited" in err_lower)
+            is_missing = ("no endpoints found" in err_lower) or ("404" in err_msg) or ("not found" in err_lower and "model" in err_lower)
+            is_invalid_id = ("not a valid model id" in err_lower) or ("invalid model" in err_lower and "400" in err_msg)
+            if not (is_tos or is_missing or is_invalid_id):
                 break
             if idx + 1 < len(model_chain):
-                logger.warning("OpenRouter ToS 403 from %s, fallback to %s", model_name, model_chain[idx + 1])
+                if is_tos: reason = "ToS 403"
+                elif is_missing: reason = "model unavailable (404)"
+                else: reason = "invalid model id (400)"
+                logger.warning("OpenRouter %s from %s, fallback to %s", reason, model_name, model_chain[idx + 1])
         return last_result or ImageResult(slot_id=prompt.slot_id, status="failed",
                                           error="OpenRouter: 无可用模型", provider="openrouter")
 
@@ -290,6 +373,7 @@ class ImageGeneratorService:
             client = openai.OpenAI(
                 base_url=_OPENROUTER_BASE_URL,
                 api_key=self._openrouter_key,
+                timeout=60.0,
             )
 
             safe_prompt = self._sanitize_prompt_for_openrouter(prompt.prompt)
@@ -611,23 +695,39 @@ class ImageGeneratorService:
                     prompt, opportunity_id, image_ref, on_progress, t0, _ds_trace,
                 )
 
-            # 纯文生图：走 wanx t2i
+            # 纯文生图：主模型 → 失败再退兜底模型；两个模型的 size 约束不同，
+            # 在调用前各自映射到匹配分辨率，避免 wan2.5 拒小尺寸 / wanx 拒大尺寸。
+            # prompt.model 非空 → 用户在 onboarding 选了具体模型，作为 primary；否则用环境默认。
+            primary_model = prompt.model or _DASHSCOPE_DEFAULT_MODEL
+            primary_size = _size_for_dashscope_model(primary_model, prompt.size)
             rsp = ImageSynthesis.async_call(
-                model=_DASHSCOPE_DEFAULT_MODEL,
+                model=primary_model,
                 prompt=prompt.prompt,
                 negative_prompt=prompt.negative_prompt or None,
                 n=1,
-                size=prompt.size,
+                size=primary_size,
                 api_key=self._dashscope_key,
             )
 
             if rsp.status_code != 200:
+                # fallback 模型：若用户指定了主模型且与环境默认相同，退到 FALLBACK；否则退到环境默认。
+                fallback_model = _DASHSCOPE_FALLBACK_MODEL if primary_model != _DASHSCOPE_FALLBACK_MODEL else _DASHSCOPE_DEFAULT_MODEL
+                if fallback_model == primary_model:
+                    fallback_model = _DASHSCOPE_FALLBACK_MODEL
+                fallback_size = _size_for_dashscope_model(fallback_model, prompt.size)
+                logger.warning(
+                    "DashScope primary %s failed (code=%s), fallback to %s with size=%s",
+                    primary_model,
+                    getattr(rsp, "code", ""),
+                    fallback_model,
+                    fallback_size,
+                )
                 rsp = ImageSynthesis.async_call(
-                    model=_DASHSCOPE_FALLBACK_MODEL,
+                    model=fallback_model,
                     prompt=prompt.prompt,
                     negative_prompt=prompt.negative_prompt or None,
                     n=1,
-                    size=prompt.size,
+                    size=fallback_size,
                     api_key=self._dashscope_key,
                 )
 
