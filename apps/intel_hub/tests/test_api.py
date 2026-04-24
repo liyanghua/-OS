@@ -1,6 +1,13 @@
+import asyncio
+import json
 import tempfile
+import threading
+import time
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import cast
+from unittest.mock import AsyncMock, patch
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -8,7 +15,716 @@ FIXTURE_OUTPUT = ROOT / "data" / "fixtures" / "trendradar_output" / "output"
 TABLECLOTH_FIXTURE_OUTPUT = ROOT / "data" / "fixtures" / "trendradar_tablecloth" / "output"
 
 
+def _write_runtime(tmp: Path, *, output_dir: Path = FIXTURE_OUTPUT) -> Path:
+    runtime_path = tmp / "runtime.yaml"
+    runtime_path.write_text(
+        "\n".join(
+            [
+                f"trendradar_output_dir: {output_dir.as_posix()}",
+                f"storage_path: {(tmp / 'intel_hub.sqlite').as_posix()}",
+                "default_page_size: 20",
+                "fixture_fallback_dir: ''",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return runtime_path
+
+
+def _wait_until(predicate, *, timeout: float = 2.0, interval: float = 0.02) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if predicate():
+            return True
+        time.sleep(interval)
+    return False
+
+
 class ApiSurfaceTests(unittest.TestCase):
+    def test_crawl_observer_returns_idle_when_no_active_jobs(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+            response = client.get("/crawl-observer")
+            self.assertEqual(response.status_code, 200)
+
+            payload = response.json()
+            self.assertEqual(payload["derived_state"], "idle")
+            self.assertEqual(payload["stalled_reason"], "")
+            self.assertIsNone(payload["active_job"])
+            self.assertEqual(payload["pipeline"]["status"], "not_started")
+            self.assertEqual(payload["queue"]["pending_count"], 0)
+
+    def test_crawl_observer_detects_worker_not_running_for_pending_job(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            queue_path = tmp / "job_queue.json"
+            queue = FileJobQueue(queue_path)
+            old_created_at = (datetime.now(tz=timezone.utc) - timedelta(seconds=45)).isoformat()
+            job = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "婴儿洁面乳", "max_notes": 20},
+                display_keyword="婴儿洁面乳",
+                created_at=old_created_at,
+            )
+            queue.enqueue(job)
+
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+            response = client.get("/crawl-observer")
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+
+            self.assertEqual(payload["derived_state"], "stalled")
+            self.assertEqual(payload["stalled_reason"], "worker_not_running")
+            self.assertEqual(payload["active_job"]["job_id"], job.job_id)
+            self.assertEqual(payload["active_job"]["display_keyword"], "婴儿洁面乳")
+
+    def test_crawl_observer_reports_pipeline_running_and_result_ready(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            queue_path = tmp / "job_queue.json"
+            queue = FileJobQueue(queue_path)
+            group_id = "group123"
+            crawl_job = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "抗老精华", "max_notes": 20},
+                job_group_id=group_id,
+                display_keyword="抗老精华",
+            )
+            queue.enqueue(crawl_job)
+            queue.dequeue()
+            queue.complete(crawl_job.job_id, result_path="/tmp/jsonl")
+
+            pipeline_job = CrawlJob(
+                platform="xhs",
+                job_type="pipeline_refresh",
+                payload={},
+                job_group_id=group_id,
+                display_keyword="抗老精华",
+                priority=0,
+            )
+            queue.enqueue(pipeline_job)
+            queue.dequeue()
+
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+            running_response = client.get(f"/crawl-observer?job_id={crawl_job.job_id}")
+            self.assertEqual(running_response.status_code, 200)
+            running_payload = running_response.json()
+            self.assertEqual(running_payload["derived_state"], "pipeline_running")
+            self.assertEqual(running_payload["pipeline"]["job_id"], pipeline_job.job_id)
+            self.assertEqual(running_payload["pipeline"]["status"], "running")
+
+            queue.complete(pipeline_job.job_id)
+            ready_response = client.get(f"/crawl-observer?job_id={crawl_job.job_id}")
+            self.assertEqual(ready_response.status_code, 200)
+            ready_payload = ready_response.json()
+            self.assertEqual(ready_payload["derived_state"], "result_ready")
+            self.assertEqual(ready_payload["pipeline"]["status"], "completed")
+            self.assertEqual(ready_payload["actions"]["view_result_url"], "/notes?category=%E6%8A%97%E8%80%81%E7%B2%BE%E5%8D%8E")
+
+    def test_crawl_observer_ignores_completed_ready_job_without_target(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            queue = FileJobQueue(tmp / "job_queue.json")
+            crawl_job = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "婴儿面霜", "max_notes": 20},
+                display_keyword="婴儿面霜",
+            )
+            queue.enqueue(crawl_job)
+            queue.dequeue()
+            queue.complete(crawl_job.job_id, result_path="/tmp/jsonl")
+
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+            response = client.get("/crawl-observer")
+            self.assertEqual(response.status_code, 200)
+
+            payload = response.json()
+            self.assertEqual(payload["derived_state"], "idle")
+            self.assertIsNone(payload["active_job"])
+
+    def test_dashboard_and_notes_include_shared_observer_hooks(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+
+            dashboard_response = client.get("/")
+            self.assertEqual(dashboard_response.status_code, 200)
+            self.assertIn("crawl-observer-drawer", dashboard_response.text)
+            self.assertIn("/crawl-observer", dashboard_response.text)
+
+            notes_response = client.get("/notes", headers={"Accept": "text/html"})
+            self.assertEqual(notes_response.status_code, 200)
+            self.assertIn("notes:active_observer_job", notes_response.text)
+            self.assertIn("window.CrawlObserver", notes_response.text)
+
+    def test_create_crawl_job_returns_group_id_and_observer_can_target_it(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+            create_response = client.post(
+                "/crawl-jobs",
+                json={
+                    "platform": "xhs",
+                    "job_type": "keyword_search",
+                    "keywords": "婴儿面霜",
+                    "max_notes": 20,
+                    "max_comments": 10,
+                },
+            )
+            self.assertEqual(create_response.status_code, 200)
+            payload = create_response.json()
+            self.assertTrue(payload["job_group_id"])
+
+            observer_response = client.get(f"/crawl-observer?job_id={payload['job_id']}")
+            self.assertEqual(observer_response.status_code, 200)
+            observer_payload = observer_response.json()
+            self.assertEqual(observer_payload["active_job"]["job_group_id"], payload["job_group_id"])
+
+    def test_create_crawl_job_reuses_open_batch_group_id(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+
+            first = client.post(
+                "/crawl-jobs",
+                json={
+                    "platform": "xhs",
+                    "job_type": "keyword_search",
+                    "keywords": "婴儿面霜",
+                    "max_notes": 20,
+                    "max_comments": 10,
+                },
+            )
+            self.assertEqual(first.status_code, 200)
+            first_payload = first.json()
+
+            second = client.post(
+                "/crawl-jobs",
+                json={
+                    "platform": "xhs",
+                    "job_type": "keyword_search",
+                    "keywords": "婴儿防晒",
+                    "max_notes": 20,
+                    "max_comments": 10,
+                },
+            )
+            self.assertEqual(second.status_code, 200)
+            second_payload = second.json()
+
+            self.assertEqual(first_payload["job_group_id"], second_payload["job_group_id"])
+
+            queue = FileJobQueue(tmp / "job_queue.json")
+            group_jobs = queue.list_batch_jobs(first_payload["job_group_id"])
+            self.assertEqual([job.display_keyword for job in group_jobs], ["婴儿面霜", "婴儿防晒"])
+
+    def test_file_job_queue_dequeues_crawl_before_pipeline_refresh(self) -> None:
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = FileJobQueue(Path(tmpdir) / "job_queue.json")
+            queue.enqueue(
+                CrawlJob(
+                    platform="xhs",
+                    job_type="keyword_search",
+                    payload={"keywords": "婴儿面霜"},
+                    display_keyword="婴儿面霜",
+                    job_group_id="group-001",
+                    priority=5,
+                )
+            )
+            queue.enqueue(
+                CrawlJob(
+                    platform="xhs",
+                    job_type="pipeline_refresh",
+                    display_keyword="婴儿面霜",
+                    job_group_id="group-001",
+                    priority=0,
+                )
+            )
+            queue.enqueue(
+                CrawlJob(
+                    platform="xhs",
+                    job_type="keyword_search",
+                    payload={"keywords": "婴儿防晒"},
+                    display_keyword="婴儿防晒",
+                    job_group_id="group-001",
+                    priority=5,
+                )
+            )
+
+            first = queue.dequeue()
+            self.assertIsNotNone(first)
+            assert first is not None
+            self.assertEqual(first.job_type, "keyword_search")
+            self.assertEqual(first.display_keyword, "婴儿面霜")
+            queue.complete(first.job_id)
+
+            second = queue.dequeue()
+            self.assertIsNotNone(second)
+            assert second is not None
+            self.assertEqual(second.job_type, "keyword_search")
+            self.assertEqual(second.display_keyword, "婴儿防晒")
+
+    def test_crawl_observer_returns_batch_queue_summary(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            queue = FileJobQueue(tmp / "job_queue.json")
+            group_id = "batch-001"
+
+            first = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "婴儿面霜", "max_notes": 20},
+                display_keyword="婴儿面霜",
+                job_group_id=group_id,
+            )
+            second = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "婴儿防晒", "max_notes": 20},
+                display_keyword="婴儿防晒",
+                job_group_id=group_id,
+            )
+            third = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "婴儿乳液", "max_notes": 20},
+                display_keyword="婴儿乳液",
+                job_group_id=group_id,
+            )
+            queue.enqueue(first)
+            queue.enqueue(second)
+            queue.enqueue(third)
+            running = queue.dequeue()
+            self.assertIsNotNone(running)
+
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+            response = client.get(f"/crawl-observer?job_id={first.job_id}")
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+
+            self.assertEqual(payload["queue"]["batch_job_group_id"], group_id)
+            self.assertEqual(payload["queue"]["batch_total"], 3)
+            self.assertEqual(payload["queue"]["batch_completed"], 0)
+            self.assertEqual(payload["queue"]["pending_count"], 2)
+            self.assertEqual(payload["queue"]["running_count"], 1)
+            self.assertEqual(
+                [item["display_keyword"] for item in payload["queue"]["pending_jobs"]],
+                ["婴儿防晒", "婴儿乳液"],
+            )
+
+    def test_embedded_worker_auto_consumes_and_enqueues_single_pipeline_refresh(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            execution_order: list[tuple[str, str]] = []
+            block_first = threading.Event()
+            block_second = threading.Event()
+            second_running = threading.Event()
+
+            async def fake_execute_keyword_search(job, queue=None, reporter=None, session_service=None):
+                execution_order.append(("start", job.display_keyword))
+                if job.display_keyword == "婴儿面霜":
+                    while not block_first.is_set():
+                        await asyncio.sleep(0.01)
+                if job.display_keyword == "婴儿防晒":
+                    second_running.set()
+                    while not block_second.is_set():
+                        await asyncio.sleep(0.01)
+                if queue:
+                    queue.touch_heartbeat(job.job_id)
+                execution_order.append(("done", job.display_keyword))
+                return f"/tmp/{job.display_keyword}"
+
+            def fake_run_pipeline(runtime_config_path=None, *, enable_vision=False):
+                execution_order.append(("pipeline", str(runtime_config_path or "")))
+                return None
+
+            with patch(
+                "apps.intel_hub.workflow.collector_worker.execute_keyword_search",
+                new=AsyncMock(side_effect=fake_execute_keyword_search),
+            ), patch(
+                "apps.intel_hub.workflow.refresh_pipeline.run_pipeline",
+                side_effect=fake_run_pipeline,
+            ):
+                with TestClient(create_app(runtime_path, enable_embedded_crawl_worker=True)) as client:
+                    first = client.post(
+                        "/crawl-jobs",
+                        json={
+                            "platform": "xhs",
+                            "job_type": "keyword_search",
+                            "keywords": "婴儿面霜",
+                            "max_notes": 20,
+                            "max_comments": 10,
+                        },
+                    )
+                    self.assertEqual(first.status_code, 200)
+
+                    started = _wait_until(
+                        lambda: (
+                            (lambda job: job is not None and job.status in ("running", "completed"))(
+                                FileJobQueue(tmp / "job_queue.json").get_job(first.json()["job_id"])
+                            )
+                        )
+                    )
+                    self.assertTrue(started)
+
+                    second = client.post(
+                        "/crawl-jobs",
+                        json={
+                            "platform": "xhs",
+                            "job_type": "keyword_search",
+                            "keywords": "婴儿防晒",
+                            "max_notes": 20,
+                            "max_comments": 10,
+                        },
+                    )
+                    self.assertEqual(second.status_code, 200)
+                    self.assertEqual(first.json()["job_group_id"], second.json()["job_group_id"])
+
+                    block_first.set()
+
+                    entered_second = _wait_until(second_running.is_set)
+                    self.assertTrue(entered_second)
+
+                    observer = client.get(f"/crawl-observer?job_id={first.json()['job_id']}")
+                    self.assertEqual(observer.status_code, 200)
+                    observer_payload = observer.json()
+                    self.assertEqual(observer_payload["derived_state"], "crawling")
+                    self.assertEqual(observer_payload["queue"]["batch_total"], 2)
+                    self.assertEqual(observer_payload["queue"]["batch_completed"], 1)
+                    self.assertEqual(observer_payload["queue"]["running_count"], 1)
+                    self.assertEqual(observer_payload["queue"]["pending_count"], 0)
+                    self.assertEqual(observer_payload["active_job"]["display_keyword"], "婴儿防晒")
+
+                    block_second.set()
+
+                    drained = _wait_until(
+                        lambda: FileJobQueue(tmp / "job_queue.json").find_pipeline_job(
+                            first.json()["job_group_id"],
+                            statuses=("completed",),
+                        )
+                        is not None,
+                        timeout=3.0,
+                    )
+                    self.assertTrue(drained)
+
+                    queue = FileJobQueue(tmp / "job_queue.json")
+                    jobs = queue.list_batch_jobs(first.json()["job_group_id"])
+                    self.assertEqual(
+                        [(job.job_type, job.status) for job in jobs],
+                        [
+                            ("keyword_search", "completed"),
+                            ("keyword_search", "completed"),
+                            ("pipeline_refresh", "completed"),
+                        ],
+                    )
+                    self.assertEqual(
+                        execution_order,
+                        [
+                            ("start", "婴儿面霜"),
+                            ("done", "婴儿面霜"),
+                            ("start", "婴儿防晒"),
+                            ("done", "婴儿防晒"),
+                            ("pipeline", str(runtime_path)),
+                        ],
+                    )
+
+    def test_file_job_queue_supports_heartbeat_and_group_queries(self) -> None:
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = FileJobQueue(Path(tmpdir) / "job_queue.json")
+            base_job = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "餐桌布"},
+                job_group_id="group-heartbeat",
+                display_keyword="餐桌布",
+            )
+            queue.enqueue(base_job)
+            queue.dequeue()
+
+            self.assertTrue(queue.touch_heartbeat(base_job.job_id))
+            job = queue.get_job(base_job.job_id)
+            self.assertIsNotNone(job)
+            self.assertIsNotNone(job.last_heartbeat_at)
+
+            pipeline_job = CrawlJob(
+                platform="xhs",
+                job_type="pipeline_refresh",
+                payload={},
+                job_group_id="group-heartbeat",
+                display_keyword="餐桌布",
+            )
+            queue.enqueue(pipeline_job)
+
+            group_jobs = queue.list_group_jobs("group-heartbeat")
+            self.assertEqual(len(group_jobs), 2)
+            self.assertEqual({j.job_type for j in group_jobs}, {"keyword_search", "pipeline_refresh"})
+
+            queue.fail(base_job.job_id, "network timeout")
+            self.assertTrue(queue.retry(base_job.job_id))
+            retried_job = queue.get_job(base_job.job_id)
+            self.assertIsNotNone(retried_job)
+            assert retried_job is not None
+            self.assertEqual(retried_job.status, "pending")
+            self.assertIsNone(retried_job.started_at)
+            self.assertIsNone(retried_job.completed_at)
+            self.assertIsNone(retried_job.last_heartbeat_at)
+            self.assertIsNone(retried_job.result_path)
+
+    def test_process_one_job_uses_custom_status_and_alert_paths(self) -> None:
+        from apps.intel_hub.workflow.collector_worker import process_one_job
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            queue = FileJobQueue(tmp / "job_queue.json")
+            status_path = tmp / "crawl_status.json"
+            alerts_path = tmp / "alerts.json"
+            job = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "防晒喷雾", "max_notes": 20},
+                display_keyword="防晒喷雾",
+            )
+            queue.enqueue(job)
+
+            with patch(
+                "apps.intel_hub.workflow.collector_worker.execute_keyword_search",
+                new=AsyncMock(side_effect=RuntimeError("boom")),
+            ):
+                processed = asyncio.run(
+                    process_one_job(
+                        queue,
+                        status_path=status_path,
+                        alerts_path=alerts_path,
+                    )
+                )
+
+            self.assertTrue(processed)
+            platform_status_path = status_path.with_name("crawl_status_xhs.json")
+            self.assertTrue(platform_status_path.exists())
+            self.assertTrue(alerts_path.exists())
+
+            status_payload = json.loads(platform_status_path.read_text(encoding="utf-8"))
+            self.assertEqual(status_payload["status"], "failed")
+
+            alerts_payload = json.loads(alerts_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(alerts_payload["alerts"]), 1)
+            self.assertEqual(alerts_payload["alerts"][0]["alert_type"], "crawl_failure")
+            self.assertIn(job.job_id, alerts_payload["alerts"][0]["title"])
+
+    def test_mediacrawler_dependency_paths_include_embedded_site_packages(self) -> None:
+        from apps.intel_hub.workflow.collector_worker import MC_ROOT, _mediacrawler_dependency_paths
+
+        paths = _mediacrawler_dependency_paths()
+
+        self.assertGreaterEqual(len(paths), 1)
+        self.assertEqual(paths[0], MC_ROOT)
+        self.assertTrue(
+            any(path.as_posix().endswith("site-packages") for path in paths[1:]),
+            "expected MediaCrawler embedded site-packages to be included",
+        )
+
+    def test_crawl_runner_builds_legacy_main_semantics_command(self) -> None:
+        from apps.intel_hub.workflow.crawl_runner import (
+            MC_LEGACY_RUNNER,
+            MC_VENV_PYTHON,
+            build_legacy_crawl_command,
+        )
+
+        command = build_legacy_crawl_command(
+            platform="xhs",
+            keywords="婴儿面霜,婴儿乳液",
+            login_type="qrcode",
+            max_notes=12,
+            max_comments=6,
+            sort_type="popularity_descending",
+            headless=False,
+            status_path=Path("/tmp/crawl_status_xhs.json"),
+            session_id="session-001",
+        )
+
+        self.assertEqual(command[0], str(MC_VENV_PYTHON))
+        self.assertEqual(command[1], str(MC_LEGACY_RUNNER))
+        self.assertIn("--platform", command)
+        self.assertIn("xhs", command)
+        self.assertIn("--lt", command)
+        self.assertIn("qrcode", command)
+        self.assertIn("--type", command)
+        self.assertIn("search", command)
+        self.assertIn("--save_data_option", command)
+        self.assertIn("jsonl", command)
+        self.assertIn("--keywords", command)
+        self.assertIn("婴儿面霜,婴儿乳液", command)
+        self.assertIn("--max_notes", command)
+        self.assertIn("12", command)
+        self.assertIn("--max_comments", command)
+        self.assertIn("6", command)
+        self.assertIn("--sort_type", command)
+        self.assertIn("popularity_descending", command)
+        self.assertIn("--status_path", command)
+        self.assertIn("/tmp/crawl_status_xhs.json", command)
+        self.assertIn("--session_id", command)
+        self.assertIn("session-001", command)
+
+    def test_execute_keyword_search_uses_legacy_mediacrawler_main_runner(self) -> None:
+        from apps.intel_hub.workflow.collector_worker import execute_keyword_search
+        from apps.intel_hub.workflow.crawl_status import CrawlStatusReporter
+        from apps.intel_hub.workflow.crawl_runner import MC_LEGACY_RUNNER, MC_VENV_PYTHON
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            queue = FileJobQueue(tmp / "job_queue.json")
+            reporter = CrawlStatusReporter(tmp / "crawl_status.json", platform="xhs")
+            job = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={
+                    "keywords": "婴儿面霜",
+                    "max_notes": 12,
+                    "max_comments": 6,
+                    "platform": "xhs",
+                    "login_type": "qrcode",
+                    "sort_type": "popularity_descending",
+                },
+                display_keyword="婴儿面霜",
+            )
+            queue.enqueue(job)
+            queue.dequeue()
+
+            captured: dict[str, object] = {}
+
+            class FakeProcess:
+                async def wait(self) -> int:
+                    return 0
+
+            async def fake_create_subprocess_exec(*args, **kwargs):
+                captured["args"] = args
+                captured["kwargs"] = kwargs
+                return FakeProcess()
+
+            with patch(
+                "apps.intel_hub.workflow.collector_worker.asyncio.create_subprocess_exec",
+                side_effect=fake_create_subprocess_exec,
+            ):
+                result = asyncio.run(execute_keyword_search(job, queue=queue, reporter=reporter))
+
+            args = cast(tuple[object, ...], captured["args"])
+            kwargs = cast(dict[str, object], captured["kwargs"])
+
+            self.assertTrue(str(result).endswith("third_party/MediaCrawler/data/xhs/jsonl"))
+            self.assertEqual(args[0], str(MC_VENV_PYTHON))
+            self.assertEqual(args[1], str(MC_LEGACY_RUNNER))
+            self.assertIn("--platform", args)
+            self.assertIn("xhs", args)
+            self.assertIn("--lt", args)
+            self.assertIn("qrcode", args)
+            self.assertIn("--type", args)
+            self.assertIn("search", args)
+            self.assertIn("--save_data_option", args)
+            self.assertIn("jsonl", args)
+            self.assertIn("--keywords", args)
+            self.assertIn("婴儿面霜", args)
+            self.assertIn("--max_notes", args)
+            self.assertIn("12", args)
+            self.assertIn("--max_comments", args)
+            self.assertIn("6", args)
+            self.assertIn("--sort_type", args)
+            self.assertIn("popularity_descending", args)
+            self.assertIn("--status_path", args)
+            self.assertIn(str(reporter.path), args)
+            self.assertEqual(kwargs["cwd"], str(MC_LEGACY_RUNNER.parent))
+            kwargs = cast(dict[str, object], captured["kwargs"])
+            env = cast(dict[str, str], kwargs["env"])
+            self.assertNotIn("INTEL_HUB_STATUS_PATH", env)
+            self.assertNotIn("INTEL_HUB_KEYWORDS", env)
+
+    def test_legacy_runner_resets_argv_before_delegating_to_mediacrawler(self) -> None:
+        from pathlib import Path as _Path
+
+        runner_path = _Path(
+            "/Users/yichen/Desktop/OntologyBrain/Ai- native 经营操作OS/third_party/MediaCrawler/legacy_intel_hub_runner.py"
+        )
+        source = runner_path.read_text(encoding="utf-8")
+
+        namespace: dict[str, object] = {}
+        start = source.index("def _reset_argv_for_mediacrawler")
+        end = source.index("\n\ndef cli", start)
+        exec("import sys\n" + source[start:end], namespace)
+        reset_argv = namespace["_reset_argv_for_mediacrawler"]
+        fake_sys = namespace["sys"]
+        fake_sys.argv = ["legacy_intel_hub_runner.py", "--max_notes", "12", "--status_path", "/tmp/status.json"]
+
+        reset_argv()
+
+        self.assertEqual(fake_sys.argv, ["legacy_intel_hub_runner.py"])
+
     def test_b2b_platform_bootstrap_queue_and_content_planning_review(self) -> None:
         from fastapi.testclient import TestClient
 

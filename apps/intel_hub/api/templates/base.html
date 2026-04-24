@@ -145,6 +145,204 @@
         padding: 2px 6px;
         border-radius: 6px;
       }
+      .crawl-observer-fab {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 1090;
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border: 1px solid rgba(138, 75, 47, 0.22);
+        border-radius: 999px;
+        background: rgba(255, 253, 248, 0.95);
+        box-shadow: 0 10px 30px rgba(92, 66, 39, 0.18);
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .crawl-observer-fab.is-visible { display: inline-flex; }
+      .crawl-observer-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--border);
+        flex-shrink: 0;
+      }
+      .crawl-observer-dot.is-running { background: #d4a017; box-shadow: 0 0 0 4px rgba(212,160,23,0.16); }
+      .crawl-observer-dot.is-ready { background: #2d8a4e; box-shadow: 0 0 0 4px rgba(45,138,78,0.14); }
+      .crawl-observer-dot.is-failed { background: #b44; box-shadow: 0 0 0 4px rgba(180,68,68,0.12); }
+      .crawl-observer-dot.is-stalled { background: #b97316; box-shadow: 0 0 0 4px rgba(185,115,22,0.12); }
+      .crawl-observer-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(17, 14, 10, 0.28);
+        z-index: 1098;
+      }
+      .crawl-observer-overlay.is-open { display: block; }
+      .crawl-observer-drawer {
+        position: fixed;
+        right: 0;
+        top: 0;
+        width: 420px;
+        max-width: 92vw;
+        height: 100vh;
+        background: var(--surface);
+        border-left: 1px solid var(--border);
+        box-shadow: -10px 0 34px rgba(92, 66, 39, 0.16);
+        z-index: 1099;
+        transform: translateX(100%);
+        transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+      }
+      .crawl-observer-drawer.is-open { transform: translateX(0); }
+      .crawl-observer-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 18px 20px 14px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, rgba(138, 75, 47, 0.08), rgba(255, 255, 255, 0.92));
+      }
+      .crawl-observer-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: var(--ink);
+      }
+      .crawl-observer-header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .crawl-observer-close {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 4px 6px;
+        border-radius: 8px;
+      }
+      .crawl-observer-close:hover { background: var(--accent-soft); color: var(--ink); }
+      .crawl-observer-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 18px 20px 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .crawl-observer-panel {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 14px 15px;
+        background: #fffdfa;
+        box-shadow: 0 8px 20px rgba(92, 66, 39, 0.06);
+      }
+      .crawl-observer-panel h4 {
+        margin: 0 0 10px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .crawl-observer-status-line {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--accent);
+        line-height: 1.5;
+      }
+      .crawl-observer-subline {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .crawl-observer-progress-track {
+        width: 100%;
+        height: 10px;
+        margin-top: 10px;
+        border-radius: 999px;
+        background: #efe6d4;
+        overflow: hidden;
+      }
+      .crawl-observer-progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent) 0%, #d07c53 100%);
+        transition: width 0.4s ease-out;
+      }
+      .crawl-observer-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px 12px;
+      }
+      .crawl-observer-metric-label {
+        color: var(--muted);
+        font-size: 11px;
+        margin-bottom: 4px;
+      }
+      .crawl-observer-metric-value {
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 600;
+        word-break: break-word;
+      }
+      .crawl-observer-list {
+        display: grid;
+        gap: 8px;
+      }
+      .crawl-observer-list-item {
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: #faf5ed;
+        border: 1px solid rgba(215, 206, 191, 0.75);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .crawl-observer-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .crawl-observer-actions a,
+      .crawl-observer-actions button {
+        border: none;
+        border-radius: 10px;
+        padding: 9px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        font-family: inherit;
+      }
+      .crawl-observer-actions .is-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .crawl-observer-actions .is-secondary {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid rgba(138, 75, 47, 0.28);
+      }
+      .crawl-observer-inline-link {
+        color: var(--accent);
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      @media (max-width: 640px) {
+        .crawl-observer-drawer { width: 100%; max-width: 100vw; }
+        .crawl-observer-grid { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
@@ -205,6 +403,53 @@
       </div>
       {% block content %}{% endblock %}
     </div>
+    <button id="crawl-observer-fab" class="crawl-observer-fab" type="button" aria-label="打开采集观察窗">
+      <span id="crawl-observer-fab-dot" class="crawl-observer-dot"></span>
+      <span id="crawl-observer-fab-text">采集进度</span>
+    </button>
+    <div id="crawl-observer-overlay" class="crawl-observer-overlay"></div>
+    <aside id="crawl-observer-drawer" class="crawl-observer-drawer" aria-hidden="true">
+      <div class="crawl-observer-header">
+        <div>
+          <h3>采集观察窗</h3>
+          <p>统一查看入队、采集、结果刷新与就绪状态。</p>
+        </div>
+        <button id="crawl-observer-close" class="crawl-observer-close" type="button" aria-label="关闭">&times;</button>
+      </div>
+      <div class="crawl-observer-body">
+        <section class="crawl-observer-panel">
+          <h4>当前状态</h4>
+          <div id="crawl-observer-status-line" class="crawl-observer-status-line">暂无采集任务</div>
+          <div id="crawl-observer-subline" class="crawl-observer-subline">开始采集后，这里会自动显示实时进展。</div>
+          <div class="crawl-observer-progress-track">
+            <div id="crawl-observer-progress-fill" class="crawl-observer-progress-fill"></div>
+          </div>
+        </section>
+        <section class="crawl-observer-panel">
+          <h4>关键指标</h4>
+          <div class="crawl-observer-grid">
+            <div><div class="crawl-observer-metric-label">主阶段</div><div id="crawl-observer-metric-stage" class="crawl-observer-metric-value">空闲</div></div>
+            <div><div class="crawl-observer-metric-label">关键词</div><div id="crawl-observer-metric-keyword" class="crawl-observer-metric-value">-</div></div>
+            <div><div class="crawl-observer-metric-label">笔记进度</div><div id="crawl-observer-metric-count" class="crawl-observer-metric-value">0/20</div></div>
+            <div><div class="crawl-observer-metric-label">耗时</div><div id="crawl-observer-metric-elapsed" class="crawl-observer-metric-value">0s</div></div>
+            <div><div class="crawl-observer-metric-label">平均延迟</div><div id="crawl-observer-metric-delay" class="crawl-observer-metric-value">-</div></div>
+            <div><div class="crawl-observer-metric-label">会话</div><div id="crawl-observer-metric-session" class="crawl-observer-metric-value">-</div></div>
+          </div>
+        </section>
+        <section class="crawl-observer-panel">
+          <h4>诊断与异常</h4>
+          <div id="crawl-observer-diagnostics" class="crawl-observer-list">
+            <div class="crawl-observer-list-item">暂无异常。开始采集后将展示任务诊断、队列状态和最近错误。</div>
+          </div>
+        </section>
+        <section class="crawl-observer-panel">
+          <h4>轻操作</h4>
+          <div id="crawl-observer-actions" class="crawl-observer-actions">
+            <button type="button" class="is-secondary" id="crawl-observer-hide-btn">收起</button>
+          </div>
+        </section>
+      </div>
+    </aside>
     <script>
     document.addEventListener('click', function(e) {
       var dd = document.getElementById('nav-more-dd');
@@ -212,6 +457,280 @@
         dd.classList.remove('nav-dd-open');
       }
     });
+
+    (function() {
+      var LS_KEY = 'notes:active_observer_job';
+      var DRAWER_DISMISSED_KEY = 'crawlObserver:dismissed';
+      var pollTimer = null;
+      var observerState = null;
+      var drawer = document.getElementById('crawl-observer-drawer');
+      var overlay = document.getElementById('crawl-observer-overlay');
+      var fab = document.getElementById('crawl-observer-fab');
+      var fabDot = document.getElementById('crawl-observer-fab-dot');
+      var fabText = document.getElementById('crawl-observer-fab-text');
+      var closeBtn = document.getElementById('crawl-observer-close');
+      var hideBtn = document.getElementById('crawl-observer-hide-btn');
+      var isOpen = false;
+
+      function readSavedJob() {
+        try {
+          var raw = localStorage.getItem(LS_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+          localStorage.removeItem(LS_KEY);
+          return null;
+        }
+      }
+
+      function saveSavedJob(payload) {
+        if (!payload) {
+          localStorage.removeItem(LS_KEY);
+          return;
+        }
+        localStorage.setItem(LS_KEY, JSON.stringify(payload));
+      }
+
+      function fmtSecs(ms) {
+        if (!ms || ms < 0) return '0s';
+        var s = Math.round(ms / 1000);
+        if (s < 60) return s + 's';
+        var m = Math.floor(s / 60);
+        var r = s % 60;
+        return m + 'm' + (r ? r + 's' : '');
+      }
+
+      function describeStage(state) {
+        return {
+          idle: '空闲',
+          queued: '排队等待执行',
+          crawling: '正在抓取素材',
+          crawl_completed_waiting_pipeline: '采集完成，等待整理结果',
+          pipeline_running: '正在整理结果',
+          result_ready: '结果已可查看',
+          failed: '任务执行失败',
+          stalled: '任务可能卡住'
+        }[state] || '状态未知';
+      }
+
+      function updateFab(visible, text, state) {
+        if (!fab) return;
+        fab.classList.toggle('is-visible', !!visible);
+        fabText.textContent = text || '采集进度';
+        fabDot.className = 'crawl-observer-dot';
+        if (state === 'crawling' || state === 'queued' || state === 'pipeline_running') fabDot.classList.add('is-running');
+        if (state === 'result_ready') fabDot.classList.add('is-ready');
+        if (state === 'failed') fabDot.classList.add('is-failed');
+        if (state === 'stalled') fabDot.classList.add('is-stalled');
+      }
+
+      function openDrawer(force) {
+        if (!drawer || !overlay) return;
+        if (force) localStorage.removeItem(DRAWER_DISMISSED_KEY);
+        drawer.classList.add('is-open');
+        overlay.classList.add('is-open');
+        drawer.setAttribute('aria-hidden', 'false');
+        isOpen = true;
+      }
+
+      function closeDrawer(markDismissed) {
+        if (!drawer || !overlay) return;
+        drawer.classList.remove('is-open');
+        overlay.classList.remove('is-open');
+        drawer.setAttribute('aria-hidden', 'true');
+        isOpen = false;
+        if (markDismissed) localStorage.setItem(DRAWER_DISMISSED_KEY, '1');
+      }
+
+      function renderDiagnostics(observer) {
+        var root = document.getElementById('crawl-observer-diagnostics');
+        if (!root) return;
+        var items = [];
+        if (observer.stalled_reason === 'worker_not_running') {
+          items.push('任务排队超过 30 秒仍未被消费，可能是采集 worker 未运行。');
+        }
+        if (observer.stalled_reason === 'status_stale') {
+          items.push('运行中的任务超过 20 秒未更新状态，建议检查采集进程是否卡住。');
+        }
+        if (observer.stalled_reason === 'pipeline_not_ready') {
+          items.push('采集已完成，正在等待结果整理链路接力。');
+        }
+        var queue = observer.queue || {};
+        if ((queue.batch_total || 0) > 0) {
+          items.push('当前批次已完成 ' + (queue.batch_completed || 0) + ' / ' + (queue.batch_total || 0) + '，后续待执行 ' + ((queue.pending_jobs || []).length) + ' 个。');
+        }
+        if ((queue.pending_count || 0) > 0 || (queue.running_count || 0) > 0) {
+          items.push('当前队列：待处理 ' + (queue.pending_count || 0) + ' 个，运行中 ' + (queue.running_count || 0) + ' 个。');
+        }
+        if (queue.pending_jobs && queue.pending_jobs.length) {
+          items.push('排队关键词：' + queue.pending_jobs.slice(0, 3).map(function(item) {
+            return item.display_keyword || '未命名任务';
+          }).join('、'));
+        }
+        var crawl = observer.crawl || {};
+        if (crawl.errors && crawl.errors.length) {
+          items.push('最近错误：' + (crawl.errors[crawl.errors.length - 1].error || '未知错误'));
+        }
+        if (observer.alerts && observer.alerts.count) {
+          items.push('当前还有 ' + observer.alerts.count + ' 条未处理告警。');
+        }
+        if (!items.length) {
+          items.push('暂无异常。开始采集后将展示任务诊断、队列状态和最近错误。');
+        }
+        root.innerHTML = items.map(function(item) {
+          return '<div class="crawl-observer-list-item">' + item + '</div>';
+        }).join('');
+      }
+
+      function renderActions(observer) {
+        var root = document.getElementById('crawl-observer-actions');
+        if (!root) return;
+        var html = [];
+        if (observer.actions && observer.actions.view_result_url) {
+          html.push('<a class="is-primary" href="' + observer.actions.view_result_url + '">查看结果</a>');
+        }
+        if (observer.actions && observer.actions.retry_job_id) {
+          html.push('<button type="button" class="is-primary" data-retry-job-id="' + observer.actions.retry_job_id + '">重新执行</button>');
+        }
+        html.push('<button type="button" class="is-secondary" id="crawl-observer-hide-inline">收起</button>');
+        root.innerHTML = html.join('');
+        var retryBtn = root.querySelector('[data-retry-job-id]');
+        if (retryBtn) {
+          retryBtn.addEventListener('click', function() {
+            var jobId = this.getAttribute('data-retry-job-id');
+            fetch('/crawl-jobs/' + encodeURIComponent(jobId) + '/retry', { method: 'POST' })
+              .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                localStorage.removeItem(DRAWER_DISMISSED_KEY);
+                return r.json();
+              })
+              .then(function() {
+                closeDrawer(false);
+                pollObserver(true);
+              })
+              .catch(function() {});
+          });
+        }
+        var hideInline = document.getElementById('crawl-observer-hide-inline');
+        if (hideInline) hideInline.addEventListener('click', function() { closeDrawer(true); });
+      }
+
+      function renderObserver(observer) {
+        observerState = observer;
+        var active = observer.active_job || null;
+        var state = observer.derived_state || 'idle';
+        var stageLabel = describeStage(state);
+        var headline = document.getElementById('crawl-observer-status-line');
+        var subline = document.getElementById('crawl-observer-subline');
+        var progressFill = document.getElementById('crawl-observer-progress-fill');
+        var metrics = {
+          stage: document.getElementById('crawl-observer-metric-stage'),
+          keyword: document.getElementById('crawl-observer-metric-keyword'),
+          count: document.getElementById('crawl-observer-metric-count'),
+          elapsed: document.getElementById('crawl-observer-metric-elapsed'),
+          delay: document.getElementById('crawl-observer-metric-delay'),
+          session: document.getElementById('crawl-observer-metric-session')
+        };
+
+        var keyword = active && active.display_keyword ? active.display_keyword : '-';
+        var saved = active ? (active.notes_collected || 0) : 0;
+        var maxNotes = active ? (active.max_notes || 20) : 20;
+        var queue = observer.queue || {};
+        var pendingJobs = queue.pending_jobs || [];
+        var queueHint = '';
+        if (state === 'crawling' && pendingJobs.length) {
+          queueHint = '，后面还有 ' + pendingJobs.length + ' 个任务等待';
+        }
+        if (state === 'pipeline_running' || state === 'crawl_completed_waiting_pipeline') {
+          queueHint = '，正在把整批素材整理成可查看结果';
+        }
+        headline.textContent = active ? stageLabel + '：' + keyword + queueHint : '暂无采集任务';
+
+        var nextKeywords = pendingJobs.slice(0, 3).map(function(item) { return item.display_keyword || ''; }).filter(Boolean);
+        subline.textContent = active
+          ? ('已抓 ' + saved + '/' + maxNotes +
+            '，批次进度 ' + (queue.batch_completed || 0) + '/' + (queue.batch_total || 0) +
+            (nextKeywords.length ? '，接下来：' + nextKeywords.join('、') : '') +
+            ((observer.crawl && observer.crawl.updated_at) ? '。最近状态已更新。' : '。等待更多进展…'))
+          : '开始采集后，这里会自动显示实时进展。';
+
+        progressFill.style.width = ((active && active.progress_pct) ? active.progress_pct : 0) + '%';
+        metrics.stage.textContent = stageLabel;
+        metrics.keyword.textContent = keyword;
+        metrics.count.textContent = saved + '/' + maxNotes + ((queue.batch_total || 0) > 1 ? ' · 排队 ' + pendingJobs.length : '');
+        metrics.elapsed.textContent = active ? fmtSecs(active.elapsed_ms || 0) : '0s';
+        metrics.delay.textContent = observer.crawl && observer.crawl.avg_note_delay_seconds ? observer.crawl.avg_note_delay_seconds + 's' : '-';
+        metrics.session.textContent = observer.crawl && observer.crawl.session_id ? observer.crawl.session_id : '-';
+
+        renderDiagnostics(observer);
+        renderActions(observer);
+
+        var hasActiveState = state !== 'idle';
+        var fabTextValue = active
+          ? (stageLabel + ' · ' + keyword + (pendingJobs.length ? ' +' + pendingJobs.length : ''))
+          : '采集进度';
+        updateFab(hasActiveState || localStorage.getItem(DRAWER_DISMISSED_KEY) === '1', fabTextValue, state);
+
+        if (active) {
+          saveSavedJob({
+            job_id: active.job_id,
+            job_group_id: active.job_group_id,
+            keyword: active.display_keyword || '',
+            updated_at: Date.now()
+          });
+        } else {
+          saveSavedJob(null);
+        }
+
+        if (hasActiveState && !localStorage.getItem(DRAWER_DISMISSED_KEY) && !isOpen) {
+          openDrawer(false);
+        }
+        if (!hasActiveState && !isOpen) {
+          updateFab(false, '采集进度', 'idle');
+        }
+
+        document.dispatchEvent(new CustomEvent('crawl-observer:update', { detail: observer }));
+      }
+
+      function pollObserver(forceOpen) {
+        if (pollTimer) window.clearTimeout(pollTimer);
+        var saved = readSavedJob();
+        var query = saved && saved.job_id ? ('?job_id=' + encodeURIComponent(saved.job_id)) : '';
+        fetch('/crawl-observer' + query, { headers: { 'Accept': 'application/json' } })
+          .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .then(function(observer) {
+            renderObserver(observer);
+            if (forceOpen) openDrawer(true);
+            var state = observer.derived_state || 'idle';
+            var delay = (state === 'crawling' || state === 'queued' || state === 'pipeline_running') ? 3000 : 10000;
+            pollTimer = window.setTimeout(pollObserver, delay);
+          })
+          .catch(function() {
+            pollTimer = window.setTimeout(pollObserver, 10000);
+          });
+      }
+
+      window.CrawlObserver = {
+        open: function() { openDrawer(true); },
+        close: function() { closeDrawer(true); },
+        refresh: function() { pollObserver(false); },
+        setActiveJob: function(payload) {
+          saveSavedJob(payload || null);
+          localStorage.removeItem(DRAWER_DISMISSED_KEY);
+          pollObserver(true);
+        },
+        getState: function() { return observerState; }
+      };
+
+      if (fab) fab.addEventListener('click', function() { openDrawer(true); });
+      if (overlay) overlay.addEventListener('click', function() { closeDrawer(true); });
+      if (closeBtn) closeBtn.addEventListener('click', function() { closeDrawer(true); });
+      if (hideBtn) hideBtn.addEventListener('click', function() { closeDrawer(true); });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && isOpen) closeDrawer(true);
+      });
+
+      pollObserver(false);
+    })();
     </script>
   </body>
 </html>

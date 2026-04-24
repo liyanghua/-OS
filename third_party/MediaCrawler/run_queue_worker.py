@@ -26,6 +26,12 @@ QUEUE_PATH = str(REPO_ROOT / "data" / "job_queue.json")
 STATUS_PATH = str(REPO_ROOT / "data" / "crawl_status.json")
 
 
+def _status_path_for_platform(platform: str) -> str:
+    base = Path(STATUS_PATH)
+    normalized = (platform or "xhs").strip().lower() or "xhs"
+    return str(base.with_name(f"{base.stem}_{normalized}{base.suffix or '.json'}"))
+
+
 async def worker_main() -> None:
     queue = FileJobQueue(QUEUE_PATH)
     alert_mgr = AlertManager(str(REPO_ROOT / "data" / "alerts.json"))
@@ -61,11 +67,11 @@ async def worker_main() -> None:
     mc_config.CRAWLER_MAX_NOTES_COUNT = first.payload.get("max_notes", 10)
     mc_config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = first.payload.get("max_comments", 10)
     mc_config.CRAWLER_TYPE = "search"
-    mc_config.PLATFORM = first.payload.get("platform", "xhs")
+    mc_config.PLATFORM = first.platform or first.payload.get("platform", "xhs")
     mc_config.LOGIN_TYPE = first.payload.get("login_type", "qrcode")
 
     reporter = CrawlStatusReporter(
-        status_path=STATUS_PATH,
+        status_path=_status_path_for_platform(mc_config.PLATFORM),
         platform=mc_config.PLATFORM,
         output_dir=str(Path("data") / mc_config.PLATFORM / "jsonl"),
     )

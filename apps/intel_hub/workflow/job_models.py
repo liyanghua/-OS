@@ -19,9 +19,11 @@ def _now_iso() -> str:
 @dataclass
 class CrawlJob:
     job_id: str = ""
+    job_group_id: str = ""
     platform: str = "xhs"
     job_type: str = "keyword_search"  # keyword_search | note_detail | comments | pipeline_refresh
     payload: dict[str, Any] = field(default_factory=dict)
+    display_keyword: str = ""
     priority: int = 5  # 0 = highest
     max_retries: int = 3
     retry_count: int = 0
@@ -29,14 +31,19 @@ class CrawlJob:
     created_at: str = ""
     started_at: str | None = None
     completed_at: str | None = None
+    last_heartbeat_at: str | None = None
     result_path: str | None = None
     error: str | None = None
 
     def __post_init__(self) -> None:
         if not self.job_id:
             self.job_id = uuid.uuid4().hex[:12]
+        if not self.job_group_id:
+            self.job_group_id = self.job_id
         if not self.created_at:
             self.created_at = _now_iso()
+        if not self.display_keyword:
+            self.display_keyword = str((self.payload or {}).get("keywords", "") or "")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -49,10 +56,12 @@ class CrawlJob:
     def mark_running(self) -> None:
         self.status = "running"
         self.started_at = _now_iso()
+        self.last_heartbeat_at = self.started_at
 
     def mark_completed(self, result_path: str | None = None) -> None:
         self.status = "completed"
         self.completed_at = _now_iso()
+        self.last_heartbeat_at = self.completed_at
         self.result_path = result_path
 
     def mark_failed(self, error: str) -> None:
@@ -63,6 +72,10 @@ class CrawlJob:
             self.status = "failed"
         self.error = error[:500]
         self.completed_at = _now_iso()
+        self.last_heartbeat_at = self.completed_at
+
+    def mark_heartbeat(self) -> None:
+        self.last_heartbeat_at = _now_iso()
 
     def can_retry(self) -> bool:
         return self.status == "failed" and self.retry_count < self.max_retries

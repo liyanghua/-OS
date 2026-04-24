@@ -179,7 +179,13 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 # Phase 1.1: try restoring from saved storage_state
                 restored = False
                 ss_path = self._is_storage_state_valid()
-                if ss_path and self._browser:
+                # CDP 模式下本地 Chrome profile (user_data_dir) 本身就是持久化存储，
+                # Cookie/localStorage 会自动复用，不需要（也不能）再做 storage_state restore。
+                # 并且 CDP 上 `browser.new_context(...)` 实际会复用 default context，
+                # 随后 `new_ctx.close()` 会把原始 self.context_page 一起关掉，
+                # 导致后续 login_by_qrcode → find_login_qrcode → page.wait_for_selector
+                # 立即抛 TargetClosedError，浏览器刚弹出就退出（子进程 exit 1）。
+                if ss_path and self._browser and not config.ENABLE_CDP_MODE:
                     utils.logger.info("[XiaoHongShuCrawler] Attempting storage_state restore…")
                     try:
                         new_ctx = await self._browser.new_context(

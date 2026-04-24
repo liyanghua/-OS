@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
+from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -27,6 +30,7 @@ from apps.intel_hub.services.review_aggregator import (
 )
 from apps.intel_hub.storage.repository import Repository
 from apps.intel_hub.storage.xhs_review_store import XHSReviewStore
+from apps.intel_hub.workflow.collector_worker import process_one_job
 from apps.intel_hub.workflow.job_models import CrawlJob
 from apps.intel_hub.workflow.job_queue import FileJobQueue
 from apps.intel_hub.workflow.session_service import SessionService
@@ -106,10 +110,11 @@ def create_app(
     review_store: XHSReviewStore | None = None,
     content_plan_store: Any | None = None,
     platform_store: B2BPlatformStore | None = None,
+    enable_embedded_crawl_worker: bool | None = None,
 ) -> FastAPI:
     settings = load_runtime_settings(runtime_config_path)
     repository = repository or Repository(settings.resolved_storage_path())
-    job_queue = FileJobQueue(resolve_repo_path("data/job_queue.json"))
+    job_queue = FileJobQueue(settings.resolved_job_queue_path())
     session_svc = SessionService(resolve_repo_path("data/sessions"))
     review_store = review_store or XHSReviewStore(resolve_repo_path("data/xhs_review.sqlite"))
     platform_store = platform_store or B2BPlatformStore(resolve_repo_path(settings.b2b_platform_db_path))
@@ -144,7 +149,299 @@ def create_app(
 
     _note_ctx_index: dict[str, dict[str, Any]] = _load_note_context_index()
 
-    app = FastAPI(title="Ontology Intel Hub")
+    crawl_status_path = settings.resolved_crawl_status_path()
+    alerts_path = settings.resolved_alerts_path()
+    embedded_worker_enabled = (
+        settings.embedded_crawl_worker_enabled
+        if enable_embedded_crawl_worker is None
+        else enable_embedded_crawl_worker
+    )
+
+    worker_wakeup = asyncio.Event()
+    worker_task: asyncio.Task[None] | None = None
+
+    async def _embedded_worker_loop() -> None:
+        while True:
+            await worker_wakeup.wait()
+            worker_wakeup.clear()
+            while True:
+                did_work = await process_one_job(
+                    job_queue,
+                    session_service=session_svc,
+                    status_path=crawl_status_path,
+                    alerts_path=alerts_path,
+                    runtime_config_path=runtime_config_path,
+                )
+                if not did_work:
+                    break
+                if job_queue.pending_count() > 0:
+                    continue
+                if job_queue.has_running_jobs():
+                    break
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        nonlocal worker_task
+        if embedded_worker_enabled:
+            if job_queue.pending_count() > 0:
+                worker_wakeup.set()
+            worker_task = asyncio.create_task(_embedded_worker_loop())
+        try:
+            yield
+        finally:
+            if worker_task:
+                worker_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await worker_task
+
+    app = FastAPI(title="Ontology Intel Hub", lifespan=lifespan)
+
+    def _safe_read_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, Any]:
+        try:
+            return json.loads(path.read_text(encoding="utf-8")) if path.exists() else (default or {})
+        except Exception:
+            return default or {}
+
+    def _normalize_platform(platform: str | None) -> str:
+        value = (platform or "").strip().lower()
+        if value in {"xhs", "xiaohongshu", "rednote"}:
+            return "xhs"
+        if value in {"dy", "douyin", "tiktok_cn"}:
+            return "dy"
+        return "xhs"
+
+    def _platform_label(platform: str | None) -> str:
+        normalized = _normalize_platform(platform)
+        return "抖音" if normalized == "dy" else "小红书"
+
+    def _platform_status_path(platform: str | None) -> Path:
+        normalized = _normalize_platform(platform)
+        base = crawl_status_path
+        return base.with_name(f"{base.stem}_{normalized}{base.suffix or '.json'}")
+
+    def _parse_iso(ts: str | None) -> datetime | None:
+        if not ts:
+            return None
+        try:
+            dt = datetime.fromisoformat(ts)
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt
+        except Exception:
+            return None
+
+    def _keyword_result_url(keyword: str, platform: str | None = None) -> str:
+        from urllib.parse import quote as _urlq
+
+        p = _normalize_platform(platform)
+        if keyword:
+            return f"/notes?platform={_urlq(p)}&category={_urlq(keyword)}"
+        return f"/notes?platform={_urlq(p)}"
+
+    def _job_elapsed_ms(job: CrawlJob) -> int:
+        start = _parse_iso(job.started_at)
+        if not start:
+            return 0
+        end = _parse_iso(job.completed_at) or datetime.now(tz=start.tzinfo or timezone.utc)
+        return max(0, int((end - start).total_seconds() * 1000))
+
+    def _build_crawl_progress(job: CrawlJob, crawl: dict[str, Any]) -> dict[str, Any]:
+        keyword = job.display_keyword or str((job.payload or {}).get("keywords", "") or "")
+        max_notes = int((job.payload or {}).get("max_notes", 20) or 20)
+        platform = _normalize_platform(job.platform or (job.payload or {}).get("platform"))
+        notes_collected = 0
+        if keyword and job.status in ("running", "completed", "failed", "dead"):
+            notes_collected = _count_notes_by_source_keyword(keyword, platform=platform)
+
+        progress_pct = min(100, notes_collected * 100 // max(1, max_notes))
+        if job.status == "completed":
+            progress_pct = 100
+        elif job.status in ("failed", "dead"):
+            progress_pct = min(progress_pct, 99)
+
+        return {
+            "job_id": job.job_id,
+            "job_group_id": job.job_group_id,
+            "status": job.status,
+            "job_type": job.job_type,
+            "platform": platform,
+            "platform_label": _platform_label(platform),
+            "display_keyword": keyword,
+            "keyword": keyword,
+            "max_notes": max_notes,
+            "notes_collected": notes_collected,
+            "progress_pct": progress_pct,
+            "started_at": job.started_at,
+            "completed_at": job.completed_at,
+            "created_at": job.created_at,
+            "elapsed_ms": _job_elapsed_ms(job),
+            "error": job.error or "",
+            "last_heartbeat_at": job.last_heartbeat_at,
+            "result_url": _keyword_result_url(keyword, platform=platform),
+            "global_status": {
+                "status": crawl.get("status", ""),
+                "current_keyword": crawl.get("current_keyword", ""),
+                "notes_found": crawl.get("notes_found", 0),
+                "notes_saved": crawl.get("notes_saved", 0),
+            },
+        }
+
+    def _build_queue_summary(base_job: CrawlJob | None = None, limit: int = 5) -> dict[str, Any]:
+        jobs = job_queue.list_jobs(limit=max(limit, 20))
+        batch_group_id = base_job.job_group_id if base_job else None
+        batch_jobs = job_queue.list_batch_jobs(batch_group_id) if batch_group_id else []
+        pending_batch_jobs = [j for j in batch_jobs if j.status == "pending" and j.job_type == "keyword_search"]
+        active_batch_job = next((j for j in batch_jobs if j.status == "running"), None)
+        batch_total = len([j for j in batch_jobs if j.job_type == "keyword_search"])
+        batch_completed = len(
+            [j for j in batch_jobs if j.job_type == "keyword_search" and j.status == "completed"]
+        )
+        pending_count = len([j for j in jobs if j.status == "pending"])
+        running_count = len([j for j in jobs if j.status == "running"])
+        recent_jobs = [
+            {
+                "job_id": j.job_id,
+                "job_group_id": j.job_group_id,
+                "job_type": j.job_type,
+                "status": j.status,
+                "display_keyword": j.display_keyword,
+                "created_at": j.created_at,
+                "started_at": j.started_at,
+                "completed_at": j.completed_at,
+            }
+            for j in jobs[:limit]
+        ]
+        return {
+            "batch_job_group_id": batch_group_id or "",
+            "active_job": {
+                "job_id": active_batch_job.job_id,
+                "display_keyword": active_batch_job.display_keyword,
+                "status": active_batch_job.status,
+                "job_type": active_batch_job.job_type,
+            } if active_batch_job else None,
+            "pending_jobs": [
+                {
+                    "job_id": j.job_id,
+                    "display_keyword": j.display_keyword,
+                    "status": j.status,
+                    "job_type": j.job_type,
+                }
+                for j in pending_batch_jobs[:limit]
+            ],
+            "pending_count": pending_count,
+            "running_count": running_count,
+            "batch_total": batch_total,
+            "batch_completed": batch_completed,
+            "recent_jobs": recent_jobs,
+            "has_pipeline_refresh": any(j.job_type == "pipeline_refresh" and j.status in ("pending", "running") for j in jobs),
+        }
+
+    def _build_pipeline_status(base_job: CrawlJob | None) -> dict[str, Any]:
+        if not base_job:
+            return {"status": "not_started", "job_id": "", "job_group_id": ""}
+
+        group_jobs = job_queue.list_group_jobs(base_job.job_group_id)
+        pipeline_jobs = [j for j in group_jobs if j.job_type == "pipeline_refresh"]
+        if not pipeline_jobs:
+            return {"status": "not_started", "job_id": "", "job_group_id": base_job.job_group_id}
+
+        pipeline_jobs.sort(key=lambda j: j.created_at, reverse=True)
+        target = pipeline_jobs[0]
+        return {
+            "status": target.status,
+            "job_id": target.job_id,
+            "job_group_id": target.job_group_id,
+            "started_at": target.started_at,
+            "completed_at": target.completed_at,
+            "last_heartbeat_at": target.last_heartbeat_at,
+            "error": target.error or "",
+        }
+
+    def _derive_observer_state(
+        base_job: CrawlJob | None,
+        pipeline: dict[str, Any],
+        crawl: dict[str, Any],
+    ) -> tuple[str, str]:
+        if not base_job:
+            return "idle", ""
+
+        now = datetime.now(tz=timezone.utc)
+        crawl_updated_at = _parse_iso(crawl.get("updated_at"))
+        heartbeat_at = _parse_iso(base_job.last_heartbeat_at)
+
+        if base_job.status in ("failed", "dead"):
+            return "failed", ""
+
+        if base_job.status == "pending":
+            age = now - (_parse_iso(base_job.created_at) or now)
+            if age.total_seconds() >= 30:
+                return "stalled", "worker_not_running"
+            return "queued", ""
+
+        if base_job.status == "running":
+            freshness_anchor = crawl_updated_at or heartbeat_at or _parse_iso(base_job.started_at)
+            if freshness_anchor and (now - freshness_anchor).total_seconds() >= 20:
+                return "stalled", "status_stale"
+            return "crawling", ""
+
+        if base_job.status == "completed":
+            pipeline_status = pipeline.get("status", "not_started")
+            if pipeline_status == "running":
+                return "pipeline_running", ""
+            if pipeline_status == "pending":
+                return "crawl_completed_waiting_pipeline", "pipeline_not_ready"
+            if pipeline_status in ("failed", "dead"):
+                return "failed", ""
+            if pipeline_status == "completed":
+                return "result_ready", ""
+            return "result_ready", ""
+
+        return "idle", ""
+
+    def _build_crawl_observer(preferred_job_id: str | None = None) -> dict[str, Any]:
+        active_job = job_queue.latest_active_job(preferred_job_id=preferred_job_id)
+        active_platform = _normalize_platform(active_job.platform if active_job else "xhs")
+        crawl = _safe_read_json(_platform_status_path(active_platform), {"status": "idle", "message": "暂无抓取记录"})
+        pipeline = _build_pipeline_status(active_job)
+        derived_state, stalled_reason = _derive_observer_state(active_job, pipeline, crawl)
+        active_payload = _build_crawl_progress(active_job, crawl) if active_job else None
+        unresolved_alerts = [a for a in _safe_read_json(alerts_path, {}).get("alerts", []) if not a.get("resolved", False)]
+
+        actions = {
+            "view_result_url": active_payload["result_url"] if active_payload and derived_state == "result_ready" else "",
+            "retry_job_id": active_job.job_id if active_job and active_job.status in ("failed", "dead") else "",
+            "dismissible": True,
+        }
+
+        return {
+            "active_job": active_payload,
+            "queue": _build_queue_summary(active_job),
+            "crawl": {
+                "platform": active_platform,
+                "platform_label": _platform_label(active_platform),
+                "status": crawl.get("status", "idle"),
+                "current_keyword": crawl.get("current_keyword", ""),
+                "current_keyword_index": crawl.get("current_keyword_index", 0),
+                "total_keywords": crawl.get("total_keywords", 0),
+                "notes_saved": crawl.get("notes_saved", 0),
+                "notes_failed": crawl.get("notes_failed", 0),
+                "comments_saved": crawl.get("comments_saved", 0),
+                "traces_saved": crawl.get("traces_saved", 0),
+                "session_id": crawl.get("session_id", ""),
+                "duration_seconds": crawl.get("duration_seconds", 0),
+                "avg_note_delay_seconds": crawl.get("avg_note_delay_seconds", 0),
+                "updated_at": crawl.get("updated_at", ""),
+                "errors": crawl.get("errors", []),
+            },
+            "pipeline": pipeline,
+            "derived_state": derived_state,
+            "stalled_reason": stalled_reason,
+            "actions": actions,
+            "alerts": {
+                "count": len(unresolved_alerts),
+                "items": unresolved_alerts[:5],
+            },
+        }
 
     _intel_hub_static = Path(__file__).resolve().parent / "static"
     if _intel_hub_static.is_dir():
@@ -423,11 +720,8 @@ def create_app(
         notes_total = len(_get_notes())
         rss_counts = count_rss_records()
         xhs_cards_total = review_store.card_count()
-        cs_path = resolve_repo_path("data/crawl_status.json")
-        try:
-            crawl = json.loads(cs_path.read_text(encoding="utf-8")) if cs_path.exists() else {"status": "idle"}
-        except Exception:
-            crawl = {"status": "idle"}
+        crawl = _safe_read_json(_platform_status_path("xhs"), {"status": "idle"})
+        crawl_dy = _safe_read_json(_platform_status_path("dy"), {"status": "idle"})
         return _render(
             "dashboard.html",
             {
@@ -440,6 +734,7 @@ def create_app(
                 "rss_counts": rss_counts,
                 "xhs_cards_total": xhs_cards_total,
                 "crawl": crawl,
+                "crawl_dy": crawl_dy,
             },
         )
 
@@ -565,33 +860,51 @@ def create_app(
         return updated_card.model_dump(mode="json")
 
     @app.get("/crawl-status")
-    async def crawl_status() -> dict[str, Any]:
-        status_path = resolve_repo_path("data/crawl_status.json")
+    async def crawl_status(platform: str = "xhs") -> dict[str, Any]:
+        normalized_platform = _normalize_platform(platform)
+        status_path = _platform_status_path(platform)
         if not status_path.exists():
-            return {"status": "idle", "message": "暂无抓取记录"}
+            return {"status": "idle", "message": "暂无抓取记录", "platform": normalized_platform}
         try:
-            return json.loads(status_path.read_text(encoding="utf-8"))
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+            payload["platform"] = normalized_platform
+            return payload
         except Exception:
-            return {"status": "idle", "message": "状态文件读取失败"}
+            return {"status": "idle", "message": "状态文件读取失败", "platform": normalized_platform}
+
+    @app.get("/crawl-observer")
+    async def crawl_observer(job_id: str | None = None) -> dict[str, Any]:
+        return _build_crawl_observer(job_id)
 
     # ── Phase 3: Job Queue API ──────────────────────────────────
 
     @app.post("/crawl-jobs")
     async def create_crawl_job(req: CrawlJobRequest) -> dict[str, Any]:
+        job_group_id = job_queue.find_open_batch() or ""
+        platform = _normalize_platform(req.platform)
         job = CrawlJob(
-            platform=req.platform,
+            platform=platform,
             job_type=req.job_type,
             payload={
+                "platform": platform,
                 "keywords": req.keywords,
                 "max_notes": req.max_notes,
                 "max_comments": req.max_comments,
                 "login_type": req.login_type,
                 "sort_type": req.sort_type,
             },
+            display_keyword=req.keywords,
             priority=req.priority,
+            job_group_id=job_group_id,
         )
         job_queue.enqueue(job)
-        return {"job_id": job.job_id, "status": job.status, "message": "任务已入队"}
+        worker_wakeup.set()
+        return {
+            "job_id": job.job_id,
+            "job_group_id": job.job_group_id,
+            "status": job.status,
+            "message": "任务已入队",
+        }
 
     @app.get("/crawl-jobs")
     async def list_crawl_jobs(
@@ -615,6 +928,7 @@ def create_app(
     @app.post("/crawl-jobs/{job_id}/retry")
     async def retry_crawl_job(job_id: str) -> dict[str, Any]:
         if job_queue.retry(job_id):
+            worker_wakeup.set()
             return {"job_id": job_id, "message": "任务已重新入队"}
         raise HTTPException(status_code=400, detail="任务不可重试")
 
@@ -624,64 +938,8 @@ def create_app(
         job = job_queue.get_job(job_id)
         if not job:
             raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-        keyword = str((job.payload or {}).get("keywords", "") or "")
-        max_notes = int((job.payload or {}).get("max_notes", 20) or 20)
-
-        notes_collected = 0
-        if keyword and job.status in ("running", "completed"):
-            notes_collected = _count_notes_by_source_keyword(keyword)
-
-        status_path = resolve_repo_path("data/crawl_status.json")
-        global_status: dict[str, Any] = {}
-        if status_path.exists():
-            try:
-                global_status = json.loads(status_path.read_text(encoding="utf-8"))
-            except Exception:
-                global_status = {}
-
-        elapsed_ms = 0
-        try:
-            from datetime import datetime as _dt
-            if job.started_at:
-                start = _dt.fromisoformat(job.started_at)
-                if job.completed_at:
-                    end = _dt.fromisoformat(job.completed_at)
-                else:
-                    end = _dt.now(tz=start.tzinfo)
-                elapsed_ms = max(0, int((end - start).total_seconds() * 1000))
-        except Exception:
-            elapsed_ms = 0
-
-        progress_pct = min(100, notes_collected * 100 // max(1, max_notes))
-        if job.status == "completed":
-            progress_pct = 100
-        elif job.status in ("failed", "dead"):
-            progress_pct = min(progress_pct, 99)
-
-        result_url = ""
-        if job.status == "completed" and keyword:
-            from urllib.parse import quote as _urlq
-            result_url = f"/notes?category={_urlq(keyword)}"
-
-        return {
-            "job_id": job_id,
-            "status": job.status,
-            "keyword": keyword,
-            "max_notes": max_notes,
-            "notes_collected": notes_collected,
-            "progress_pct": progress_pct,
-            "started_at": job.started_at,
-            "completed_at": job.completed_at,
-            "elapsed_ms": elapsed_ms,
-            "error": job.error or "",
-            "result_url": result_url,
-            "global_status": {
-                "status": global_status.get("status", ""),
-                "current_keyword": global_status.get("current_keyword", ""),
-                "notes_found": global_status.get("notes_found", 0),
-                "notes_saved": global_status.get("notes_saved", 0),
-            },
-        }
+        crawl = _safe_read_json(_platform_status_path(job.platform), {})
+        return _build_crawl_progress(job, crawl)
 
     @app.get("/sessions")
     async def list_sessions(platform: str | None = None) -> dict[str, Any]:
@@ -693,7 +951,6 @@ def create_app(
 
     @app.get("/alerts")
     async def get_alerts() -> dict[str, Any]:
-        alerts_path = resolve_repo_path("data/alerts.json")
         file_alerts: list[dict[str, Any]] = []
         if alerts_path.exists():
             try:
@@ -717,7 +974,8 @@ def create_app(
                     continue
                 out = resolve_repo_path(src.get("output_path", ""))
                 if out.exists():
-                    all_records.extend(load_mediacrawler_records(str(out), platform=src.get("platform", "xiaohongshu")))
+                    source_platform = _normalize_platform(src.get("platform", "xhs"))
+                    all_records.extend(load_mediacrawler_records(str(out), platform=source_platform))
             seen: set[str] = set()
             deduped: list[dict[str, Any]] = []
             for r in all_records:
@@ -729,13 +987,18 @@ def create_app(
             _notes_cache["records"] = deduped
         return _notes_cache["records"]
 
-    def _count_notes_by_source_keyword(keyword: str) -> int:
+    def _count_notes_by_source_keyword(keyword: str, *, platform: str | None = None) -> int:
         """统计已落地的笔记中 source_keyword == keyword 的数量；每次强制刷新缓存。"""
         if not keyword:
             return 0
         kw = keyword.strip()
+        p = _normalize_platform(platform)
         notes = _get_notes(force_reload=True)
-        return sum(1 for n in notes if (n.get("keyword") or "").strip() == kw)
+        return sum(
+            1
+            for n in notes
+            if (n.get("keyword") or "").strip() == kw and _normalize_platform(n.get("platform")) == p
+        )
 
     def _build_category_index(notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """按笔记的采集关键词（source_keyword）构建分类索引。"""
@@ -753,19 +1016,22 @@ def create_app(
         request: Request,
         page: int = 1,
         page_size: int = 24,
+        platform: str = "xhs",
         category: str | None = None,
         q: str | None = None,
         keyword: str | None = None,  # 向后兼容旧链接：等价 q
     ) -> Any:
         all_notes = _get_notes()
-        total_all = len(all_notes)
-        categories = _build_category_index(all_notes)
+        current_platform = _normalize_platform(platform)
+        platform_notes = [n for n in all_notes if _normalize_platform(n.get("platform")) == current_platform]
+        total_all = len(platform_notes)
+        categories = _build_category_index(platform_notes)
 
         # 向后兼容：旧 ?keyword=xxx → 视为 q
         if not q and keyword:
             q = keyword
 
-        filtered = all_notes
+        filtered = platform_notes
         if category:
             want = category.strip()
             if want == "未分类":
@@ -792,6 +1058,8 @@ def create_app(
                 "page": page,
                 "page_size": page_size,
                 "categories": categories,
+                "current_platform": current_platform,
+                "current_platform_label": _platform_label(current_platform),
                 "current_category": category or "",
                 "q": q or "",
             })
@@ -801,15 +1069,26 @@ def create_app(
             "page": page,
             "page_size": page_size,
             "categories": categories,
+            "current_platform": current_platform,
+            "current_platform_label": _platform_label(current_platform),
             "current_category": category or "",
             "q": q or "",
             "items": page_notes,
         }
 
     @app.get("/notes/{note_id}")
-    async def note_detail(request: Request, note_id: str) -> Any:
+    async def note_detail(request: Request, note_id: str, platform: str | None = None) -> Any:
         all_notes = _get_notes()
-        note = next((n for n in all_notes if (n.get("raw_payload") or {}).get("note_id") == note_id), None)
+        p = _normalize_platform(platform) if platform else ""
+        note = next(
+            (
+                n
+                for n in all_notes
+                if (n.get("raw_payload") or {}).get("note_id") == note_id
+                and (not p or _normalize_platform(n.get("platform")) == p)
+            ),
+            None,
+        )
         if note is None:
             raise HTTPException(status_code=404, detail=f"笔记 {note_id} 未找到")
         if _wants_html(request):

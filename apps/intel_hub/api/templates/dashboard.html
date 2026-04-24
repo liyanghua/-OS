@@ -9,7 +9,7 @@
   </section>
 
   <!-- 采集状态卡片 -->
-  <div id="crawl-card" class="card" style="margin-bottom: 20px; border-left: 4px solid var(--border); transition: border-color 0.3s;">
+  <div id="crawl-card" class="card" style="margin-bottom: 20px; border-left: 4px solid var(--border); transition: border-color 0.3s; cursor: pointer;">
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <div>
         <div class="meta" style="margin-bottom: 4px;">采集器状态</div>
@@ -181,10 +181,23 @@
       interrupted:{border:'#d4a017',       bg:'#fdf3d7',           text:'#92610a'},
     };
     const LABELS = {idle:'空闲',running:'采集中',completed:'已完成',failed:'失败',interrupted:'已中断'};
+    const STAGE_MAP = {
+      idle: 'idle',
+      queued: 'running',
+      crawling: 'running',
+      crawl_completed_waiting_pipeline: 'running',
+      pipeline_running: 'running',
+      result_ready: 'completed',
+      failed: 'failed',
+      stalled: 'failed'
+    };
 
     function render(d){
-      const s = d.status || 'idle';
+      const state = d.derived_state || 'idle';
+      const s = STAGE_MAP[state] || 'idle';
       const c = COLORS[s] || COLORS.idle;
+      const queue = d.queue || {};
+      const pendingJobs = queue.pending_jobs || [];
       const card = document.getElementById('crawl-card');
       const badge = document.getElementById('crawl-badge');
       const headline = document.getElementById('crawl-headline');
@@ -195,59 +208,76 @@
       badge.style.color = c.text;
       badge.textContent = LABELS[s] || s;
 
-      if(s === 'idle'){
+      if(state === 'idle'){
         headline.textContent = '暂无抓取任务';
         details.style.display = 'none';
         return;
       }
 
-      const kw = d.current_keyword || '-';
-      const kwIdx = (d.current_keyword_index||0)+1;
-      const kwTotal = d.total_keywords||0;
-      headline.textContent = s === 'running'
-        ? '正在采集「'+kw+'」'
-        : (s === 'completed' ? '采集完成' : '采集异常');
+      const active = d.active_job || {};
+      const crawl = d.crawl || {};
+      const kw = active.display_keyword || crawl.current_keyword || '-';
+      const kwIdx = (crawl.current_keyword_index||0)+1;
+      const kwTotal = crawl.total_keywords||0;
+      headline.textContent = {
+        queued: '排队等待执行',
+        crawling: '正在采集「'+kw+'」' + (pendingJobs.length ? '，后面还有 ' + pendingJobs.length + ' 个任务' : ''),
+        crawl_completed_waiting_pipeline: '采集完成，等待整理结果',
+        pipeline_running: '正在整理结果',
+        result_ready: '结果已可查看',
+        failed: '采集链路失败',
+        stalled: '任务可能卡住'
+      }[state] || '采集状态';
       details.style.display = 'block';
 
       document.getElementById('cstat-kw').textContent = kwIdx+' / '+kwTotal;
-      document.getElementById('cstat-saved').textContent = d.notes_saved||0;
-      document.getElementById('cstat-failed').textContent = d.notes_failed||0;
-      document.getElementById('cstat-comments').textContent = d.comments_saved||0;
-      document.getElementById('cstat-traces').textContent = d.traces_saved||0;
-      document.getElementById('cstat-duration').textContent = d.duration_seconds ? d.duration_seconds+'s' : '-';
-      document.getElementById('cstat-avg-delay').textContent = d.avg_note_delay_seconds ? d.avg_note_delay_seconds+'s' : '-';
-      document.getElementById('cstat-session').textContent = d.session_id || '-';
+      document.getElementById('cstat-saved').textContent = (crawl.notes_saved||active.notes_collected||0) + ((queue.batch_total||0) > 1 ? ' / 批次已完成 ' + (queue.batch_completed||0) : '');
+      document.getElementById('cstat-failed').textContent = crawl.notes_failed||0;
+      document.getElementById('cstat-comments').textContent = crawl.comments_saved||0;
+      document.getElementById('cstat-traces').textContent = crawl.traces_saved||0;
+      document.getElementById('cstat-duration').textContent = crawl.duration_seconds ? crawl.duration_seconds+'s' : (active.elapsed_ms ? Math.round(active.elapsed_ms/1000)+'s' : '-');
+      document.getElementById('cstat-avg-delay').textContent = crawl.avg_note_delay_seconds ? crawl.avg_note_delay_seconds+'s' : '-';
+      document.getElementById('cstat-session').textContent = crawl.session_id || '-';
 
       const pw = document.getElementById('crawl-progress-wrap');
       const pb = document.getElementById('crawl-progress-bar');
-      if(kwTotal > 0){
+      if(active && typeof active.progress_pct === 'number'){
         pw.style.display = 'block';
-        pb.style.width = Math.round(kwIdx/kwTotal*100)+'%';
+        pb.style.width = Math.max(0, active.progress_pct)+'%';
       } else { pw.style.display = 'none'; }
 
       const errDiv = document.getElementById('crawl-errors');
-      if(d.errors && d.errors.length > 0){
+      if(crawl.errors && crawl.errors.length > 0){
         errDiv.style.display = 'block';
-        errDiv.textContent = '最近错误: '+d.errors[d.errors.length-1].error;
+        errDiv.textContent = '最近错误: '+crawl.errors[crawl.errors.length-1].error;
+      } else if(d.stalled_reason){
+        errDiv.style.display = 'block';
+        errDiv.textContent = '诊断: ' + d.stalled_reason;
+      } else if(pendingJobs.length){
+        errDiv.style.display = 'block';
+        errDiv.textContent = '排队中: ' + pendingJobs.slice(0, 3).map(item => item.display_keyword || '未命名任务').join('、');
       } else { errDiv.style.display = 'none'; }
 
       if(s === 'running') card.style.animation = 'crawl-pulse 2s infinite';
       else card.style.animation = 'none';
     }
 
-    const init = {{ crawl | tojson }};
+    const init = { derived_state: 'idle', crawl: {{ crawl | tojson }} };
     render(init);
 
     let interval = 5000;
     function poll(){
-      fetch('/crawl-status',{headers:{'Accept':'application/json'}})
+      fetch('/crawl-observer',{headers:{'Accept':'application/json'}})
         .then(r=>r.json()).then(d=>{
           render(d);
-          interval = d.status==='running' ? 3000 : 10000;
+          interval = (d.derived_state==='crawling' || d.derived_state==='queued' || d.derived_state==='pipeline_running') ? 3000 : 10000;
         }).catch(()=>{});
       setTimeout(poll, interval);
     }
     setTimeout(poll, interval);
+    document.getElementById('crawl-card').addEventListener('click', function() {
+      if (window.CrawlObserver) window.CrawlObserver.open();
+    });
 
     function renderAlerts(data){
       const alerts = data.alerts || [];

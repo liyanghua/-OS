@@ -3,6 +3,64 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## Intel Hub 抖音接入 + 平台隔离（2026-04-24）
+
+### 本次目标
+
+- 在现有采集链路中接入抖音（dy）关键词抓取。
+- 小红书与抖音采集数据按平台强隔离（状态、进度、查询与分类统计）。
+- 素材详情支持抖音视频播放/下载入口。
+
+### 关键实现
+
+| 文件 | 变更 |
+|---|---|
+| `apps/intel_hub/api/app.py` | 新增平台归一化与状态文件分流（`crawl_status_xhs.json` / `crawl_status_dy.json`）；`/crawl-status`、`/crawl-jobs/{id}/progress` 按任务平台读取；`/notes` 新增 `platform` 过滤并限定分类统计在当前平台；任务结果链接增加平台参数。 |
+| `apps/intel_hub/workflow/collector_worker.py` | 执行平台优先取 `job.platform`；每个任务写入对应平台状态文件，避免跨平台串进度。 |
+| `apps/intel_hub/ingest/mediacrawler_loader.py` | 扩展 dy 字段兼容：`aweme_id`、`aweme_url`、`video_download_url`、`cover_url`、`digg_count/create_time`；统一映射到 notes 可消费结构并保留平台标识。 |
+| `apps/intel_hub/api/templates/notes.html` | 采集入口增加平台选择（小红书/抖音）；列表查询与分类导航按平台隔离；分页与搜索参数全链路带 `platform`。 |
+| `apps/intel_hub/api/templates/note_detail.html` | 新增短视频展示块（`video_url`）及下载链接。 |
+| `config/runtime.yaml` | 新增抖音数据源：`third_party/MediaCrawler/data/douyin/jsonl`。 |
+| `third_party/MediaCrawler/run_queue_worker.py` | 批处理脚本对齐平台来源（`first.platform` 优先）并按平台拆状态文件。 |
+
+### 验证结果
+
+- `python -m compileall`：上述 Python 改动文件编译通过。
+- `ReadLints`：改动文件无新增 lints。
+- TestClient 烟测通过：
+  - `POST /crawl-jobs`（`platform=dy`）可入队且 payload/Job 记录平台一致。
+  - `GET /crawl-jobs/{id}/progress` 返回平台字段及平台化结果链接。
+- `GET /notes?platform=xhs|dy` 可按平台独立返回数据和分类统计。
+
+## Intel Hub 复用旧版小红书成功采集路线（2026-04-24）
+
+### 本次目标
+
+- 保留当前 `POST /crawl-jobs` 入队、应用内单 worker 串行消费、`/crawl-observer` 与右侧观察窗。
+- 仅回退 `keyword_search` 的真实执行入口，复用此前已验证成功的 MediaCrawler 原生小红书抓取路线。
+
+### 关键实现
+
+| 文件 | 变更 |
+|---|---|
+| `apps/intel_hub/workflow/crawl_runner.py` | 重构为纯命令构造/子进程启动薄层，不再在主应用进程 import MediaCrawler；统一构造 legacy 命令。 |
+| `apps/intel_hub/workflow/collector_worker.py` | `execute_keyword_search()` 改为调用 legacy runner 子进程；继续保留 session、heartbeat、失败告警、批次 `pipeline_refresh` 逻辑。 |
+| `third_party/MediaCrawler/legacy_intel_hub_runner.py` | 新增 MediaCrawler 侧薄 runner，在 MediaCrawler 自己目录与 `.venv` 内设置 `config`、注入 `CrawlStatusReporter`、调用 `main.py` 语义。 |
+| `third_party/MediaCrawler/run_with_status.py` | 降级为兼容壳，统一转发到 `legacy_intel_hub_runner.py`，不再承载主执行逻辑。 |
+| `apps/intel_hub/tests/test_api.py` | 新增 legacy 执行入口测试，断言使用 `third_party/MediaCrawler/.venv/bin/python`、`third_party/MediaCrawler/legacy_intel_hub_runner.py`、固定 `cwd=third_party/MediaCrawler`，并覆盖平台状态文件路径。 |
+
+### 当前边界
+
+- 右侧观察窗、`/notes`、`/dashboard` 继续消费同一个 `/crawl-observer`，本轮不改 UI 状态口径。
+- 多任务仍按 FIFO 串行执行，整批 crawl 完成后只触发一次 `pipeline_refresh`。
+- 本轮不重写 MediaCrawler 的 selector 或 `DataFetchError` 逻辑，只把执行层恢复到之前成功的运行边界。
+
+### 验证
+
+- `python -m unittest apps.intel_hub.tests.test_api.ApiSurfaceTests.test_process_one_job_uses_custom_status_and_alert_paths apps.intel_hub.tests.test_api.ApiSurfaceTests.test_crawl_runner_builds_legacy_main_semantics_command apps.intel_hub.tests.test_api.ApiSurfaceTests.test_execute_keyword_search_uses_legacy_mediacrawler_main_runner -v`
+- `.venv/bin/python -m unittest apps.intel_hub.tests.test_api.ApiSurfaceTests.test_embedded_worker_auto_consumes_and_enqueues_single_pipeline_refresh apps.intel_hub.tests.test_api.ApiSurfaceTests.test_crawl_observer_returns_batch_queue_summary apps.intel_hub.tests.test_api.ApiSurfaceTests.test_create_crawl_job_reuses_open_batch_group_id -v`
+- 上述测试均通过；API 组测试存在既有 sqlite `ResourceWarning`，但未影响结果。
+
 ## 发布超时修复 + AI 发布内容生成升级 (2026-04-17)
 
 ### Bug 修复
@@ -1222,6 +1280,50 @@ trendradar_output_dir: third_party/TrendRadar/output
     - 红色边框 + 未解决告警计数 + 最近 5 条详情
 
 **验证**: 全量 38 个测试通过，所有模块 import 成功，FastAPI 18 条路由注册正常。
+
+### 2026-04-24 采集可观测性统一 + 全局右侧进度窗
+
+- 新增 `GET /crawl-observer` 聚合接口，统一返回：
+  - `active_job`
+  - `queue`
+  - `crawl`
+  - `pipeline`
+  - `derived_state`
+  - `stalled_reason`
+  - `actions`
+- `derived_state` 首版固定为：
+  - `idle`
+  - `queued`
+  - `crawling`
+  - `crawl_completed_waiting_pipeline`
+  - `pipeline_running`
+  - `result_ready`
+  - `failed`
+  - `stalled`
+- `stalled_reason` 首版固定为：
+  - `worker_not_running`
+  - `status_stale`
+  - `pipeline_not_ready`
+- `CrawlJob` 扩展字段：
+  - `job_group_id`：把同一条采集链路里的 crawl job 与 `pipeline_refresh` 关联起来
+  - `display_keyword`：直接提供前端展示文案
+  - `last_heartbeat_at`：由 worker 处理过程中刷新，用于 stalled 判定
+- `FileJobQueue` 增加：
+  - heartbeat 更新
+  - 最近活动 job 选择
+  - 按 `job_group_id` 查询关联任务
+- `collector_worker.py` 调整：
+  - 处理 `keyword_search` 时写 heartbeat
+  - 自动创建 `pipeline_refresh` 时继承 `job_group_id`
+  - 执行 `pipeline_refresh` 时也写 heartbeat
+- UI 侧统一为一套口径：
+  - `base.html` 新增全局右侧“采集观察窗”，开始采集后自动弹出，可收起，可跨页面恢复
+  - `notes.html` 不再独立维护主状态源，改为通过 `window.CrawlObserver` 触发和消费全局观察状态
+  - `dashboard.html` 顶部采集状态卡改为轮询 `/crawl-observer`，点击卡片可直接展开右侧观察窗
+- 首版继续使用轮询，不引入 SSE：
+  - 活跃状态 3s
+  - 空闲/完成状态 10s
+- worker 存活不做真实进程探测，首版通过“pending 超时未消费”与“heartbeat/crawl status 超时未更新”推断卡住状态。
 
 ---
 
@@ -3287,3 +3389,57 @@ image -> image_execution_briefs
 | POST | `/growth-lab/api/compiler/annotations` | 创建专家批注 |
 | GET | `/growth-lab/api/compiler/annotations` | 查询批注列表 |
 | GET | `/growth-lab/api/compiler/references` | 获取货架/前3秒参考案例 |
+
+---
+
+## 采集自动消费与串行队列优化（2026-04-24）
+
+### 概述
+
+解决“开始采集后只入队、不自动消费，右侧观察窗长期停留 pending”的问题。当前单实例原型环境改为应用内单 worker 自动消费，多个采集任务按 FIFO 串行执行，整批 crawl 跑完后只触发一次 `pipeline_refresh`，`/crawl-observer` 与全局右侧观察窗统一展示“当前执行 + 排队等待 + 结果整理”。
+
+### 核心变更
+
+1. **应用内嵌入单 worker**
+   - `create_app(..., enable_embedded_crawl_worker: bool | None = None)` 新增开关
+   - `RuntimeSettings.embedded_crawl_worker_enabled` 默认 `true`
+   - FastAPI `lifespan` 内创建后台 coordinator
+   - coordinator 使用 `asyncio.Event` 唤醒，不再靠忙轮询
+
+2. **队列改成批次 + 串行语义**
+   - 新采集任务会复用当前未整理完成批次的 `job_group_id`
+   - `keyword_search` 同优先级按 FIFO 串行执行
+   - `pipeline_refresh` 不会插队到待跑 crawl 前
+   - 全部 crawl 任务结束后只入队一次 `pipeline_refresh`
+   - 单个 crawl 失败不会阻塞后续任务
+
+3. **观察窗口径统一到批次视角**
+   - `/crawl-observer` 新增：
+     - `queue.batch_job_group_id`
+     - `queue.pending_jobs`
+     - `queue.batch_total`
+     - `queue.batch_completed`
+   - `preferred job_id` 现在会映射到同批次活动任务，而不是死盯首次提交的 job
+   - 右侧观察窗、`/notes` 轻量进度条、`/dashboard` 采集卡统一显示当前任务、排队任务数、后续关键词与整理阶段
+
+4. **worker 参数与路径对齐**
+   - `process_one_job(...)` / `worker_loop(...)` 补齐 `status_path`、`alerts_path`、`runtime_config_path`
+   - API 与 embedded worker 统一使用 runtime 解析出的 `job_queue_path / crawl_status_path / alerts_path`
+
+### 验证
+
+- `python -m unittest apps.intel_hub.tests.test_api -v` 通过
+- 新增验证覆盖：
+  - 自定义 `status_path / alerts_path`
+  - 同批次 `job_group_id` 复用
+  - crawl 任务优先于 `pipeline_refresh`
+  - `/crawl-observer` 批次摘要字段
+  - embedded worker 自动消费 + 全批次完成后单次 `pipeline_refresh`
+
+### 当前边界
+
+- 本轮仍假设单 API 进程 / 单 uvicorn worker
+- 不支持真实多实例并发消费
+- 首版仍用轮询，不引入 SSE
+- `pipeline_refresh` 在整批 crawl 结束后统一执行一次，不在每个关键词后单独执行
+- 2026-04-24 补充：采集执行已切到 `third_party/MediaCrawler/.venv` 子进程，避免主应用 Python 3.14 直接导入 MediaCrawler 时持续遇到 `Pillow/cv2/matplotlib` 等二进制依赖兼容问题；应用内 worker 仍负责串行消费、heartbeat、失败告警与统一观察状态。

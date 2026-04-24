@@ -10,6 +10,9 @@ mediacrawler_sources:
     platform: xiaohongshu
     output_path: third_party/MediaCrawler/data/xhs/jsonl
     fixture_fallback: data/fixtures/mediacrawler_output/xhs/jsonl
+  - enabled: true
+    platform: douyin
+    output_path: third_party/MediaCrawler/data/douyin/jsonl
 
 xhs_sources:
   - type: capture_dir

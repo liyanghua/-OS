@@ -18,6 +18,10 @@ class RuntimeSettings(BaseModel):
     trendradar_output_dir: str
     storage_path: str
     b2b_platform_db_path: str = "data/b2b_platform.sqlite"
+    job_queue_path: str | None = None
+    crawl_status_path: str | None = None
+    alerts_path: str | None = None
+    embedded_crawl_worker_enabled: bool = True
     default_page_size: int = 20
     fixture_fallback_dir: str | None = None
     raw_snapshot_dir: str = "data/raw"
@@ -31,6 +35,24 @@ class RuntimeSettings(BaseModel):
 
     def resolved_storage_path(self) -> Path:
         return resolve_repo_path(self.storage_path)
+
+    def resolved_runtime_data_dir(self) -> Path:
+        return self.resolved_storage_path().parent
+
+    def resolved_job_queue_path(self) -> Path:
+        if self.job_queue_path:
+            return resolve_repo_path(self.job_queue_path)
+        return self.resolved_runtime_data_dir() / "job_queue.json"
+
+    def resolved_crawl_status_path(self) -> Path:
+        if self.crawl_status_path:
+            return resolve_repo_path(self.crawl_status_path)
+        return self.resolved_runtime_data_dir() / "crawl_status.json"
+
+    def resolved_alerts_path(self) -> Path:
+        if self.alerts_path:
+            return resolve_repo_path(self.alerts_path)
+        return self.resolved_runtime_data_dir() / "alerts.json"
 
     def resolved_fixture_fallback_dir(self) -> Path | None:
         if not self.fixture_fallback_dir:

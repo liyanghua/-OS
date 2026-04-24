@@ -152,6 +152,10 @@ class CrawlStatusReporter:
     def status(self) -> CrawlStatus:
         return self._status
 
+    @property
+    def path(self) -> Path:
+        return self._path
+
 
 class NoopReporter:
     """空操作 reporter，当 hook 未注入时使用。"""

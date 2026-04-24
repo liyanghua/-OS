@@ -50,8 +50,13 @@ class XiaoHongShuLogin(AbstractLogin):
 
     async def already_logged_in(self) -> bool:
         """
-        单次检测：页面或 Cookie 已处于登录态时不再走扫码/手机号流程。
-        用于 pong() 因 Cookie 同步偏慢误判未登录、或 CDP/持久化配置已带登录态的场景。
+        单次检测：仅当页面 UI 侧栏出现 "我" 个人入口时，视为已登录，跳过扫码/手机号流程。
+
+        注意：不再基于 `web_session` Cookie 长度做回退判定。
+        `XiaoHongShuCrawler.start()` 在进入本登录流程前，已经做过两次 `xhs_client.pong()`，
+        pong 失败意味着 cookie 实际不可用（常见于 CDP 持久化 Chrome 资料目录残留的过期 web_session）。
+        此时若再用 "cookie 存在即登录" 做短路，会导致扫码被静默跳过，浏览器几秒后以失败 Cookie 访问 API
+        触发异常退出，用户表现为 "浏览器弹出没多久就关了没机会登录"。因此这里坚持以 UI 实锤为准。
         """
         try:
             user_profile_selector = (
@@ -61,17 +66,6 @@ class XiaoHongShuLogin(AbstractLogin):
             if await self.context_page.is_visible(user_profile_selector, timeout=2500):
                 utils.logger.info(
                     "[XiaoHongShuLogin.already_logged_in] 已登录（侧栏个人入口可见），跳过登录流程。"
-                )
-                return True
-        except Exception:
-            pass
-        try:
-            current_cookie = await self.browser_context.cookies()
-            _, cookie_dict = utils.convert_cookies(current_cookie)
-            ws = cookie_dict.get("web_session")
-            if ws and len(str(ws).strip()) > 8:
-                utils.logger.info(
-                    "[XiaoHongShuLogin.already_logged_in] 已登录（存在有效 web_session），跳过登录流程。"
                 )
                 return True
         except Exception:

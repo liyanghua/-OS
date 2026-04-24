@@ -34,6 +34,36 @@ _XHS_SIGNED_CDN_RE = re.compile(
 )
 
 
+def _normalize_platform(platform: str | None) -> str:
+    value = (platform or "").strip().lower()
+    if value in {"xhs", "xiaohongshu", "rednote"}:
+        return "xhs"
+    if value in {"dy", "douyin", "tiktok_cn"}:
+        return "dy"
+    return "xhs"
+
+
+def _platform_source_name(platform: str) -> str:
+    return "抖音" if _normalize_platform(platform) == "dy" else "小红书"
+
+
+def _default_source_url(platform: str, note_id: str) -> str:
+    if _normalize_platform(platform) == "dy":
+        return f"https://www.douyin.com/video/{note_id}"
+    return f"https://www.xiaohongshu.com/explore/{note_id}"
+
+
+def _split_urls(value: Any) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    text = str(value).strip()
+    if not text:
+        return []
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
 def load_mediacrawler_records(
     output_path: str | Path,
     platform: str = "xiaohongshu",
@@ -101,7 +131,7 @@ def _build_comment_index(comment_files: list[Path]) -> dict[str, list[dict[str, 
                     continue
                 if not isinstance(item, dict):
                     continue
-                note_id = item.get("note_id")
+                note_id = item.get("note_id") or item.get("aweme_id")
                 if not note_id:
                     continue
                 index[str(note_id)].append(item)
@@ -144,7 +174,7 @@ def _load_jsonl(
             except json.JSONDecodeError:
                 logger.debug("skip bad json at %s:%d", file_path, line_num)
                 continue
-            if not isinstance(item, dict) or not item.get("note_id"):
+            if not isinstance(item, dict) or not (item.get("note_id") or item.get("aweme_id")):
                 continue
             mapped = _map_note_to_raw_signal(item, source_type, platform, str(file_path), comment_index=comment_index)
             if mapped:
@@ -166,7 +196,7 @@ def _load_json(
         data = json.loads(file_path.read_text(encoding="utf-8"))
         items = data if isinstance(data, list) else [data]
         for item in items:
-            if not isinstance(item, dict) or not item.get("note_id"):
+            if not isinstance(item, dict) or not (item.get("note_id") or item.get("aweme_id")):
                 continue
             mapped = _map_note_to_raw_signal(item, source_type, platform, str(file_path), comment_index=comment_index)
             if mapped:
@@ -215,7 +245,8 @@ def _map_note_to_raw_signal(
     comment_index: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any] | None:
     """将 MediaCrawler 原生笔记 dict 映射为 intel_hub raw signal dict。"""
-    note_id = note.get("note_id")
+    platform_norm = _normalize_platform(platform)
+    note_id = note.get("note_id") or note.get("aweme_id")
     if not note_id:
         return None
 
@@ -224,14 +255,14 @@ def _map_note_to_raw_signal(
         return None
 
     desc = str(note.get("desc") or "")
-    source_url = str(note.get("note_url") or "")
+    source_url = str(note.get("note_url") or note.get("aweme_url") or "")
     if not source_url and note_id:
-        source_url = f"https://www.xiaohongshu.com/explore/{note_id}"
+        source_url = _default_source_url(platform_norm, str(note_id))
 
-    published_at = _ts_to_iso(note.get("time"))
+    published_at = _ts_to_iso(note.get("time") or note.get("create_time"))
     captured_at = _ts_to_iso(note.get("last_modify_ts"))
 
-    liked = _safe_int(note.get("liked_count"))
+    liked = _safe_int(note.get("liked_count") or note.get("digg_count"))
     collected = _safe_int(note.get("collected_count"))
     comment_count = _safe_int(note.get("comment_count"))
     shared = _safe_int(note.get("share_count"))
@@ -242,12 +273,14 @@ def _map_note_to_raw_signal(
 
     keyword = str(note.get("source_keyword") or "").strip() or None
 
-    image_list_str = str(note.get("image_list") or "")
-    image_list = [
+    image_list: list[str] = [
         _to_persistent_image_url(url.strip())
-        for url in image_list_str.split(",")
-        if url.strip()
-    ] if image_list_str else []
+        for url in _split_urls(note.get("image_list") or note.get("note_download_url"))
+    ]
+    cover_url = str(note.get("cover_url") or "").strip()
+    if cover_url and cover_url not in image_list:
+        image_list.insert(0, cover_url)
+    video_url = str(note.get("video_download_url") or "").strip()
 
     raw_comments: list[dict[str, Any]] = []
     if comment_index:
@@ -258,12 +291,13 @@ def _map_note_to_raw_signal(
         "summary": desc[:200] if desc else "",
         "raw_text": desc,
         "source_url": source_url,
-        "source_name": "小红书",
-        "platform": platform,
+        "source_name": _platform_source_name(platform_norm),
+        "platform": platform_norm,
         "published_at": published_at,
         "captured_at": captured_at,
         "author": str(note.get("nickname") or ""),
         "account": str(note.get("user_id") or ""),
+        "video_url": video_url,
         "metrics": {
             "liked_count": liked,
             "collected_count": collected,
@@ -277,8 +311,10 @@ def _map_note_to_raw_signal(
         "raw_source_type": source_type,
         "raw_payload": {
             "note_id": note_id,
-            "note_type": note.get("type"),
+            "note_type": note.get("type") or note.get("aweme_type"),
             "ip_location": note.get("ip_location"),
+            "cover_url": cover_url,
+            "video_url": video_url,
         },
         "raw_payload_path": file_path,
         "image_list": image_list,
