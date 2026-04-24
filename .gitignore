@@ -32,6 +32,16 @@ data/output/
 data/exports/content_planning/*.json
 data/*.sqlite
 data/xhs_review.sqlite
+data/alerts.json
+data/crawl_status*.json
+data/pipeline_status*.json
+data/job_queue.json
+data/raw/
+data/logs/
+data/sessions/
+
+# dev tools
+.playwright-cli/
 
 # third-party clones
 third_party/TrendRadar/
