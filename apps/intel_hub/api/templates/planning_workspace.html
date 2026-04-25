@@ -565,6 +565,7 @@
         <button type="button" class="pw-btn pw-btn-primary" id="pw-btn-analyze">快速分析</button>
         <button type="button" class="pw-btn pw-btn-secondary" id="pw-btn-council">发起委员会</button>
         <button type="button" class="pw-btn pw-btn-secondary" id="pw-btn-variant">生成变体</button>
+        <button type="button" class="pw-btn pw-btn-secondary" id="pw-btn-visual-strategy" title="基于专家 SOP 编译 6 类视觉策略候选">视觉策略 ✦</button>
       </div>
 
       {# ── Agent Board ── #}
@@ -2185,6 +2186,202 @@
       .catch(function(e) {
         document.getElementById('pw-drawer-body').innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">分析失败：' + esc(e.message || '网络错误') + '</div>';
       });
+    });
+  });
+
+  // ── 视觉策略抽屉（基于专家 SOP 的 6 类策略候选） ─────────────
+  var VS_API = '/content-planning/visual-strategy';
+  var _vsState = { packId: null, candidates: [], selectedCandidateId: null, briefId: null };
+
+  function vsRenderShell() {
+    return ''
+      + '<div id="vs-status" style="margin-bottom:12px;color:var(--muted);font-size:12px;">正在调用专家 RulePack 编译 6 类策略…</div>'
+      + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">'
+      + '<label style="font-size:12px;color:var(--muted);">类目</label>'
+      + '<input id="vs-category" type="text" value="children_desk_mat" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;width:160px;">'
+      + '<label style="font-size:12px;color:var(--muted);margin-left:8px;">场景</label>'
+      + '<select id="vs-scene" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;">'
+      + '<option value="taobao_main_image" selected>淘宝主图</option>'
+      + '<option value="xhs_cover">小红书封面</option>'
+      + '<option value="detail_first_screen">详情首屏</option>'
+      + '<option value="video_first_frame">短视频首帧</option>'
+      + '</select>'
+      + '<button class="pw-btn pw-btn-secondary" id="vs-btn-recompile" style="margin-left:auto;font-size:12px;padding:4px 12px;">重新编译</button>'
+      + '</div>'
+      + '<div id="vs-candidates" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>'
+      + '<div id="vs-detail" style="margin-top:14px;"></div>';
+  }
+
+  function vsCardHtml(c, idx) {
+    var s = c.score || {};
+    return ''
+      + '<div class="pw-card vs-cand-card" data-cand-id="' + esc(c.id) + '" style="cursor:pointer;border:1px solid var(--border);padding:10px;border-radius:10px;transition:border-color .15s;">'
+      + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+      + '    <strong style="font-size:13px;">#' + (idx+1) + ' ' + esc(c.name || c.archetype) + '</strong>'
+      + '    <span style="font-size:11px;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:999px;">' + (s.total ? s.total.toFixed(2) : '0.00') + '</span>'
+      + '  </div>'
+      + '  <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px;min-height:32px;">' + esc(c.hypothesis || '') + '</div>'
+      + '  <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:10px;">'
+      + '    <span title="品牌契合">品牌 ' + (s.brand_fit||0).toFixed(2) + '</span>'
+      + '    <span title="人群契合">人群 ' + (s.audience_fit||0).toFixed(2) + '</span>'
+      + '    <span title="差异化">差异 ' + (s.differentiation||0).toFixed(2) + '</span>'
+      + '    <span title="规则数">📚 ' + (c.rule_refs||[]).length + '</span>'
+      + '    <span title="风险数">⚠ ' + (c.risks||[]).length + '</span>'
+      + '  </div>'
+      + '</div>';
+  }
+
+  function vsRenderCandidates() {
+    var box = document.getElementById('vs-candidates');
+    if (!box) return;
+    if (!_vsState.candidates.length) {
+      box.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);font-size:12px;text-align:center;padding:20px;">暂无候选，请先在「类目规则审核台」批通过 ≥ 30 条规则并构建 RulePack。</div>';
+      return;
+    }
+    var html = '';
+    _vsState.candidates.forEach(function(c, i) { html += vsCardHtml(c, i); });
+    box.innerHTML = html;
+    box.querySelectorAll('.vs-cand-card').forEach(function(el) {
+      el.addEventListener('click', function() {
+        _vsState.selectedCandidateId = el.dataset.candId;
+        box.querySelectorAll('.vs-cand-card').forEach(function(x) { x.style.borderColor = 'var(--border)'; });
+        el.style.borderColor = 'var(--accent)';
+        vsBuildBrief();
+      });
+    });
+  }
+
+  function vsRenderBriefDetail(brief, prompt) {
+    var c = (brief.copywriting || {});
+    var sc = (brief.scene || {});
+    var st = (brief.style || {});
+    var pp = (brief.product || {});
+    var pe = (brief.people || {});
+    var html = ''
+      + '<div class="pw-card" style="border:1px solid var(--border);padding:12px;border-radius:10px;">'
+      + '  <h4 style="margin:0 0 10px 0;font-size:13px;">CreativeBrief</h4>'
+      + '  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;line-height:1.55;">'
+      + '    <div><strong>主标题</strong><div>' + esc(c.headline || '—') + '</div></div>'
+      + '    <div><strong>卖点</strong><div>' + esc((c.selling_points||[]).join(' · ') || '—') + '</div></div>'
+      + '    <div><strong>背景</strong><div>' + esc(sc.background || '—') + '</div></div>'
+      + '    <div><strong>道具</strong><div>' + esc((sc.props||[]).join('、') || '—') + '</div></div>'
+      + '    <div><strong>风格</strong><div>' + esc(st.tone || '—') + ' / ' + esc((st.color_palette||[]).join('、')) + '</div></div>'
+      + '    <div><strong>商品</strong><div>' + esc(pp.placement || '—') + ' · ' + esc(pp.scale || '') + '</div></div>'
+      + '    <div><strong>人物</strong><div>' + (pe.enabled ? esc((pe.age||'') + ' ' + (pe.action||'')) : '无人物') + '</div></div>'
+      + '    <div><strong>负向</strong><div style="color:#b91c1c;">' + esc((brief.negative||[]).slice(0,5).join('、')) + '</div></div>'
+      + '  </div>';
+    if (prompt) {
+      html += '<details style="margin-top:10px;"><summary style="font-size:12px;color:var(--accent);cursor:pointer;">查看 PromptSpec（中文 positive / negative）</summary>'
+            + '<div style="margin-top:6px;font-size:11px;background:var(--surface);padding:8px;border-radius:8px;line-height:1.5;">'
+            + '<strong>positive:</strong><br>' + esc(prompt.positive_prompt_zh || '')
+            + '<br><br><strong>negative:</strong><br>' + esc(prompt.negative_prompt_zh || '')
+            + '</div></details>';
+    }
+    html += '<div style="margin-top:12px;display:flex;gap:8px;">'
+         + '  <button class="pw-btn pw-btn-primary" id="vs-btn-push" style="font-size:12px;">推送到无线画布 →</button>'
+         + '  <button class="pw-btn pw-btn-secondary" id="vs-btn-rebuild-prompt" style="font-size:12px;">重生 PromptSpec</button>'
+         + '</div>';
+    html += '</div>';
+    document.getElementById('vs-detail').innerHTML = html;
+
+    var pushBtn = document.getElementById('vs-btn-push');
+    if (pushBtn) pushBtn.addEventListener('click', vsSendToWorkbench);
+    var rebuildBtn = document.getElementById('vs-btn-rebuild-prompt');
+    if (rebuildBtn) rebuildBtn.addEventListener('click', vsBuildPrompt);
+  }
+
+  function vsCompile() {
+    document.getElementById('vs-status').textContent = '编译中…';
+    var category = (document.getElementById('vs-category')||{}).value || 'children_desk_mat';
+    var scene = (document.getElementById('vs-scene')||{}).value || 'taobao_main_image';
+    fetch(VS_API + '/compile-from-content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        opportunity_id: opportunityId, category: category, scene: scene,
+      })
+    })
+    .then(function(r) { if (!r.ok) return r.json().then(function(j){ throw new Error(j.detail||'compile 失败'); }); return r.json(); })
+    .then(function(d) {
+      _vsState.packId = d.visual_strategy_pack_id;
+      _vsState.candidates = d.candidates || [];
+      document.getElementById('vs-status').textContent = '已编译 ' + _vsState.candidates.length + ' 个策略候选（按总分降序），点击候选卡查看 Brief 详情';
+      vsRenderCandidates();
+    })
+    .catch(function(e) {
+      document.getElementById('vs-status').innerHTML = '<span style="color:#b91c1c;">编译失败：' + esc(e.message) + '</span>';
+    });
+  }
+
+  function vsBuildBrief() {
+    if (!_vsState.selectedCandidateId) return;
+    document.getElementById('vs-detail').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:18px;">编译 CreativeBrief…</div>';
+    fetch(VS_API + '/candidates/' + encodeURIComponent(_vsState.selectedCandidateId) + '/brief', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(brief) {
+      _vsState.briefId = brief.id;
+      return fetch(VS_API + '/briefs/' + encodeURIComponent(brief.id) + '/prompt', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+      }).then(function(r){ return r.json(); }).then(function(prompt) { vsRenderBriefDetail(brief, prompt); });
+    })
+    .catch(function(e) {
+      document.getElementById('vs-detail').innerHTML = '<div style="color:#b91c1c;font-size:12px;padding:14px;">Brief 编译失败：' + esc(e.message) + '</div>';
+    });
+  }
+
+  function vsBuildPrompt() {
+    if (!_vsState.briefId) return;
+    fetch(VS_API + '/briefs/' + encodeURIComponent(_vsState.briefId) + '/prompt', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"provider":"comfyui"}'
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(prompt) {
+      // re-fetch brief to repaint
+      fetch(VS_API + '/briefs/' + encodeURIComponent(_vsState.briefId).replace(/^/, '')).catch(function(){});
+      // simply rebuild detail without brief refetch:
+      var briefDetail = document.querySelector('#vs-detail .pw-card');
+      if (briefDetail) {
+        var det = briefDetail.querySelector('details');
+        if (det) det.innerHTML = '<summary style="font-size:12px;color:var(--accent);cursor:pointer;">查看 PromptSpec（中文 positive / negative）</summary>'
+          + '<div style="margin-top:6px;font-size:11px;background:var(--surface);padding:8px;border-radius:8px;line-height:1.5;">'
+          + '<strong>positive:</strong><br>' + esc(prompt.positive_prompt_zh || '')
+          + '<br><br><strong>negative:</strong><br>' + esc(prompt.negative_prompt_zh || '')
+          + '</div>';
+      }
+    });
+  }
+
+  function vsSendToWorkbench() {
+    if (!_vsState.selectedCandidateId) return;
+    var btn = document.getElementById('vs-btn-push');
+    if (btn) { btn.disabled = true; btn.textContent = '推送中…'; }
+    fetch(VS_API + '/candidates/' + encodeURIComponent(_vsState.selectedCandidateId) + '/send-to-workbench', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ opportunity_id: opportunityId })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d && d.visual_builder_url) {
+        window.location.href = d.visual_builder_url;
+      } else {
+        alert('已推送，请前往视觉工作台查看');
+      }
+    })
+    .catch(function(e) { alert('推送失败：' + (e.message || '网络错误')); })
+    .finally(function() { if (btn) { btn.disabled = false; btn.textContent = '推送到无线画布 →'; } });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('pw-btn-visual-strategy');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      _vsState = { packId: null, candidates: [], selectedCandidateId: null, briefId: null };
+      openDrawer('视觉策略 · 6 类候选（基于专家 SOP）', vsRenderShell());
+      var rec = document.getElementById('vs-btn-recompile');
+      if (rec) rec.addEventListener('click', vsCompile);
+      vsCompile();
     });
   });
 })();

@@ -745,6 +745,91 @@ class OpportunityGenAgent:
             json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
+        # pipeline_details.json 是详情页 / 内容策划 / 视觉工作台拿原始笔记
+        # 上下文（封面、正文、互动数、VLM 信号等）的唯一数据源。Agent 必须
+        # 把本批每篇笔记的 entry 按 note_id merge 进去，否则机会卡详情页会
+        # 显示「原始笔记数据暂不可用」。结构与
+        # ``apps/intel_hub/workflow/xhs_opportunity_pipeline.py`` 输出对齐。
+        cards_by_note = compile_out["cards_by_note"]
+        new_details: list[dict[str, Any]] = []
+        for item in mapping_results:
+            nid = item["note_id"]
+            parsed = item.get("parsed")
+            rn = item.get("raw_note")
+            note_ctx: dict[str, Any] = {}
+            if rn is not None:
+                note_ctx = {
+                    "note_id": getattr(rn, "note_id", nid),
+                    "note_url": getattr(rn, "note_url", ""),
+                    "title": getattr(rn, "title_text", ""),
+                    "body": getattr(rn, "body_text", ""),
+                    "author_name": getattr(rn, "author_name", ""),
+                    "cover_image": getattr(rn, "cover_image", ""),
+                    "image_urls": [
+                        img.url for img in getattr(rn, "image_list", []) or []
+                    ],
+                    "tag_list": list(getattr(rn, "tag_list", []) or []),
+                    "like_count": getattr(rn, "like_count", 0),
+                    "collect_count": getattr(rn, "collect_count", 0),
+                    "comment_count": getattr(rn, "comment_count", 0),
+                    "share_count": getattr(rn, "share_count", 0),
+                    "top_comments": [
+                        {
+                            "nickname": getattr(c, "nickname", ""),
+                            "content": getattr(c, "content", ""),
+                            "like_count": getattr(c, "like_count", 0),
+                        }
+                        for c in (getattr(rn, "top_comments", []) or [])[:5]
+                    ],
+                }
+
+            def _dump(obj: Any) -> Any:
+                if obj is None:
+                    return {}
+                if hasattr(obj, "model_dump"):
+                    try:
+                        return obj.model_dump(mode="json")
+                    except Exception:  # noqa: BLE001
+                        return {}
+                return obj
+
+            new_details.append({
+                "note_id": nid,
+                "title": getattr(parsed, "normalized_title", "") if parsed else "",
+                "note_context": note_ctx,
+                "visual_signals": _dump(item.get("visual")),
+                "selling_theme_signals": _dump(item.get("selling")),
+                "scene_signals": _dump(item.get("scene")),
+                "cross_modal_validation": _dump(item.get("validation")),
+                "ontology_mapping": _dump(item.get("mapping")),
+                "opportunity_cards": [
+                    c.model_dump(mode="json") for c in cards_by_note.get(nid, [])
+                ],
+            })
+
+        if new_details:
+            details_path = self.output_dir / "pipeline_details.json"
+            existing_details: list[dict[str, Any]] = []
+            if details_path.exists():
+                try:
+                    existing_details = (
+                        json.loads(details_path.read_text(encoding="utf-8")) or []
+                    )
+                except Exception:  # noqa: BLE001
+                    existing_details = []
+            new_detail_ids = {e["note_id"] for e in new_details if e.get("note_id")}
+            merged_details = [
+                e for e in existing_details if e.get("note_id") not in new_detail_ids
+            ]
+            merged_details.extend(new_details)
+            try:
+                details_path.write_text(
+                    json.dumps(merged_details, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning("write pipeline_details merged failed", exc_info=True)
+
         # 任务级隔离快照：保留每次跑的本批新卡片，便于审计 / 回放，且不会
         # 被后续增量任务覆写（与全局 cards_path 解耦）。
         runs_dir = self.output_dir / "runs"

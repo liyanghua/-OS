@@ -3,6 +3,82 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## SOP 视觉策略编译器 Phase 1-3（2026-04-25 续 3）
+
+### 痛点
+- 专家在 [`assets/SOP/儿童桌垫/`](../assets/SOP/儿童桌垫/) 沉淀了 6 份 5 列宽表 SOP（6 大维度 × 42 个细分变量），但策划工作台与无线画布之间没有「规则编译器」中间层；只能靠人脑把"匹配原则"翻译成 prompt，跨品类、跨场景的复用完全靠口口相传。
+- 用户要求：把 SOP 编译成可审核 / 可复用的 RulePack，再编出 6 类视觉策略候选喂给无线画布；同时一开始就把"扩品类、扩场景、沉淀 know-how"的扩展位留出来，避免每加一个新类目就重写一遍。
+
+### 方案要点（按 [`docs/SOP_to_content_plan.md`](SOP_to_content_plan.md) 第 6-13 节实现）
+- **规则生产线** 落 [`apps/content_planning/`](../apps/content_planning/)：`SourceDocument / RuleSpec / RulePack / ContextSpec` 与 `md_ingestion_service / rule_extractor / rule_review_service / rulepack_builder / context_compiler`。
+- **策略编译器** 落 [`apps/growth_lab/services/`](../apps/growth_lab/services/)：`VisualStrategyPack / StrategyCandidate / CreativeBrief / PromptSpec / FeedbackRecord` 与 `strategy_compiler / visual_brief_compiler / visual_prompt_compiler / feedback_engine / weight_updater`。
+- **API 路由** 统一前缀 `/content-planning/visual-strategy/*`，定义在 [`apps/content_planning/api/visual_strategy_routes.py`](../apps/content_planning/api/visual_strategy_routes.py)；在 [`apps/intel_hub/api/app.py`](../apps/intel_hub/api/app.py) 通过 `configure(...)` 注入 `RuleStore / VisualStrategyStore / review_card_provider / send_to_workbench_handler`。
+- **关键决策**：`StrategyArchetype` 不硬编码 enum，每个 `RulePack.default_strategy_archetypes: list[ArchetypeConfig]` 自带 N 个 archetype。儿童桌垫附 6 个内置 archetype；后续扩品类只需 `import?category={slug}` + 审核台批通过即可。
+- **数据存储**：复用 [`data/content_plan.sqlite`](../data/content_plan.sqlite)（新增 `source_documents / rule_specs / rule_packs / context_specs / rule_weight_history`）与 [`data/growth_lab.sqlite`](../data/growth_lab.sqlite)（新增 `visual_strategy_packs / strategy_candidates / creative_briefs / prompt_specs / visual_feedback_records`）。
+- **前端最小改动**：
+  - 新增 [`apps/intel_hub/api/templates/rule_review.html`](../apps/intel_hub/api/templates/rule_review.html)（按 dimension/status/置信度过滤，三栏审核）。
+  - 新增 [`apps/intel_hub/api/templates/rulepacks.html`](../apps/intel_hub/api/templates/rulepacks.html)（一键 import → extract → build → activate）。
+  - 改造 [`planning_workspace.html`](../apps/intel_hub/api/templates/planning_workspace.html) 加「视觉策略 ✦」抽屉：调 `/compile-from-content` → 渲染候选卡 → 选中展开 Brief/Prompt → 推送到无线画布。
+  - 改造 [`visual_builder.html`](../apps/intel_hub/api/templates/visual_builder.html) 启动逻辑：识别 `quick_draft.source == 'visual_strategy_compiler'` → 紫色徽章 + 策略摘要 bar 显示主标题/卖点/差异化标签，避免用户重填。
+
+### 关键改动文件
+- 新增 schemas：`apps/content_planning/schemas/{source_document,rule_spec,rule_pack,context_spec}.py` + `apps/growth_lab/schemas/{visual_strategy_pack,strategy_candidate,creative_brief,prompt_spec,feedback_record}.py`
+- 新增 storage：`apps/content_planning/storage/rule_store.py` + `apps/growth_lab/storage/visual_strategy_store.py`
+- 新增 services：`apps/content_planning/services/{md_ingestion_service,rule_extractor,rule_review_service,rulepack_builder,context_compiler}.py` + `apps/content_planning/prompts/extract_rules.md` + `apps/growth_lab/services/{strategy_compiler,visual_brief_compiler,visual_prompt_compiler,feedback_engine,weight_updater}.py`
+- 新增 API：`apps/content_planning/api/visual_strategy_routes.py`，含端点 `POST /source-documents/import`、`POST /rules/extract`、`GET/PATCH /rules`、`POST /rulepacks/build`、`POST /compile-from-content`、`POST /compile`、`POST /candidates/{id}/brief`、`POST /briefs/{id}/prompt`、`POST /candidates/{id}/send-to-workbench`、`POST /feedback`、`GET /rules/{id}/weight-history`。
+- `apps/intel_hub/api/app.py` 注入 `_vs_send_to_workbench_handler` → 把 `CreativeBrief / PromptSpec` 翻译成 `quick_draft + saved_prompts` 写回 `plan_store`，让 `/planning/{id}/visual-builder` 自动接力。
+
+### Phase 5 字段预留（v0.1）
+- `apps/growth_lab/services/weight_updater.py`：仅由 `expert_score.overall` 调权（保守公式 `delta = 0.05 * (overall/10 - 0.5)`，权重裁剪到 [0.05, 1.0]），写入 `rule_weight_history`。
+- `apps/growth_lab/services/feedback_engine.py`：`POST /feedback` 入口落库 + 自动从 `StrategyCandidate.rule_refs` 回填 `rule_ids` + 触发 `WeightUpdater.update_from_expert_score()`。CTR / 业务指标路径 `update_from_business_metrics()` 留空函数，Phase 5 接入。
+
+### 验证
+- 单测：`apps/content_planning/tests/test_visual_strategy_pipeline.py`（5 项：表格解析+启发式抽取、approve/update_weight、reject、rulepack 聚合 + 版本切换、context_compiler manual）。
+- 单测：`apps/growth_lab/tests/test_visual_strategy_e2e.py`（6 项：strategy_compiler archetype 输出 + rule_refs 回链、brief_compiler 回写候选、prompt_compiler 中文 only + 比例参数、weight_updater 仅 expert_score、feedback_engine rule_ids 回填、端到端冒烟全链）。
+- `pytest apps/content_planning/tests/test_visual_strategy_pipeline.py apps/growth_lab/tests/test_visual_strategy_e2e.py apps/intel_hub/tests/test_api.py` 51/51 PASSED。
+
+### 不在 MVP 范围
+- Phase 4 自然语言 patch agent（前端预留按钮，路由未挂）。
+- Phase 5 真实 CTR 抓取 + 自动权重更新（仅 v0.1 expert_score 路径）。
+- 多生图 provider 自动 workflow_json（PromptSpec 仅生中文 prompt，`workflow_json={}`）。
+- 多类目 RulePack 同时灰度切换（schema 支持，UI 仅暴露单 active）。
+
+---
+
+## 机会卡详情页"原始笔记数据暂不可用"修复（2026-04-25 续 2）
+
+### 痛点
+- 用户用 Agent 单条 / 增量跑出 `c964302043e54e9a` 这类新机会卡，进 `/xhs-opportunities/{id}` 详情页左栏显示 `📄 原始笔记数据暂不可用`，封面、正文、标签、热门评论、VLM 信号区全部缺失。
+- 同时 `xhs_opportunities` 列表页 `note-group` 头部的来源笔记缩略图也丢失（fallback 成纯文字组）。
+
+### 根因
+1. `OpportunityGenAgent._persist_and_aggregate()` 只写 `opportunity_cards.json` + `lens_bundles/` + `runs/{task}.json`，**没把每篇笔记的 `note_context / visual_signals / selling_theme_signals / scene_signals / cross_modal_validation / ontology_mapping / opportunity_cards` merge 进 `data/output/xhs_opportunities/pipeline_details.json`**。详情页左栏的 `_note_ctx_index` 完全依赖这个文件。
+2. `_note_ctx_index` 在 `create_app()` 启动期一次性 load，运行期 Agent 跑完后没有刷新机制。
+3. `create_app()` 把 `_xhs_cards_json / _xhs_details_json` 路径与 review_store 都硬编码到 `data/output/xhs_opportunities/...` 与 `data/xhs_review.sqlite`，测试无法隔离 production 数据，导致用户跑出 wig 卡后 `OpportunityAgentRunsTests::test_xhs_opportunities_empty_state_renders_business_copy_and_drawer` 也跟着挂掉。
+4. 模板 `xhs_opportunities.html` 三处 `onclick="OpportunityAgentRunner.start({lens_id: {{ ... | tojson }}, ...})"` 外层用双引号、tojson 又输出双引号字符串字面量，HTML 解析在 `lens_id: "` 处直接闭合 onclick 属性 → 按钮没绑 handler，"立即生成机会卡"点击无反应。
+
+### 关键改动
+- `apps/intel_hub/services/opportunity_gen_agent.py · _persist_and_aggregate()`：M5 增加 `pipeline_details.json` 的 merge 写入。结构与 `apps/intel_hub/workflow/xhs_opportunity_pipeline.py` 输出对齐（`note_id / title / note_context / visual_signals / selling_theme_signals / scene_signals / cross_modal_validation / ontology_mapping / opportunity_cards`），按 `note_id` 覆盖式合并，旧 entry 保留。
+- `apps/intel_hub/api/app.py`：
+  - 新增 `_refresh_note_ctx_index()` 内部函数，对 `_note_ctx_index` 做 `clear() + update()` 原地刷新；
+  - `xhs_opportunity_detail` handler 命中 `_note_ctx_index` miss 时即时调用一次 lazy refresh，让 Agent 跑完无需重启就能在详情页看到原始笔记；
+  - `create_app()` 新增 `xhs_opportunities_dir: str | Path | None = None` 注入参数，默认仍指向 `data/output/xhs_opportunities/`，测试可指定临时目录完全隔离。
+- `apps/intel_hub/api/templates/xhs_opportunities.html`：3 处 `OpportunityAgentRunner.start({...})` 的 onclick 外层改为单引号包裹（tojson 双引号嵌入单引号属性安全），并把 incremental bar 中错用的 `current_lens_label` 对齐为 ctx 里的 `lens_label`。
+- `apps/intel_hub/tests/test_api.py::OpportunityAgentRunsTests._make_client`：注入临时 `XHSReviewStore(tmp/xhs_review.sqlite)` + `xhs_opportunities_dir=tmp/xhs_out`，断言不再受 production cards 污染。
+
+### 数据回填
+- 已通过一次性脚本把目标笔记 `66a21e98000000000500400a`（标题：万人催的跟练版假发教程！！！来看！！）从 `third_party/MediaCrawler/data/xhs/jsonl/search_contents_2026-04-24.jsonl` 解析后 merge 进 `data/output/xhs_opportunities/pipeline_details.json`，让历史卡 `c964302043e54e9a` 的详情页立即恢复显示。后续新跑的卡走 Agent 自动 merge 路径，不再需要手动回填。
+
+### 验证
+- `pytest apps/intel_hub/tests/test_opportunity_gen_agent.py apps/intel_hub/tests/test_api.py` 44/44 PASSED；新增 `test_run_merges_pipeline_details_for_detail_page` 断言 M5 merge 行为（保留 legacy_001、新增 wig_001、note_context.title / image_urls 非空、含 visual_signals / opportunity_cards 字段）。
+- 浏览器侧：访问 `/xhs-opportunities/c964302043e54e9a` 左栏正常渲染封面 + 标题 + 正文 + 互动数 + 评论；点击 `/xhs-opportunities?lens=wig` 空态按钮"立即生成机会卡（先跑 1 条预览）"右侧抽屉滑出并跑通 5 段流水线。
+
+### 不做
+- 不重写整个 `_note_ctx_index` 为 SQLite 索引；当前 `pipeline_details.json` 体量仍可承受全量 reload。
+- 不动 `_xhs_cards_json` / review_store 在 production 默认路径的事实；只新增可注入入口给测试用。
+
+---
+
 ## 机会卡 Agent 单条优先与按来源笔记分组（2026-04-25 续）
 
 ### 痛点

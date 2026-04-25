@@ -1188,9 +1188,19 @@ class OpportunityAgentRunsTests(unittest.TestCase):
         from fastapi.testclient import TestClient
 
         from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.storage.xhs_review_store import XHSReviewStore
 
         runtime_path = _write_runtime(tmp)
-        return TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+        # 完全隔离 xhs cards / pipeline_details 落盘目录与 review SQLite，
+        # 避免读到 production 中 Agent 跑出来的真实卡片污染断言。
+        return TestClient(
+            create_app(
+                runtime_path,
+                enable_embedded_crawl_worker=False,
+                review_store=XHSReviewStore(tmp / "xhs_review.sqlite"),
+                xhs_opportunities_dir=tmp / "xhs_out",
+            )
+        )
 
     def test_xhs_opportunities_empty_state_renders_business_copy_and_drawer(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

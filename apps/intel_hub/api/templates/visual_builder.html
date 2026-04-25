@@ -85,8 +85,10 @@
   <span style="font-size:11px;color:var(--muted);">{{ _card.get('opportunity_title','') or _card.get('title','') }}</span>
   <span style="flex:1;"></span>
   <span id="vb-relay-badge" style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(0,128,0,0.08);color:#166534;display:none;">已接力策划台结果</span>
+  <span id="vb-vs-badge" style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(109,40,213,0.08);color:#6d28d5;display:none;">✦ 视觉策略已接力（基于专家 SOP）</span>
   <span id="vb-ref-badge" style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(138,75,47,0.08);color:var(--accent);"></span>
 </div>
+<div id="vb-vs-summary" style="display:none;margin:8px 16px;padding:10px 14px;border:1px solid rgba(109,40,213,0.25);border-radius:10px;background:rgba(109,40,213,0.04);font-size:12px;line-height:1.6;color:var(--ink);"></div>
 
 <div class="vb-layout">
   {# ═══ 左栏：来源与证据 ═══ #}
@@ -399,6 +401,25 @@
       var relayBadge = document.getElementById('vb-relay-badge');
       if (relayBadge) relayBadge.style.display = '';
       genDraftBtn.style.display = 'none';
+      // 视觉策略编译器接力：渲染策略摘要 + 紫色徽章
+      if (qd.source === 'visual_strategy_compiler') {
+        var vsBadge = document.getElementById('vb-vs-badge');
+        if (vsBadge) vsBadge.style.display = '';
+        var summaryEl = document.getElementById('vb-vs-summary');
+        if (summaryEl) {
+          var sellingHtml = (qd.selling_points || []).map(function(s) { return '<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:999px;background:rgba(109,40,213,0.08);color:#6d28d5;font-size:11px;">' + esc(s) + '</span>'; }).join('');
+          var labelsHtml = (qd.labels || []).map(function(s) { return '<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:999px;background:rgba(138,75,47,0.08);color:var(--accent);font-size:11px;">' + esc(s) + '</span>'; }).join('');
+          summaryEl.innerHTML = ''
+            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+            + '  <strong style="font-size:12px;">视觉策略候选 · ' + esc(qd.archetype || '') + '</strong>'
+            + '  <span style="font-size:10px;color:var(--muted);">brief_id=' + esc((qd.creative_brief_id||'').slice(0,8)) + '</span>'
+            + '</div>'
+            + '<div style="margin-bottom:6px;"><strong style="font-size:11px;color:var(--muted);">主标题：</strong>' + esc(qd.selected_title || '') + '</div>'
+            + (sellingHtml ? '<div><strong style="font-size:11px;color:var(--muted);">卖点：</strong>' + sellingHtml + '</div>' : '')
+            + (labelsHtml ? '<div><strong style="font-size:11px;color:var(--muted);">差异化：</strong>' + labelsHtml + '</div>' : '');
+          summaryEl.style.display = '';
+        }
+      }
       return true;
     }
     return false;

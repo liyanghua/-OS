@@ -466,6 +466,46 @@
   - 当需要增量加载时，补充 mtime/日期过滤逻辑
   - 当新增平台（抖音/快手等）时，扩展 `mediacrawler_loader` 或新增 loader
 
+## D-018 SOP 视觉策略编译器：代码按职责拆分，不引入 modules/ 子包
+
+- **决策内容**：
+  - **规则生产线**（SOP→RuleSpec→RulePack→ContextSpec、抽取 / 审核 / 构建 / 上下文聚合）落在 [`apps/content_planning/`](../apps/content_planning/) 与现有 plan/brief 编译器同层；`SourceDocument / RuleSpec / RulePack / ContextSpec` 进 `schemas/`，服务进 `services/`，存储新增 `storage/rule_store.py`。
+  - **策略编译器**（VisualStrategyPack→StrategyCandidate→CreativeBrief→PromptSpec→Feedback）落在 [`apps/growth_lab/services/`](../apps/growth_lab/services/) 与 `visual_plan_compiler.py / selling_point_compiler.py` 同层；存储新增 `storage/visual_strategy_store.py`。
+  - **API 路由** 统一前缀 `/content-planning/visual-strategy/*` 写在 [`apps/content_planning/api/visual_strategy_routes.py`](../apps/content_planning/api/visual_strategy_routes.py)，跨 app 通过 service-level import 协作；不在 `apps/content_planning/` 或 `apps/growth_lab/` 下另建 `modules/` 子包。
+  - **数据库**：复用 `data/content_plan.sqlite` 与 `data/growth_lab.sqlite` 各自加表，不新建独立 db 文件。
+- **原因**：
+  - 与现有扁平结构保持一致（plan_store / growth_lab_store 已是这种约定），降低跨页心智成本。
+  - 规则与策略归属不同业务责任人（规则生产线归内容策划侧、策略编译器归视觉/增长侧），按 app 拆分天然贴合 ownership。
+  - 避免在 SOP 进度未知前过度抽象出 `modules/visual_strategy/*`，导致后续合并 / 改名成本。
+- **替代方案**：
+  - 全部塞进 `apps/growth_lab/`：会让规则审核台与策划工作台距离过远，跨 app 流转链条不清晰。
+  - 新建 `apps/visual_strategy/` 顶层 app：MVP 只跑儿童桌垫一个类目，体量不足以独立成 app；后续需要时再升级。
+  - 引入 `modules/visual_strategy/*` 子包：偏离仓库现有约定，易演化出"模块内自给自足、绕过 schemas/services 共享层"的反模式。
+- **当前影响**：
+  - 新增 schemas / services / storage / templates / 路由 全部按现有目录约定散落到 content_planning / growth_lab / intel_hub 三个 app；`AGENTS.md` 第 3.5 节"不要发明 modules/ 子包"得到强化。
+  - 跨 app 的胶水代码集中在 [`apps/intel_hub/api/app.py`](../apps/intel_hub/api/app.py) 的 `_vs_send_to_workbench_handler`，把 `CreativeBrief / PromptSpec` 翻译成 `quick_draft / saved_prompts` 写回 `plan_store`。
+- **后续重审**：当出现第三个跨 app 的 SOP 编译器（例如视频脚本 SOP / 详情页 SOP）时，重审是否需要把"SOP→规则→策略→prompt"这段流水线抽到独立 app；或继续沿用 split_by_role 模式。
+
+## D-019 StrategyArchetype 由 RulePack 配置驱动，不硬编码 enum
+
+- **决策内容**：
+  - 不在 `apps/growth_lab/schemas/strategy_archetype.py` 定义全局 `StrategyArchetype = Literal["scene_emotion", "function_proof", ...]` 这种硬编码 enum。
+  - 改为每个 `RulePack.default_strategy_archetypes: list[ArchetypeConfig]`，每个 `ArchetypeConfig = {slug, name, hypothesis, preferred_keywords: dict[dimension, list[str]]}`。
+  - StrategyCompiler 在 `compile()` 时从 RulePack 读 archetypes，按 dimension 维度对 RuleSpec 评分匹配，输出"N 个策略候选"——N 由 RulePack 自身决定（儿童桌垫 6 个，洁面乳后续可不同）。
+  - 冲突规则放 `apps/growth_lab/services/strategy_compiler.py::CONFLICT_RULES` 顶层常量，每条带 `category` 标签，按类目独立扩展。
+- **原因**：
+  - 用户明确要求"持续扩品类、扩场景、沉淀行业 know-how"——硬编码 enum 在 N+1 类目就开始破裂（为了支持洁面乳要么改 enum 影响儿童桌垫、要么 fork 一份编译器）。
+  - 把"有几个 archetype / 它们叫什么 / 各自偏好哪些 dimension"全部下沉到数据，可在审核台动态调整，不需发版。
+  - 与 `RulePack.metrics + activate()` 的版本切换语义保持一致：升级 archetype 等于发新 rulepack 版本。
+- **替代方案**：
+  - 全局 enum + per-category override 字典：`Dict[category, ArchetypeOverrides]` 拆得太细，每加一个 archetype 都要在两处同步修改。
+  - 完全自由文本（candidate.archetype 是 str）：失去类型保障，前端无法稳定渲染 archetype 名称与 hypothesis。
+  - 沿用 PRD 6.4 中举例的 6 个固定 slug：在 PRD 阶段是合理示例，但工程实现要顺势把扩展位放到数据层，避免后期改回。
+- **当前影响**：
+  - `RulePackBuilder.build(category, archetypes=None)` 默认从 `_BUILTIN_ARCHETYPES[category]` 注入；儿童桌垫初始 6 个内置 archetype 写在 [`apps/content_planning/schemas/rule_pack.py`](../apps/content_planning/schemas/rule_pack.py)。
+  - StrategyCompiler 在 `pack.default_strategy_archetypes` 为空时显式抛 `ValueError`，强制每个 RulePack 至少配 1 个 archetype；新类目接入时必须在审核台或 build 参数里显式补上。
+- **后续重审**：当跨类目共享 archetype 出现高频复用（例如"差异化对照"在多类目都叫 differentiation_callout）时，重审是否抽出"通用 archetype 库 + 类目特化覆盖"两层结构；当 archetype 数量超过 12 个 / 类目时重审 UI 可承载性。
+
 ## D-017 Council v2：HTTP 四段结构 + 标准化 SSE + 向后兼容
 
 - **决策内容**：

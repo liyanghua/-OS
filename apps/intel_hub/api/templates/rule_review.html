@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="headline">
+  <div class="meta">视觉策略编译器 · Rule Review</div>
+  <h2 style="margin: 8px 0 4px;">规则审核台</h2>
+  <p style="margin: 8px 0 0;">
+    专家 SOP 抽取的 RuleSpec 候选都先进入此处审核：
+    <strong>通过 / 拒绝 / 调整权重 / 修改 must_avoid</strong>。
+    审核通过的规则才会被纳入 RulePack，作为后续策略候选生成的依据。
+  </p>
+</section>
+
+<section class="card" style="margin-bottom: 16px;">
+  <form method="get" action="/content-planning/visual-strategy/rule-review" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;">
+    <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);">类目
+      <input type="text" name="category" value="{{ filter_category or '' }}" placeholder="children_desk_mat"
+        style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; min-width:180px;" />
+    </label>
+    <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);">维度
+      <select name="dimension" style="padding:6px 10px; border:1px solid var(--border); border-radius:8px;">
+        <option value="">全部</option>
+        {% for dim in dimensions %}
+        <option value="{{ dim }}" {% if filter_dimension == dim %}selected{% endif %}>{{ dim }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);">审核状态
+      <select name="review_status" style="padding:6px 10px; border:1px solid var(--border); border-radius:8px;">
+        <option value="">全部</option>
+        <option value="draft" {% if filter_status == 'draft' %}selected{% endif %}>草稿待审</option>
+        <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>已通过</option>
+        <option value="needs_edit" {% if filter_status == 'needs_edit' %}selected{% endif %}>需修改</option>
+        <option value="rejected" {% if filter_status == 'rejected' %}selected{% endif %}>已拒绝</option>
+      </select>
+    </label>
+    <button type="submit"
+      style="background:var(--accent); color:#fff; border:none; padding:8px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
+      筛选
+    </button>
+  </form>
+
+  <div style="margin-top:12px; display:flex; gap:14px; font-size:13px; color:var(--muted);">
+    <span>共 <strong style="color:var(--ink);">{{ rules|length }}</strong> 条</span>
+    <span>· 待审 <strong style="color:var(--ink);">{{ stats.draft }}</strong></span>
+    <span>· 已通过 <strong style="color:var(--ink);">{{ stats.approved }}</strong></span>
+    <span>· 需修改 <strong style="color:var(--ink);">{{ stats.needs_edit }}</strong></span>
+    <span>· 已拒绝 <strong style="color:var(--ink);">{{ stats.rejected }}</strong></span>
+  </div>
+</section>
+
+{% if not rules %}
+<div class="empty">
+  当前筛选条件下没有规则。请先在
+  <a href="/content-planning/visual-strategy/rulepacks">RulePack 管理页</a>
+  导入 SOP 并执行抽取，或调整筛选条件。
+</div>
+{% endif %}
+
+<div class="list">
+  {% for rule in rules %}
+  <div class="card" id="rule-{{ rule.id }}">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px;">
+      <div style="flex:1; min-width:0;">
+        <div class="meta">
+          <span style="background:#f1e1d4; color:var(--accent); padding:2px 8px; border-radius:6px; margin-right:6px;">
+            {{ rule.dimension }}
+          </span>
+          {{ rule.variable_category or '—' }} · <strong>{{ rule.variable_name }}</strong>
+        </div>
+        <h3 style="margin: 6px 0 10px;">{{ rule.option_name or rule.variable_name }}</h3>
+        {% if rule.evidence.source_quote %}
+        <blockquote style="border-left:3px solid var(--accent-soft); padding:6px 10px; margin:8px 0; color:var(--muted); font-size:13px; line-height:1.6;">
+          {{ rule.evidence.source_quote }}
+        </blockquote>
+        {% endif %}
+
+        {% if rule.trigger.conditions %}
+        <div class="meta" style="margin-top:10px;">触发条件</div>
+        <div class="chips">{% for c in rule.trigger.conditions %}<span class="chip">{{ c }}</span>{% endfor %}</div>
+        {% endif %}
+
+        {% if rule.constraints.must_avoid %}
+        <div class="meta" style="margin-top:10px; color:#b44;">必须避免</div>
+        <div class="chips">{% for c in rule.constraints.must_avoid %}<span class="chip" style="background:#f6dada;color:#9b3f3f;">✗ {{ c }}</span>{% endfor %}</div>
+        {% endif %}
+
+        {% if rule.scoring.boost_factors %}
+        <div class="meta" style="margin-top:10px; color:#2d8a4e;">加分项</div>
+        <div class="chips">{% for c in rule.scoring.boost_factors %}<span class="chip" style="background:#dff5e3;color:#2d8a4e;">{{ c }}</span>{% endfor %}</div>
+        {% endif %}
+
+        <div class="meta" style="margin-top:14px; font-size:12px;">
+          置信度 <strong style="color:var(--ink);">{{ '%.0f'|format(rule.evidence.confidence * 100) }}%</strong>
+          · 权重
+          <input type="number" min="0" max="1" step="0.05" value="{{ rule.scoring.base_weight }}"
+            data-rule-weight="{{ rule.id }}"
+            style="width:70px; padding:2px 6px; border:1px solid var(--border); border-radius:6px;" />
+          · 当前状态 <strong style="color:var(--accent);">{{ rule.review.status }}</strong>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px; min-width:120px;">
+        <button class="btn-approve" data-rule="{{ rule.id }}"
+          style="background:#2d8a4e; color:#fff; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:600;">
+          通过
+        </button>
+        <button class="btn-needs-edit" data-rule="{{ rule.id }}"
+          style="background:#f0c75e; color:#5a3e00; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:600;">
+          需修改
+        </button>
+        <button class="btn-reject" data-rule="{{ rule.id }}"
+          style="background:#b44; color:#fff; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:600;">
+          拒绝
+        </button>
+        <button class="btn-update-weight" data-rule="{{ rule.id }}"
+          style="background:#fff; color:var(--accent); border:1px solid var(--accent); padding:6px 14px; border-radius:8px; cursor:pointer; font-weight:600; font-size:12px;">
+          保存权重
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+async function callReview(ruleId, action, extra) {
+  const payload = Object.assign({ action: action }, extra || {});
+  try {
+    const res = await fetch(`/content-planning/visual-strategy/rules/${ruleId}/review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      alert("操作失败: " + text);
+      return;
+    }
+    location.reload();
+  } catch (err) {
+    alert("网络错误: " + err.message);
+  }
+}
+
+document.querySelectorAll(".btn-approve").forEach((btn) => {
+  btn.addEventListener("click", () => callReview(btn.dataset.rule, "approve", { reviewer: "current_user" }));
+});
+document.querySelectorAll(".btn-reject").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (!confirm("确定拒绝该规则？拒绝后不会进入 RulePack。")) return;
+    callReview(btn.dataset.rule, "reject", { reviewer: "current_user" });
+  });
+});
+document.querySelectorAll(".btn-needs-edit").forEach((btn) => {
+  btn.addEventListener("click", () => callReview(btn.dataset.rule, "request_edit", { reviewer: "current_user" }));
+});
+document.querySelectorAll(".btn-update-weight").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const ruleId = btn.dataset.rule;
+    const input = document.querySelector(`[data-rule-weight="${ruleId}"]`);
+    const value = parseFloat(input.value);
+    if (Number.isNaN(value)) return alert("权重必须是数字");
+    callReview(ruleId, "update_weight", { new_weight: value });
+  });
+});
+</script>
+{% endblock %}

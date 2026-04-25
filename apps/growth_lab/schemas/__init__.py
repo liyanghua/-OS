@@ -28,6 +28,39 @@ from apps.growth_lab.schemas.asset_performance import (
     ReuseRecommendation,
 )
 
+# 视觉策略编译器（Phase 1-3）策略产物对象
+from apps.growth_lab.schemas.visual_strategy_pack import (
+    VisualStrategyPack,
+    VisualStrategyPackSource,
+    VisualStrategyScene,
+)
+from apps.growth_lab.schemas.strategy_candidate import (
+    StrategyCandidate,
+    StrategyScore,
+    StrategySelectedVariables,
+)
+from apps.growth_lab.schemas.creative_brief import (
+    BriefCanvas,
+    BriefCopywriting,
+    BriefPeople,
+    BriefProduct,
+    BriefScene,
+    BriefStyle,
+    CreativeBrief,
+)
+from apps.growth_lab.schemas.prompt_spec import (
+    PromptGenerationParams,
+    PromptProvider,
+    PromptSpec,
+)
+from apps.growth_lab.schemas.feedback_record import (
+    BusinessMetrics,
+    ExpertScore,
+    FeedbackDecision,
+    FeedbackRecord,
+    RuleWeightHistory,
+)
+
 __all__ = [
     "TrendOpportunity",
     "SellingPointSpec",
@@ -46,4 +79,26 @@ __all__ = [
     "AssetPerformanceCard",
     "PatternTemplate",
     "ReuseRecommendation",
+    # Visual Strategy Compiler
+    "VisualStrategyPack",
+    "VisualStrategyPackSource",
+    "VisualStrategyScene",
+    "StrategyCandidate",
+    "StrategyScore",
+    "StrategySelectedVariables",
+    "CreativeBrief",
+    "BriefCanvas",
+    "BriefScene",
+    "BriefProduct",
+    "BriefStyle",
+    "BriefPeople",
+    "BriefCopywriting",
+    "PromptSpec",
+    "PromptProvider",
+    "PromptGenerationParams",
+    "FeedbackRecord",
+    "ExpertScore",
+    "BusinessMetrics",
+    "FeedbackDecision",
+    "RuleWeightHistory",
 ]

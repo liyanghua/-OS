@@ -403,6 +403,73 @@ class OpportunityGenAgentTests(unittest.IsolatedAsyncioTestCase):
             snap = registry.get(task_id)
             self.assertEqual(snap.error["error_kind"], "all_consumed")
 
+    async def test_run_merges_pipeline_details_for_detail_page(self) -> None:
+        """M5 必须把每篇笔记的 note_context + 信号 merge 进 pipeline_details.json，
+        否则 ``/xhs-opportunities/{id}`` 详情页会显示「原始笔记数据暂不可用」。
+        增量补跑场景：旧条目应保留，新条目按 note_id 覆盖式合并。"""
+        registry = AgentRunRegistry()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp)
+            jsonl_dir = _write_jsonl_dir(tmpdir / "jsonl", [WIG_RAW_NOTE])
+            output_dir = tmpdir / "out"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            details_path = output_dir / "pipeline_details.json"
+            details_path.write_text(
+                json.dumps(
+                    [
+                        {"note_id": "legacy_001", "note_context": {"title": "保留"}},
+                    ],
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            store = _StubReviewStore()
+            task_id, _ = registry.start("wig", lens_label="假发")
+            agent = OpportunityGenAgent(
+                task_id=task_id,
+                lens_id="wig",
+                registry=registry,
+                review_store=store,
+                max_notes=1,
+                jsonl_dir=jsonl_dir,
+                output_dir=output_dir,
+            )
+            from apps.intel_hub.extraction import llm_client
+            orig = (
+                llm_client.call_text_llm,
+                llm_client.call_vlm,
+                llm_client.is_llm_available,
+                llm_client.is_vlm_available,
+            )
+            llm_client.call_text_llm = lambda *a, **kw: ""  # type: ignore[assignment]
+            llm_client.call_vlm = lambda *a, **kw: ""  # type: ignore[assignment]
+            llm_client.is_llm_available = lambda: False  # type: ignore[assignment]
+            llm_client.is_vlm_available = lambda: False  # type: ignore[assignment]
+            try:
+                await agent.run()
+                await asyncio.sleep(0.02)
+            finally:
+                (
+                    llm_client.call_text_llm,
+                    llm_client.call_vlm,
+                    llm_client.is_llm_available,
+                    llm_client.is_vlm_available,
+                ) = orig
+
+            self.assertTrue(details_path.exists())
+            merged = json.loads(details_path.read_text(encoding="utf-8"))
+            note_ids = {e.get("note_id") for e in merged}
+            self.assertIn("legacy_001", note_ids)
+            self.assertIn("wig_001", note_ids)
+            wig_entry = next(e for e in merged if e.get("note_id") == "wig_001")
+            note_ctx = wig_entry.get("note_context") or {}
+            self.assertTrue(note_ctx.get("title"), "note_context.title 应非空")
+            self.assertIsInstance(note_ctx.get("image_urls"), list)
+            self.assertGreaterEqual(len(note_ctx.get("image_urls") or []), 1)
+            self.assertIn("visual_signals", wig_entry)
+            self.assertIn("opportunity_cards", wig_entry)
+
     async def test_run_writes_task_scoped_snapshot(self) -> None:
         """M5 应同时写全局 cards.json 与任务级 runs/{lens}_{task}.json 两份。"""
         registry = AgentRunRegistry()

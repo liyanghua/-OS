@@ -172,6 +172,7 @@ def create_app(
     content_plan_store: Any | None = None,
     platform_store: B2BPlatformStore | None = None,
     enable_embedded_crawl_worker: bool | None = None,
+    xhs_opportunities_dir: str | Path | None = None,
 ) -> FastAPI:
     settings = load_runtime_settings(runtime_config_path)
     repository = repository or Repository(settings.resolved_storage_path())
@@ -182,8 +183,15 @@ def create_app(
     from apps.content_planning.storage.plan_store import ContentPlanStore
 
     _plan_store = content_plan_store or ContentPlanStore(resolve_repo_path("data/content_plan.sqlite"))
-    _xhs_cards_json = resolve_repo_path("data/output/xhs_opportunities/opportunity_cards.json")
-    _xhs_details_json = resolve_repo_path("data/output/xhs_opportunities/pipeline_details.json")
+    # 机会卡 / 笔记上下文落盘目录，可由 create_app 注入用于测试隔离；
+    # 默认指向 ``data/output/xhs_opportunities/``。
+    _xhs_output_dir = (
+        Path(xhs_opportunities_dir)
+        if xhs_opportunities_dir is not None
+        else resolve_repo_path("data/output/xhs_opportunities")
+    )
+    _xhs_cards_json = _xhs_output_dir / "opportunity_cards.json"
+    _xhs_details_json = _xhs_output_dir / "pipeline_details.json"
     if _xhs_cards_json.exists():
         review_store.sync_cards_from_json(_xhs_cards_json)
 
@@ -209,6 +217,20 @@ def create_app(
         return idx
 
     _note_ctx_index: dict[str, dict[str, Any]] = _load_note_context_index()
+
+    def _refresh_note_ctx_index() -> None:
+        """重新读 ``pipeline_details.json``，把新增笔记并入内存索引。
+
+        Agent 增量跑完后会 merge 新条目进 ``pipeline_details.json``，
+        但 ``_note_ctx_index`` 在 ``create_app`` 启动时已加载完成。
+        机会卡详情页命中 miss 时调用本函数做一次延迟刷新，避免重启进程。
+        """
+        try:
+            new_idx = _load_note_context_index()
+        except Exception:  # noqa: BLE001
+            return
+        _note_ctx_index.clear()
+        _note_ctx_index.update(new_idx)
 
     crawl_status_path = settings.resolved_crawl_status_path()
     alerts_path = settings.resolved_alerts_path()
@@ -1447,9 +1469,19 @@ def create_app(
 
         source_notes: list[dict[str, Any]] = []
         card_dict = card.model_dump(mode="json")
-        for nid in card_dict.get("source_note_ids", []):
+        source_note_ids = card_dict.get("source_note_ids") or []
+        missing_ids: list[str] = []
+        for nid in source_note_ids:
             if nid in _note_ctx_index:
                 source_notes.append(_note_ctx_index[nid])
+            else:
+                missing_ids.append(nid)
+        # Agent 单条 / 增量跑出来的新笔记，启动期 cache miss 时即时刷新一次。
+        if missing_ids and source_note_ids:
+            _refresh_note_ctx_index()
+            for nid in missing_ids:
+                if nid in _note_ctx_index:
+                    source_notes.append(_note_ctx_index[nid])
 
         if _wants_html(request):
             return _render("xhs_opportunity_detail.html", {
@@ -1832,6 +1864,83 @@ def create_app(
 
     app.include_router(content_planning_router)
     app.include_router(content_planning_router_alias)
+
+    # ── 视觉策略编译器路由挂载（SOP→RuleSpec→StrategyCandidate→CreativeBrief→PromptSpec） ──
+    from apps.content_planning.api.visual_strategy_routes import (
+        router as visual_strategy_router,
+        configure as configure_visual_strategy,
+    )
+    from apps.content_planning.storage.rule_store import RuleStore as _VSRuleStore
+    from apps.growth_lab.storage.visual_strategy_store import VisualStrategyStore as _VSStore
+
+    _vs_rule_store = _VSRuleStore()
+    _vs_store_instance = _VSStore()
+
+    def _vs_review_card_provider(opportunity_id: str):
+        return review_store.get_card(opportunity_id)
+
+    def _vs_send_to_workbench_handler(*, opportunity_id, candidate, brief, prompt_spec, notes=""):
+        """把 CreativeBrief / PromptSpec 翻译成 visual-builder bootstrap 字段。"""
+        plan_store = getattr(_cp_flow, "_store", None)
+        if plan_store is None:
+            return {"updated": []}
+
+        quick_draft = {
+            "selected_title": brief.copywriting.headline or candidate.name,
+            "final_body": prompt_spec.positive_prompt_zh,
+            "selling_points": list(brief.copywriting.selling_points),
+            "labels": list(brief.copywriting.labels),
+            "source": "visual_strategy_compiler",
+            "creative_brief_id": brief.id,
+            "strategy_candidate_id": candidate.id,
+            "archetype": candidate.archetype,
+        }
+
+        style_tags: list[str] = []
+        if brief.style.tone:
+            style_tags.append(brief.style.tone)
+        style_tags.extend(brief.style.color_palette[:3])
+        if brief.style.lighting:
+            style_tags.append(brief.style.lighting)
+
+        must_include: list[str] = list(brief.product.visible_features)
+        must_include.extend(brief.scene.props[:2])
+
+        saved_prompt = {
+            "slot_id": "main_image_1",
+            "subject": brief.scene.background or brief.style.tone or candidate.name,
+            "style_tags": style_tags,
+            "must_include": must_include,
+            "avoid_items": list(brief.negative)[:8],
+            "negative_prompt": prompt_spec.negative_prompt_zh,
+            "creative_brief_id": brief.id,
+            "strategy_candidate_id": candidate.id,
+            "sources": [
+                {"priority": 1, "field": "creative_brief.copy.headline",
+                 "content": brief.copywriting.headline},
+                {"priority": 2, "field": "creative_brief.scene.background",
+                 "content": brief.scene.background},
+            ],
+        }
+
+        try:
+            plan_store.update_field(opportunity_id, "quick_draft", quick_draft)
+            plan_store.update_field(opportunity_id, "saved_prompts", [saved_prompt])
+        except Exception as exc:  # noqa: BLE001
+            return {"error": str(exc)}
+        return {
+            "updated": ["quick_draft", "saved_prompts"],
+            "creative_brief_id": brief.id,
+            "prompt_spec_id": prompt_spec.id,
+        }
+
+    configure_visual_strategy(
+        rule_store=_vs_rule_store,
+        visual_strategy_store=_vs_store_instance,
+        review_card_provider=_vs_review_card_provider,
+        send_to_workbench_handler=_vs_send_to_workbench_handler,
+    )
+    app.include_router(visual_strategy_router)
 
     # ── growth_lab 路由挂载（裂变系统） ─────────────────────────
     from apps.growth_lab.api.routes import router as growth_lab_router

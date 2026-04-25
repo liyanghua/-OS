@@ -36,6 +36,36 @@ from apps.content_planning.schemas.template_match_result import (
     TemplateMatchResult,
 )
 
+# 视觉策略编译器（Phase 1-3）规则生产线对象
+from apps.content_planning.schemas.source_document import SOPDimension, SourceDocument
+from apps.content_planning.schemas.rule_spec import (
+    RuleConstraints,
+    RuleEvidence,
+    RuleLifecycle,
+    RuleLifecycleStatus,
+    RuleRecommendation,
+    RuleReview,
+    RuleReviewStatus,
+    RuleScoring,
+    RuleSpec,
+    RuleTrigger,
+)
+from apps.content_planning.schemas.rule_pack import (
+    CHILDREN_DESK_MAT_ARCHETYPES,
+    ArchetypeConfig,
+    RulePack,
+    RulePackMetrics,
+)
+from apps.content_planning.schemas.context_spec import (
+    ContextAudience,
+    ContextCompetitor,
+    ContextPlatform,
+    ContextProduct,
+    ContextSpec,
+    ContextStoreVisualSystem,
+    VisualScene,
+)
+
 __all__ = [
     "OpportunityBrief",
     "RewriteStrategy",
@@ -62,4 +92,28 @@ __all__ = [
     "StageProposal",
     "ProposalDecision",
     "StageScorecard",
+    # Visual Strategy Compiler
+    "SourceDocument",
+    "SOPDimension",
+    "RuleSpec",
+    "RuleTrigger",
+    "RuleRecommendation",
+    "RuleConstraints",
+    "RuleScoring",
+    "RuleEvidence",
+    "RuleReview",
+    "RuleLifecycle",
+    "RuleReviewStatus",
+    "RuleLifecycleStatus",
+    "RulePack",
+    "ArchetypeConfig",
+    "RulePackMetrics",
+    "CHILDREN_DESK_MAT_ARCHETYPES",
+    "ContextSpec",
+    "ContextProduct",
+    "ContextStoreVisualSystem",
+    "ContextAudience",
+    "ContextCompetitor",
+    "ContextPlatform",
+    "VisualScene",
 ]
