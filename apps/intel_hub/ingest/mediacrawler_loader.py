@@ -272,15 +272,28 @@ def _map_note_to_raw_signal(
     tags = [t.strip() for t in tag_str.split(",") if t.strip()] if tag_str else []
 
     keyword = str(note.get("source_keyword") or "").strip() or None
+    try:
+        from apps.intel_hub.config_loader import route_keyword_to_lens_id
+        lens_id = route_keyword_to_lens_id(keyword)
+    except Exception:
+        logger.debug("lens routing unavailable, leaving lens_id=None", exc_info=True)
+        lens_id = None
 
     image_list: list[str] = [
         _to_persistent_image_url(url.strip())
         for url in _split_urls(note.get("image_list") or note.get("note_download_url"))
     ]
     cover_url = str(note.get("cover_url") or "").strip()
+    if not cover_url and image_list:
+        cover_url = image_list[0]
     if cover_url and cover_url not in image_list:
         image_list.insert(0, cover_url)
-    video_url = str(note.get("video_download_url") or "").strip()
+    video_url = str(
+        note.get("video_url")
+        or note.get("video_download_url")
+        or note.get("aweme_video_url")
+        or ""
+    ).strip()
 
     raw_comments: list[dict[str, Any]] = []
     if comment_index:
@@ -306,6 +319,7 @@ def _map_note_to_raw_signal(
             "engagement": engagement,
         },
         "keyword": keyword,
+        "lens_id": lens_id,
         "tags": tags,
         "watchlist_hits": [],
         "raw_source_type": source_type,

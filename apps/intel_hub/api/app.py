@@ -7,9 +7,11 @@ from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import quote, urlparse
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
@@ -17,7 +19,7 @@ from pydantic import BaseModel, Field
 from apps.b2b_platform.storage import B2BPlatformStore
 from apps.intel_hub.config_loader import load_runtime_settings, resolve_repo_path
 from apps.intel_hub.ingest.mediacrawler_loader import load_mediacrawler_records
-from apps.intel_hub.ingest.rss_loader import count_rss_records, load_rss_records
+from apps.intel_hub.ingest.rss_loader import load_rss_records
 from apps.intel_hub.schemas import ReviewUpdateRequest
 from apps.template_extraction.agent import TemplateRetriever, TemplateMatcher
 from apps.template_extraction.labeling import label_note_by_rules
@@ -47,6 +49,52 @@ TEMPLATE_ENV = Environment(
 )
 
 
+# 小红书等第三方 CDN 图片在浏览器端会被防盗链拦截，统一通过 /img-proxy 走后端代抓。
+# 已下载到本地或已是站内路径的不再代理。
+_PROXY_IMG_HOST_ALLOW: tuple[str, ...] = (
+    "xhscdn.com",
+    "xhs.cn",
+    "xiaohongshu.com",
+    "douyinpic.com",
+    "douyincdn.com",
+    "weibocdn.com",
+    "sinaimg.cn",
+)
+
+
+def _should_proxy_img(url: str) -> bool:
+    if not url or not isinstance(url, str):
+        return False
+    if not (url.startswith("http://") or url.startswith("https://")):
+        return False
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return False
+    if not host:
+        return False
+    return any(host == h or host.endswith("." + h) for h in _PROXY_IMG_HOST_ALLOW)
+
+
+def _proxy_img_filter(url: Any) -> str:
+    """Jinja 过滤器：把第三方图床外链改写成 /img-proxy 代理路径。
+
+    - 空值/相对路径/站内静态目录直接原样返回；
+    - 命中白名单的 http(s) 外链改写为 ``/img-proxy?url=<encoded>``。
+    """
+    if not url:
+        return ""
+    s = str(url)
+    if s.startswith("/"):  # 站内绝对路径（含 /source-images, /generated-images）
+        return s
+    if not _should_proxy_img(s):
+        return s
+    return "/img-proxy?url=" + quote(s, safe="")
+
+
+TEMPLATE_ENV.filters["proxy_img"] = _proxy_img_filter
+
+
 class CrawlJobRequest(BaseModel):
     platform: str = "xhs"
     job_type: str = "keyword_search"
@@ -56,6 +104,19 @@ class CrawlJobRequest(BaseModel):
     priority: int = 5
     login_type: str = "qrcode"
     sort_type: str = "popularity_descending"
+
+
+class StartAgentRunRequest(BaseModel):
+    """POST /xhs-opportunities/agent-runs 请求体。
+
+    默认 ``max_notes=1`` 走"先跑 1 条预览"路径；前端"再跑 5 条 / 全部"
+    会带 ``skip_note_ids`` 实现增量补跑，避免重复处理同一篇笔记。
+    """
+
+    lens_id: str
+    max_notes: int = 1
+    skip_note_ids: list[str] = []
+    note_id: str | None = None
 
 
 class B2BBootstrapRequest(BaseModel):
@@ -459,6 +520,53 @@ def create_app(
     _generated_videos_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/generated-videos", StaticFiles(directory=str(_generated_videos_dir)), name="generated_videos")
 
+    # 1×1 透明 PNG（24 字节），用于代理失败时的占位返回，避免前端 onerror 抖动。
+    _PROXY_PLACEHOLDER_PNG = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xfc"
+        b"\xff\xff?\x03\x00\x07\x01\x02\xfe\xa9\xb6,\xed\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+    @app.get("/img-proxy")
+    async def img_proxy(url: str) -> Response:
+        """代抓第三方图床（主要是小红书 xhscdn）以绕过防盗链。
+
+        - 仅允许 host 命中白名单的 http(s) 链接；
+        - 转发时附带桌面 UA 与 ``Referer: https://www.xiaohongshu.com/``；
+        - 失败/超时返回 1x1 透明 PNG，避免前端 ``onerror`` 抖动。
+        """
+        if not _should_proxy_img(url):
+            raise HTTPException(status_code=400, detail="url not allowed")
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://www.xiaohongshu.com/",
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                upstream = await client.get(url, headers=headers)
+            if upstream.status_code >= 400:
+                return Response(
+                    content=_PROXY_PLACEHOLDER_PNG,
+                    media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=300"},
+                )
+            content_type = upstream.headers.get("content-type", "image/jpeg")
+            return Response(
+                content=upstream.content,
+                media_type=content_type,
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
+        except Exception:
+            return Response(
+                content=_PROXY_PLACEHOLDER_PNG,
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=60"},
+            )
+
     def list_payload(
         table_name: str,
         page: int,
@@ -713,28 +821,20 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request) -> HTMLResponse:
-        signals = list_payload("signals", 1, 10, None, None, None, None, None, None)
-        opportunities = list_payload("opportunity_cards", 1, 10, None, None, None, None, None, None)
-        risks = list_payload("risk_cards", 1, 10, None, None, None, None, None, None)
-        watchlists = list_payload("watchlists", 1, 10, None, None, None, None, None, None)
         notes_total = len(_get_notes())
-        rss_counts = count_rss_records()
         xhs_cards_total = review_store.card_count()
-        crawl = _safe_read_json(_platform_status_path("xhs"), {"status": "idle"})
-        crawl_dy = _safe_read_json(_platform_status_path("dy"), {"status": "idle"})
+        try:
+            review_summary = review_store.get_review_summary()
+            promoted_total = int(review_summary.get("promoted_opportunities", 0) or 0)
+        except Exception:
+            promoted_total = 0
         return _render(
             "dashboard.html",
             {
                 "request": request,
-                "signals": signals,
-                "opportunities": opportunities,
-                "risks": risks,
-                "watchlists": watchlists,
                 "notes_total": notes_total,
-                "rss_counts": rss_counts,
                 "xhs_cards_total": xhs_cards_total,
-                "crawl": crawl,
-                "crawl_dy": crawl_dy,
+                "promoted_total": promoted_total,
             },
         )
 
@@ -1017,21 +1117,51 @@ def create_app(
         page: int = 1,
         page_size: int = 24,
         platform: str = "xhs",
+        lens: str | None = None,
         category: str | None = None,
         q: str | None = None,
         keyword: str | None = None,  # 向后兼容旧链接：等价 q
     ) -> Any:
+        from apps.intel_hub.config_loader import (
+            load_category_lenses,
+            route_keyword_to_lens_id,
+        )
+
         all_notes = _get_notes()
         current_platform = _normalize_platform(platform)
         platform_notes = [n for n in all_notes if _normalize_platform(n.get("platform")) == current_platform]
         total_all = len(platform_notes)
         categories = _build_category_index(platform_notes)
 
+        # 类目（CategoryLens）Tab
+        all_lenses_map = load_category_lenses()
+        lens_counter: dict[str, int] = {}
+        for n in platform_notes:
+            lid = n.get("lens_id") or route_keyword_to_lens_id(n.get("keyword"))
+            if lid:
+                lens_counter[lid] = lens_counter.get(lid, 0) + 1
+        lens_tabs = []
+        for lid, lens_obj in all_lenses_map.items():
+            lens_tabs.append(
+                {
+                    "lens_id": lid,
+                    "category_cn": lens_obj.category_cn,
+                    "count": lens_counter.get(lid, 0),
+                }
+            )
+        lens_tabs.sort(key=lambda x: (-x["count"], x["lens_id"]))
+
         # 向后兼容：旧 ?keyword=xxx → 视为 q
         if not q and keyword:
             q = keyword
 
         filtered = platform_notes
+        if lens:
+            want_lens = lens.strip()
+            filtered = [
+                n for n in filtered
+                if (n.get("lens_id") or route_keyword_to_lens_id(n.get("keyword"))) == want_lens
+            ]
         if category:
             want = category.strip()
             if want == "未分类":
@@ -1049,6 +1179,16 @@ def create_app(
         start = (max(page, 1) - 1) * page_size
         page_notes = filtered[start : start + page_size]
 
+        # 给每条 note 注入 lens_id（模板可能要展示类目标签）
+        for n in page_notes:
+            if not n.get("lens_id"):
+                n["lens_id"] = route_keyword_to_lens_id(n.get("keyword"))
+
+        platform_tabs = [
+            {"key": "xhs", "label": "小红书", "count": sum(1 for nn in all_notes if _normalize_platform(nn.get("platform")) == "xhs")},
+            {"key": "dy", "label": "抖音", "count": sum(1 for nn in all_notes if _normalize_platform(nn.get("platform")) == "dy")},
+        ]
+
         if _wants_html(request):
             return _render("notes.html", {
                 "request": request,
@@ -1061,6 +1201,9 @@ def create_app(
                 "current_platform": current_platform,
                 "current_platform_label": _platform_label(current_platform),
                 "current_category": category or "",
+                "current_lens": lens or "",
+                "lens_tabs": lens_tabs,
+                "platform_tabs": platform_tabs,
                 "q": q or "",
             })
         return {
@@ -1072,12 +1215,20 @@ def create_app(
             "current_platform": current_platform,
             "current_platform_label": _platform_label(current_platform),
             "current_category": category or "",
+            "current_lens": lens or "",
+            "lens_tabs": lens_tabs,
+            "platform_tabs": platform_tabs,
             "q": q or "",
             "items": page_notes,
         }
 
     @app.get("/notes/{note_id}")
     async def note_detail(request: Request, note_id: str, platform: str | None = None) -> Any:
+        from apps.intel_hub.config_loader import (
+            load_category_lenses,
+            route_keyword_to_lens_id,
+        )
+
         all_notes = _get_notes()
         p = _normalize_platform(platform) if platform else ""
         note = next(
@@ -1091,9 +1242,72 @@ def create_app(
         )
         if note is None:
             raise HTTPException(status_code=404, detail=f"笔记 {note_id} 未找到")
+
+        # 解析该 note 的 lens_id（若 ingest 时未带，按关键词兜底）
+        lens_id = note.get("lens_id") or route_keyword_to_lens_id(note.get("keyword"))
+        note["lens_id"] = lens_id
+        lens_obj = None
+        if lens_id:
+            lens_obj = load_category_lenses().get(lens_id)
+
+        context = {
+            "request": request,
+            "note": note,
+            "lens_id": lens_id,
+            "lens_obj": lens_obj,
+        }
         if _wants_html(request):
-            return _render("note_detail.html", {"request": request, "note": note})
+            return _render("note_detail.html", context)
         return note
+
+    # ── 类目透镜（CategoryLens 只读） ───────────────────
+
+    @app.get("/category-lenses")
+    async def category_lens_list(request: Request) -> Any:
+        from apps.intel_hub.config_loader import (
+            load_category_lenses,
+            load_lens_keyword_routing,
+        )
+
+        lenses = load_category_lenses()
+        routing = load_lens_keyword_routing()
+        rows = [
+            {
+                "lens_id": lens.lens_id,
+                "category_cn": lens.category_cn,
+                "version": lens.version,
+                "core_consumption_logic": lens.core_consumption_logic,
+                "keyword_aliases": lens.keyword_aliases,
+                "primary_user_jobs": lens.primary_user_jobs,
+            }
+            for lens in lenses.values()
+        ]
+        if _wants_html(request):
+            return _render(
+                "category_lenses.html",
+                {
+                    "request": request,
+                    "lenses": rows,
+                    "routing": routing,
+                },
+            )
+        return {"lenses": rows, "routing": routing}
+
+    @app.get("/category-lenses/{lens_id}")
+    async def category_lens_detail(request: Request, lens_id: str) -> Any:
+        from apps.intel_hub.config_loader import load_category_lenses
+
+        lenses = load_category_lenses()
+        lens = lenses.get(lens_id)
+        if lens is None:
+            raise HTTPException(status_code=404, detail=f"类目透镜 {lens_id} 未找到")
+        payload = lens.model_dump(mode="json")
+        if _wants_html(request):
+            return _render(
+                "category_lens_detail.html",
+                {"request": request, "lens": payload},
+            )
+        return payload
 
     # ── RSS 趋势浏览 ──────────────────────────────────
 
@@ -1293,6 +1507,7 @@ def create_app(
         type: str | None = None,
         status: str | None = None,
         qualified: str | None = None,
+        lens: str | None = None,
     ) -> Any:
         review_store.sync_cards_from_json(_xhs_cards_json)
 
@@ -1302,19 +1517,77 @@ def create_app(
         elif qualified == "false":
             qualified_bool = False
 
+        # 先按 opportunity_type/status/qualified 过滤，再按 lens_id 手动过滤（分页后）
+        # 当 lens 过滤生效时，拉大 page_size 获取全量再切片，避免跨页错位
+        effective_page_size = page_size if not lens else max(page_size, 500)
         result = review_store.list_cards(
             opportunity_type=type,
             opportunity_status=status,
             qualified=qualified_bool,
-            page=page,
-            page_size=page_size,
+            page=1 if lens else page,
+            page_size=effective_page_size,
         )
-        page_cards = [c.model_dump(mode="json") for c in result["items"]]
-        total = result["total"]
+        items = result["items"]
+        if lens:
+            items = [c for c in items if getattr(c, "lens_id", None) == lens]
+            total = len(items)
+            start = (page - 1) * page_size
+            end = start + page_size
+            items = items[start:end]
+        else:
+            total = result["total"]
+        page_cards = [c.model_dump(mode="json") for c in items]
         total_pages = max(1, (total + page_size - 1) // page_size)
 
         tc = review_store.type_counts()
         all_types = sorted(tc.keys())
+
+        # 计算 lens 分布（在全量 card 上统计）
+        all_cards_full = review_store.list_cards(page=1, page_size=10_000)["items"]
+        lens_counts: dict[str, int] = {}
+        for c in all_cards_full:
+            lid = getattr(c, "lens_id", None)
+            key = lid or "__unassigned__"
+            lens_counts[key] = lens_counts.get(key, 0) + 1
+        all_lenses = sorted([k for k in lens_counts if k != "__unassigned__"])
+
+        # 生成 lens_id -> category_cn 映射，便于 UI 展示
+        try:
+            from apps.intel_hub.config_loader import load_category_lenses
+            lens_meta = load_category_lenses()
+        except Exception:
+            lens_meta = {}
+        lens_labels = {lid: (lens_meta.get(lid).category_cn if lens_meta.get(lid) else lid) for lid in all_lenses}
+
+        # lens_type_nav：当前 lens 范围内的 opportunity_type 计数（按数量倒序）
+        scope_cards = all_cards_full
+        if lens:
+            scope_cards = [c for c in all_cards_full if getattr(c, "lens_id", None) == lens]
+        scope_type_counts: dict[str, int] = {}
+        for c in scope_cards:
+            ot = getattr(c, "opportunity_type", None)
+            if ot:
+                scope_type_counts[ot] = scope_type_counts.get(ot, 0) + 1
+        lens_type_nav = sorted(scope_type_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        lens_type_nav = [
+            {"type": t, "count": cnt, "label": _xhs_type_labels.get(t, t)}
+            for t, cnt in lens_type_nav
+        ]
+
+        # 读取 lens bundle 摘要（若存在）
+        lens_bundle_summary: dict[str, dict[str, Any]] = {}
+        bundles_dir = resolve_repo_path("data/output/xhs_opportunities/lens_bundles")
+        if bundles_dir.exists():
+            for lens_file in bundles_dir.glob("*.json"):
+                try:
+                    data = json.loads(lens_file.read_text(encoding="utf-8"))
+                    lens_bundle_summary[lens_file.stem] = {
+                        "score": (data.get("evidence_score") or {}).get("total"),
+                        "decision": (data.get("recommended_action") or {}).get("decision"),
+                        "hot_keyword_count": len(data.get("layer1_signals", {}).get("hot_keywords", [])),
+                    }
+                except Exception:
+                    continue
 
         details_path = resolve_repo_path("data/output/xhs_opportunities/pipeline_details.json")
         total_notes = 0
@@ -1328,12 +1601,96 @@ def create_app(
             "total_notes": total_notes,
             "total_cards": review_store.card_count(),
             "type_counts": tc,
+            "lens_counts": lens_counts,
         }
+
+        # 当前 lens 是否有 in-flight Agent 任务（用于刷新页面时自动续接抽屉）
+        active_agent_task_id: str | None = None
+        if lens:
+            try:
+                from apps.intel_hub.services.agent_run_registry import (
+                    agent_run_registry,
+                )
+                active = agent_run_registry.get_active_by_lens(lens)
+                if active is not None:
+                    active_agent_task_id = active.task_id
+            except Exception:
+                active_agent_task_id = None
+
+        # lens_label 给空态文案与抽屉标题用
+        current_lens_label = lens_labels.get(lens) if lens else ""
+
+        # 区分两种空态：全库无卡 vs 当前 lens 过滤后为空
+        empty_state_kind = "none"
+        if not page_cards:
+            empty_state_kind = "lens_empty" if (lens and stats["total_cards"] > 0) else "global_empty"
+
+        # 按 source_note_ids[0] 分组并 join 笔记元信息（封面、标题），让同
+        # 来源的多张机会卡在前端被一眼看清是同一篇笔记产出的不同角度。
+        notes_index: dict[str, dict[str, Any]] = {}
+        try:
+            for n in _get_notes():
+                nid = (n.get("raw_payload") or {}).get("note_id")
+                if nid:
+                    notes_index[str(nid)] = n
+        except Exception:
+            notes_index = {}
+
+        groups: dict[str, dict[str, Any]] = {}
+        for card_dict in page_cards:
+            snids = card_dict.get("source_note_ids") or []
+            snid = snids[0] if snids else ""
+            note_meta = notes_index.get(snid)
+            cover_url = ""
+            if note_meta:
+                imgs = note_meta.get("image_list") or []
+                if imgs:
+                    first = imgs[0]
+                    cover_url = first.get("url") if isinstance(first, dict) else str(first)
+            grp = groups.setdefault(snid, {
+                "note_id": snid,
+                "note_meta": (
+                    {
+                        "title": (note_meta or {}).get("title") or "",
+                        "cover_url": cover_url,
+                        "platform": (note_meta or {}).get("platform") or "xhs",
+                    }
+                    if note_meta
+                    else None
+                ),
+                "cards": [],
+            })
+            grp["cards"].append(card_dict)
+        for grp in groups.values():
+            grp["cards"].sort(key=lambda c: -float(c.get("confidence") or 0.0))
+        note_groups = sorted(
+            groups.values(),
+            key=lambda g: (
+                -max((float(c.get("confidence") or 0.0) for c in g["cards"]), default=0.0),
+                g["note_id"] or "",
+            ),
+        )
+
+        # lens 维度下的笔记总数：抽屉的"再跑全部"用它做上限提示
+        lens_notes_total = 0
+        if lens:
+            try:
+                from apps.intel_hub.config_loader import route_keyword_to_lens_id
+
+                lens_notes_total = sum(
+                    1
+                    for n in _get_notes()
+                    if (n.get("lens_id") or route_keyword_to_lens_id(n.get("keyword")))
+                    == lens
+                )
+            except Exception:
+                lens_notes_total = 0
 
         if _wants_html(request):
             return _render("xhs_opportunities.html", {
                 "request": request,
                 "cards": page_cards,
+                "note_groups": note_groups,
                 "stats": stats,
                 "type_labels": _xhs_type_labels,
                 "type_colors": _xhs_type_colors,
@@ -1341,13 +1698,29 @@ def create_app(
                 "status_labels": _xhs_status_labels,
                 "status_colors": _xhs_status_colors,
                 "all_types": all_types,
+                "all_lenses": all_lenses,
+                "lens_labels": lens_labels,
+                "lens_type_nav": lens_type_nav,
+                "lens_bundle_summary": lens_bundle_summary,
                 "type_filter": type,
                 "status_filter": status,
+                "lens_filter": lens,
+                "lens_label": current_lens_label,
+                "lens_notes_total": lens_notes_total,
+                "active_agent_task_id": active_agent_task_id,
+                "empty_state_kind": empty_state_kind,
                 "page": page,
                 "page_size": page_size,
                 "total_pages": total_pages,
             })
-        return {"total": total, "page": page, "page_size": page_size, "items": page_cards, "stats": stats}
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": page_cards,
+            "stats": stats,
+            "lens_bundle_summary": lens_bundle_summary,
+        }
 
     # ── 桌布主图策略模板展示 ──────────────────────────────────
 
@@ -1469,6 +1842,107 @@ def create_app(
     async def content_planning_stream(request: Request, opportunity_id: str):
         """SSE 事件流：实时推送 Agent 输出与对象变更。"""
         return await sse_stream(request, opportunity_id)
+
+    # ── 机会卡生成 Agent（按类目一键生成 + 可观测 SSE） ────────
+    from apps.intel_hub.services.agent_run_registry import agent_run_registry
+    from apps.intel_hub.services.opportunity_gen_agent import (
+        OpportunityGenAgent,
+        channel_for as _agent_channel_for,
+    )
+
+    _agent_tasks: dict[str, asyncio.Task[None]] = {}
+
+    @app.post("/xhs-opportunities/agent-runs")
+    async def start_agent_run(payload: StartAgentRunRequest) -> dict[str, Any]:
+        lens_id = (payload.lens_id or "").strip()
+        if not lens_id:
+            raise HTTPException(status_code=400, detail="缺少 lens_id")
+        try:
+            from apps.intel_hub.config_loader import load_category_lenses
+            lenses = load_category_lenses()
+        except Exception:
+            lenses = {}
+        lens_obj = lenses.get(lens_id)
+        lens_label = (
+            getattr(lens_obj, "category_cn", None) or lens_id
+        ) if lens_obj is not None else lens_id
+
+        skip_note_ids = [s for s in (payload.skip_note_ids or []) if s]
+        note_id_filter = (payload.note_id or "").strip() or None
+
+        try:
+            task_id, snap = agent_run_registry.start(
+                lens_id,
+                lens_label=lens_label,
+                options={
+                    "max_notes": int(payload.max_notes),
+                    "skip_note_ids_count": len(skip_note_ids),
+                    "note_id": note_id_filter or "",
+                },
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        # 把 /notes 同款数据源注入：runtime settings 中所有启用的 xhs sources（含 fixture_fallback）
+        jsonl_dirs: list[Path] = []
+        for src in settings.mediacrawler_sources:
+            if not src.get("enabled", True):
+                continue
+            platform_name = str(src.get("platform", "xiaohongshu")).lower()
+            if platform_name not in {"xiaohongshu", "xhs", "rednote"}:
+                continue
+            out = resolve_repo_path(src.get("output_path", ""))
+            if out.exists() and out not in jsonl_dirs:
+                jsonl_dirs.append(out)
+            fb = src.get("fixture_fallback")
+            if fb:
+                fb_path = resolve_repo_path(fb)
+                if fb_path.exists() and fb_path not in jsonl_dirs:
+                    jsonl_dirs.append(fb_path)
+
+        agent = OpportunityGenAgent(
+            task_id=task_id,
+            lens_id=lens_id,
+            registry=agent_run_registry,
+            review_store=review_store,
+            max_notes=int(payload.max_notes),
+            jsonl_dirs=jsonl_dirs,
+            skip_note_ids=skip_note_ids,
+            note_id_filter=note_id_filter,
+        )
+        task = asyncio.create_task(agent.run(), name=f"agent_run:{task_id}")
+        _agent_tasks[task_id] = task
+
+        def _cleanup(_t: asyncio.Task) -> None:
+            _agent_tasks.pop(task_id, None)
+        task.add_done_callback(_cleanup)
+
+        return {
+            "task_id": task_id,
+            "lens_id": lens_id,
+            "lens_label": lens_label,
+            "status": snap.status,
+            "stream_url": f"/xhs-opportunities/agent-runs/{task_id}/stream",
+        }
+
+    @app.get("/xhs-opportunities/agent-runs/{task_id}")
+    async def get_agent_run(task_id: str) -> dict[str, Any]:
+        snap = agent_run_registry.get(task_id)
+        if snap is None:
+            raise HTTPException(status_code=404, detail="任务不存在或已被回收")
+        return snap.to_dict()
+
+    @app.get("/xhs-opportunities/agent-runs/{task_id}/stream")
+    async def agent_run_stream(request: Request, task_id: str):
+        """SSE 流：复用 event_bus channel ``agent_run:{task_id}``。"""
+        return await sse_stream(request, _agent_channel_for(task_id))
+
+    @app.post("/xhs-opportunities/agent-runs/{task_id}/cancel")
+    async def cancel_agent_run(task_id: str) -> dict[str, Any]:
+        ok = agent_run_registry.request_cancel(task_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="任务不存在或已结束")
+        return {"task_id": task_id, "cancelled": True}
 
     @app.get("/content-planning/timeline/{opportunity_id}")
     async def content_planning_timeline(request: Request, opportunity_id: str):
@@ -1689,10 +2163,23 @@ def create_app(
             return False
 
     def _persist_source_images(opportunity_id: str, source_notes: list) -> list[dict[str, Any]]:
-        """首次加载时把来源笔记图片下载到本地并写入 session。返回 source_images 列表。"""
+        """首次加载时把来源笔记图片下载到本地并写入 session。返回 source_images 列表。
+
+        参考图健壮性：cover/image_urls 在尝试下载前先经过
+        :func:`apps.content_planning.utils.ref_image_filter.is_usable_ref_url`
+        过滤，避免 fixture 占位 URL（example.com / mock-cdn）流到生图链路。
+        """
+        from apps.content_planning.utils.ref_image_filter import is_usable_ref_url
+
         try:
-            existing = _cp_flow.get_session_data(opportunity_id)
-            cached = existing.get("source_images")
+            cached = None
+            if hasattr(_cp_flow, "_store") and _cp_flow._store:
+                row = _cp_flow._store.load_session(opportunity_id)
+                if row and row.get("source_images"):
+                    cached = row.get("source_images")
+            if not cached:
+                existing = _cp_flow.get_session_data(opportunity_id)
+                cached = existing.get("source_images") if isinstance(existing, dict) else None
             if cached:
                 return cached  # type: ignore[return-value]
 
@@ -1704,10 +2191,13 @@ def create_app(
                 nc = sn.get("note_context", sn) if isinstance(sn, dict) else {}
                 note_id = nc.get("note_id", "") or sn.get("note_id", "") or "unknown"
                 original_cover = nc.get("cover_image", "")
-                original_urls = nc.get("image_urls", [])
+                original_urls = nc.get("image_urls", []) or []
+
+                cover_usable = is_usable_ref_url(original_cover)
+                usable_originals = [u for u in original_urls if is_usable_ref_url(u)]
 
                 local_cover = ""
-                if original_cover:
+                if cover_usable:
                     suffix = ".jpg"
                     if ".png" in original_cover:
                         suffix = ".png"
@@ -1718,7 +2208,7 @@ def create_app(
                         local_cover = str(cover_path)
 
                 local_urls: list[str] = []
-                for idx, img_url in enumerate(original_urls[:6]):
+                for idx, img_url in enumerate(usable_originals[:6]):
                     if img_url == original_cover:
                         if local_cover:
                             local_urls.append(local_cover)
@@ -1732,13 +2222,18 @@ def create_app(
                     if _download_image(img_url, img_path):
                         local_urls.append(str(img_path))
 
+                effective_cover = local_cover or (original_cover if cover_usable else "")
+                effective_urls = local_urls if local_urls else usable_originals
+                ref_quality = "ok" if (effective_cover or effective_urls) else "unusable_fixture"
+
                 imgs.append({
                     "note_id": note_id,
-                    "cover_image": local_cover or original_cover,
-                    "image_urls": local_urls if local_urls else original_urls,
+                    "cover_image": effective_cover,
+                    "image_urls": effective_urls,
                     "original_cover_url": original_cover,
                     "original_image_urls": original_urls,
                     "title": nc.get("title", "") or sn.get("title", ""),
+                    "ref_quality": ref_quality,
                 })
             if imgs and hasattr(_cp_flow, "_store") and _cp_flow._store:
                 existing_row = _cp_flow._store.load_session(opportunity_id)
@@ -1837,6 +2332,10 @@ def create_app(
         strategy = session_data.get("strategy", {})
         if not source_images:
             source_images = session_data.get("source_images", [])
+        if not source_images and hasattr(_cp_flow, "_store") and _cp_flow._store:
+            store_row = _cp_flow._store.load_session(opportunity_id)
+            if store_row and store_row.get("source_images"):
+                source_images = store_row["source_images"] or []
         if not source_images:
             source_images = []
             for sn in source_notes:
@@ -1866,6 +2365,94 @@ def create_app(
                 "image_urls": [_to_web_url(u) for u in si.get("image_urls", [])],
             })
 
+        # ── bootstrap：把策划台已产出的内容直接接力到视觉工作台 ──
+        from apps.content_planning.utils.ref_image_filter import filter_usable_ref_urls
+
+        plan_store = getattr(_cp_flow, "_store", None)
+
+        def _store_field(name: str) -> Any:
+            try:
+                return plan_store.get_field(opportunity_id, name) if plan_store else None
+            except Exception:
+                return None
+
+        quick_draft = _store_field("quick_draft") or session_data.get("quick_draft") or None
+        saved_prompts_raw = _store_field("saved_prompts") or session_data.get("saved_prompts") or []
+        saved_prompts = saved_prompts_raw if isinstance(saved_prompts_raw, list) else []
+        titles = session_data.get("titles") or {}
+        body = session_data.get("body") or {}
+        image_briefs = session_data.get("image_briefs") or {}
+        slot_briefs_raw = []
+        if isinstance(image_briefs, dict):
+            slot_briefs_raw = image_briefs.get("slot_briefs", []) or []
+
+        gen_history = _store_field("generated_images") or session_data.get("generated_images") or []
+        latest_generated_images: list[dict[str, Any]] = []
+        if isinstance(gen_history, list) and gen_history:
+            last = gen_history[-1]
+            if isinstance(last, dict):
+                results = last.get("results", []) if isinstance(last.get("results"), list) else []
+                latest_generated_images = [
+                    {
+                        "url": (r.get("image_url") or r.get("url") or ""),
+                        "slot_id": r.get("slot_id", ""),
+                        "rating": r.get("rating", ""),
+                    }
+                    for r in results if isinstance(r, dict) and (r.get("image_url") or r.get("url"))
+                ]
+
+        # 计算可用 ref 数（基于 source_images 经过滤后的 URL）
+        ref_candidates: list[str] = []
+        for si in source_images:
+            cover = si.get("cover_image", "") if isinstance(si, dict) else ""
+            if cover:
+                ref_candidates.append(cover)
+            for img in (si.get("image_urls", []) if isinstance(si, dict) else []):
+                if img and img != cover:
+                    ref_candidates.append(img)
+        usable_refs = filter_usable_ref_urls(ref_candidates)
+        ref_count = len(usable_refs)
+
+        # 服务端预合成 prompts，避免前端再 roundtrip。saved_prompts 优先。
+        initial_prompts: list[dict[str, Any]] = []
+        prompts_source = ""
+        if saved_prompts:
+            initial_prompts = [p for p in saved_prompts if isinstance(p, dict)]
+            prompts_source = "saved"
+        else:
+            try:
+                from apps.content_planning.api.routes import _build_rich_prompts
+                pre_mode = "ref_image" if ref_count > 0 else "prompt_only"
+                rich_prompts, _ = _build_rich_prompts(opportunity_id, session_data, pre_mode)
+                initial_prompts = [p.model_dump() for p in rich_prompts] if rich_prompts else []
+                prompts_source = "composed"
+            except Exception as exc:  # noqa: BLE001
+                initial_prompts = []
+                prompts_source = "unavailable"
+                import sys as _sys
+                print(
+                    f"[visual-builder] bootstrap 预合成 prompts 失败 opp={opportunity_id} err={exc}",
+                    file=_sys.stderr,
+                )
+
+        gen_mode_effective = "prompt_only" if ref_count == 0 else "ref_image"
+
+        bootstrap = {
+            "opportunity_id": opportunity_id,
+            "quick_draft": quick_draft,
+            "titles": titles,
+            "body": body,
+            "image_briefs": image_briefs,
+            "slot_briefs": slot_briefs_raw if isinstance(slot_briefs_raw, list) else [],
+            "saved_prompts": saved_prompts,
+            "initial_prompts": initial_prompts,
+            "prompts_source": prompts_source,
+            "ref_count": ref_count,
+            "has_ref_images": ref_count > 0,
+            "gen_mode_effective": gen_mode_effective,
+            "latest_generated_images": latest_generated_images,
+        }
+
         ctx = {
             "request": request,
             "opportunity_id": opportunity_id,
@@ -1874,6 +2461,7 @@ def create_app(
             "strategy": strategy,
             "source_images": display_images,
             "back_url": f"/planning/{opportunity_id}",
+            "bootstrap": bootstrap,
         }
 
         if _wants_html(request):
@@ -1965,34 +2553,108 @@ def create_app(
         pipeline_stats = {"total": review_store.card_count()}
         return _render("workspace_home.html", {"request": request, "stats": pipeline_stats})
 
+    # ── SystemAssetService（统一资产视图） ────────────────────
+    from apps.intel_hub.services.system_asset_service import SystemAssetService
+
+    def _growth_store_factory() -> Any:
+        from apps.growth_lab.api.routes import _get_store as _gl_get_store
+        return _gl_get_store()
+
+    _system_asset_service = SystemAssetService(
+        storage_path=resolve_repo_path("data/runtime_data/system_assets.json"),
+        review_store=review_store,
+        cp_flow=_cp_flow,
+        growth_store_factory=_growth_store_factory,
+    )
+
+    _LANE_LABELS = {
+        "content_note": "图文笔记",
+        "growth_lab": "增长实验",
+        "workspace_bundle": "套图",
+    }
+
     @app.get("/asset-workspace")
-    async def asset_workspace_page(request: Request) -> Any:
-        """资产工作台入口：展示最近有 asset_bundle 的 promoted 卡列表，或跳转到最近的资产页。"""
-        promoted = review_store.list_cards(opportunity_status="promoted", page=1, page_size=50)
-        promoted_items = promoted.get("items", [])
-        asset_entries: list[dict[str, Any]] = []
-        latest_opp_id: str | None = None
-        for card in promoted_items:
-            opp_id = card.opportunity_id if hasattr(card, "opportunity_id") else card.get("opportunity_id", "")
-            if not opp_id:
-                continue
-            sess = _cp_flow.get_session_data(opp_id)
-            bundle = sess.get("asset_bundle")
-            title = card.title if hasattr(card, "title") else card.get("title", opp_id[:12])
-            entry = {"opportunity_id": opp_id, "title": title, "has_bundle": bool(bundle)}
-            asset_entries.append(entry)
-            if bundle and not latest_opp_id:
-                latest_opp_id = opp_id
+    async def asset_workspace_page(
+        request: Request,
+        lane: str | None = None,
+        lens: str | None = None,
+        status: str | None = None,
+        asset_type: str | None = None,
+    ) -> Any:
+        """系统资产工作台：聚合三主线（图文笔记 / 增长实验 / 套图）统一展示。"""
+        assets = _system_asset_service.list_assets(
+            lane=lane, lens=lens, status=status, asset_type=asset_type,
+        )
+        # 按 lane 计数（不受 lane 过滤影响，便于 Tab 显示总数）
+        all_assets = (
+            assets if lane is None
+            else _system_asset_service.list_assets(lens=lens, status=status, asset_type=asset_type)
+        )
+        lane_counts: dict[str, int] = {"all": len(all_assets)}
+        for a in all_assets:
+            lane_counts[a.source_lane] = lane_counts.get(a.source_lane, 0) + 1
+
+        items_view = [
+            {
+                "asset_id": a.asset_id,
+                "source_lane": a.source_lane,
+                "source_lane_label": _LANE_LABELS.get(a.source_lane, a.source_lane),
+                "source_ref": a.source_ref,
+                "lens_id": a.lens_id,
+                "asset_type": a.asset_type,
+                "title": a.title,
+                "thumbnails": a.thumbnails,
+                "status": a.status,
+                "lineage": a.lineage,
+                "created_at": a.created_at.isoformat() if a.created_at else "",
+                "primary_link": a.primary_link(),
+            }
+            for a in assets
+        ]
+
         if _wants_html(request):
-            if latest_opp_id and not asset_entries:
-                from starlette.responses import RedirectResponse
-                return RedirectResponse(f"/content-planning/assets/{latest_opp_id}")
             return _render("asset_workspace_list.html", {
                 "request": request,
-                "entries": asset_entries,
-                "latest_opp_id": latest_opp_id,
+                "items": items_view,
+                "lane_counts": lane_counts,
+                "current_lane": lane,
+                "current_lens": lens,
+                "current_status": status,
+                "current_asset_type": asset_type,
+                "lane_labels": _LANE_LABELS,
             })
-        return {"entries": asset_entries, "latest_opp_id": latest_opp_id}
+        return {
+            "items": items_view,
+            "lane_counts": lane_counts,
+            "filters": {
+                "lane": lane,
+                "lens": lens,
+                "status": status,
+                "asset_type": asset_type,
+            },
+        }
+
+    @app.get("/api/system-assets")
+    async def api_system_assets(
+        lane: str | None = None,
+        lens: str | None = None,
+        status: str | None = None,
+        asset_type: str | None = None,
+    ) -> dict[str, Any]:
+        """JSON API：供其他页面调用聚合的系统资产列表。"""
+        assets = _system_asset_service.list_assets(
+            lane=lane, lens=lens, status=status, asset_type=asset_type,
+        )
+        return {
+            "items": [json.loads(a.model_dump_json()) for a in assets],
+            "total": len(assets),
+            "filters": {
+                "lane": lane,
+                "lens": lens,
+                "status": status,
+                "asset_type": asset_type,
+            },
+        }
 
     @app.get("/brand-config/{brand_id}", response_class=HTMLResponse)
     async def brand_config_page(request: Request, brand_id: str) -> HTMLResponse:

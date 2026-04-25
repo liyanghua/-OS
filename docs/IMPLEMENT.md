@@ -3,6 +3,215 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## 机会卡 Agent 单条优先与按来源笔记分组（2026-04-25 续）
+
+### 痛点
+
+1. 默认 `max_notes=30` 一把跑完，VLM/LLM 串行调用耗时长，业务用户首屏看不到任何卡片就要等很久；想"先看 1 条预览，满意了再加跑"做不到。
+2. 桌布、假发等类目下 `compile_xhs_opportunities` 会同笔记产出多张差异化卡（visual / selling / scene），但列表页 `{% for card in cards %}` 平铺，看不出"这几张其实是同一篇笔记的 3 个角度"，差异更看不出来。
+
+### 关键改动
+
+- `apps/intel_hub/services/opportunity_gen_agent.py`：
+  - `__init__` 默认 `max_notes=1`；新增 `skip_note_ids: Iterable[str] = ()` 与 `note_id_filter: str | None = None`；
+  - M1 在 `raw_dicts` 切片前先按 `note_id_filter` 命中或 `skip_note_ids` 排除，全部被排除时区分 `error_kind = "all_consumed"`（已跑完所有笔记）/ `"note_not_found"`（指定 note_id 未命中）/ `"no_source"`（类目本身无原始笔记）三种语义，前端可分别给出友好引导；
+  - M5 在维持全局 `data/output/xhs_opportunities/opportunity_cards.json` 合并写的同时，额外把本次任务卡片快照写到 `data/output/xhs_opportunities/runs/{lens_id}_{task_id}.json`，方便审计单次任务产物。
+- `apps/intel_hub/api/app.py`：
+  - 模块级 `StartAgentRunRequest` 默认 `max_notes=1`，新增 `skip_note_ids: list[str] = []` / `note_id: str | None = None`，POST handler 透传到 Agent；
+  - `xhs_opportunities` handler 新增 `note_groups`：用 `_get_notes()` 建 note_id → 元信息索引，按 `card.source_note_ids[0]` 分组并 join `title / cover_url / desc / source_keyword`，组内按 `confidence DESC`、组间按"组内最高 confidence DESC"排序；同时输出 `lens_notes_total` 给前端"再跑全部"动态显示上限。
+- 模板：
+  - `apps/intel_hub/api/templates/_xhs_opportunity_card.html`（新文件）：把单卡片 HTML 抽出来，左上加 angle chip = `TYPE_LABEL[opportunity_type]` + `· content_angle`（如「视觉钩子 · 撞色对比」），同组卡片差异一眼可辨；
+  - `apps/intel_hub/api/templates/xhs_opportunities.html`：空态 CTA 改为「立即生成机会卡（先跑 1 条预览）」并显式 `max_notes: 1`；非空态在列表头插入 `lens-incremental-bar`（「Agent 已为本类目生成 X 张机会卡 · 再跑 5 条 / 再跑全部」）；列表渲染从 `{% for card in cards %}` 改为 `{% for group in note_groups %}` 的 `note-group` 容器，组头展示来源笔记缩略图 + 标题链接 + 「本笔记产出 N 张机会卡」徽标；
+  - `apps/intel_hub/api/templates/_opportunity_agent_drawer.html`：
+    - 内部累计 `state.processedNoteIds: Set<string>`（监听 `agent_run:item_progress` 抽 `note_id`），抽屉副标题显示「本类目共有 N 篇笔记可用 · 已处理 M 篇」；
+    - `done` 态 CTA 改为「查看本批结果 / 再跑下一条 / 再跑 5 条 / 再跑全部（最多 30 条）」，全部沿用同一个 `OpportunityAgentRunner.start({lens_id, max_notes, skip_note_ids: [...processedNoteIds]})` 入口；
+    - `failed` 态对 `all_consumed` / `note_not_found` 给独立标题与样式（不再误导成"去素材中心补料"）。
+- 事件协议保持兼容：`agent_run:failed.error_kind` 扩展为 `"no_source" | "all_consumed" | "note_not_found" | "cancelled" | "unknown"`。
+
+### 验证
+
+- `pytest apps/intel_hub/tests/test_opportunity_gen_agent.py` 8/8 PASSED：
+  - 新增 `test_default_max_notes_is_one` / `test_note_id_filter_picks_specified_note` / `test_skip_note_ids_excludes_processed` / `test_skip_all_emits_all_consumed` / `test_run_writes_task_scoped_snapshot`；
+  - 老用例（无源、5 段事件序列、互斥）仍全绿。
+- `pytest apps/intel_hub/tests/test_api.py::OpportunityAgentRunsTests` 8/8 PASSED：
+  - `test_start_agent_run_default_max_notes_is_one` / `test_start_agent_run_passes_skip_note_ids_to_agent`：用 `_StubAgent` 拦截构造参数，断言默认 `max_notes=1` 且 `skip_note_ids` 透传到 Agent；
+  - `test_xhs_opportunities_groups_cards_by_source_note`：通过临时 `mediacrawler_sources` jsonl 注入 mock 笔记，断言渲染包含 `note-group` 容器、「本笔记产出 2 张机会卡」徽标，以及 `opportunity_type` / `content_angle` 派生的 angle chip。
+- 全量 `pytest apps/intel_hub/tests/test_api.py apps/intel_hub/tests/test_opportunity_gen_agent.py` 43/43 PASSED，无回归。
+
+### 不做（明确边界）
+
+- 不引入新 schema 字段（`differentiator` 等），差异展示完全依赖现有 `opportunity_type` + `content_angle`；
+- 不改 `compile_xhs_opportunities` / `merge_opportunities` 的合卡策略，单笔记多卡仍由编译器决定；
+- 不动 review-to-asset 评分链路；
+- 增量补跑通过 `XHSReviewStore.sync_cards_from_json` 的 `INSERT OR REPLACE` 自然累加，不需要额外的"批次"概念。
+
+---
+
+## 机会卡生成 Agent 与可观测抽屉（2026-04-25）
+
+### 痛点
+
+`/xhs-opportunities?lens=wig` 等无机会卡的类目当前只展示「暂无机会卡数据。请先运行 `python -m apps.intel_hub.workflow.xhs_opportunity_pipeline`」这类纯技术提示。业务用户既看不懂这条命令，也无法在 UI 内自助触发；而流水线本身已具备从 jsonl → VLM/LLM 三维信号 → 类目透视五层引擎的能力，缺的只是一条「按类目一键启动 + 实时可观测」的入口。
+
+### 关键改动
+
+- 新增 `apps/intel_hub/services/agent_run_registry.py`：
+  - `AgentRunSnapshot`：task_id / lens_id / status / 5 里程碑（探查与解析、信号提取、跨模态与映射、机会卡编译、透视聚合与入库）/ counters（笔记数、VLM/LLM 调用、机会卡数）/ recent_events / error；
+  - `AgentRunRegistry` 进程内单例：同 `lens_id` 互斥（重复启动抛 `RuntimeError`），提供 `start / get / get_active_by_lens / request_cancel / mark_done / mark_failed / mark_cancelled / update_milestone / bump_counters / append_event`，`MAX_KEEP_TASKS=16` 自动淘汰已结束任务；
+  - 取消采用「软信号」：Agent 在每个里程碑头部 `is_cancelled` 检查后早退，并 emit `agent_run:failed{error_kind:"cancelled"}`。
+- 新增 `apps/intel_hub/services/opportunity_gen_agent.py`：
+  - `OpportunityGenAgent.run()` 把 `xhs_opportunity_pipeline` 的内部步骤函数（`load_and_parse_notes` 内联、`extract_visual_signals` / `extract_selling_theme_signals` / `extract_scene_signals` / `validate_cross_modal_consistency` / `project_xhs_signals` / `compile_xhs_opportunities` / `apply_lens_bundles_to_cards` / `CategoryLensEngine.run`）切片成 5 段，每段切口 emit；
+  - jsonl 默认目录为 `data/fixtures/mediacrawler_output/xhs/jsonl`，不存在再回退 `third_party/MediaCrawler/data/xhs/jsonl`；按 `lens_id` 路由筛选笔记，无命中即 emit `agent_run:failed{error_kind:"no_source", suggested_url:"/notes?lens=…"}`；
+  - 持久化路径与 CLI 等价：写 `data/output/xhs_opportunities/opportunity_cards.json`（按 `opportunity_id` 与原文件 merge，避免覆盖其他 lens 的卡）+ `lens_bundles/{lens_id}.json`，再走 `XHSReviewStore.sync_cards_from_json`；
+  - LLM/VLM 调用沿用 `apps/intel_hub/extraction/llm_client.py` 的 DashScope + 缺 KEY 自动降级路径，不引入新的 provider；
+  - 仅 M2 信号提取保留 `asyncio.to_thread`（VLM/LLM 真正可能耗时），其余里程碑同步直跑 + `await asyncio.sleep(0)` 让出，避免 TestClient/portal 下 `to_thread` 调度延迟。
+- API 层（`apps/intel_hub/api/app.py`）新增 4 条路由（紧邻 `/content-planning/stream/{opportunity_id}`）：
+  - `POST /xhs-opportunities/agent-runs`：body `{lens_id, max_notes?}`，调 `agent_run_registry.start()` + `asyncio.create_task(agent.run())`，返回 `{task_id, lens_id, lens_label, status, stream_url}`；同 lens 已有 in-flight 任务时 409；
+  - `GET /xhs-opportunities/agent-runs/{task_id}`：返回 `AgentRunSnapshot.to_dict()`，未知任务 404；
+  - `GET /xhs-opportunities/agent-runs/{task_id}/stream`：复用 `apps.content_planning.gateway.sse_handler.sse_stream`，channel key = `f"agent_run:{task_id}"`，自动拿到最近 20 条 history 实现刷新页面续接；
+  - `POST /xhs-opportunities/agent-runs/{task_id}/cancel`：触发软取消，未知任务 404。
+  - `xhs_opportunities` handler 的渲染上下文新增 `lens_label / active_agent_task_id / empty_state_kind`（`global_empty` vs `lens_empty`）。
+- 模板：
+  - `apps/intel_hub/api/templates/xhs_opportunities.html` L240-243 旧空态文案重写为业务化 `empty-card`：徽标 + 标题 + 「视觉/卖点/场景三维 + 类目透视五层」简介 + 5 段流水线徽标 + 三个 CTA（「立即生成机会卡」/「先去素材中心补料 →」/「了解类目透视 →」），未选 lens 时按钮禁用并提示先选类目；模板末尾 `include "_opportunity_agent_drawer.html"`，并在有 `active_agent_task_id` 时通过 `OpportunityAgentRunner.attach({task_id})` 自动续接抽屉；
+  - 新增 `apps/intel_hub/api/templates/_opportunity_agent_drawer.html`：以 `pw-drawer` 为范的右侧抽屉，含实时计数（笔记 / VLM / LLM / 机会卡）、5 段进度卡（spinner/check + 进度条）、暗色实时事件日志（最近 200 条）、完成绿卡 + 失败红卡（`no_source` 时一键跳 `/notes?lens=…`）；JS 暴露 `window.OpportunityAgentRunner = { start, attach, cancel, close }`，`EventSource` 异常 3s 重连，`agent_run:done` 后 1.5s 自动跳 `jump_url`。
+- 事件协议（payload 至少包含 `task_id, lens_id`）：
+  - `agent_run:started {lens_label, max_notes, milestones[]}`
+  - `agent_run:stage_started {stage_id, label, total_items, milestone}`
+  - `agent_run:item_progress {stage_id, note_id, note_title, ok, latency_ms?, used_vlm?, used_llm?, visual_count?, selling_count?, scene_count?, card_count?, consistency?}`
+  - `agent_run:stage_completed {stage_id, summary}`
+  - `agent_run:done {cards_total, lens_score, decision, jump_url}`
+  - `agent_run:failed {error_kind: "no_source"|"cancelled"|"unknown", message, suggestion, suggested_url}`
+- Stage 权重（仅用于前端进度可视化，不参与持久化）：M1 探查 10% / M2 信号提取 50% / M3 跨模态 10% / M4 机会卡编译 15% / M5 透视聚合与入库 15%。
+
+### 验证
+
+- `pytest apps/intel_hub/tests/test_opportunity_gen_agent.py` 3/3 PASSED：
+  - 无源笔记时 emit `agent_run:failed{error_kind:"no_source", suggested_url:"/notes?lens=wig"}`；
+  - 完整 5 段事件序列 + `opportunity_cards.json` 落地 + `sync_cards_from_json` 被调一次；
+  - 同 lens 重复 `start()` 抛 `RuntimeError`，不同 lens 互不影响。
+- `pytest apps/intel_hub/tests/test_api.py::OpportunityAgentRunsTests` 5/5 PASSED：
+  - 空态页面包含「立即生成机会卡」「OpportunityAgentRunner」「/xhs-opportunities/agent-runs」，且不再含「请先运行 python -m …」；
+  - `POST /xhs-opportunities/agent-runs` 正常启动且 lens=wig 时 8s 内进入 `failed{error_kind:"no_source"}`；
+  - 同 lens 已占用时 409；未知 task_id 的 GET / cancel 均返回 404。
+- 全量 `pytest apps/intel_hub/tests/test_api.py apps/intel_hub/tests/test_opportunity_gen_agent.py` 35/35 PASSED，无回归。
+
+### 不做（明确边界）
+
+- 不改 `xhs_opportunity_pipeline` 本体（仅在 Agent 中复用其内部步骤函数），CLI `python -m apps.intel_hub.workflow.xhs_opportunity_pipeline` 仍可独立运行；
+- 不接 `FileJobQueue` 或 `collector_worker`：Agent 不主动触发采集，无源时引导用户去 `/notes?lens=…` 自助；
+- 不做跨进程任务持久化：注册表是进程内单例，重启后历史任务清空（已结束的任务保留 16 条用于断线重连可看完）；
+- 抽屉只 include 在 `xhs_opportunities.html`，不进 `base.html` 全局 fab，避免与 `crawl-observer-drawer` 争抢心智。
+
+---
+
+## 视觉工作台数据接力与参考图健壮性（2026-04-25）
+
+### 痛点
+
+1. 进入 `/planning/{id}/visual-builder` 时，fixture 来源笔记的 `cover_image`（如 `https://example.com/img1.jpg`）会被原样塞进多模态生图请求，触发 OpenRouter `400 Unable to extract dimensions from input image: 404 Not Found`。
+2. 策划台已有 `titles / body / image_briefs / saved_prompts / quick_draft`，但视觉工作台首屏不带，右栏 Prompt Builder 空白，标题/正文要重新跑 quick-draft，体验割裂。
+
+### 关键改动
+
+- 新增 `apps/content_planning/utils/ref_image_filter.py`：`is_usable_ref_url` / `filter_usable_ref_urls`，统一识别 `example.com` / `mock-cdn.example.com` / 空串 / 非 http(s) 协议等不可用 URL。配套单测 `apps/content_planning/tests/test_ref_image_filter.py`（5 例）。
+- 三个生图调用点接入过滤：
+  - `apps/intel_hub/api/app.py::_persist_source_images`：cover/image_urls 在尝试下载前先过滤；过滤后无可用图时 `cover_image=""`、`image_urls=[]`，并打 `ref_quality:"unusable_fixture"`。
+  - `apps/content_planning/api/routes.py::_build_rich_prompts`：构造 `ref_image_urls` 时统一 `filter_usable_ref_urls`；ref_image 模式但全被过滤时给 `gen_mode_effective="prompt_only"`。
+  - `apps/content_planning/services/image_generator.py::_generate_openrouter_once`：再次校验 `prompt.ref_image_url`，本地路径与合法 http(s) 才走多模态分支，否则降级为 prompt_only。
+- 视觉工作台首屏 ctx 大幅扩容（`apps/intel_hub/api/app.py::visual_builder_page`）：
+  - 从 `ContentPlanStore` / session 拉取 `quick_draft / titles / body / image_briefs / saved_prompts / generated_images`；
+  - 服务端预合成 `initial_prompts`（`saved_prompts` 优先、否则 `_build_rich_prompts(pre_mode)`）；
+  - 计算 `ref_count / has_ref_images / gen_mode_effective`；
+  - 以 `window.__VB_BOOTSTRAP__` 一次性注入模板，避免前端再 roundtrip。
+  - 同步修复 `_persist_source_images` 与主路由对 `source_images` 的缓存读取（之前依赖 `get_session_data`，但其不返回 `source_images_json`，等于每次都重新生成）。
+- `apps/intel_hub/api/templates/visual_builder.html`：
+  - 顶栏增加「已接力策划台结果」徽标 + 参考图数量徽标；
+  - bootstrap 直填预览画布与 Prompt 槽位，命中 `quick_draft` 时隐藏「一键生成」冷启动按钮；
+  - `ref_count==0` 时自动选中 `prompt_only` 并禁用 `ref_image` 选项；
+  - 来源图 `<img>` 加 `onerror` 自动隐藏失效缩略图，并显示「参考图无效，仅做文本参考」提示；
+  - 右栏新增「上次已生成 N 张图」小卡，链接 `/content-planning/assets/{id}`；
+  - `Prompt Builder` 标题加来源徽标（来自 saved_prompts / 自动合成）。
+- `apps/intel_hub/api/templates/planning_workspace.html`：两处跳转 URL 加 `?from=planning`，按钮文案改为「进入视觉工作台（已接力策划结果）」/「视觉工作台会自动带入此处的标题/正文/参考图，无需重新生成」。
+
+### 验证
+
+- `pytest apps/content_planning/tests/test_ref_image_filter.py` 5/5 PASSED。
+- `pytest apps/intel_hub/tests/test_api.py::VisualBuilderBootstrapTests` 3/3 PASSED：
+  - `bootstrap` 关键字段齐全（`quick_draft / titles / body / image_briefs / saved_prompts / initial_prompts / ref_count / gen_mode_effective / latest_generated_images`）；
+  - 注入 `example.com` cover → `ref_count=0`，`gen_mode_effective="prompt_only"`；
+  - 注入合法 xhscdn cover → `ref_count>0`，`gen_mode_effective="ref_image"`。
+- `pytest apps/intel_hub/tests apps/content_planning/tests`：仅 `test_mediacrawler_loader` / `test_source_router` 4 例（platform 命名 xiaohongshu→xhs）+ `test_image_generator` 6 例（外部网络/已存在的连通性问题）失败，均与本次改动无关，已 git stash 验证为预存在问题。
+
+### 显式不做
+
+- 不重写 `content_planning v6` 生图 API 的响应结构，仅追加 `gen_mode_effective` 字段。
+- 不动 Growth Lab workspace 的画布/生图路径。
+- 不引入新存储；`saved_prompts` / `generated_images` 继续走现有 `ContentPlanStore`。
+- 若 `quick_draft` 缺失，仍保留「一键生成」按钮，不强制跳转。
+
+---
+
+## 主视角主线重组（2026-04-25）
+
+### 本次目标
+
+围绕用户主视角把页面 IA 收敛成"三主线 + 一个统一资产中枢"：
+- 主线 1 内容生产：素材中心 → 类目透视 → 机会卡 → 策划台 → 视觉 → 资产
+- 主线 2 增长实验室：雷达 → 编译 → 主图 → 前 3 秒 → 测试板 → 资产
+- 主线 3 套图工作台：无限画布 + Agent → 资产
+- 三条主线产物在 `/asset-workspace` 统一沉淀为 `SystemAsset`
+
+### 关键实现
+
+| 范围 | 文件 | 变更 |
+|---|---|---|
+| 文档 + 顶栏 | `docs/IA_AND_PAGES.md`、`apps/intel_hub/api/templates/base.html`、`apps/intel_hub/api/templates/dashboard.html` | IA 文档重写为三主线模型；顶栏改为「内容生产 ▾ / 增长实验室 ▾ / 套图工作台」+「系统资产 / 结果反馈」快速入口，激活态由 `pathname+search` 客户端 JS 自动设置；首页改为三张主线入口卡。 |
+| 主线 1 联动 | `apps/intel_hub/api/app.py`、`apps/intel_hub/api/templates/notes.html`、`note_detail.html`、`xhs_opportunities.html`、`xhs_opportunity_detail.html` | `/notes` 新增 `lens` 查询参数（lens 全量从 `config_loader.load_category_lenses()` 加载），顶部"平台 + 类目透视" Tab；笔记详情加 lens 直达卡（含类目透视/机会卡/同 lens 笔记入口）；`/xhs-opportunities` 的 `type chip` 跟随 lens 动态变化（`lens_type_nav`），分页保留 `lens` 参数；机会详情促升后主 CTA 改为 `/planning/{id}`，brief/strategy/plan/assets/visual-builder 作为策划台内的二级入口保留。 |
+| 主线 2 & 3 主线条 | `apps/growth_lab/templates/_lane_bar.html`（新增）、`apps/growth_lab/templates/{radar,compiler,main_image_lab,first3s_lab,board,asset_graph,workspace}.html` | 新增主线条 partial：lane 2 渲染线性步骤条（雷达→编译→主图→前 3 秒→测试板→资产）+「推送到系统资产」CTA；lane 3（workspace）独立标识 + 5 输出能力 chips；各页面通过 `{% set lane_step = "..." %}` + `{% include "_lane_bar.html" %}` 接入。 |
+| 统一资产数据层 | `apps/intel_hub/domain/system_asset.py`（新增）、`apps/intel_hub/services/system_asset_service.py`（新增）、`data/runtime_data/system_assets.json`（按需创建） | 新增 `SystemAsset` Pydantic 模型（`asset_id / source_lane / source_ref / lens_id / asset_type / title / thumbnails / status / lineage / created_at`）；`SystemAssetService.list_assets(lane, lens, status, asset_type)` 聚合三处来源（content-planning `asset_bundle` / growth_lab `asset_performance_cards` / workspace `workspace_plans`）+ 显式 register 的 JSON 持久化；`register/remove` 写入 `data/runtime_data/system_assets.json`。 |
+| 资产工作台改造 | `apps/intel_hub/api/app.py`（`GET /asset-workspace`、`GET /api/system-assets` 新增）、`apps/intel_hub/api/templates/asset_workspace_list.html` | `/asset-workspace` 改为 SystemAsset 统一视图：顶部 Tab（全部 / 图文笔记 / 增长实验 / 套图）+ 二级筛选（lens / status / asset_type）+ 卡片化展示（缩略图 + lane pill + status pill + lineage 跳链 + 主 CTA）；新增 `GET /api/system-assets` JSON API（同样支持 `lane / lens / status / asset_type` 过滤）。 |
+
+### 验证结果
+
+- TestClient 冒烟（六段主线）：`/`、`/notes`、`/notes?lens=tablecloth`、`/xhs-opportunities`、`/xhs-opportunities?lens=tablecloth`、`/asset-workspace`、`/asset-workspace?lane=content_note|growth_lab|workspace_bundle`、`/api/system-assets`、`/api/system-assets?lane=growth_lab` 均返回 200。
+- `apps/intel_hub/tests/test_api.py`：21 项通过（同步修正一个 pre-existing 用例：`view_result_url` 期望值同步更新为 `/notes?platform=xhs&category=...`）。
+- 与本次重组无关的预存失败：`test_mediacrawler_loader.py`/`test_source_router.py`（platform 命名约定 `xiaohongshu` vs `xhs`）、`test_image_generator.py`（外部 API 联调，沙箱无网络），均不属本次范围。
+- `SystemAssetService.register/remove` 单跑通过：写入 `data/runtime_data/system_assets.json` 后列表可见，删除后回退。
+- `ReadLints`：本次改动无新增 lints。
+
+### 显式不做
+
+- 未合并 `/planning/{id}/visual-builder` 与 `/growth-lab/workspace` 的底层实现（仍属 C 档），但二者在主线导航与资产写出层已被统一。
+- 未重写 growth_lab 内部业务管线、未拆现有 `/content-planning/*` 分步页（保留作为策划台内二级入口）。
+
+## 类目透视引擎 A-G 上线（2026-04-19）
+
+### 本次目标
+
+- 让机会卡的「从小红书笔记到机会卡」链路具备类目视角：借 VLM 从图片取洞察、以类目词库做文本统计，按 `docs/knowledge_base/Category.md` 的"五层机会卡模型"装配。
+- 打通 `_business_signals` → `Signal` → `ontology_projector` 的视觉字段接力断层。
+- UI 上在机会卡列表页与详情页直接读到五层结果，不只看打分。
+
+### 关键实现（按 Phase A-G）
+
+| 阶段 | 关键文件 | 变更 |
+|---|---|---|
+| A | `apps/intel_hub/domain/category_lens.py`、`config/category_lenses/*.yaml`、`apps/intel_hub/config_loader.py`、`apps/intel_hub/ingest/mediacrawler_loader.py`、`apps/intel_hub/api/app.py`、`apps/intel_hub/api/templates/category_lens*.html` | 新增 `CategoryLens` / `LensInsightBundle` 等 Pydantic 对象；`wig.yaml`、`tablecloth.yaml`、`_keyword_routing.yaml` 落地；loader 支持按关键词路由；`/category-lenses` 只读列表+详情页。 |
+| B | `apps/intel_hub/schemas/signal.py`、`apps/intel_hub/normalize/normalizer.py`、`apps/intel_hub/projector/ontology_projector.py` | `Signal` 新增 `lens_id` + `business_signals`；normalizer 透传；projector 的 haystack 加入视觉/痛点/疑问字段以恢复视觉→本体映射。 |
+| C | `apps/intel_hub/schemas/content_frame.py`、`apps/intel_hub/extractor/visual_analyzer.py`、`apps/intel_hub/workflow/refresh_pipeline.py` | BSF 新增 `visual_people_state/trust_signals/trust_risk_flags/content_formats/product_features/insight_notes`；`visual_analyzer` 按 `CategoryLens.visual_prompt_hints` 动态拼 prompt 并做采样；pipeline 默认开启视觉（`--disable-vision` 关闭）。 |
+| D | `apps/intel_hub/extractor/signal_extractor.py`、`apps/intel_hub/extractor/comment_classifier.py`、`apps/intel_hub/analysis/lens_keyword_stats.py` | 文本抽取改为"lens 优先 + 桌布兜底"；新增 `body_content_pattern_signals / body_user_expression_hits / body_emotion_signals / comment_classification_counts / comment_trust_barrier_signals`；新增 TF-IDF 模块 `compute_lens_hot_keywords`。 |
+| E | `apps/intel_hub/engine/category_lens_engine.py`、`apps/intel_hub/workflow/refresh_pipeline.py`、`apps/intel_hub/workflow/xhs_opportunity_pipeline.py` | 新增 `CategoryLensEngine` 聚合 Layer1-5 + EvidenceScore + RecommendedAction；两条主流水线都会按 `lens_id` 分组调用引擎，产物保存到 `storage/runtime_data/lens_bundles/` 或 `data/output/xhs_opportunities/lens_bundles/`。 |
+| F | `apps/intel_hub/schemas/opportunity.py`、`apps/intel_hub/compiler/opportunity_compiler.py`、`apps/intel_hub/workflow/xhs_opportunity_pipeline.py` | `XHSOpportunityCard` 新增 `lens_id / lens_version / lens_layer1~5 / lens_evidence_score / lens_recommended_action`；新增 `apply_lens_bundle(s)_to_card`，把五层结果写回 Card 并按权重融合 `opportunity_strength_score`；叙事字段（hook/audience/scene 等）若空则用 bundle 回填。 |
+| G | `apps/intel_hub/api/app.py`、`apps/intel_hub/api/templates/xhs_opportunities.html`、`apps/intel_hub/api/templates/xhs_opportunity_detail.html` | 机会卡列表页新增「类目透视摘要」区块 + `lens` 过滤条 + 卡片级 lens 标签；详情页新增独立"类目透视 / 五层模型"卡片：五维分数 + Layer1 内容信号 + Layer2 本体收敛 + Layer3 用户任务 + Layer4 商品映射 + Layer5 内容执行。 |
+
+### 验证结果
+
+- `python -m apps.intel_hub.workflow.xhs_opportunity_pipeline --jsonl-dir data/fixtures/mediacrawler_output/xhs/jsonl`：5 篇笔记 → 10 张 card → 1 个 lens bundle（`tablecloth`，分 7.23，决策「进入测试」）；所有 card.lens_id 正确填充，`lens_layer*_*` 非空。
+- `data/output/xhs_opportunities/lens_bundles/tablecloth.json`：五层结构完整，`layer1_signals.hot_keywords` / `layer3_user_jobs` / `layer5_content_execution` 均有数据。
+- TestClient 烟测：`GET /xhs-opportunities`（HTML）含"类目透视摘要"、`lens` 过滤条、Card 级 lens 标签；`GET /xhs-opportunities/{id}`（HTML）含"类目透视 — {lens_id}"、第 1/3/5 层区块、五维分数与钩子文本。
+- `ReadLints`：本次改动无新增 lints。
+- 环境依赖缺口：DashScope VLM/LLM 需要代理才能调通；`visual_analyzer.analyze_note_images` 已实现 graceful degradation（仅告警，不中断 pipeline）。
+
 ## Intel Hub 抖音接入 + 平台隔离（2026-04-24）
 
 ### 本次目标
@@ -3443,3 +3652,32 @@ image -> image_execution_briefs
 - 首版仍用轮询，不引入 SSE
 - `pipeline_refresh` 在整批 crawl 结束后统一执行一次，不在每个关键词后单独执行
 - 2026-04-24 补充：采集执行已切到 `third_party/MediaCrawler/.venv` 子进程，避免主应用 Python 3.14 直接导入 MediaCrawler 时持续遇到 `Pillow/cv2/matplotlib` 等二进制依赖兼容问题；应用内 worker 仍负责串行消费、heartbeat、失败告警与统一观察状态。
+
+---
+
+## 首页与入口文案精修（2026-04-25）
+
+围绕用户提出的 5 点优化，对入口与首页做收敛：
+
+1. **抽离无线画布** — `apps/growth_lab/templates/compiler.html`、`radar.html`、`main_image_lab.html`、`board.html`、`asset_graph.html`、`first3s_lab.html` 顶部 navbar 统一去掉 `视觉工作台 → /growth-lab/workspace` 入口；`compiler.html` specs 列表卡与 `updateActionLinks()` 中的"视觉工作台 →"按钮一并移除。增长实验室主线 2 不再跨跳到主线 3，套图工作台仅作为独立主线 3 入口出现在首页与 `_lane_bar.html`。
+2. **去掉(旧) 标签** — `compiler.html` 与 `workspace.html` 共 6 处文案：`主图(旧) → 主图裂变`、`前3秒(旧) → 前3秒裂变`，路由保持不变。
+3. **新增图片代理 `/img-proxy`** — `apps/intel_hub/api/app.py`：
+   - 新增 `httpx` 依赖驱动的 `GET /img-proxy?url=...` 路由：白名单 host（`xhscdn.com / xhs.cn / xiaohongshu.com / douyinpic.com / douyincdn.com / weibocdn.com / sinaimg.cn`）+ `Referer: https://www.xiaohongshu.com/` + 桌面 UA + 失败回落 1×1 透明 PNG 占位 + `Cache-Control: public, max-age=86400`。
+   - 在 `TEMPLATE_ENV` 注册 Jinja 过滤器 `proxy_img`；命中白名单的外链改写为 `/img-proxy?url=<encoded>`，站内静态路径与非白名单外链原样返回。
+   - 模板侧统一接入：`notes.html / note_detail.html / xhs_opportunity_detail.html / content_brief.html / planning_workspace.html / opportunity_workspace.html` 中所有指向小红书原图的 `<img src>` 与视频 poster 全部走 `| proxy_img`，并清理冗余的 `referrerpolicy / crossorigin` 属性。
+4. **消除"推送系统资产"误导文案** — `apps/growth_lab/templates/_lane_bar.html` 中"推送系统资产 →" 改为"查看系统资产 →"，原 href 不变，避免被误读为提交动作。本次未引入真正的 POST 入库动作（`SystemAssetService.register()` 已有，但每条 lane 的"完成 → 真入库"口径需另立项决定）。
+5. **首页瘦身 + 三主线业务化卡片** — `apps/intel_hub/api/templates/dashboard.html` 整体重写：
+   - 删除采集器状态卡 / 系统告警卡 / 闭环指标 / Signals/Opportunity/Risks/Watchlists 4 个 section 及其轮询脚本与 `@keyframes` 样式；`dashboard` handler 的 ctx 同步去掉 `signals/opportunities/risks/watchlists/crawl/crawl_dy/rss_counts`。
+   - 三主线卡片采用统一 `.lane-card` 样式：顶边色（lane-1 #d97706、lane-2 #7c3aed、lane-3 #ea580c）+ 主线标签 / CTA / 业务化标题 / 描述 / 步骤 chips；主线 1 显示"素材库存 / 机会卡总数 / 已晋升机会"3 列 KPI，主线 2/3 用能力 chips 表达（避免数字空心）。
+   - 次级"系统资产 / 结果反馈 / 审批队列" 3 张 `.quick-card` 轻量同样式化，跨主线产物统一沉淀的语义更清晰。
+
+### 验证
+
+- `python -m pytest apps/intel_hub/tests/test_api.py -q` 全绿（27 项），新增 `ImgProxyTests` 覆盖：白名单准入 + mock 上游 200 透传 + 拒绝非白名单与相对路径。
+- 旧用例 `test_api_serves_paginated_lists_and_html_dashboard` 同步更新断言为新版三主线文案（`主线 1 · 内容生产` 等），原"Opportunity / evidence" 字面量随首页瘦身一同移除。
+- 浏览器人工抽检路径：`/`、`/notes`、`/notes/{id}`、`/xhs-opportunities/{id}`、`/growth-lab/compiler`、`/growth-lab/workspace`、`/growth-lab/radar`，原始笔记图片改走 `/img-proxy?url=...`、首页只剩三主线卡 + 三张次级卡。
+
+### 不在本次范围
+
+- 真正的"完成 → POST 沉淀到 SystemAsset"动作（仅校正按钮文案；后续单独立项决定每条 lane 的提交口径与产物字段）。
+- `/growth-lab/lab` 与 `/growth-lab/first3s` 页面本身的功能合并/迁移到视觉工作台（仅入口去重、文案统一为"裂变"，路由保留）。

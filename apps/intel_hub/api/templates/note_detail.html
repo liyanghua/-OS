@@ -15,7 +15,7 @@
     {% if video_url %}
       <div class="video-card">
         <div class="video-head">短视频素材</div>
-        <video class="detail-video" controls preload="metadata" {% if cover_url %}poster="{{ cover_url }}"{% endif %}>
+        <video class="detail-video" controls preload="metadata" {% if cover_url %}poster="{{ cover_url | proxy_img }}"{% endif %}>
           <source src="{{ video_url }}" />
           当前浏览器不支持视频播放。
         </video>
@@ -28,16 +28,14 @@
     {% if images %}
       <div class="gallery">
         <div class="gallery-main">
-          <img id="main-img" src="{{ images[0] }}" alt="主图"
-               referrerpolicy="no-referrer" crossorigin="anonymous"
+          <img id="main-img" src="{{ images[0] | proxy_img }}" alt="主图"
                onerror="this.src='';this.alt='图片加载失败';">
         </div>
         {% if images | length > 1 %}
           <div class="gallery-thumbs">
             {% for img in images %}
               <img class="thumb {% if loop.first %}thumb-active{% endif %}"
-                   src="{{ img }}" alt="图{{ loop.index }}"
-                   referrerpolicy="no-referrer" crossorigin="anonymous"
+                   src="{{ img | proxy_img }}" alt="图{{ loop.index }}"
                    onclick="document.getElementById('main-img').src=this.src; document.querySelectorAll('.thumb').forEach(t=>t.classList.remove('thumb-active')); this.classList.add('thumb-active');"
                    onerror="this.style.display='none';"
                    loading="lazy">
@@ -54,11 +52,33 @@
   <!-- 右栏：内容区 -->
   <div class="detail-right">
     <div class="detail-header">
-      <a href="/notes" class="back-link">← 返回列表</a>
+      <a href="/notes{% if lens_id %}?lens={{ lens_id|urlencode }}{% endif %}" class="back-link">← 返回素材中心</a>
       {% if note.get("source_url") %}
         <a href="{{ note.get('source_url') }}" target="_blank" rel="noopener" class="source-link">查看原文 ↗</a>
       {% endif %}
     </div>
+
+    {% if lens_id %}
+      <div class="lens-link-card">
+        <div class="lens-link-head">
+          <span class="meta">类目透视</span>
+          <strong>{{ lens_obj.category_cn if lens_obj else lens_id }}</strong>
+          <span class="lens-link-version">{% if lens_obj %}v{{ lens_obj.version }}{% endif %}</span>
+        </div>
+        {% if lens_obj %}
+          <p class="lens-link-desc">{{ lens_obj.core_consumption_logic }}</p>
+        {% endif %}
+        <div class="lens-link-actions">
+          <a class="lens-link-btn is-primary" href="/category-lenses/{{ lens_id|urlencode }}">查看类目透视 →</a>
+          <a class="lens-link-btn" href="/xhs-opportunities?lens={{ lens_id|urlencode }}">该类目机会卡 →</a>
+          <a class="lens-link-btn" href="/notes?lens={{ lens_id|urlencode }}&platform={{ note.get('platform', 'xhs') }}">同类目素材 →</a>
+        </div>
+      </div>
+    {% else %}
+      <div class="lens-link-card lens-link-card--empty">
+        <span class="meta">本笔记暂未匹配到任何类目透视（CategoryLens）。如需建立类目映射，前往 <a href="/category-lenses">类目透视</a>。</span>
+      </div>
+    {% endif %}
 
     <h1 class="detail-title">{{ note.get("title", "无标题") }}</h1>
 
@@ -182,6 +202,59 @@
   }
 
   .detail-left { position: sticky; top: 24px; }
+
+  .lens-link-card {
+    background: var(--accent-soft);
+    border: 1px solid rgba(138,75,47,0.2);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .lens-link-card--empty {
+    background: var(--surface);
+    border-style: dashed;
+  }
+  .lens-link-head {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  .lens-link-head strong {
+    font-size: 16px;
+    color: var(--accent);
+  }
+  .lens-link-version { font-size: 11px; color: var(--muted); }
+  .lens-link-desc {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .lens-link-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .lens-link-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+    border: 1px solid rgba(138,75,47,0.32);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.6);
+  }
+  .lens-link-btn.is-primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .lens-link-btn:hover { background: var(--accent); color: #fff; }
 
   .video-card {
     background: var(--surface);

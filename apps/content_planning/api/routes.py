@@ -1182,17 +1182,22 @@ def _build_rich_prompts(
 
     match_result = session.get("match_result") if session else None
 
-    ref_image_urls: list[str] = []
+    from apps.content_planning.utils.ref_image_filter import (
+        filter_usable_ref_urls,
+        is_usable_ref_url,
+    )
+
+    raw_refs: list[str] = []
     source_images = session.get("source_images") if session else None
     if isinstance(source_images, list) and source_images:
         for si in source_images:
             cover = si.get("cover_image", "") if isinstance(si, dict) else ""
             if cover:
-                ref_image_urls.append(cover)
+                raw_refs.append(cover)
             for img in (si.get("image_urls", []) if isinstance(si, dict) else []):
                 if img and img != cover:
-                    ref_image_urls.append(img)
-    if gen_mode == "ref_image" and not ref_image_urls:
+                    raw_refs.append(img)
+    if gen_mode == "ref_image" and not any(is_usable_ref_url(u) for u in raw_refs):
         try:
             from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
             adapter = IntelHubAdapter()
@@ -1205,12 +1210,20 @@ def _build_rich_prompts(
                 ctx = n.get("note_context", n)
                 cover = ctx.get("cover_image", "")
                 if cover:
-                    ref_image_urls.append(cover)
+                    raw_refs.append(cover)
                 for img in ctx.get("image_urls", []):
                     if img and img != cover:
-                        ref_image_urls.append(img)
+                        raw_refs.append(img)
         except Exception as e:
             logger.warning("获取参考图失败, 降级为纯提示词模式: %s", e)
+
+    raw_ref_count = len(raw_refs)
+    ref_image_urls: list[str] = filter_usable_ref_urls(raw_refs)
+    if raw_ref_count and not ref_image_urls:
+        logger.info(
+            "ref_image_urls 全部被过滤为不可用（example.com / 空 URL 等），降级 prompt_only。原始 %d 张。",
+            raw_ref_count,
+        )
 
     gen_history_raw = session.get("generated_images") if session else None
     gen_history: list[dict[str, Any]] = []
@@ -1262,7 +1275,9 @@ async def v6_preview_prompts(opportunity_id: str, request: Request) -> dict[str,
     if not rich_prompts:
         raise HTTPException(status_code=400, detail="未找到可生成的图片描述")
 
-    all_ref_urls = ref_urls
+    from apps.content_planning.utils.ref_image_filter import filter_usable_ref_urls
+
+    all_ref_urls = list(ref_urls)
     if not all_ref_urls:
         try:
             from apps.content_planning.adapters.intel_hub_adapter import IntelHubAdapter
@@ -1280,6 +1295,11 @@ async def v6_preview_prompts(opportunity_id: str, request: Request) -> dict[str,
         except Exception:
             pass
 
+    all_ref_urls = filter_usable_ref_urls(all_ref_urls)
+    effective_gen_mode = gen_mode
+    if gen_mode == "ref_image" and not all_ref_urls:
+        effective_gen_mode = "prompt_only"
+
     gen_history_raw = session.get("generated_images") if session else None
     pref_count = 0
     if isinstance(gen_history_raw, list):
@@ -1293,7 +1313,8 @@ async def v6_preview_prompts(opportunity_id: str, request: Request) -> dict[str,
     return {
         "opportunity_id": opportunity_id,
         "gen_mode": gen_mode,
-        "ref_images_count": len(ref_urls),
+        "gen_mode_effective": effective_gen_mode,
+        "ref_images_count": len(all_ref_urls),
         "ref_image_urls": all_ref_urls,
         "source": "composed",
         "preferences_applied": pref_count,

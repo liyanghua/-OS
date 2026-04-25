@@ -56,6 +56,10 @@ def normalize_raw_signals(raw_records: list[dict[str, Any]]) -> tuple[list[Signa
         )
         evidence_refs.append(evidence)
 
+        business_signals = raw.get("_business_signals") or None
+        if business_signals is not None and not isinstance(business_signals, dict):
+            business_signals = None
+
         signals.append(
             Signal(
                 id=signal_id,
@@ -82,6 +86,8 @@ def normalize_raw_signals(raw_records: list[dict[str, Any]]) -> tuple[list[Signa
                 keyword=raw.get("keyword"),
                 rank=raw.get("rank"),
                 raw_payload=raw.get("raw_payload", {}),
+                lens_id=raw.get("lens_id"),
+                business_signals=business_signals,
             )
         )
 

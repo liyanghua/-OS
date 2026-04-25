@@ -1,0 +1,43 @@
+# 关键词 → lens_id 路由
+#
+# 规则：
+#  - 按顺序匹配，命中即取第一个 lens。
+#  - 优先放更精确的关键词（如"头顶发片" 放在"假发"前）。
+#  - 未命中使用 default_lens_id。
+#  - 用于 mediacrawler_loader / xhs_opportunity_pipeline 为每条 raw
+#    信号标注 ``lens_id``，后续 CategoryLensEngine 据此选择词库、
+#    VLM prompt、打分权重。
+
+default_lens_id: tablecloth
+
+rules:
+  - lens_id: wig
+    match_any:
+      - 头顶发片
+      - 发片
+      - 假发
+      - 全头套
+      - 接发
+      - 补发
+      - 发缝
+      - 发量少
+      - 脱发
+      - 秃顶
+      - M型
+      - 仿真头皮
+      - cos假发
+      - cosplay假发
+      - 男士假发
+      - 遮白发
+  - lens_id: tablecloth
+    match_any:
+      - 桌布
+      - 台布
+      - 餐桌布
+      - 茶几布
+      - 桌垫
+      - 餐垫
+      - 防水桌布
+      - 节日桌布
+      - 圣诞桌布
+      - 出租屋改造

@@ -1,0 +1,95 @@
+{# 单张机会卡片段：xhs_opportunities.html 列表页 / note-group 组内复用。
+   入参：
+     card        - 已 model_dump 的 XHSOpportunityCard dict
+     type_labels / type_colors / type_bg / status_labels / status_colors - 上下文映射 #}
+<div class="card" style="border-left: 4px solid {{ type_colors.get(card.opportunity_type, 'var(--border)') }}; cursor: pointer; transition: box-shadow 0.15s; position:relative;">
+  <label style="position:absolute;top:12px;right:12px;z-index:2;" onclick="event.stopPropagation();">
+    <input type="checkbox" class="batch-cb" value="{{ card.opportunity_id }}" onchange="updateBatchBar()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+  </label>
+  <a href="/xhs-opportunities/{{ card.opportunity_id }}" style="text-decoration: none; color: inherit; display:block;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+      <div>
+        {# Angle chip：本卡相对同组其他卡的"角度差异"标识，复用 schema 已有字段。 #}
+        <span class="angle-chip"
+              style="display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700;
+                     background: {{ type_bg.get(card.opportunity_type, 'var(--accent-soft)') }}; color: {{ type_colors.get(card.opportunity_type, 'var(--accent)') }};">
+          {{ type_labels.get(card.opportunity_type, card.opportunity_type) }}
+          {% if card.content_angle %} · {{ card.content_angle }}{% endif %}
+        </span>
+        {% if card.lens_id %}
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #f3e5f5; color: #4a148c; margin-left: 4px;">&#x1F50D; {{ card.lens_id }}</span>
+        {% endif %}
+        <span class="meta" style="margin-left: 8px;">置信度 {{ "%.0f"|format(card.confidence * 100) }}%</span>
+        {% if card.lens_evidence_score %}
+        <span class="meta" style="margin-left: 4px;">· Lens {{ "%.1f"|format(card.lens_evidence_score.total) }}/10</span>
+        {% endif %}
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        {% if card.qualified_opportunity %}
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #c8e6c9; color: #2e7d32;">已升级</span>
+        {% endif %}
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; background: #f5f5f5; color: {{ status_colors.get(card.opportunity_status, '#757575') }};">{{ status_labels.get(card.opportunity_status, card.opportunity_status) }}</span>
+      </div>
+    </div>
+
+    <h3 style="margin: 0 0 4px;">{{ card.title }}</h3>
+
+    {% if card.insight_statement %}
+    <p style="margin: 0 0 8px; padding: 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; background: linear-gradient(135deg, #fff8e1, #fff3e0); color: #e65100; line-height: 1.5;">
+      &#x1F4A1; {{ card.insight_statement }}
+    </p>
+    {% endif %}
+
+    <p style="margin: 0 0 10px; color: var(--muted); font-size: 14px;">{{ card.summary[:120] }}{% if card.summary|length > 120 %}…{% endif %}</p>
+
+    {# 洞察 + 检视摘要 #}
+    <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--muted); margin-bottom: 8px;">
+      {% if card.engagement_insight %}
+      <span style="padding: 2px 8px; border-radius: 6px; background: #e8f5e9; color: #2e7d32; font-size: 11px;">{{ card.engagement_insight }}</span>
+      {% endif %}
+      {% if card.cross_modal_verdict %}
+      <span style="padding: 2px 8px; border-radius: 6px; background: #e3f2fd; color: #1565c0; font-size: 11px;">{{ card.cross_modal_verdict }}</span>
+      {% endif %}
+      <span>检视 {{ card.review_count }} 次</span>
+      {% if card.manual_quality_score_avg is not none %}
+      <span>质量 {{ "%.1f"|format(card.manual_quality_score_avg) }}/10</span>
+      {% endif %}
+      {% if card.composite_review_score is not none %}
+      <span>综合 {{ "%.0f"|format(card.composite_review_score * 100) }}%</span>
+      {% endif %}
+    </div>
+
+    <div class="chips" style="margin-bottom: 6px;">
+      {% for ref in card.scene_refs[:3] %}
+        <span class="chip" style="background: #e8f5e9; color: #2e7d32;">{{ ref }}</span>
+      {% endfor %}
+      {% for ref in card.style_refs[:3] %}
+        <span class="chip" style="background: #fce4ec; color: #c62828;">{{ ref }}</span>
+      {% endfor %}
+      {% for ref in card.need_refs[:3] %}
+        <span class="chip" style="background: #e3f2fd; color: #1565c0;">{{ ref }}</span>
+      {% endfor %}
+    </div>
+
+    {% if card.opportunity_status == 'promoted' %}
+    <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;" onclick="event.stopPropagation();">
+      <a href="/planning/{{ card.opportunity_id }}"
+         style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; text-decoration: none;
+           background: linear-gradient(135deg, #2e7d32, #43a047); color: #fff;">进入策划台 →</a>
+      <span style="color: #bbb; font-size: 10px;">·</span>
+      <a href="/content-planning/brief/{{ card.opportunity_id }}"
+         style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
+           background: var(--accent-soft); color: var(--accent);">Brief</a>
+      <a href="/content-planning/strategy/{{ card.opportunity_id }}"
+         style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
+           background: #e3f2fd; color: #1565c0;">策略</a>
+      <a href="/content-planning/plan/{{ card.opportunity_id }}"
+         style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
+           background: #f3e8ff; color: #7c3aed;">计划</a>
+      <a href="/content-planning/assets/{{ card.opportunity_id }}"
+         style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
+           background: #e8f5e9; color: #2e7d32;">资产包</a>
+    </div>
+    {% endif %}
+  </a>
+</div>

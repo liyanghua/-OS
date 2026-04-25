@@ -1,0 +1,296 @@
+lens_id: tablecloth
+category_cn: 桌布
+version: "1.0.0"
+core_consumption_logic: 空间氛围 + 风格表达 + 低成本改造
+keyword_aliases:
+  - 桌布
+  - 台布
+  - 餐桌布
+  - 茶几布
+  - 桌垫
+  - 餐垫
+  - 防水桌布
+  - 节日桌布
+  - 圣诞桌布
+  - 新年桌布
+  - 出租屋改造
+
+primary_user_jobs:
+  - 餐桌变好看
+  - 节日布置
+  - 出租屋改造
+  - 拍照背景
+  - 防油防水
+
+key_pain_dimensions:
+  - 不耐脏
+  - 不好洗
+  - 尺寸不合适
+  - 图案土
+  - 垂感不好
+  - 易卷边
+
+trust_barriers:
+  - 实物和图片不一致
+  - 材质廉价
+  - 洗后变形
+  - 色差
+  - 塑料感
+
+product_feature_taxonomy:
+  - PVC 防水
+  - 棉麻垂感
+  - 防油涂层
+  - 易清洁
+  - 加厚
+  - 抗皱
+  - 磁性贴边
+
+content_patterns:
+  - 改造前后
+  - 节日氛围
+  - 风格搭配
+  - 平价好物
+  - 拍照教程
+
+audience_personas:
+  - 租房党
+  - 宝妈
+  - 精致生活
+  - 学生党
+  - 拍照博主
+
+scene_tasks:
+  - 日常餐桌
+  - 节日聚餐
+  - 拍照布景
+  - 出租屋改造
+  - 办公学习桌
+
+price_bands:
+  - band: 白菜价
+    range_cny: [9, 49]
+    user_mindset: 一次性、短期氛围
+    strategy: 图案和氛围感为主
+  - band: 主力款
+    range_cny: [49, 199]
+    user_mindset: 日常用、材质升级
+    strategy: 棉麻/PVC 强调易清洁
+  - band: 高级款
+    range_cny: [199, 499]
+    user_mindset: 长期用、家居美学
+    strategy: 材质质感 + 搭配美学
+
+visual_prompt_hints:
+  focus:
+    - 空间氛围
+    - 桌面搭配
+    - 垂感与铺平状态
+    - 材质质感特写
+    - 节日主题
+  risk_flags:
+    - 塑料感
+    - 色差
+    - 起皱/卷边
+    - 滤镜过重
+  people_state_taxonomy: []
+  trust_signal_taxonomy:
+    - 面料特写
+    - 铺桌后自然光
+    - 清洁过程展示
+  content_format_taxonomy:
+    - 改造前后
+    - 节日布景
+    - 风格搭配
+    - 平价好物
+  sample_strategy:
+    max_images_per_note: 2
+    prefer_cover: true
+    prefer_first_and_last: false
+
+text_lexicons:
+  pain_words:
+    - 难清洁
+    - 不好洗
+    - 易卷边
+    - 起皱
+    - 廉价感
+    - 塑料感
+    - 尺寸不合
+  emotion_words:
+    - 氛围感
+    - 出片
+    - 高级感
+    - 绝绝子
+    - 爱了
+    - 真香
+    - 后悔没早买
+  trust_barrier_words:
+    - 色差
+    - 塑料感
+    - 实物不符
+    - 翻车
+    - 会缩水吗
+  scene_words:
+    餐桌:
+      - 餐桌
+      - 饭桌
+      - 餐厅
+    茶几:
+      - 茶几
+      - 茶台
+    书桌:
+      - 书桌
+      - 学习桌
+      - 办公桌
+    出租屋:
+      - 出租屋
+      - 租房
+      - 合租
+    拍照布景:
+      - 拍照
+      - 布景
+      - 背景布
+    宝宝家庭:
+      - 宝宝
+      - 宝妈
+      - 母婴
+    宠物家庭:
+      - 宠物
+      - 猫
+      - 狗
+  style_words:
+    奶油风:
+      - 奶油风
+      - 奶白
+    ins风:
+      - ins风
+      - 博主风
+    北欧风:
+      - 北欧
+      - 简约北欧
+    法式:
+      - 法式
+      - 浪漫法式
+    复古风:
+      - 复古
+      - 怀旧
+    原木风:
+      - 日式
+      - 日系
+      - 原木
+  audience_words:
+    租房党:
+      - 租房党
+      - 租房
+    宝妈:
+      - 宝妈
+      - 妈妈
+      - 带娃
+    学生:
+      - 学生
+      - 宿舍
+      - 学生党
+    精致生活:
+      - 精致
+      - 氛围感
+      - 生活美学
+  product_feature_words:
+    PVC:
+      - pvc
+      - PVC
+    棉麻:
+      - 棉麻
+      - 亚麻
+      - 纯棉
+    皮革:
+      - 皮革
+      - 皮质
+      - PU皮
+    防水:
+      - 防水
+      - 不怕水
+    防油:
+      - 防油
+      - 不沾油
+    易清洁:
+      - 易清洁
+      - 好打理
+      - 免洗
+    抗皱:
+      - 抗皱
+      - 不起皱
+      - 服帖
+  content_pattern_words:
+    推荐:
+      - 推荐
+      - 安利
+      - 种草
+    测评:
+      - 测评
+      - 实测
+    改造:
+      - 改造
+      - 翻新
+    踩坑:
+      - 踩坑
+      - 踩雷
+      - 避坑
+    平替:
+      - 平替
+      - 替代
+    对比:
+      - 对比
+      - PK
+    开箱:
+      - 开箱
+      - 到手
+  comment_question_words:
+    - 多少钱
+    - 链接在哪
+    - 尺寸怎么选
+    - 会缩水吗
+    - 好洗吗
+    - 防水吗
+  comment_trust_barrier_words:
+    - 实物和图一样吗
+    - 翻车吗
+    - 色差大吗
+    - 会不会塑料感
+
+user_expression_map:
+  - user_phrase: 出租屋想低成本变好看
+    product_features:
+      - 可裁剪
+      - 防水防油
+      - 奶油风图案
+    proof_shots:
+      - 改造前后
+      - 氛围实拍
+      - 一天使用状态
+  - user_phrase: 怕塑料感
+    product_features:
+      - 棉麻垂感
+      - 磨砂 PVC
+    proof_shots:
+      - 面料特写
+      - 自然光铺桌
+  - user_phrase: 想宝宝用也不怕脏
+    product_features:
+      - 防水 PVC
+      - 可擦洗
+    proof_shots:
+      - 擦洗过程
+      - 油渍清理
+
+scoring_weights:
+  pain_score: 0.05
+  heat_score: 0.15
+  trust_gap_score: 0.05
+  product_fit_score: 0.20
+  execution_score: 0.15
+  competition_gap_score: 0.10
+  scene_heat_score: 0.20
+  style_trend_score: 0.10
+
+linked_prompt_profile: tablecloth_v1

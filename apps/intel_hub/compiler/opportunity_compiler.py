@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from apps.intel_hub.compiler.dedupe import cluster_signals, stable_card_id
+from apps.intel_hub.domain.category_lens import LensInsightBundle
 from apps.intel_hub.schemas.cards import OpportunityCard
 from apps.intel_hub.schemas.evidence import XHSEvidenceRef
 from apps.intel_hub.schemas.ontology_mapping_model import XHSOntologyMapping
@@ -143,14 +144,99 @@ def compile_xhs_opportunities(
 
     cards = merge_opportunities(cards, rules.get("merge_rules", {}))
 
+    lens_id_hint = (note_context or {}).get("lens_id")
     for card in cards:
         card.engagement_insight = engagement_insight
         card.cross_modal_verdict = cross_modal_verdict
         card.insight_statement = _build_insight_statement(card, engagement_insight, cross_modal_verdict)
         card.action_recommendation = _build_action_recommendation(card, note_context)
         card.opportunity_strength_score = _build_strength_score(card, note_context, cross_modal)
+        if lens_id_hint and not card.lens_id:
+            card.lens_id = lens_id_hint
 
     return cards
+
+
+def apply_lens_bundle_to_card(
+    card: XHSOpportunityCard,
+    bundle: LensInsightBundle,
+    *,
+    scoring_weights_total: float | None = None,
+) -> XHSOpportunityCard:
+    """将 :class:`LensInsightBundle` 五层结构 + 得分写入 Card 的 lens_* 字段。
+
+    - 若 Card 的叙事字段（hook/content_angle/pain_point 等）为空，会用 bundle 推断填充，
+      保证 UI 展示不留白；
+    - ``opportunity_strength_score`` 会与 bundle 的总分做加权平均（0.6 本体 + 0.4 Lens），
+      若 Card 尚无分数则直接取 bundle 的标准化分。
+    """
+    if bundle is None:
+        return card
+
+    card.lens_id = bundle.lens_id
+    card.lens_version = bundle.lens_version
+    card.lens_layer1_signals = bundle.layer1_signals
+    card.lens_layer2_ontology = bundle.layer2_ontology
+    card.lens_layer3_user_jobs = list(bundle.layer3_user_jobs)
+    card.lens_layer4_product_mapping = list(bundle.layer4_product_mapping)
+    card.lens_layer5_content_execution = list(bundle.layer5_content_execution)
+    card.lens_evidence_score = bundle.evidence_score
+    card.lens_recommended_action = bundle.recommended_action
+
+    execution = bundle.layer5_content_execution[0] if bundle.layer5_content_execution else None
+    if execution:
+        if not card.hook and execution.hooks:
+            card.hook = execution.hooks[0]
+        if not card.content_angle:
+            card.content_angle = execution.content_angle
+        if not card.format_suggestion and execution.script_structure:
+            card.format_suggestion = "；".join(execution.script_structure[:3])
+
+    first_job = bundle.layer3_user_jobs[0] if bundle.layer3_user_jobs else None
+    if first_job:
+        if not card.audience:
+            card.audience = first_job.who
+        if not card.scene:
+            card.scene = first_job.when
+        if not card.pain_point:
+            card.pain_point = first_job.problem
+        if not card.desire:
+            card.desire = first_job.desired_outcome
+
+    if bundle.recommended_action.next_steps and not card.suggested_next_step:
+        card.suggested_next_step = list(bundle.recommended_action.next_steps)
+
+    # 打分融合：bundle.total 已在 0-10 范围，Card.opportunity_strength_score 约 0-10。
+    lens_score = bundle.evidence_score.total
+    if lens_score > 0:
+        if card.opportunity_strength_score is None:
+            card.opportunity_strength_score = round(lens_score, 2)
+        else:
+            card.opportunity_strength_score = round(
+                0.6 * float(card.opportunity_strength_score) + 0.4 * lens_score,
+                2,
+            )
+    return card
+
+
+def apply_lens_bundles_to_cards(
+    cards_by_note: dict[str, list[XHSOpportunityCard]],
+    lens_id_by_note: dict[str, str | None],
+    lens_bundles: dict[str, LensInsightBundle],
+) -> None:
+    """批量注入 bundle：按 note_id → lens_id → bundle 的链路绑定。
+
+    该函数就地修改 ``cards_by_note`` 中的 card 对象。
+    """
+    for note_id, cards in cards_by_note.items():
+        lens_id = lens_id_by_note.get(note_id)
+        if not lens_id:
+            continue
+        bundle = lens_bundles.get(lens_id)
+        if bundle is None:
+            continue
+        for card in cards:
+            apply_lens_bundle_to_card(card, bundle)
 
 
 def merge_opportunities(

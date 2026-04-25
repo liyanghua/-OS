@@ -259,7 +259,7 @@
           {% set cover = nc.get('cover_image', '') %}
           <div style="padding: 6px 0; border-bottom: 1px solid rgba(138,75,47,0.08); font-size: 12px; color: var(--ink);">
             {% if cover %}
-            <img src="{{ cover }}" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-bottom:4px;" onerror="this.style.display='none'" loading="lazy">
+            <img src="{{ cover | proxy_img }}" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-bottom:4px;" onerror="this.style.display='none'" loading="lazy">
             {% endif %}
             <div>{{ nc.get('title', '') or '来源笔记 #' ~ loop.index }}</div>
           </div>
@@ -544,12 +544,12 @@
       <div class="pw-section" id="note-preview-section">
         <div class="pw-section-title">
           <h3>笔记预览</h3>
-          <a href="/planning/{{ opportunity_id }}/visual-builder" class="pw-btn pw-btn-primary pw-btn-inline" style="font-size:12px; text-decoration:none;">进入视觉工作台 &rarr;</a>
+          <a href="/planning/{{ opportunity_id }}/visual-builder?from=planning" class="pw-btn pw-btn-primary pw-btn-inline" style="font-size:12px; text-decoration:none;">进入视觉工作台（已接力策划结果）&rarr;</a>
         </div>
         <div id="note-preview-container" style="display:flex; justify-content:center; padding:12px 0;">
           <div id="note-preview-empty" style="text-align:center; color:var(--muted); font-size:13px; padding:20px 0;">
-            <div style="margin-bottom:10px;">在视觉工作台中生成和编辑小红书笔记预览</div>
-            <a href="/planning/{{ opportunity_id }}/visual-builder" style="font-size:13px; color:var(--accent);">打开视觉工作台</a>
+            <div style="margin-bottom:10px;">视觉工作台会自动带入此处的标题/正文/参考图，无需重新生成</div>
+            <a href="/planning/{{ opportunity_id }}/visual-builder?from=planning" style="font-size:13px; color:var(--accent);">打开视觉工作台 →</a>
           </div>
           <div id="note-preview-phone" style="display:none;"></div>
         </div>

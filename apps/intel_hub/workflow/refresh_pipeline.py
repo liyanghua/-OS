@@ -34,11 +34,17 @@ from apps.intel_hub.compiler.priority_ranker import rank_projected_signals
 from apps.intel_hub.compiler.risk_compiler import compile_risk_cards
 from apps.intel_hub.compiler.visual_pattern_compiler import compile_visual_pattern_assets
 from apps.intel_hub.config_loader import (
+    load_category_lenses,
     load_dedupe_config,
     load_ontology_mapping,
     load_runtime_settings,
     load_scoring_config,
     load_watchlists,
+    route_keyword_to_lens_id,
+)
+from apps.intel_hub.engine.category_lens_engine import (
+    CategoryLensEngine,
+    LensEngineInput,
 )
 from apps.intel_hub.extractor import (
     analyze_note_images,
@@ -49,6 +55,7 @@ from apps.intel_hub.extractor import (
 from apps.intel_hub.ingest.source_router import collect_raw_signals
 from apps.intel_hub.normalize.normalizer import normalize_raw_signals
 from apps.intel_hub.projector.ontology_projector import project_signals
+from apps.intel_hub.schemas.content_frame import BusinessSignalFrame, NoteContentFrame
 from apps.intel_hub.storage.repository import Repository
 from apps.intel_hub.workflow.pipeline_stage_log import (
     log_stage_cluster,
@@ -71,13 +78,14 @@ class PipelineResult:
     visual_pattern_count: int = 0
     demand_spec_count: int = 0
     extraction_count: int = 0
+    lens_bundle_count: int = 0
     storage_path: Path = field(default_factory=lambda: Path("."))
 
 
 def run_pipeline(
     runtime_config_path: str | Path | None = None,
     *,
-    enable_vision: bool = False,
+    enable_vision: bool = True,
 ) -> PipelineResult:
     settings = load_runtime_settings(runtime_config_path)
 
@@ -87,6 +95,8 @@ def run_pipeline(
     if enable_vision and not vision_on:
         logger.warning("vision requested but DASHSCOPE_API_KEY not set or dashscope not installed — skipping")
 
+    lenses = load_category_lenses()
+
     # 1) 多源 raw dict（含小红书 mediacrawler_sources）
     raw_records = collect_raw_signals(settings)
     log_stage_collect(raw_records)
@@ -94,25 +104,44 @@ def run_pipeline(
     # 2) Layer 1+2: 内容解析 + 经营信号抽取 + (可选)视觉分析
     extraction_count = 0
     vision_count = 0
+    # 收集每个 lens 的 frame/BSF，用于 Phase E CategoryLensEngine 聚合透视
+    lens_engine_inputs: dict[str, list[LensEngineInput]] = {}
     for raw in raw_records:
         frame = parse_note_content(raw)
         if frame is not None:
-            bsf = extract_business_signals(frame)
+            lens_id = raw.get("lens_id") or route_keyword_to_lens_id(raw.get("keyword"))
+            lens = lenses.get(lens_id) if lens_id else None
+            if lens_id and not raw.get("lens_id"):
+                raw["lens_id"] = lens_id
+            bsf = extract_business_signals(frame, lens=lens)
 
             if vision_on and frame.image_list:
-                visual_signals = analyze_note_images(frame)
+                visual_signals = analyze_note_images(frame, lens=lens)
                 if visual_signals:
                     for k, v in visual_signals.items():
-                        if hasattr(bsf, k) and isinstance(v, list):
-                            existing = getattr(bsf, k)
-                            merged = list(dict.fromkeys(existing + v))
+                        if not hasattr(bsf, k):
+                            continue
+                        if isinstance(v, list):
+                            existing = getattr(bsf, k) or []
+                            merged = list(dict.fromkeys(list(existing) + list(v)))
                             setattr(bsf, k, merged)
+                        elif isinstance(v, str):
+                            existing_str = getattr(bsf, k) or ""
+                            setattr(bsf, k, v if not existing_str else f"{existing_str}；{v}")
                     vision_count += 1
 
             raw["_content_frame"] = frame.model_dump()
             raw["_business_signals"] = bsf.model_dump()
             extraction_count += 1
+
+            if lens_id and lens is not None:
+                lens_engine_inputs.setdefault(lens_id, []).append(
+                    LensEngineInput(frame=frame, business_signals=bsf)
+                )
     log_stage_extract(len(raw_records), extraction_count, vision_count=vision_count)
+
+    # 2.5) Phase E: Category Lens Engine —— 按 Lens 聚合产出 LensInsightBundle
+    lens_bundles = _run_category_lens_engine(lens_engine_inputs, lenses, logger)
 
     # 3) 归一化为 Signal + EvidenceRef（去重、confidence、时间）
     signals, evidence_refs = normalize_raw_signals(raw_records)
@@ -153,6 +182,8 @@ def run_pipeline(
     repository.save_visual_pattern_assets(visual_pattern_assets)
     repository.save_demand_spec_assets(demand_spec_assets)
     _write_raw_snapshot(settings.resolved_raw_snapshot_dir(), raw_records)
+    lens_bundles_dir = settings.resolved_runtime_data_dir() / "lens_bundles"
+    _write_lens_bundles(lens_bundles_dir, lens_bundles)
     log_stage_persist(settings.resolved_storage_path(), str(settings.resolved_raw_snapshot_dir()))
 
     return PipelineResult(
@@ -164,6 +195,7 @@ def run_pipeline(
         visual_pattern_count=len(visual_pattern_assets),
         demand_spec_count=len(demand_spec_assets),
         extraction_count=extraction_count,
+        lens_bundle_count=len(lens_bundles),
         storage_path=settings.resolved_storage_path(),
     )
 
@@ -177,18 +209,67 @@ def _write_raw_snapshot(raw_snapshot_dir: Path, raw_records: list[dict[str, obje
     )
 
 
+def _run_category_lens_engine(
+    lens_engine_inputs: dict[str, list[LensEngineInput]],
+    lenses: dict[str, object],
+    logger: logging.Logger,
+) -> dict[str, object]:
+    """按 lens_id 分组运行 CategoryLensEngine，返回 {lens_id: LensInsightBundle}。"""
+    bundles: dict[str, object] = {}
+    for lens_id, inputs in lens_engine_inputs.items():
+        lens = lenses.get(lens_id)
+        if lens is None or not inputs:
+            continue
+        try:
+            engine = CategoryLensEngine(lens)  # type: ignore[arg-type]
+            bundle = engine.run(inputs)
+            bundles[lens_id] = bundle
+            logger.info(
+                "[lens:%s] 透视完成: 笔记=%d hot=%d score=%.2f 决策=%s",
+                lens_id,
+                len(inputs),
+                len(bundle.layer1_signals.hot_keywords),
+                bundle.evidence_score.total,
+                bundle.recommended_action.decision,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[lens:%s] CategoryLensEngine 失败: %s", lens_id, exc)
+    return bundles
+
+
+def _write_lens_bundles(
+    bundles_dir: Path,
+    bundles: dict[str, object],
+) -> None:
+    """把 LensInsightBundle 以 JSON 形式持久化，供 UI/compiler 访问。"""
+    if not bundles:
+        return
+    bundles_dir.mkdir(parents=True, exist_ok=True)
+    for lens_id, bundle in bundles.items():
+        payload = bundle.model_dump(mode="json") if hasattr(bundle, "model_dump") else bundle
+        out_path = bundles_dir / f"{lens_id}.json"
+        out_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Intel Hub V2 pipeline")
-    parser.add_argument("--enable-vision", action="store_true", help="启用千问 VL 视觉分析")
+    parser.add_argument(
+        "--disable-vision",
+        action="store_true",
+        help="关闭千问 VL 视觉分析（默认开启，DASHSCOPE_API_KEY 缺失时自动降级）",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s %(name)s | %(message)s",
     )
-    result = run_pipeline(enable_vision=args.enable_vision)
+    result = run_pipeline(enable_vision=not args.disable_vision)
     print(
         json.dumps(
             {
@@ -200,6 +281,7 @@ if __name__ == "__main__":
                 "insight_count": result.insight_count,
                 "visual_pattern_count": result.visual_pattern_count,
                 "demand_spec_count": result.demand_spec_count,
+                "lens_bundle_count": result.lens_bundle_count,
                 "storage_path": str(result.storage_path),
             },
             ensure_ascii=False,

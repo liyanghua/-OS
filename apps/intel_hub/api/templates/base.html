@@ -55,6 +55,74 @@
         padding: 5px 14px;
         border-radius: 10px;
       }
+      .topbar nav a.nav-lane {
+        font-size: 13px;
+        font-weight: 700;
+        padding: 6px 12px;
+        border-radius: 10px;
+        background: transparent;
+      }
+      .topbar nav a.nav-lane[aria-current="page"],
+      .topbar nav .nav-lane-wrap.is-active > a.nav-lane {
+        background: var(--accent);
+        color: #fffdf8;
+      }
+      .topbar nav a.nav-quick {
+        font-size: 12px;
+        color: var(--muted);
+        padding: 4px 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .topbar nav a.nav-quick[aria-current="page"] {
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .nav-lane-wrap {
+        position: relative;
+        display: inline-block;
+      }
+      .nav-lane-wrap:hover > .nav-lane-dd,
+      .nav-lane-wrap.is-open > .nav-lane-dd { display: block; }
+      .nav-lane-dd {
+        display: none;
+        position: absolute;
+        left: 0;
+        top: 100%;
+        padding-top: 6px;
+        z-index: 1000;
+      }
+      .nav-lane-dd-inner {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 8px 0;
+        box-shadow: 0 12px 30px rgba(92,66,39,0.12);
+        min-width: 200px;
+      }
+      .nav-lane-dd-inner a {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        font-size: 13px;
+        color: var(--ink);
+        font-weight: 500;
+        border-radius: 0;
+      }
+      .nav-lane-dd-inner a:hover { background: var(--accent-soft); color: var(--accent); }
+      .nav-lane-dd-inner a[aria-current="page"] {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 700;
+      }
+      .nav-lane-step {
+        font-size: 10px;
+        color: var(--muted);
+        margin-right: 4px;
+        font-weight: 700;
+      }
       .nav-sep {
         width: 1px; height: 16px;
         background: var(--border);
@@ -350,26 +418,44 @@
       <div class="topbar">
         <div>
           <div class="meta">OntologyBrain</div>
-          <h1 style="margin: 4px 0 0;">内容编译与决策平台</h1>
+          <h1 style="margin: 4px 0 0;"><a href="/" style="color:inherit;text-decoration:none;">内容经营操作系统</a></h1>
         </div>
-        <nav>
-          <a href="/opportunity-workspace" class="nav-main">机会</a>
-          <a href="/xhs-opportunities?status=promoted" class="nav-main">策划</a>
-          <a href="/asset-workspace" class="nav-main">资产</a>
-          <a href="/feedback" class="nav-main">结果</a>
+        <nav data-nav-lanes>
+          <div class="nav-lane-wrap" data-lane="content">
+            <a href="/notes" class="nav-lane">内容生产 ▾</a>
+            <div class="nav-lane-dd">
+              <div class="nav-lane-dd-inner">
+                <a href="/notes"><span class="nav-lane-step">1</span>素材中心</a>
+                <a href="/category-lenses"><span class="nav-lane-step">2</span>类目透视</a>
+                <a href="/xhs-opportunities"><span class="nav-lane-step">3</span>机会卡看板</a>
+                <a href="/xhs-opportunities?status=promoted"><span class="nav-lane-step">4</span>策划台队列</a>
+                <a href="/asset-workspace?lane=content_note"><span class="nav-lane-step">5</span>图文资产</a>
+              </div>
+            </div>
+          </div>
+          <div class="nav-lane-wrap" data-lane="growth">
+            <a href="/growth-lab/radar" class="nav-lane">增长实验室 ▾</a>
+            <div class="nav-lane-dd">
+              <div class="nav-lane-dd-inner">
+                <a href="/growth-lab/radar"><span class="nav-lane-step">1</span>热点雷达</a>
+                <a href="/growth-lab/compiler"><span class="nav-lane-step">2</span>卖点编译</a>
+                <a href="/growth-lab/lab"><span class="nav-lane-step">3</span>主图裂变</a>
+                <a href="/growth-lab/first3s"><span class="nav-lane-step">4</span>前3秒裂变</a>
+                <a href="/growth-lab/board"><span class="nav-lane-step">5</span>测试放大</a>
+                <a href="/growth-lab/assets"><span class="nav-lane-step">6</span>实验资产图谱</a>
+              </div>
+            </div>
+          </div>
+          <div class="nav-lane-wrap" data-lane="workspace">
+            <a href="/growth-lab/workspace" class="nav-lane">套图工作台</a>
+          </div>
           <span class="nav-sep"></span>
+          <a href="/asset-workspace" class="nav-quick">系统资产</a>
+          <a href="/feedback" class="nav-quick">结果反馈</a>
           <div style="position:relative;display:inline-block;" id="nav-more-wrap">
             <button onclick="document.getElementById('nav-more-dd').classList.toggle('nav-dd-open')"
               style="background:none;border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:600;padding:3px 10px;border-radius:8px;cursor:pointer;font-family:inherit;">更多 ▾</button>
             <div id="nav-more-dd" class="nav-dd">
-              <div class="nav-dd-group">
-                <div class="nav-dd-label">内容源</div>
-                <a href="/">总览</a>
-                <a href="/notes">素材库</a>
-                <a href="/xhs-opportunities">机会看板</a>
-                <a href="/rss/tech">科技趋势</a>
-                <a href="/rss/news">新闻媒体</a>
-              </div>
               <div class="nav-dd-group">
                 <div class="nav-dd-label">策划工具</div>
                 <a href="/opportunity-pipeline">策划管线</a>
@@ -378,6 +464,7 @@
               </div>
               <div class="nav-dd-group">
                 <div class="nav-dd-label">协同管理</div>
+                <a href="/opportunity-workspace">机会工作台</a>
                 <a href="/workspace">工作区</a>
                 <a href="/review-approval">审批队列</a>
               </div>
@@ -387,15 +474,8 @@
                 <a href="/opportunities">商机</a>
                 <a href="/risks">风险</a>
                 <a href="/watchlists">关注列表</a>
-              </div>
-              <div class="nav-dd-group">
-                <div class="nav-dd-label">增长实验室</div>
-                <a href="/growth-lab/radar">热点雷达</a>
-                <a href="/growth-lab/compiler">卖点编译器</a>
-                <a href="/growth-lab/lab">主图工作台</a>
-                <a href="/growth-lab/first3s">前3秒工作台</a>
-                <a href="/growth-lab/board">测试放大板</a>
-                <a href="/growth-lab/assets">资产图谱</a>
+                <a href="/rss/tech">科技 RSS</a>
+                <a href="/rss/news">新闻 RSS</a>
               </div>
             </div>
           </div>
@@ -457,6 +537,60 @@
         dd.classList.remove('nav-dd-open');
       }
     });
+
+    (function() {
+      var path = window.location.pathname || '/';
+      var search = window.location.search || '';
+      var laneRules = {
+        content: function() {
+          return path === '/' ||
+            path.indexOf('/notes') === 0 ||
+            path.indexOf('/category-lenses') === 0 ||
+            path.indexOf('/xhs-opportunities') === 0 ||
+            path.indexOf('/planning/') === 0 ||
+            path.indexOf('/content-planning/') === 0 ||
+            (path.indexOf('/asset-workspace') === 0 && search.indexOf('lane=content_note') !== -1);
+        },
+        growth: function() {
+          return path.indexOf('/growth-lab/radar') === 0 ||
+            path.indexOf('/growth-lab/compiler') === 0 ||
+            path.indexOf('/growth-lab/lab') === 0 ||
+            path.indexOf('/growth-lab/first3s') === 0 ||
+            path.indexOf('/growth-lab/board') === 0 ||
+            path.indexOf('/growth-lab/assets') === 0;
+        },
+        workspace: function() {
+          return path.indexOf('/growth-lab/workspace') === 0;
+        }
+      };
+      var wraps = document.querySelectorAll('[data-lane]');
+      wraps.forEach(function(w) {
+        var lane = w.getAttribute('data-lane');
+        if (laneRules[lane] && laneRules[lane]()) {
+          w.classList.add('is-active');
+          var a = w.querySelector('a.nav-lane');
+          if (a) a.setAttribute('aria-current', 'page');
+        }
+      });
+      var innerLinks = document.querySelectorAll('.nav-lane-dd-inner a');
+      innerLinks.forEach(function(a) {
+        try {
+          var url = new URL(a.getAttribute('href'), window.location.origin);
+          if (url.pathname === path) {
+            a.setAttribute('aria-current', 'page');
+          }
+        } catch (e) {}
+      });
+      var quickLinks = document.querySelectorAll('a.nav-quick');
+      quickLinks.forEach(function(a) {
+        try {
+          var url = new URL(a.getAttribute('href'), window.location.origin);
+          if (url.pathname === path) {
+            a.setAttribute('aria-current', 'page');
+          }
+        } catch (e) {}
+      });
+    })();
 
     (function() {
       var LS_KEY = 'notes:active_observer_job';

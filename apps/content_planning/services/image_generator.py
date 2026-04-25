@@ -389,10 +389,22 @@ class ImageGeneratorService:
 
             _prompt_sent = text_instruction
 
-            logger.info("OpenRouter request: slot=%s, model=%s, has_ref=%s, prompt_len=%d",
-                        prompt.slot_id, model_name, bool(prompt.ref_image_url), len(safe_prompt))
+            from apps.content_planning.utils.ref_image_filter import is_usable_ref_url
 
-            if prompt.ref_image_url:
+            ref_url_raw = prompt.ref_image_url or ""
+            ref_usable = is_usable_ref_url(ref_url_raw) or (
+                bool(ref_url_raw) and not ref_url_raw.startswith(("http://", "https://"))
+            )
+            if ref_url_raw and not ref_usable:
+                logger.warning(
+                    "OpenRouter request: slot=%s 参考图 URL 不可用（占位/无效），降级为 prompt_only：%r",
+                    prompt.slot_id, ref_url_raw,
+                )
+
+            logger.info("OpenRouter request: slot=%s, model=%s, has_ref=%s, prompt_len=%d",
+                        prompt.slot_id, model_name, ref_usable, len(safe_prompt))
+
+            if ref_usable:
                 if prompt.mode == "edit":
                     text_instruction = (
                         "Edit the attached image according to the instruction. "

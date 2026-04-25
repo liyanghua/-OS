@@ -89,6 +89,14 @@ class BusinessSignalFrame(BaseModel):
     visual_texture_signals: list[str] = Field(default_factory=list)
     visual_expression_patterns: list[str] = Field(default_factory=list)
 
+    # V2.1 类目感知视觉字段（由 visual_analyzer 按 CategoryLens 填充）
+    visual_people_state: list[str] = Field(default_factory=list)
+    visual_trust_signals: list[str] = Field(default_factory=list)
+    visual_trust_risk_flags: list[str] = Field(default_factory=list)
+    visual_content_formats: list[str] = Field(default_factory=list)
+    visual_product_features: list[str] = Field(default_factory=list)
+    visual_insight_notes: str = ""
+
     # 评论信号
     purchase_intent_signals: list[str] = Field(default_factory=list)
     positive_feedback_signals: list[str] = Field(default_factory=list)
@@ -110,3 +118,11 @@ class BusinessSignalFrame(BaseModel):
     normalized_audience_refs: list[str] = Field(default_factory=list)
     buying_barrier_refs: list[str] = Field(default_factory=list)
     value_proposition_refs: list[str] = Field(default_factory=list)
+
+    # V2.1 类目透视引擎填充
+    lens_id: str | None = None
+    body_content_pattern_signals: list[str] = Field(default_factory=list)
+    body_user_expression_hits: list[str] = Field(default_factory=list)
+    body_emotion_signals: list[str] = Field(default_factory=list)
+    comment_classification_counts: dict[str, int] = Field(default_factory=dict)
+    comment_trust_barrier_signals: list[str] = Field(default_factory=list)

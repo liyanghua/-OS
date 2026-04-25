@@ -48,7 +48,40 @@ def project_signals(
 
         entity_refs.update(resolution.canonical_entity_refs)
 
-        haystack = " ".join([signal.title, signal.summary, signal.raw_text, signal.keyword or ""]).lower()
+        haystack_parts = [signal.title, signal.summary, signal.raw_text, signal.keyword or ""]
+        bsf = signal.business_signals or {}
+        for bsf_key in (
+            "visual_style_signals",
+            "visual_scene_signals",
+            "visual_composition_types",
+            "visual_color_palette",
+            "visual_texture_signals",
+            "visual_expression_patterns",
+            "body_scene_signals",
+            "body_style_signals",
+            "body_material_signals",
+            "body_audience_signals",
+            "body_selling_points",
+            "body_pain_points",
+            "body_risk_signals",
+            "title_scene_signals",
+            "title_style_signals",
+            "title_hook_types",
+            "topic_pool_signals",
+            "trend_tags",
+            "distribution_semantics",
+            "purchase_intent_signals",
+            "positive_feedback_signals",
+            "negative_feedback_signals",
+            "question_signals",
+            "unmet_need_signals",
+            "trust_gap_signals",
+            "audience_signals_from_comments",
+        ):
+            values = bsf.get(bsf_key)
+            if isinstance(values, list) and values:
+                haystack_parts.append(" ".join(str(v) for v in values))
+        haystack = " ".join(haystack_parts).lower()
 
         scene_refs = set(signal.scene_refs)
         style_refs = set(signal.style_refs)

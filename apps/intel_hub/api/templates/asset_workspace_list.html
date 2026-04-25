@@ -2,50 +2,201 @@
 
 {% block content %}
 <style>
-  body .shell { max-width: 960px; }
-  .awl-header { margin-bottom: 20px; }
-  .awl-header h2 { font-size: 20px; font-weight: 800; color: var(--ink); margin: 0 0 4px; }
-  .awl-header p { font-size: 13px; color: var(--muted); margin: 0; }
-  .awl-list { display: flex; flex-direction: column; gap: 10px; }
-  .awl-item {
-    display: flex; justify-content: space-between; align-items: center;
-    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-    padding: 14px 18px; text-decoration: none; color: inherit;
-    box-shadow: 0 4px 14px rgba(92,66,39,0.05); transition: box-shadow .15s, border-color .15s;
+  body .shell { max-width: 1180px; }
+
+  .sa-header { margin-bottom: 18px; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .sa-header h2 { font-size: 22px; font-weight: 800; color: var(--ink); margin: 0 0 4px; }
+  .sa-header p { font-size: 13px; color: var(--muted); margin: 0; max-width: 720px; }
+
+  .sa-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; padding: 4px; background: rgba(245, 240, 232, 0.55); border: 1px solid rgba(138, 75, 47, 0.12); border-radius: 14px; }
+  .sa-tab {
+    padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; color: var(--muted);
+    text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: background .15s, color .15s;
   }
-  .awl-item:hover { box-shadow: 0 8px 28px rgba(92,66,39,0.12); border-color: rgba(138,75,47,0.35); }
-  .awl-item-title { font-size: 14px; font-weight: 700; color: var(--ink); }
-  .awl-item-id { font-size: 11px; color: var(--muted); font-family: monospace; margin-top: 2px; }
-  .awl-pill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
-  .awl-pill--yes { background: #dcfce7; color: #166534; }
-  .awl-pill--no { background: #f5f3f0; color: var(--muted); }
-  .awl-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
-  .awl-empty-icon { font-size: 48px; opacity: 0.2; margin-bottom: 12px; }
+  .sa-tab:hover { color: var(--ink); background: rgba(255,255,255,0.6); }
+  .sa-tab.is-active { background: var(--surface); color: var(--ink); box-shadow: 0 2px 8px rgba(92,66,39,0.08); }
+  .sa-tab small { color: var(--muted); font-weight: 600; font-size: 11px; }
+  .sa-tab.is-active small { color: rgba(138,75,47,0.85); }
+
+  .sa-filter-bar {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; padding: 12px 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  }
+  .sa-filter-bar form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0; }
+  .sa-filter-bar label { font-size: 12px; color: var(--muted); display: inline-flex; flex-direction: column; gap: 4px; }
+  .sa-filter-bar input, .sa-filter-bar select {
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; background: #fff;
+  }
+  .sa-filter-bar button {
+    padding: 6px 14px; border: 1px solid rgba(138,75,47,0.4); background: rgba(138,75,47,0.08);
+    color: var(--ink); border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .sa-filter-bar button:hover { background: rgba(138,75,47,0.18); }
+  .sa-filter-clear { font-size: 12px; color: var(--muted); text-decoration: none; align-self: flex-end; padding: 6px 8px; }
+  .sa-filter-clear:hover { color: var(--ink); text-decoration: underline; }
+
+  .sa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .sa-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+    display: flex; flex-direction: column; box-shadow: 0 4px 14px rgba(92,66,39,0.05);
+    transition: box-shadow .15s, border-color .15s, transform .15s;
+  }
+  .sa-card:hover { box-shadow: 0 10px 30px rgba(92,66,39,0.12); border-color: rgba(138,75,47,0.35); transform: translateY(-1px); }
+
+  .sa-thumb {
+    height: 150px; background: linear-gradient(135deg, #faf6ee 0%, #f5edd8 100%); position: relative;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .sa-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .sa-thumb-empty { font-size: 32px; opacity: 0.18; }
+  .sa-lane-pill {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(255,255,255,0.95); color: var(--ink);
+    font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
+    border: 1px solid rgba(138,75,47,0.18);
+  }
+  .sa-status-pill {
+    position: absolute; top: 8px; right: 8px;
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
+  }
+  .sa-status-pill.draft { background: #f5f3f0; color: var(--muted); }
+  .sa-status-pill.ready { background: #e0f2fe; color: #075985; }
+  .sa-status-pill.published { background: #dcfce7; color: #166534; }
+  .sa-status-pill.archived { background: #fef3c7; color: #92400e; }
+
+  .sa-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .sa-title { font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.4; }
+  .sa-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sa-meta span {
+    font-size: 11px; color: var(--muted); background: rgba(138,75,47,0.06);
+    padding: 2px 6px; border-radius: 6px;
+  }
+  .sa-lineage { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--border); }
+  .sa-lineage a { font-size: 11px; color: rgba(138,75,47,0.85); text-decoration: none; }
+  .sa-lineage a:hover { text-decoration: underline; }
+
+  .sa-cta {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; background: rgba(138,75,47,0.04); border-top: 1px solid var(--border);
+    font-size: 12px; color: rgba(138,75,47,0.85); font-weight: 700; text-decoration: none;
+  }
+  .sa-cta:hover { background: rgba(138,75,47,0.10); }
+
+  .sa-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .sa-empty-icon { font-size: 48px; opacity: 0.2; margin-bottom: 12px; }
 </style>
 
-<div class="awl-header">
-  <h2>资产工作台</h2>
-  <p>已升级的机会卡资产包一览，点击进入对应资产详情页</p>
+<div class="sa-header">
+  <div>
+    <h2>系统资产工作台</h2>
+    <p>三主线（图文笔记 / 增长实验 / 套图工作台）的产出在这里统一汇合，可按主线、品类、状态过滤；点击卡片可跳转资产详情。</p>
+  </div>
+  <div style="font-size: 12px; color: var(--muted);">
+    共 {{ lane_counts.get('all', 0) }} 件资产
+  </div>
 </div>
 
-{% if entries %}
-<div class="awl-list">
-  {% for e in entries %}
-  <a class="awl-item" href="/content-planning/assets/{{ e.opportunity_id }}">
-    <div>
-      <div class="awl-item-title">{{ e.title or '—' }}</div>
-      <div class="awl-item-id">{{ e.opportunity_id[:16] }}…</div>
-    </div>
-    <span class="awl-pill {% if e.has_bundle %}awl-pill--yes{% else %}awl-pill--no{% endif %}">
-      {% if e.has_bundle %}已生成{% else %}待生成{% endif %}
-    </span>
+{# ── Tab：按 source_lane 切换 ──────────────────────────── #}
+{% set tab_qs %}{% if current_lens %}&lens={{ current_lens }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_asset_type %}&asset_type={{ current_asset_type }}{% endif %}{% endset %}
+
+<div class="sa-tabs" role="tablist">
+  <a class="sa-tab {% if not current_lane %}is-active{% endif %}" href="?{{ tab_qs|trim('&') }}" role="tab">
+    全部 <small>{{ lane_counts.get('all', 0) }}</small>
   </a>
+  <a class="sa-tab {% if current_lane == 'content_note' %}is-active{% endif %}" href="?lane=content_note{{ tab_qs }}" role="tab">
+    图文笔记 <small>{{ lane_counts.get('content_note', 0) }}</small>
+  </a>
+  <a class="sa-tab {% if current_lane == 'growth_lab' %}is-active{% endif %}" href="?lane=growth_lab{{ tab_qs }}" role="tab">
+    增长实验 <small>{{ lane_counts.get('growth_lab', 0) }}</small>
+  </a>
+  <a class="sa-tab {% if current_lane == 'workspace_bundle' %}is-active{% endif %}" href="?lane=workspace_bundle{{ tab_qs }}" role="tab">
+    套图 <small>{{ lane_counts.get('workspace_bundle', 0) }}</small>
+  </a>
+</div>
+
+{# ── 二级筛选 ──────────────────────────── #}
+<div class="sa-filter-bar">
+  <form method="get">
+    {% if current_lane %}<input type="hidden" name="lane" value="{{ current_lane }}">{% endif %}
+    <label>
+      品类 lens
+      <input type="text" name="lens" value="{{ current_lens or '' }}" placeholder="如 tablecloth" style="width: 140px;">
+    </label>
+    <label>
+      状态
+      <select name="status">
+        <option value="">全部</option>
+        <option value="draft" {% if current_status == 'draft' %}selected{% endif %}>draft</option>
+        <option value="ready" {% if current_status == 'ready' %}selected{% endif %}>ready</option>
+        <option value="published" {% if current_status == 'published' %}selected{% endif %}>published</option>
+        <option value="archived" {% if current_status == 'archived' %}selected{% endif %}>archived</option>
+      </select>
+    </label>
+    <label>
+      资产类型
+      <select name="asset_type">
+        <option value="">全部</option>
+        <option value="xhs_note" {% if current_asset_type == 'xhs_note' %}selected{% endif %}>图文笔记</option>
+        <option value="asset_bundle" {% if current_asset_type == 'asset_bundle' %}selected{% endif %}>策划资产包</option>
+        <option value="growth_test_card" {% if current_asset_type == 'growth_test_card' %}selected{% endif %}>测试卡片</option>
+        <option value="main_image_set" {% if current_asset_type == 'main_image_set' %}selected{% endif %}>主图套图</option>
+        <option value="detail_gallery" {% if current_asset_type == 'detail_gallery' %}selected{% endif %}>详情套图</option>
+        <option value="video" {% if current_asset_type == 'video' %}selected{% endif %}>视频</option>
+        <option value="buyer_show" {% if current_asset_type == 'buyer_show' %}selected{% endif %}>买家秀</option>
+        <option value="competitor_benchmark" {% if current_asset_type == 'competitor_benchmark' %}selected{% endif %}>竞品对标</option>
+      </select>
+    </label>
+    <button type="submit">筛选</button>
+  </form>
+  {% if current_lens or current_status or current_asset_type %}
+    <a class="sa-filter-clear" href="{% if current_lane %}?lane={{ current_lane }}{% else %}?{% endif %}">清除筛选</a>
+  {% endif %}
+</div>
+
+{% if items %}
+<div class="sa-grid">
+  {% for it in items %}
+  <div class="sa-card">
+    <div class="sa-thumb">
+      {% if it.thumbnails %}
+        <img src="{{ it.thumbnails[0] }}" alt="{{ it.title }}" loading="lazy" onerror="this.style.display='none'">
+      {% else %}
+        <span class="sa-thumb-empty">📦</span>
+      {% endif %}
+      <span class="sa-lane-pill">{{ it.source_lane_label }}</span>
+      <span class="sa-status-pill {{ it.status }}">{{ it.status }}</span>
+    </div>
+    <div class="sa-body">
+      <div class="sa-title">{{ it.title or '—' }}</div>
+      <div class="sa-meta">
+        {% if it.lens_id %}<span>类目 · {{ it.lens_id }}</span>{% endif %}
+        {% if it.asset_type %}<span>{{ it.asset_type }}</span>{% endif %}
+        {% if it.source_ref %}<span style="font-family: monospace;">{{ it.source_ref[:14] }}</span>{% endif %}
+      </div>
+      <div class="sa-lineage">
+        {% if it.lineage.planning_url %}<a href="{{ it.lineage.planning_url }}">策划台 →</a>{% endif %}
+        {% if it.lineage.visual_url %}<a href="{{ it.lineage.visual_url }}">视觉工作台 →</a>{% endif %}
+        {% if it.lineage.brief_url %}<a href="{{ it.lineage.brief_url }}">Brief</a>{% endif %}
+        {% if it.lineage.test_id %}<a>测试 #{{ it.lineage.test_id[:8] }}</a>{% endif %}
+        {% if it.lineage.workspace_url %}<a href="{{ it.lineage.workspace_url }}">套图工作台 →</a>{% endif %}
+        {% if it.lineage.asset_graph_url %}<a href="{{ it.lineage.asset_graph_url }}">资产图谱 →</a>{% endif %}
+      </div>
+    </div>
+    <a class="sa-cta" href="{{ it.primary_link }}">
+      <span>查看详情</span>
+      <span>→</span>
+    </a>
+  </div>
   {% endfor %}
 </div>
 {% else %}
-<div class="awl-empty">
-  <div class="awl-empty-icon">📦</div>
-  <div>暂无已升级的机会卡。请先在机会工作台将卡片升级后进入策划流程。</div>
+<div class="sa-empty">
+  <div class="sa-empty-icon">📦</div>
+  <div>当前筛选条件下还没有沉淀的系统资产。</div>
+  <div style="margin-top: 8px; font-size: 12px;">
+    可从 <a href="/notes">素材中心</a> 走主线 1，从 <a href="/growth-lab/radar">增长实验室</a> 走主线 2，
+    或从 <a href="/growth-lab/workspace">套图工作台</a> 走主线 3 产出资产。
+  </div>
 </div>
 {% endif %}
 

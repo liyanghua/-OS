@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="headline">
+  <div class="meta">
+    <a href="/category-lenses" style="color: var(--accent); text-decoration: none;">← 返回类目透镜总览</a>
+  </div>
+  <h2 style="margin: 8px 0 4px;">{{ lens.category_cn }} · {{ lens.lens_id }} <small style="font-size: 13px; color: var(--muted); font-weight: 500;">v{{ lens.version }}</small></h2>
+  <p style="margin: 8px 0 0; font-size: 15px;"><strong>核心消费逻辑：</strong>{{ lens.core_consumption_logic }}</p>
+</section>
+
+{% set keyword_aliases = lens.keyword_aliases or [] %}
+{% set primary_user_jobs = lens.primary_user_jobs or [] %}
+{% set key_pain_dimensions = lens.key_pain_dimensions or [] %}
+{% set trust_barriers = lens.trust_barriers or [] %}
+{% set product_feature_taxonomy = lens.product_feature_taxonomy or [] %}
+{% set content_patterns = lens.content_patterns or [] %}
+{% set audience_personas = lens.audience_personas or [] %}
+{% set scene_tasks = lens.scene_tasks or [] %}
+
+<div class="grid">
+  {% if primary_user_jobs %}
+  <div class="card">
+    <div class="meta">主要用户任务</div>
+    <div class="chips">
+      {% for v in primary_user_jobs %}<span class="chip">{{ v }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if key_pain_dimensions %}
+  <div class="card">
+    <div class="meta">关键痛点维度</div>
+    <div class="chips">
+      {% for v in key_pain_dimensions %}<span class="chip">{{ v }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if trust_barriers %}
+  <div class="card">
+    <div class="meta">信任障碍</div>
+    <div class="chips">
+      {% for v in trust_barriers %}<span class="chip">{{ v }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if product_feature_taxonomy %}
+  <div class="card">
+    <div class="meta">商品特征分类</div>
+    <div class="chips">
+      {% for v in product_feature_taxonomy %}<span class="chip">{{ v }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if content_patterns %}
+  <div class="card">
+    <div class="meta">内容模式</div>
+    <div class="chips">
+      {% for v in content_patterns %}<span class="chip">{{ v }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if audience_personas %}
+  <div class="card">
+    <div class="meta">目标人群</div>
+    <div class="chips">
+      {% for v in audience_personas %}<span class="chip">{{ v }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if scene_tasks %}
+  <div class="card">
+    <div class="meta">场景任务</div>
+    <div class="chips">
+      {% for v in scene_tasks %}<span class="chip">{{ v }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if keyword_aliases %}
+  <div class="card">
+    <div class="meta">关键词别名（路由命中）</div>
+    <div class="chips">
+      {% for v in keyword_aliases %}<span class="chip">{{ v }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if lens.price_bands %}
+<section style="margin-top: 28px;">
+  <div class="section-title"><h3 style="margin: 0;">价格带策略</h3></div>
+  <div class="list">
+    {% for band in lens.price_bands %}
+    <div class="card">
+      <div class="meta">{{ band.band }} · {{ band.range_cny }}</div>
+      <p style="margin: 6px 0 4px;"><strong>用户心智：</strong>{{ band.user_mindset }}</p>
+      <p style="margin: 0;"><strong>策略：</strong>{{ band.strategy }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% set hints = lens.visual_prompt_hints or {} %}
+{% if hints.get('focus') or hints.get('risk_flags') or hints.get('people_state_taxonomy') or hints.get('trust_signal_taxonomy') or hints.get('content_format_taxonomy') %}
+<section style="margin-top: 28px;">
+  <div class="section-title"><h3 style="margin: 0;">VLM 提示词片段</h3></div>
+  <div class="grid">
+    {% if hints.get('focus') %}
+    <div class="card">
+      <div class="meta">关注重点</div>
+      <div class="chips">{% for v in hints['focus'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+    {% if hints.get('risk_flags') %}
+    <div class="card">
+      <div class="meta">需要警惕</div>
+      <div class="chips">{% for v in hints['risk_flags'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+    {% if hints.get('people_state_taxonomy') %}
+    <div class="card">
+      <div class="meta">人物状态分类</div>
+      <div class="chips">{% for v in hints['people_state_taxonomy'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+    {% if hints.get('trust_signal_taxonomy') %}
+    <div class="card">
+      <div class="meta">信任信号分类</div>
+      <div class="chips">{% for v in hints['trust_signal_taxonomy'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+    {% if hints.get('content_format_taxonomy') %}
+    <div class="card">
+      <div class="meta">内容形式分类</div>
+      <div class="chips">{% for v in hints['content_format_taxonomy'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% set lex = lens.text_lexicons or {} %}
+{% if lex.get('pain_words') or lex.get('emotion_words') or lex.get('trust_barrier_words') or lex.get('product_feature_words') or lex.get('scene_words') or lex.get('style_words') or lex.get('audience_words') or lex.get('content_pattern_words') or lex.get('comment_question_words') or lex.get('comment_trust_barrier_words') %}
+<section style="margin-top: 28px;">
+  <div class="section-title"><h3 style="margin: 0;">文本词库</h3></div>
+  <div class="grid">
+    {% if lex.get('pain_words') %}
+    <div class="card">
+      <div class="meta">痛点词</div>
+      <div class="chips">{% for v in lex['pain_words'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+    {% if lex.get('emotion_words') %}
+    <div class="card">
+      <div class="meta">情绪词</div>
+      <div class="chips">{% for v in lex['emotion_words'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+    {% if lex.get('trust_barrier_words') %}
+    <div class="card">
+      <div class="meta">信任障碍词</div>
+      <div class="chips">{% for v in lex['trust_barrier_words'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+    {% if lex.get('comment_question_words') %}
+    <div class="card">
+      <div class="meta">评论问答词</div>
+      <div class="chips">{% for v in lex['comment_question_words'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+    {% if lex.get('comment_trust_barrier_words') %}
+    <div class="card">
+      <div class="meta">评论信任障碍词</div>
+      <div class="chips">{% for v in lex['comment_trust_barrier_words'] %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% for section_key, section_label in [('scene_words', '场景词（分组）'), ('style_words', '风格词（分组）'), ('audience_words', '人群词（分组）'), ('product_feature_words', '商品特征词（分组）'), ('content_pattern_words', '内容模式词（分组）')] %}
+    {% if lex.get(section_key) %}
+    <div style="margin-top: 18px;">
+      <div class="meta" style="margin-bottom: 8px;">{{ section_label }}</div>
+      <div class="list">
+        {% for label, values in lex[section_key].items() %}
+        <div class="card">
+          <div class="meta">{{ label }}</div>
+          <div class="chips">{% for v in values %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if lens.user_expression_map %}
+<section style="margin-top: 28px;">
+  <div class="section-title"><h3 style="margin: 0;">用户话术 → 商品特征 → 取证镜头</h3></div>
+  <div class="list">
+    {% for item in lens.user_expression_map %}
+    <div class="card">
+      <p style="margin: 0 0 8px; font-weight: 600;">"{{ item.user_phrase }}"</p>
+      {% if item.product_features %}
+      <div class="meta">对应商品特征</div>
+      <div class="chips">{% for v in item.product_features %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+      {% endif %}
+      {% if item.proof_shots %}
+      <div class="meta" style="margin-top: 8px;">需要拍什么证明</div>
+      <div class="chips">{% for v in item.proof_shots %}<span class="chip">{{ v }}</span>{% endfor %}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if lens.scoring_weights %}
+<section style="margin-top: 28px;">
+  <div class="section-title"><h3 style="margin: 0;">机会卡打分权重</h3></div>
+  <div class="grid">
+    {% for name, weight in lens.scoring_weights.items() %}
+    {% if weight is not none and weight > 0 %}
+    <div class="card">
+      <div class="meta">{{ name }}</div>
+      <div style="font-size: 22px; font-weight: 700;">{{ '%.2f'|format(weight) }}</div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

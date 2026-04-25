@@ -18,7 +18,7 @@
       <!-- 封面图 -->
       {% if note.cover_image %}
       <div style="position: relative;">
-        <img src="{{ note.cover_image }}" alt="封面" style="width: 100%; display: block; max-height: 420px; object-fit: cover;" loading="lazy"
+        <img src="{{ note.cover_image | proxy_img }}" alt="封面" style="width: 100%; display: block; max-height: 420px; object-fit: cover;" loading="lazy"
           onerror="this.parentElement.style.display='none'">
         <div style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.55); color: #fff; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; backdrop-filter: blur(4px);">
           原始笔记
@@ -76,7 +76,7 @@
           <div class="meta" style="margin-bottom: 6px;">笔记图片 ({{ note.image_urls|length }})</div>
           <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px;">
             {% for url in note.image_urls %}
-            <img src="{{ url }}" style="height: 100px; border-radius: 8px; flex-shrink: 0; cursor: pointer; border: 2px solid transparent; transition: border-color 0.15s;" loading="lazy"
+            <img src="{{ url | proxy_img }}" style="height: 100px; border-radius: 8px; flex-shrink: 0; cursor: pointer; border: 2px solid transparent; transition: border-color 0.15s;" loading="lazy"
               onclick="document.getElementById('preview-img').src=this.src; document.getElementById('preview-img').parentElement.style.display='none'; this.parentElement.querySelectorAll('img').forEach(i=>i.style.borderColor='transparent'); this.style.borderColor='var(--accent)';"
               onerror="this.style.display='none'">
             {% endfor %}
@@ -348,6 +348,179 @@
         </div>
       </div>
 
+      <!-- ═══ 类目透视：五层机会卡模型 ═══ -->
+      {% if card.lens_id %}
+      <div style="background: linear-gradient(135deg, #f3e5f5, #fff); border: 1px solid #ce93d8; border-radius: 12px; padding: 14px; margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div>
+            <strong style="color: #6a1b9a; font-size: 14px;">&#x1F50D; 类目透视 — {{ card.lens_id }}</strong>
+            {% if card.lens_version %}<span class="meta" style="margin-left: 6px;">v{{ card.lens_version }}</span>{% endif %}
+          </div>
+          {% if card.lens_evidence_score %}
+          <div style="text-align: right; font-size: 12px;">
+            <div><strong style="color: #4a148c;">{{ "%.1f"|format(card.lens_evidence_score.total) }}/10</strong></div>
+            {% if card.lens_recommended_action %}
+            <div style="margin-top: 2px; padding: 2px 8px; border-radius: 10px; background: #6a1b9a; color: #fff; display: inline-block;">{{ card.lens_recommended_action.decision }}</div>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- 五维分数 -->
+        {% if card.lens_evidence_score %}
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; font-size: 11px;">
+          <div style="padding: 4px 6px; background: #fff; border-radius: 6px; text-align:center;">热度 <strong>{{ "%.1f"|format(card.lens_evidence_score.heat) }}</strong></div>
+          <div style="padding: 4px 6px; background: #fff; border-radius: 6px; text-align:center;">痛点 <strong>{{ "%.1f"|format(card.lens_evidence_score.pain) }}</strong></div>
+          <div style="padding: 4px 6px; background: #fff; border-radius: 6px; text-align:center;">信任缺口 <strong>{{ "%.1f"|format(card.lens_evidence_score.trust_gap) }}</strong></div>
+          <div style="padding: 4px 6px; background: #fff; border-radius: 6px; text-align:center;">商品契合 <strong>{{ "%.1f"|format(card.lens_evidence_score.product_fit) }}</strong></div>
+          <div style="padding: 4px 6px; background: #fff; border-radius: 6px; text-align:center;">执行 <strong>{{ "%.1f"|format(card.lens_evidence_score.execution) }}</strong></div>
+          <div style="padding: 4px 6px; background: #fff; border-radius: 6px; text-align:center;">竞争缺口 <strong>{{ "%.1f"|format(card.lens_evidence_score.competition_gap) }}</strong></div>
+        </div>
+        {% endif %}
+
+        <!-- Layer 1: 内容信号 -->
+        {% if card.lens_layer1_signals %}
+        <details open style="margin-bottom: 8px;">
+          <summary style="cursor: pointer; font-weight: 600; font-size: 12px; color: #6a1b9a;">第 1 层 · 内容信号</summary>
+          <div style="padding: 8px 0 0; font-size: 12px;">
+            {% if card.lens_layer1_signals.hot_keywords %}
+            <div style="margin-bottom: 6px;"><span class="meta">热词:</span>
+              {% for hk in card.lens_layer1_signals.hot_keywords[:8] %}
+              <span class="chip" style="background: #fce4ec; color: #880e4f; font-size: 11px;" title="{{ hk.category or '' }} · tf={{ hk.tf }} df={{ hk.df }}">{{ hk.keyword }}{% if hk.tf_idf %} · {{ "%.2f"|format(hk.tf_idf) }}{% endif %}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if card.lens_layer1_signals.note_patterns %}
+            <div style="margin-bottom: 6px;"><span class="meta">笔记范式:</span>
+              {% for p in card.lens_layer1_signals.note_patterns %}<span class="chip" style="background: #e1f5fe; color: #0277bd; font-size: 11px;">{{ p }}</span>{% endfor %}
+            </div>
+            {% endif %}
+            {% if card.lens_layer1_signals.comment_signals %}
+            <div style="margin-bottom: 6px;"><span class="meta">评论信号:</span>
+              {% for s in card.lens_layer1_signals.comment_signals %}<span class="chip" style="background: #fff3e0; color: #e65100; font-size: 11px;">{{ s }}</span>{% endfor %}
+            </div>
+            {% endif %}
+            {% if card.lens_layer1_signals.trust_barrier_hits %}
+            <div style="margin-bottom: 6px;"><span class="meta">信任障碍:</span>
+              {% for s in card.lens_layer1_signals.trust_barrier_hits %}<span class="chip" style="background: #ffebee; color: #c62828; font-size: 11px;">{{ s }}</span>{% endfor %}
+            </div>
+            {% endif %}
+            {% if card.lens_layer1_signals.scene_words %}
+            <div style="margin-bottom: 6px;"><span class="meta">场景词:</span>
+              {% for s in card.lens_layer1_signals.scene_words %}<span class="chip" style="background: #e8f5e9; color: #2e7d32; font-size: 11px;">{{ s }}</span>{% endfor %}
+            </div>
+            {% endif %}
+            {% if card.lens_layer1_signals.emotion_words %}
+            <div style="margin-bottom: 6px;"><span class="meta">情绪词:</span>
+              {% for s in card.lens_layer1_signals.emotion_words %}<span class="chip" style="background: #f3e5f5; color: #6a1b9a; font-size: 11px;">{{ s }}</span>{% endfor %}
+            </div>
+            {% endif %}
+            {% if card.lens_layer1_signals.visual_insight_summary %}
+            {% set vis = card.lens_layer1_signals.visual_insight_summary %}
+            {% if vis.style or vis.scene or vis.trust_signals or vis.trust_risks %}
+            <div style="margin-top: 4px; padding-top: 6px; border-top: 1px dashed #ccc;">
+              <span class="meta">视觉摘要:</span>
+              {% for s in vis.style %}<span class="chip" style="background: #fce4ec; color: #880e4f; font-size: 10px;">{{ s }}</span>{% endfor %}
+              {% for s in vis.scene %}<span class="chip" style="background: #e8f5e9; color: #2e7d32; font-size: 10px;">{{ s }}</span>{% endfor %}
+              {% for s in vis.trust_signals %}<span class="chip" style="background: #e1f5fe; color: #0277bd; font-size: 10px;">&#x2713; {{ s }}</span>{% endfor %}
+              {% for s in vis.trust_risks %}<span class="chip" style="background: #ffebee; color: #c62828; font-size: 10px;">&#x26A0; {{ s }}</span>{% endfor %}
+            </div>
+            {% endif %}
+            {% endif %}
+          </div>
+        </details>
+        {% endif %}
+
+        <!-- Layer 2: 本体映射 -->
+        {% if card.lens_layer2_ontology %}
+        <details style="margin-bottom: 8px;">
+          <summary style="cursor: pointer; font-weight: 600; font-size: 12px; color: #6a1b9a;">第 2 层 · 类目本体</summary>
+          <div style="padding: 8px 0 0; font-size: 12px;">
+            {% for key, refs in card.lens_layer2_ontology.items() %}
+            {% if refs %}
+            <div style="margin-bottom: 4px;"><span class="meta">{{ key }}:</span>
+              {% for r in refs %}<span class="chip" style="background: #f5f5f5; color: #424242; font-size: 11px;">{{ r }}</span>{% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+
+        <!-- Layer 3: 用户任务 -->
+        {% if card.lens_layer3_user_jobs %}
+        <details open style="margin-bottom: 8px;">
+          <summary style="cursor: pointer; font-weight: 600; font-size: 12px; color: #6a1b9a;">第 3 层 · 用户任务（{{ card.lens_layer3_user_jobs|length }}）</summary>
+          <div style="padding: 8px 0 0; font-size: 12px;">
+            {% for j in card.lens_layer3_user_jobs %}
+            <div style="padding: 8px; background: #fff; border-radius: 8px; margin-bottom: 6px;">
+              <div><strong>{{ j.who }}</strong> 在 <em>{{ j.when }}</em></div>
+              <div style="margin-top: 4px;">遇到：{{ j.problem }}</div>
+              {% if j.desired_outcome %}<div style="margin-top: 2px; color: #2e7d32;">&rarr; 期望：{{ j.desired_outcome }}</div>{% endif %}
+              {% if j.frustration %}<div style="margin-top: 2px; color: #c62828;">&rarr; 顾虑：{{ j.frustration }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+
+        <!-- Layer 4: 商品映射 -->
+        {% if card.lens_layer4_product_mapping %}
+        <details style="margin-bottom: 8px;">
+          <summary style="cursor: pointer; font-weight: 600; font-size: 12px; color: #6a1b9a;">第 4 层 · 商品映射（{{ card.lens_layer4_product_mapping|length }}）</summary>
+          <div style="padding: 8px 0 0; font-size: 12px;">
+            {% for m in card.lens_layer4_product_mapping %}
+            <div style="padding: 8px; background: #fff; border-radius: 8px; margin-bottom: 6px;">
+              <div><strong>用户需求：</strong>{{ m.user_need }}</div>
+              {% if m.product_features %}
+              <div style="margin-top: 4px;">商品特征：
+                {% for f in m.product_features %}<span class="chip" style="background: #e3f2fd; color: #1565c0; font-size: 11px;">{{ f }}</span>{% endfor %}
+              </div>
+              {% endif %}
+              {% if m.sku_actions %}
+              <div style="margin-top: 4px; color: #424242;">SKU 行动：{{ m.sku_actions | join('；') }}</div>
+              {% endif %}
+              {% if m.detail_page_actions %}
+              <div style="margin-top: 2px; color: #424242;">详情页镜头：{{ m.detail_page_actions | join('；') }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+
+        <!-- Layer 5: 内容执行 -->
+        {% if card.lens_layer5_content_execution %}
+        <details open style="margin-bottom: 4px;">
+          <summary style="cursor: pointer; font-weight: 600; font-size: 12px; color: #6a1b9a;">第 5 层 · 内容执行（{{ card.lens_layer5_content_execution|length }}）</summary>
+          <div style="padding: 8px 0 0; font-size: 12px;">
+            {% for e in card.lens_layer5_content_execution %}
+            <div style="padding: 8px; background: #fff; border-radius: 8px; margin-bottom: 6px;">
+              <div><strong>{{ e.content_angle }}</strong></div>
+              {% if e.hooks %}
+              <div style="margin-top: 4px;">钩子：
+                {% for h in e.hooks %}<span class="chip" style="background: #fff3e0; color: #e65100; font-size: 11px;">「{{ h }}」</span>{% endfor %}
+              </div>
+              {% endif %}
+              {% if e.script_structure %}
+              <div style="margin-top: 4px; color: #424242;">脚本结构：{{ e.script_structure | join(' → ') }}</div>
+              {% endif %}
+              {% if e.required_assets %}
+              <div style="margin-top: 2px;">必备素材：
+                {% for a in e.required_assets %}<span class="chip" style="background: #e8f5e9; color: #2e7d32; font-size: 11px;">{{ a }}</span>{% endfor %}
+              </div>
+              {% endif %}
+              {% if e.metrics %}
+              <div style="margin-top: 2px; color: #666;">关注指标：{{ e.metrics | join('；') }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <!-- 下一步建议 -->
       {% if card.suggested_next_step %}
       <div style="background: #f8f6f0; border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-bottom: 12px;">
@@ -383,11 +556,24 @@
     <div class="card" style="margin-bottom: 20px; border: 2px solid #2e7d32; background: linear-gradient(135deg, #f1f8e9, #e8f5e9);">
       <h3 style="margin: 0 0 12px; color: #2e7d32;">策划操作</h3>
       {% if card.opportunity_status == 'promoted' %}
-      <a href="/content-planning/brief/{{ card.opportunity_id }}"
+      <a href="/planning/{{ card.opportunity_id }}"
          style="display: block; padding: 12px 16px; background: linear-gradient(135deg, #2e7d32, #43a047); color: #fff; border-radius: 12px; text-align: center; text-decoration: none; font-weight: 700; font-size: 14px; margin-bottom: 8px;">
-        进入 Brief 工作台 →
+        进入策划工作台 →
       </a>
-      <div style="font-size: 12px; color: #555; text-align: center;">该机会卡已升级，可直接进入内容策划流程</div>
+      <div style="font-size: 12px; color: #555; text-align: center; margin-bottom: 10px;">已晋升为策划候选，进入策划工作台查看初步策划方案与 AI 工具。</div>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; padding-top: 10px; border-top: 1px dashed rgba(46,125,50,0.3);">
+        <span class="meta" style="width:100%;text-align:center;font-size:11px;margin-bottom:2px;">分步入口（策划工作台内同样可访问）</span>
+        <a href="/content-planning/brief/{{ card.opportunity_id }}"
+           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; text-decoration: none; background: var(--accent); color: #fff;">Brief</a>
+        <a href="/content-planning/strategy/{{ card.opportunity_id }}"
+           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none; background: #e3f2fd; color: #1565c0;">策略</a>
+        <a href="/content-planning/plan/{{ card.opportunity_id }}"
+           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none; background: #f3e8ff; color: #7c3aed;">计划</a>
+        <a href="/content-planning/assets/{{ card.opportunity_id }}"
+           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none; background: #e8f5e9; color: #2e7d32;">资产包</a>
+        <a href="/planning/{{ card.opportunity_id }}/visual-builder"
+           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none; background: #fff3e0; color: #e65100;">视觉工作台</a>
+      </div>
       {% else %}
       <form id="promote-form" style="text-align: center;">
         <button type="submit"

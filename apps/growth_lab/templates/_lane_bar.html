@@ -1,0 +1,162 @@
+{# Reusable lane progress bar for Growth Lab pages.
+   Set `lane_step` before include, e.g.:
+     {% set lane_step = "radar" %}
+     {% include "_lane_bar.html" %}
+   `lane_step` 取值：
+     - 主线 2（增长实验室极速链路）: radar / compiler / lab / first3s / board / assets
+     - 主线 3（套图工作台独立标识）: workspace
+#}
+<style>
+  .gl-lane-bar {
+    background: linear-gradient(90deg, #EEF2FF 0%, #FAF5FF 100%);
+    border-bottom: 1px solid #E5E7EB;
+    padding: 10px 24px;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  .gl-lane-bar-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .gl-lane-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #4F46E5;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    flex-shrink: 0;
+  }
+  .gl-lane-steps {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .gl-lane-steps li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: #6B7280;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.6);
+  }
+  .gl-lane-steps li a {
+    color: #4F46E5;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .gl-lane-steps li.is-current {
+    background: #4F46E5;
+    color: #fff;
+    font-weight: 700;
+  }
+  .gl-lane-steps li + li::before {
+    content: "›";
+    color: #C7D2FE;
+    margin-right: 4px;
+    margin-left: -2px;
+    color: #B5B7BA;
+  }
+  .gl-step-num {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    text-align: center;
+    font-size: 10px;
+    line-height: 16px;
+    border-radius: 50%;
+    background: rgba(79,70,229,0.15);
+    color: #4F46E5;
+    font-weight: 700;
+  }
+  .gl-lane-steps li.is-current .gl-step-num { background: #fff; color: #4F46E5; }
+  .gl-lane-cta {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .gl-lane-cta a {
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 4px 12px;
+    border-radius: 999px;
+    color: #4F46E5;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(79,70,229,0.2);
+  }
+  .gl-lane-cta a.is-primary {
+    background: #4F46E5;
+    color: #fff;
+    border-color: #4F46E5;
+  }
+  .gl-lane-cta a:hover { opacity: .85; }
+</style>
+
+{% if lane_step == "workspace" %}
+<div class="gl-lane-bar" aria-label="主线 3 · 套图工作台">
+  <div class="gl-lane-bar-inner">
+    <span class="gl-lane-label">主线 3 · 套图工作台</span>
+    <ol class="gl-lane-steps">
+      <li class="is-current"><span class="gl-step-num">●</span>无限画布 + 交互式 Agent</li>
+      <li>主图 5 张</li>
+      <li>详情 9 模块</li>
+      <li>视频分镜</li>
+      <li>买家秀 8 张</li>
+      <li>竞品对标</li>
+    </ol>
+    <span class="gl-lane-cta">
+      <a href="/asset-workspace?lane=workspace_bundle" class="is-primary">套图资产 →</a>
+      <a href="/">回到主线选择</a>
+    </span>
+  </div>
+</div>
+{% else %}
+<div class="gl-lane-bar" aria-label="主线 2 · 增长实验室">
+  <div class="gl-lane-bar-inner">
+    <span class="gl-lane-label">主线 2 · 增长实验室</span>
+    <ol class="gl-lane-steps">
+      <li class="{% if lane_step == 'radar' %}is-current{% endif %}">
+        {% if lane_step == 'radar' %}<span class="gl-step-num">1</span>热点雷达
+        {% else %}<a href="/growth-lab/radar"><span class="gl-step-num">1</span>热点雷达</a>{% endif %}
+      </li>
+      <li class="{% if lane_step == 'compiler' %}is-current{% endif %}">
+        {% if lane_step == 'compiler' %}<span class="gl-step-num">2</span>卖点编译
+        {% else %}<a href="/growth-lab/compiler"><span class="gl-step-num">2</span>卖点编译</a>{% endif %}
+      </li>
+      <li class="{% if lane_step == 'lab' %}is-current{% endif %}">
+        {% if lane_step == 'lab' %}<span class="gl-step-num">3</span>主图裂变
+        {% else %}<a href="/growth-lab/lab"><span class="gl-step-num">3</span>主图裂变</a>{% endif %}
+      </li>
+      <li class="{% if lane_step == 'first3s' %}is-current{% endif %}">
+        {% if lane_step == 'first3s' %}<span class="gl-step-num">4</span>前3秒裂变
+        {% else %}<a href="/growth-lab/first3s"><span class="gl-step-num">4</span>前3秒裂变</a>{% endif %}
+      </li>
+      <li class="{% if lane_step == 'board' %}is-current{% endif %}">
+        {% if lane_step == 'board' %}<span class="gl-step-num">5</span>测试放大
+        {% else %}<a href="/growth-lab/board"><span class="gl-step-num">5</span>测试放大</a>{% endif %}
+      </li>
+      <li class="{% if lane_step == 'assets' %}is-current{% endif %}">
+        {% if lane_step == 'assets' %}<span class="gl-step-num">6</span>实验资产图谱
+        {% else %}<a href="/growth-lab/assets"><span class="gl-step-num">6</span>实验资产图谱</a>{% endif %}
+      </li>
+    </ol>
+    <span class="gl-lane-cta">
+      <a href="/asset-workspace?lane=growth_lab" class="is-primary">查看系统资产 →</a>
+      <a href="/">回到主线选择</a>
+    </span>
+  </div>
+</div>
+{% endif %}

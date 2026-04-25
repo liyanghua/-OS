@@ -256,7 +256,7 @@
     <div class="xhs-note-card">
       {% set cover = nctx.cover_image if nctx is mapping else '' %}
       {% if cover %}
-      <img src="{{ cover }}" alt="封面" class="xhs-note-cover" loading="lazy"
+      <img src="{{ cover | proxy_img }}" alt="封面" class="xhs-note-cover" loading="lazy"
            onerror="this.style.display='none'" onclick="xhsLightbox(this.src)">
       {% endif %}
       <div class="xhs-note-inner">
@@ -274,7 +274,7 @@
         {% if imgs %}
         <div class="xhs-note-gallery">
           {% for img in imgs[:8] %}
-          <img src="{{ img }}" alt="图{{ loop.index }}" loading="lazy"
+          <img src="{{ img | proxy_img }}" alt="图{{ loop.index }}" loading="lazy"
                onerror="this.style.display='none'" onclick="xhsLightbox(this.src)">
           {% endfor %}
         </div>

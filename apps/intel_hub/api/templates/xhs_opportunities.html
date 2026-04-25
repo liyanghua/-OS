@@ -1,12 +1,66 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set current_lens_label = (lens_labels.get(lens_filter) if lens_filter and lens_labels else lens_filter) %}
+
+<div class="lane-bar" aria-label="主线 1 · 内容生产">
+  <span class="lane-bar-label">主线 1 · 内容生产</span>
+  <ol class="lane-bar-steps">
+    <li><a href="/notes{% if lens_filter %}?lens={{ lens_filter|urlencode }}{% endif %}"><span class="step-num">1</span>素材中心</a></li>
+    <li><a href="/category-lenses"><span class="step-num">2</span>类目透视</a></li>
+    <li class="is-current"><span class="step-num">3</span>机会卡{% if lens_filter %} · {{ current_lens_label }}{% endif %}</li>
+    <li><a href="/xhs-opportunities?status=promoted{% if lens_filter %}&lens={{ lens_filter|urlencode }}{% endif %}"><span class="step-num">4</span>策划台队列</a></li>
+    <li><a href="/asset-workspace?lane=content_note"><span class="step-num">5</span>图文资产</a></li>
+  </ol>
+</div>
+
 <section class="headline">
   <div class="meta">机会卡看板 — 多维研判与升级</div>
   <p style="margin: 12px 0 0;">
-    从原始内容中提取<strong>视觉</strong>、<strong>卖点</strong>、<strong>场景</strong>三维信号，经智能研判生成机会卡。支持人工检视、综合评分与升级决策。
+    从原始内容中提取<strong>视觉</strong>、<strong>卖点</strong>、<strong>场景</strong>三维信号，经类目透视与智能研判生成机会卡。支持人工检视、综合评分与晋升决策。
   </p>
 </section>
+
+<style>
+  .lane-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 8px 14px;
+    margin-bottom: 14px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(138,75,47,0.18);
+    border-radius: 14px;
+  }
+  .lane-bar-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .lane-bar-steps {
+    list-style: none; padding: 0; margin: 0;
+    display: flex; gap: 4px; flex-wrap: wrap; align-items: center;
+  }
+  .lane-bar-steps li {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; font-size: 12px; color: var(--muted); border-radius: 999px;
+  }
+  .lane-bar-steps li a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .lane-bar-steps li.is-current { background: var(--accent); color: #fff; font-weight: 700; }
+  .lane-bar-steps li + li::before {
+    content: "›"; color: var(--border); margin-right: 6px; margin-left: -4px;
+  }
+  .lane-bar-steps li .step-num {
+    display: inline-block; width: 16px; height: 16px;
+    text-align: center; font-size: 10px; line-height: 16px;
+    border-radius: 50%; background: rgba(138,75,47,0.2);
+    color: var(--accent); font-weight: 700;
+  }
+  .lane-bar-steps li.is-current .step-num { background: #fff; color: var(--accent); }
+</style>
 
 <!-- 统计概览 -->
 <div class="grid" style="margin-bottom: 24px;">
@@ -26,24 +80,62 @@
   {% endfor %}
 </div>
 
+<!-- 类目透视摘要 -->
+{% if lens_bundle_summary %}
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #6a1b9a;">
+  <div class="meta" style="margin-bottom: 8px;">类目透视摘要（Category Lens Engine）</div>
+  <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+    {% for lid, summ in lens_bundle_summary.items() %}
+    <a href="/xhs-opportunities?lens={{ lid }}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+       style="padding: 8px 14px; border-radius: 12px; background: #f3e5f5; color: #4a148c; text-decoration: none; font-size: 13px;">
+      <strong>{{ lid }}</strong>
+      · 分{{ "%.1f"|format(summ.score or 0) }}
+      · {{ summ.decision or "-" }}
+      <span class="meta" style="margin-left: 6px;">热词 {{ summ.hot_keyword_count or 0 }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <!-- 筛选 -->
-<div style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-  <span class="meta" style="margin-right: 4px;">类型:</span>
-  <a href="/xhs-opportunities{% if status_filter %}?status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if not type_filter %}background: var(--accent); color: #fff;{% endif %}">全部</a>
-  {% for t in all_types %}
-  <a href="/xhs-opportunities?type={{ t }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if type_filter == t %}background: var(--accent); color: #fff;{% endif %}">{{ type_labels.get(t, t) }}</a>
+{# 类目优先：先按 lens 切换，type 列表跟随 lens 动态变化 #}
+{% set type_chips_source = lens_type_nav if lens_filter and lens_type_nav else None %}
+<div style="margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+  {% if all_lenses %}
+  <span class="meta" style="margin-right: 4px;">类目透视:</span>
+  <a href="/xhs-opportunities{% if type_filter %}?type={{ type_filter }}{% endif %}{% if status_filter %}{% if type_filter %}&{% else %}?{% endif %}status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if not lens_filter %}background: var(--accent); color: #fff;{% endif %}">全部</a>
+  {% for lid in all_lenses %}
+  <a href="/xhs-opportunities?lens={{ lid }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if lens_filter == lid %}background: #6a1b9a; color: #fff;{% endif %}">
+    {{ lens_labels.get(lid, lid) }} ({{ stats.lens_counts.get(lid, 0) }})
+  </a>
   {% endfor %}
+  {% endif %}
+</div>
+
+<div style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+  <span class="meta" style="margin-right: 4px;">类型{% if lens_filter %} · 当前类目「{{ current_lens_label }}」{% endif %}:</span>
+  <a href="/xhs-opportunities{% if status_filter %}?status={{ status_filter }}{% endif %}{% if lens_filter %}{% if status_filter %}&{% else %}?{% endif %}lens={{ lens_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if not type_filter %}background: var(--accent); color: #fff;{% endif %}">全部</a>
+  {% if type_chips_source %}
+    {% for t in type_chips_source %}
+    <a href="/xhs-opportunities?type={{ t.type }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if lens_filter %}&lens={{ lens_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if type_filter == t.type %}background: var(--accent); color: #fff;{% endif %}">{{ t.label }} ({{ t.count }})</a>
+    {% endfor %}
+  {% else %}
+    {% for t in all_types %}
+    <a href="/xhs-opportunities?type={{ t }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if lens_filter %}&lens={{ lens_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if type_filter == t %}background: var(--accent); color: #fff;{% endif %}">{{ type_labels.get(t, t) }}</a>
+    {% endfor %}
+  {% endif %}
 
   <span class="meta" style="margin-left: 16px; margin-right: 4px;">状态:</span>
-  <a href="/xhs-opportunities{% if type_filter %}?type={{ type_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if not status_filter %}background: var(--accent); color: #fff;{% endif %}">全部</a>
+  <a href="/xhs-opportunities{% if type_filter %}?type={{ type_filter }}{% endif %}{% if lens_filter %}{% if type_filter %}&{% else %}?{% endif %}lens={{ lens_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if not status_filter %}background: var(--accent); color: #fff;{% endif %}">全部</a>
   {% for s, label in status_labels.items() %}
-  <a href="/xhs-opportunities?status={{ s }}{% if type_filter %}&type={{ type_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if status_filter == s %}background: {{ status_colors.get(s, 'var(--accent)') }}; color: #fff;{% endif %}">{{ label }}</a>
+  <a href="/xhs-opportunities?status={{ s }}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if lens_filter %}&lens={{ lens_filter }}{% endif %}" class="chip" style="text-decoration: none; {% if status_filter == s %}background: {{ status_colors.get(s, 'var(--accent)') }}; color: #fff;{% endif %}">{{ label }}</a>
   {% endfor %}
 
-  <a href="/xhs-opportunities?status=promoted{% if type_filter %}&type={{ type_filter }}{% endif %}"
+  <a href="/xhs-opportunities?status=promoted{% if type_filter %}&type={{ type_filter }}{% endif %}{% if lens_filter %}&lens={{ lens_filter }}{% endif %}"
      style="margin-left: 16px; display: inline-flex; align-items: center; gap: 4px; padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 700; text-decoration: none;
        background: linear-gradient(135deg, #2e7d32, #43a047); color: #fff; box-shadow: 0 2px 8px rgba(46,125,50,0.25);">
-    &#x2B50; 只看已升级（进入内容策划）
+    &#x2B50; 进入策划台队列
   </a>
 </div>
 
@@ -56,103 +148,246 @@
 </div>
 
 <!-- 卡片列表 -->
+<style>
+  .note-group {
+    border: 1px solid rgba(138,75,47,0.16);
+    border-left: 4px solid var(--accent, #8a4b2f);
+    border-radius: 14px;
+    background: #fffaf3;
+    padding: 14px 14px 8px;
+    margin-bottom: 16px;
+  }
+  .note-group__head {
+    display: flex; gap: 12px; align-items: center;
+    padding: 4px 4px 12px;
+    border-bottom: 1px dashed rgba(138,75,47,0.18);
+    margin-bottom: 12px;
+  }
+  .note-group__head .note-cover {
+    width: 56px; height: 56px; flex-shrink: 0;
+    border-radius: 10px; overflow: hidden;
+    background: var(--accent-soft, #f5e8d8);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #b58867;
+  }
+  .note-group__head .note-cover img {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .note-group__head .note-info { flex: 1; min-width: 0; }
+  .note-group__head .note-info .note-title {
+    font-size: 14px; font-weight: 700; color: #2b1b10;
+    text-decoration: none; line-height: 1.4;
+    display: block; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .note-group__head .note-info .note-title:hover { color: var(--accent, #8a4b2f); text-decoration: underline; }
+  .note-group__head .note-meta {
+    font-size: 11px; color: #8a6e57; margin-top: 4px;
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .note-group__head .note-meta .badge {
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--accent, #8a4b2f); color: #fff;
+    font-size: 10px; font-weight: 700;
+  }
+  .note-group__cards { display: flex; flex-direction: column; gap: 12px; }
+  .note-group--orphan {
+    border-left-color: #c4a584; background: #fbf6ee;
+  }
+  .note-group--orphan .note-group__head { display: none; }
+
+  .lens-incremental-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; margin-bottom: 14px;
+    border-radius: 12px; background: var(--accent-soft, #f5e8d8);
+    border: 1px solid rgba(138,75,47,0.2);
+    font-size: 13px; color: #4a3527;
+  }
+  .lens-incremental-bar .lens-inc-label { font-weight: 700; color: #2b1b10; }
+  .lens-incremental-bar .lens-inc-btn {
+    background: #fff; border: 1px solid rgba(138,75,47,0.28);
+    color: var(--accent, #8a4b2f); border-radius: 999px;
+    padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .lens-incremental-bar .lens-inc-btn.is-primary {
+    background: linear-gradient(135deg, var(--accent, #8a4b2f), #a3593a);
+    color: #fff; border-color: transparent;
+  }
+  .lens-incremental-bar .lens-inc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .empty-card {
+    padding: 28px 26px;
+    border: 1px dashed rgba(138,75,47,0.32);
+    border-radius: 16px;
+    background: linear-gradient(180deg, #fffaf3 0%, #fff8ee 100%);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+  }
+  .empty-card .empty-eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+    text-transform: uppercase; color: var(--accent);
+    padding: 4px 10px; border-radius: 999px; background: var(--accent-soft);
+  }
+  .empty-card .empty-title {
+    font-size: 20px; font-weight: 700; color: #2b1b10;
+    margin: 12px 0 8px;
+  }
+  .empty-card .empty-desc {
+    font-size: 14px; color: #4a3527; line-height: 1.7;
+    max-width: 720px;
+  }
+  .empty-card .empty-pipeline {
+    display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0 18px;
+  }
+  .empty-card .empty-pipeline .step {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    background: #fff; border: 1px solid rgba(138,75,47,0.18);
+    font-size: 12px; color: #6b4a32;
+  }
+  .empty-card .empty-pipeline .step .num {
+    width: 18px; height: 18px; line-height: 18px; text-align: center;
+    border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+    font-size: 10px; font-weight: 700;
+  }
+  .empty-card .empty-actions {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  }
+  .empty-card .btn-primary,
+  .empty-card .btn-secondary,
+  .empty-card .btn-tertiary {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 12px; font-size: 13px; font-weight: 700;
+    text-decoration: none; cursor: pointer; border: 1px solid transparent;
+  }
+  .empty-card .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #a3593a);
+    color: #fff; box-shadow: 0 6px 16px rgba(138,75,47,0.22);
+  }
+  .empty-card .btn-primary:hover { transform: translateY(-1px); }
+  .empty-card .btn-primary:disabled { opacity: 0.7; cursor: progress; }
+  .empty-card .btn-secondary {
+    background: #fff; color: var(--accent);
+    border-color: rgba(138,75,47,0.28);
+  }
+  .empty-card .btn-tertiary {
+    background: transparent; color: #7a5a44; padding: 9px 12px;
+  }
+  .empty-card .empty-meta {
+    margin-top: 14px; font-size: 12px; color: #8a6e57;
+  }
+</style>
 <div class="list">
   {% if cards %}
-    {% for card in cards %}
-    <div class="card" style="border-left: 4px solid {{ type_colors.get(card.opportunity_type, 'var(--border)') }}; cursor: pointer; transition: box-shadow 0.15s; position:relative;">
-      <label style="position:absolute;top:12px;right:12px;z-index:2;" onclick="event.stopPropagation();">
-        <input type="checkbox" class="batch-cb" value="{{ card.opportunity_id }}" onchange="updateBatchBar()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
-      </label>
-    <a href="/xhs-opportunities/{{ card.opportunity_id }}" style="text-decoration: none; color: inherit; display:block;">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-        <div>
-          <span style="display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background: {{ type_bg.get(card.opportunity_type, 'var(--accent-soft)') }}; color: {{ type_colors.get(card.opportunity_type, 'var(--accent)') }};">{{ type_labels.get(card.opportunity_type, card.opportunity_type) }}</span>
-          <span class="meta" style="margin-left: 8px;">置信度 {{ "%.0f"|format(card.confidence * 100) }}%</span>
-        </div>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          {% if card.qualified_opportunity %}
-          <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #c8e6c9; color: #2e7d32;">已升级</span>
-          {% endif %}
-          <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; background: #f5f5f5; color: {{ status_colors.get(card.opportunity_status, '#757575') }};">{{ status_labels.get(card.opportunity_status, card.opportunity_status) }}</span>
-        </div>
-      </div>
-
-      <h3 style="margin: 0 0 4px;">{{ card.title }}</h3>
-
-      {% if card.insight_statement %}
-      <p style="margin: 0 0 8px; padding: 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; background: linear-gradient(135deg, #fff8e1, #fff3e0); color: #e65100; line-height: 1.5;">
-        &#x1F4A1; {{ card.insight_statement }}
-      </p>
-      {% endif %}
-
-      <p style="margin: 0 0 10px; color: var(--muted); font-size: 14px;">{{ card.summary[:120] }}{% if card.summary|length > 120 %}…{% endif %}</p>
-
-      <!-- 洞察 + 检视摘要 -->
-      <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--muted); margin-bottom: 8px;">
-        {% if card.engagement_insight %}
-        <span style="padding: 2px 8px; border-radius: 6px; background: #e8f5e9; color: #2e7d32; font-size: 11px;">{{ card.engagement_insight }}</span>
-        {% endif %}
-        {% if card.cross_modal_verdict %}
-        <span style="padding: 2px 8px; border-radius: 6px; background: #e3f2fd; color: #1565c0; font-size: 11px;">{{ card.cross_modal_verdict }}</span>
-        {% endif %}
-        <span>检视 {{ card.review_count }} 次</span>
-        {% if card.manual_quality_score_avg is not none %}
-        <span>质量 {{ "%.1f"|format(card.manual_quality_score_avg) }}/10</span>
-        {% endif %}
-        {% if card.composite_review_score is not none %}
-        <span>综合 {{ "%.0f"|format(card.composite_review_score * 100) }}%</span>
-        {% endif %}
-      </div>
-
-      <!-- 标签 -->
-      <div class="chips" style="margin-bottom: 6px;">
-        {% for ref in card.scene_refs[:3] %}
-          <span class="chip" style="background: #e8f5e9; color: #2e7d32;">{{ ref }}</span>
-        {% endfor %}
-        {% for ref in card.style_refs[:3] %}
-          <span class="chip" style="background: #fce4ec; color: #c62828;">{{ ref }}</span>
-        {% endfor %}
-        {% for ref in card.need_refs[:3] %}
-          <span class="chip" style="background: #e3f2fd; color: #1565c0;">{{ ref }}</span>
-        {% endfor %}
-      </div>
-
-      {% if card.opportunity_status == 'promoted' %}
-      <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;" onclick="event.stopPropagation();">
-        <a href="/content-planning/brief/{{ card.opportunity_id }}"
-           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; text-decoration: none;
-             background: var(--accent); color: #fff;">Brief</a>
-        <span style="color: #bbb; font-size: 10px;">&rarr;</span>
-        <a href="/content-planning/strategy/{{ card.opportunity_id }}"
-           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
-             background: #e3f2fd; color: #1565c0;">策略</a>
-        <span style="color: #bbb; font-size: 10px;">&rarr;</span>
-        <a href="/content-planning/plan/{{ card.opportunity_id }}"
-           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
-             background: #f3e8ff; color: #7c3aed;">计划</a>
-        <span style="color: #bbb; font-size: 10px;">&rarr;</span>
-        <a href="/content-planning/assets/{{ card.opportunity_id }}"
-           style="padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: none;
-             background: #e8f5e9; color: #2e7d32;">资产包</a>
-      </div>
-      {% endif %}
-    </a>
+    {# 增量补跑入口：当前 lens 下还有未处理的笔记时，引导用户继续跑。 #}
+    {% if lens_filter and lens_notes_total %}
+    <div class="lens-incremental-bar" data-role="lens-incremental">
+      <span class="lens-inc-label">Agent 已为「{{ lens_label or lens_filter }}」生成 {{ cards|length }} 张机会卡</span>
+      <span class="meta">本类目共 {{ lens_notes_total }} 篇笔记 · 已覆盖 {{ note_groups|length }} 篇</span>
+      <button class="lens-inc-btn"
+              onclick='OpportunityAgentRunner.start({lens_id: {{ lens_filter | tojson }}, lens_label: {{ (lens_label or lens_filter) | tojson }}, lens_notes_total: {{ lens_notes_total }}, max_notes: 5, skip_note_ids: {{ note_groups|map(attribute="note_id")|select|list|tojson }} })'>
+        再跑 5 条
+      </button>
+      <button class="lens-inc-btn is-primary"
+              onclick='OpportunityAgentRunner.start({lens_id: {{ lens_filter | tojson }}, lens_label: {{ (lens_label or lens_filter) | tojson }}, lens_notes_total: {{ lens_notes_total }}, max_notes: 30, skip_note_ids: {{ note_groups|map(attribute="note_id")|select|list|tojson }} })'>
+        再跑全部
+      </button>
     </div>
+    {% endif %}
+
+    {% for group in note_groups %}
+      <div class="note-group{% if not group.note_meta %} note-group--orphan{% endif %}">
+        {% if group.note_meta %}
+        <header class="note-group__head">
+          <div class="note-cover">
+            {% if group.note_meta.cover_url %}
+              <img src="{{ group.note_meta.cover_url }}" alt="{{ group.note_meta.title }}" loading="lazy">
+            {% else %}
+              📝
+            {% endif %}
+          </div>
+          <div class="note-info">
+            <a class="note-title" href="/notes/{{ group.note_id }}?platform={{ group.note_meta.platform or 'xhs' }}" title="{{ group.note_meta.title }}">
+              {{ group.note_meta.title or group.note_id }}
+            </a>
+            <div class="note-meta">
+              <span class="badge">本笔记产出 {{ group.cards|length }} 张机会卡</span>
+              {% if group.cards|length > 1 %}
+              <span>同源多角度 · 下方 chip 标识每张卡的差异点</span>
+              {% endif %}
+            </div>
+          </div>
+        </header>
+        {% endif %}
+        <div class="note-group__cards">
+          {% for card in group.cards %}
+            {% include "_xhs_opportunity_card.html" %}
+          {% endfor %}
+        </div>
+      </div>
     {% endfor %}
   {% else %}
-    <div class="empty">暂无机会卡数据。请先运行 <code>python -m apps.intel_hub.workflow.xhs_opportunity_pipeline</code></div>
+    <div class="empty-card" data-empty-kind="{{ empty_state_kind }}">
+      <span class="empty-eyebrow">机会卡 · 类目透视生成</span>
+      {% if empty_state_kind == 'lens_empty' %}
+      <h3 class="empty-title">类目「{{ lens_label or lens_filter }}」暂未沉淀机会卡</h3>
+      <p class="empty-desc">
+        机会卡看板里其他类目已有结构化机会，但
+        <strong>「{{ lens_label or lens_filter }}」</strong>
+        这条类目透视当前还没有可用的机会卡。点击下方按钮，由本地 Agent
+        基于已采集的小红书原始笔记，按
+        <em>视觉 / 卖点 / 场景</em>
+        三维信号 + 该类目透视五层模型，自动汇编一批机会卡。
+      </p>
+      {% else %}
+      <h3 class="empty-title">该类目当前还没有机会卡</h3>
+      <p class="empty-desc">
+        机会卡 = 从原始小红书笔记中提取
+        <strong>「视觉风格 / 卖点主张 / 场景需求」</strong>
+        三维信号，融合该类目透视五层模型自动汇编出来的结构化决策卡，
+        是后续策划、投放、资产沉淀的统一抓手。
+      </p>
+      {% endif %}
+      <div class="empty-pipeline" aria-label="生成流水线">
+        <span class="step"><span class="num">1</span>探查与解析</span>
+        <span class="step"><span class="num">2</span>VLM 视觉 · LLM 卖点 · 场景洞察</span>
+        <span class="step"><span class="num">3</span>跨模态校验</span>
+        <span class="step"><span class="num">4</span>机会卡编译</span>
+        <span class="step"><span class="num">5</span>类目透视聚合</span>
+      </div>
+      <div class="empty-actions">
+        <button id="empty-start-agent" class="btn-primary"
+                onclick='OpportunityAgentRunner.start({lens_id: {{ (lens_filter or "") | tojson }}, lens_label: {{ (lens_label or lens_filter or "") | tojson }}, lens_notes_total: {{ lens_notes_total or 0 }}, max_notes: 1 })'
+                {% if not lens_filter %}disabled title="请先在上方选择一个类目"{% endif %}>
+          立即生成机会卡（先跑 1 条预览）
+        </button>
+        <a href="/notes{% if lens_filter %}?lens={{ lens_filter|urlencode }}{% endif %}" class="btn-secondary">先去素材中心补料 →</a>
+        <a href="/category-lenses{% if lens_filter %}/{{ lens_filter }}{% endif %}" class="btn-tertiary">了解类目透视 →</a>
+      </div>
+      {% if lens_filter and lens_notes_total %}
+      <div class="empty-meta">
+        当前类目已有 {{ lens_notes_total }} 篇笔记。建议先跑 1 条快速预览效果，再用抽屉里的「再跑 5 条 / 再跑全部」继续补跑。
+      </div>
+      {% endif %}
+      {% if not lens_filter %}
+      <div class="empty-meta">
+        提示：请先在页面上方「类目透视」筛选条选择一个具体类目，再点击「立即生成机会卡」。
+      </div>
+      {% endif %}
+    </div>
   {% endif %}
 </div>
 
 <!-- 分页 -->
 {% if total_pages > 1 %}
+{% set page_qs %}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if lens_filter %}&lens={{ lens_filter }}{% endif %}{% endset %}
 <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
   {% if page > 1 %}
-    <a href="/xhs-opportunities?page={{ page - 1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none;">上一页</a>
+    <a href="/xhs-opportunities?page={{ page - 1 }}{{ page_qs }}" class="chip" style="text-decoration: none;">上一页</a>
   {% endif %}
   <span class="meta" style="line-height: 28px;">第 {{ page }} / {{ total_pages }} 页</span>
   {% if page < total_pages %}
-    <a href="/xhs-opportunities?page={{ page + 1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="chip" style="text-decoration: none;">下一页</a>
+    <a href="/xhs-opportunities?page={{ page + 1 }}{{ page_qs }}" class="chip" style="text-decoration: none;">下一页</a>
   {% endif %}
 </div>
 {% endif %}
@@ -190,4 +425,22 @@ async function batchBrief(){
   btn.disabled = false; btn.textContent = '批量生成 Brief';
 }
 </script>
+
+{% include "_opportunity_agent_drawer.html" %}
+
+{% if active_agent_task_id %}
+<script>
+  // 刷新页面时若同 lens 仍有进行中的 Agent 任务，自动续接抽屉
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.OpportunityAgentRunner && OpportunityAgentRunner.attach) {
+      OpportunityAgentRunner.attach({
+        task_id: {{ active_agent_task_id | tojson }},
+        lens_id: {{ (lens_filter or '') | tojson }},
+        lens_label: {{ (lens_label or lens_filter or '') | tojson }},
+        lens_notes_total: {{ lens_notes_total or 0 }},
+      });
+    }
+  });
+</script>
+{% endif %}
 {% endblock %}

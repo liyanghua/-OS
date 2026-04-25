@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="headline">
+  <div class="meta">类目透视引擎 · 类目透镜</div>
+  <h2 style="margin: 8px 0 4px;">Category Lens 管理</h2>
+  <p style="margin: 8px 0 0;">
+    每个类目对应一份透镜配置，驱动 VLM 图片洞察、文本统计抽取、机会卡打分。
+    关键词命中后 Ingestion 层自动为每条 raw 信号打上 <code>lens_id</code>。
+  </p>
+</section>
+
+<div class="grid">
+  {% for lens in lenses %}
+  <div class="card">
+    <div class="meta">{{ lens.lens_id }} · v{{ lens.version }}</div>
+    <h3 style="margin: 6px 0 10px;">
+      <a href="/category-lenses/{{ lens.lens_id }}" style="color: var(--accent); text-decoration: none;">
+        {{ lens.category_cn }}
+      </a>
+    </h3>
+    <p style="margin: 0 0 10px; font-size: 13px; color: var(--muted);">
+      {{ lens.core_consumption_logic }}
+    </p>
+    {% if lens.primary_user_jobs %}
+    <div class="meta" style="margin-top: 10px;">主要用户任务</div>
+    <div class="chips">
+      {% for job in lens.primary_user_jobs %}<span class="chip">{{ job }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    {% if lens.keyword_aliases %}
+    <div class="meta" style="margin-top: 10px;">关键词别名（前 6 个）</div>
+    <div class="chips">
+      {% for alias in lens.keyword_aliases[:6] %}<span class="chip">{{ alias }}</span>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty">尚未配置任何类目透镜。请在 <code>config/category_lenses/</code> 下放置 YAML 文件。</div>
+  {% endfor %}
+</div>
+
+<section style="margin-top: 32px;">
+  <div class="section-title">
+    <h3 style="margin: 0;">关键词路由规则</h3>
+    <span class="meta">默认 lens_id: <code>{{ routing.default_lens_id or "未设置" }}</code></span>
+  </div>
+  <div class="list">
+    {% for rule in routing.get("rules", []) %}
+    <div class="card">
+      <div class="meta">映射到 <strong>{{ rule.get("lens_id") }}</strong></div>
+      <div class="chips">
+        {% for token in rule.get("match_any", []) %}<span class="chip">{{ token }}</span>{% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="empty">未配置路由规则。Ingestion 层将对所有信号使用默认 lens。</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -4,11 +4,49 @@
 {% set current_label = current_category if current_category else '全部' %}
 {% set current_platform = current_platform if current_platform else 'xhs' %}
 {% set current_platform_label = current_platform_label if current_platform_label else ('抖音' if current_platform == 'dy' else '小红书') %}
+{% set current_lens = current_lens if current_lens is defined else '' %}
+
+<div class="lane-bar" aria-label="主线 1 · 内容生产">
+  <span class="lane-bar-label">主线 1 · 内容生产</span>
+  <ol class="lane-bar-steps">
+    <li class="is-current"><span class="step-num">1</span>素材中心</li>
+    <li><a href="/category-lenses"><span class="step-num">2</span>类目透视</a></li>
+    <li><a href="/xhs-opportunities{% if current_lens %}?lens={{ current_lens|urlencode }}{% endif %}"><span class="step-num">3</span>机会卡</a></li>
+    <li><a href="/xhs-opportunities?status=promoted{% if current_lens %}&lens={{ current_lens|urlencode }}{% endif %}"><span class="step-num">4</span>策划台队列</a></li>
+    <li><a href="/asset-workspace?lane=content_note"><span class="step-num">5</span>图文资产</a></li>
+  </ol>
+</div>
 
 <section class="headline">
   <div class="meta">内容素材库</div>
   <h2 style="margin: 8px 0 0;">素材浏览（平台：{{ current_platform_label }} · 全部 {{ total_all }} 条 · 当前分类「{{ current_label }}」{{ total }} 条）</h2>
   <p style="margin: 8px 0 0;">按平台独立管理采集数据，当前仅展示 {{ current_platform_label }} 数据。</p>
+
+  <div class="source-tabs" style="margin-top:14px;">
+    <div class="source-tab-row">
+      <span class="source-tab-label">平台</span>
+      {% for tab in platform_tabs %}
+        <a class="source-tab{% if tab.key == current_platform %} is-active{% endif %}" href="/notes?platform={{ tab.key }}{% if current_lens %}&lens={{ current_lens|urlencode }}{% endif %}">
+          {{ tab.label }} <span class="source-tab-count">{{ tab.count }}</span>
+        </a>
+      {% endfor %}
+    </div>
+    {% if lens_tabs %}
+    <div class="source-tab-row">
+      <span class="source-tab-label">类目透视</span>
+      <a class="source-tab{% if not current_lens %} is-active{% endif %}" href="/notes?platform={{ current_platform|urlencode }}">全部</a>
+      {% for t in lens_tabs %}
+        <a class="source-tab{% if t.lens_id == current_lens %} is-active{% endif %}" href="/notes?platform={{ current_platform|urlencode }}&lens={{ t.lens_id|urlencode }}">
+          {{ t.category_cn }} <span class="source-tab-count">{{ t.count }}</span>
+        </a>
+      {% endfor %}
+      {% if current_lens %}
+        <a class="source-tab-link" href="/category-lenses/{{ current_lens|urlencode }}">查看类目透视详情 →</a>
+        <a class="source-tab-link" href="/xhs-opportunities?lens={{ current_lens|urlencode }}">查看该类目机会卡 →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
 
   <section class="crawl-card" aria-labelledby="crawl-card-title">
     <div class="crawl-head">
@@ -42,17 +80,17 @@
 
 <div class="notes-layout">
   <aside class="category-nav">
-    <div class="nav-head">按关键词筛选</div>
+    <div class="nav-head">按采集关键词筛选</div>
     <ul class="cat-list">
       <li class="{% if not current_category %}active{% endif %}">
-        <a href="/notes?platform={{ current_platform|urlencode }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+        <a href="/notes?platform={{ current_platform|urlencode }}{% if current_lens %}&lens={{ current_lens|urlencode }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">
           <span class="cat-key">全部</span>
           <span class="cat-count">{{ total_all }}</span>
         </a>
       </li>
       {% for c in categories %}
       <li class="{% if c.key == current_category %}active{% endif %}">
-        <a href="/notes?platform={{ current_platform|urlencode }}&category={{ c.key|urlencode }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+        <a href="/notes?platform={{ current_platform|urlencode }}&category={{ c.key|urlencode }}{% if current_lens %}&lens={{ current_lens|urlencode }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">
           <span class="cat-key" title="{{ c.key }}">{{ c.key }}</span>
           <span class="cat-count">{{ c.count }}</span>
         </a>
@@ -65,11 +103,12 @@
     <form method="get" action="/notes" class="local-search" style="display: flex; gap: 8px;">
       <input type="hidden" name="platform" value="{{ current_platform }}" />
       <input type="hidden" name="category" value="{{ current_category }}" />
+      <input type="hidden" name="lens" value="{{ current_lens }}" />
       <input type="text" name="q" value="{{ q }}" placeholder="在当前分类内按标题/正文过滤…"
         style="flex: 1; padding: 8px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 14px; outline: none;">
       <button type="submit" style="padding: 8px 18px; border: none; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;">搜索</button>
       {% if q %}
-        <a class="pager-btn" href="/notes?platform={{ current_platform|urlencode }}{% if current_category %}&category={{ current_category|urlencode }}{% endif %}" style="padding: 8px 14px;">清除搜索</a>
+        <a class="pager-btn" href="/notes?platform={{ current_platform|urlencode }}{% if current_lens %}&lens={{ current_lens|urlencode }}{% endif %}{% if current_category %}&category={{ current_category|urlencode }}{% endif %}" style="padding: 8px 14px;">清除搜索</a>
       {% endif %}
     </form>
 
@@ -90,8 +129,7 @@
         <a href="/notes/{{ note_id }}?platform={{ current_platform|urlencode }}" class="note-card">
           <div class="note-cover-wrap">
             {% if images %}
-              <img class="note-cover" src="{{ images[0] }}" alt="封面" loading="lazy"
-                   referrerpolicy="no-referrer" crossorigin="anonymous"
+              <img class="note-cover" src="{{ images[0] | proxy_img }}" alt="封面" loading="lazy"
                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
               <div class="note-cover-fallback" style="display:none;">📷 图片无法加载</div>
             {% else %}
@@ -144,7 +182,7 @@
     </div>
 
     {% if total > page_size %}
-      {% set params_suffix %}&platform={{ current_platform|urlencode }}{% if current_category %}&category={{ current_category|urlencode }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% endset %}
+      {% set params_suffix %}&platform={{ current_platform|urlencode }}{% if current_lens %}&lens={{ current_lens|urlencode }}{% endif %}{% if current_category %}&category={{ current_category|urlencode }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% endset %}
       <div style="display: flex; justify-content: center; gap: 12px; margin: 24px 0;">
         {% if page > 1 %}
           <a href="/notes?page={{ page - 1 }}{{ params_suffix }}" class="pager-btn">‹ 上一页</a>
@@ -159,6 +197,126 @@
 </div>
 
 <style>
+  /* 主线 Lane Bar */
+  .lane-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 8px 14px;
+    margin-bottom: 14px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(138,75,47,0.18);
+    border-radius: 14px;
+  }
+  .lane-bar-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .lane-bar-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .lane-bar-steps li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    border-radius: 999px;
+  }
+  .lane-bar-steps li a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .lane-bar-steps li.is-current {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .lane-bar-steps li + li::before {
+    content: "›";
+    color: var(--border);
+    margin-right: 6px;
+    margin-left: -4px;
+  }
+  .lane-bar-steps li.is-current .step-num,
+  .lane-bar-steps li a .step-num,
+  .lane-bar-steps li .step-num {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    text-align: center;
+    font-size: 10px;
+    line-height: 16px;
+    border-radius: 50%;
+    background: rgba(138,75,47,0.2);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .lane-bar-steps li.is-current .step-num { background: #fff; color: var(--accent); }
+
+  /* 素材源 Tab */
+  .source-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .source-tab-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .source-tab-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    margin-right: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .source-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    font-size: 13px;
+    border-radius: 999px;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .source-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .source-tab.is-active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    font-weight: 700;
+  }
+  .source-tab-count {
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(138,75,47,0.12);
+    color: var(--muted);
+  }
+  .source-tab.is-active .source-tab-count { background: rgba(255,255,255,0.2); color: #fff; }
+  .source-tab-link {
+    margin-left: 6px;
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
   /* 采集卡片 */
   .crawl-card {
     margin-top: 16px;

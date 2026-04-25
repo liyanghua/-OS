@@ -141,7 +141,10 @@ class ApiSurfaceTests(unittest.TestCase):
             ready_payload = ready_response.json()
             self.assertEqual(ready_payload["derived_state"], "result_ready")
             self.assertEqual(ready_payload["pipeline"]["status"], "completed")
-            self.assertEqual(ready_payload["actions"]["view_result_url"], "/notes?category=%E6%8A%97%E8%80%81%E7%B2%BE%E5%8D%8E")
+            self.assertEqual(
+                ready_payload["actions"]["view_result_url"],
+                "/notes?platform=xhs&category=%E6%8A%97%E8%80%81%E7%B2%BE%E5%8D%8E",
+            )
 
     def test_crawl_observer_ignores_completed_ready_job_without_target(self) -> None:
         from fastapi.testclient import TestClient
@@ -874,8 +877,9 @@ class ApiSurfaceTests(unittest.TestCase):
 
             dashboard_response = client.get("/")
             self.assertEqual(dashboard_response.status_code, 200)
-            self.assertIn("Opportunity", dashboard_response.text)
-            self.assertIn("evidence", dashboard_response.text.lower())
+            self.assertIn("主线 1 · 内容生产", dashboard_response.text)
+            self.assertIn("主线 2 · 增长实验室", dashboard_response.text)
+            self.assertIn("主线 3 · 套图工作台", dashboard_response.text)
 
     def test_api_filters_tablecloth_entity_and_platform(self) -> None:
         from fastapi.testclient import TestClient
@@ -1002,6 +1006,467 @@ class ApiSurfaceTests(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 422)
+
+
+class VisualBuilderBootstrapTests(unittest.TestCase):
+    """覆盖 /planning/{id}/visual-builder 首屏 bootstrap + 参考图过滤行为。"""
+
+    def _client_with_first_card(self):
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.content_planning.storage.plan_store import ContentPlanStore
+
+        tmp = Path(tempfile.mkdtemp())
+        runtime_path = _write_runtime(tmp)
+        # 使用独立的 ContentPlanStore 避免污染共享的 data/content_plan.sqlite
+        plan_store = ContentPlanStore(tmp / "content_plan.sqlite")
+        client = TestClient(
+            create_app(
+                runtime_path,
+                enable_embedded_crawl_worker=False,
+                content_plan_store=plan_store,
+            )
+        )
+        cards_resp = client.get(
+            "/xhs-opportunities", headers={"accept": "application/json"}
+        )
+        self.assertEqual(cards_resp.status_code, 200)
+        items = cards_resp.json().get("items", [])
+        self.assertTrue(items, "fixture xhs-opportunities should not be empty")
+        opp_id = items[0]["opportunity_id"]
+        return client, opp_id, plan_store
+
+    def test_visual_builder_bootstrap_keys_present(self) -> None:
+        client, opp_id, _ = self._client_with_first_card()
+        resp = client.get(
+            f"/planning/{opp_id}/visual-builder",
+            headers={"accept": "application/json"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertIn("bootstrap", body)
+        bs = body["bootstrap"]
+        for key in (
+            "opportunity_id",
+            "quick_draft",
+            "titles",
+            "body",
+            "image_briefs",
+            "saved_prompts",
+            "initial_prompts",
+            "ref_count",
+            "has_ref_images",
+            "gen_mode_effective",
+            "latest_generated_images",
+        ):
+            self.assertIn(key, bs, f"bootstrap 缺少 {key}")
+
+    def test_visual_builder_filters_example_com_covers(self) -> None:
+        """注入 example.com cover，验证 _persist_source_images 过滤后 ref_count=0。"""
+        client, opp_id, plan_store = self._client_with_first_card()
+        # 注入仅含 example.com 占位 URL 的 source_images
+        plan_store.save_session(opp_id)
+        plan_store.update_field(
+            opp_id,
+            "source_images",
+            [
+                {
+                    "note_id": "fixture1",
+                    "title": "占位笔记",
+                    "cover_image": "https://example.com/cover.jpg",
+                    "image_urls": [
+                        "https://example.com/cover.jpg",
+                        "https://example.com/img2.jpg",
+                    ],
+                    "ref_quality": "unusable_fixture",
+                }
+            ],
+        )
+        resp = client.get(
+            f"/planning/{opp_id}/visual-builder",
+            headers={"accept": "application/json"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        bs = resp.json()["bootstrap"]
+        self.assertEqual(bs["ref_count"], 0, msg=f"bootstrap={bs}")
+        self.assertFalse(bs["has_ref_images"])
+        self.assertEqual(bs["gen_mode_effective"], "prompt_only")
+
+    def test_visual_builder_with_real_cover_keeps_ref_count(self) -> None:
+        """注入一条带真实 cover 的 source_images，应得到 ref_count > 0 且 gen_mode_effective=ref_image。"""
+        client, opp_id, plan_store = self._client_with_first_card()
+        plan_store.save_session(opp_id)
+        plan_store.update_field(
+            opp_id,
+            "source_images",
+            [
+                {
+                    "note_id": "fake1",
+                    "title": "真实笔记",
+                    "cover_image": "https://sns-img-bd.xhscdn.com/abc.jpg",
+                    "image_urls": [
+                        "https://sns-img-bd.xhscdn.com/abc.jpg",
+                        "https://sns-img-bd.xhscdn.com/def.jpg",
+                    ],
+                    "ref_quality": "ok",
+                }
+            ],
+        )
+
+        resp = client.get(
+            f"/planning/{opp_id}/visual-builder",
+            headers={"accept": "application/json"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        bs = resp.json()["bootstrap"]
+        self.assertGreater(bs["ref_count"], 0, msg=f"bootstrap={bs}")
+        self.assertTrue(bs["has_ref_images"])
+        self.assertEqual(bs["gen_mode_effective"], "ref_image")
+
+
+class ImgProxyTests(unittest.TestCase):
+    """覆盖 /img-proxy：白名单准入 + 上游 mock 透传 + 失败占位。"""
+
+    def _make_client(self):
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+
+        tmp = Path(tempfile.mkdtemp())
+        runtime_path = _write_runtime(tmp)
+        return TestClient(
+            create_app(runtime_path, enable_embedded_crawl_worker=False)
+        )
+
+    def test_img_proxy_rejects_non_whitelisted_host(self) -> None:
+        client = self._make_client()
+        resp = client.get("/img-proxy", params={"url": "https://example.com/x.jpg"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_img_proxy_rejects_relative_url(self) -> None:
+        client = self._make_client()
+        resp = client.get("/img-proxy", params={"url": "/source-images/x.jpg"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_img_proxy_streams_whitelisted_xhscdn(self) -> None:
+        client = self._make_client()
+        fake_bytes = b"\x89PNG\r\n\x1a\nfake-image-bytes"
+
+        class _FakeResp:
+            status_code = 200
+            content = fake_bytes
+            headers = {"content-type": "image/png"}
+
+        class _FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, url, headers=None):
+                return _FakeResp()
+
+        with patch("apps.intel_hub.api.app.httpx.AsyncClient", _FakeClient):
+            resp = client.get(
+                "/img-proxy",
+                params={"url": "https://sns-img-bd.xhscdn.com/abc.jpg"},
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.headers.get("content-type"), "image/png")
+        self.assertEqual(resp.content, fake_bytes)
+
+
+class OpportunityAgentRunsTests(unittest.TestCase):
+    """覆盖 4 条新路由 + xhs_opportunities 空态新文案。"""
+
+    def _make_client(self, tmp: Path):
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+
+        runtime_path = _write_runtime(tmp)
+        return TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+
+    def test_xhs_opportunities_empty_state_renders_business_copy_and_drawer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            client = self._make_client(Path(tmpdir))
+            resp = client.get(
+                "/xhs-opportunities",
+                params={"lens": "wig"},
+                headers={"Accept": "text/html"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            text = resp.text
+            self.assertNotIn(
+                "请先运行 <code>python -m apps.intel_hub.workflow.xhs_opportunity_pipeline",
+                text,
+            )
+            self.assertTrue(
+                "立即生成机会卡" in text,
+                "新空态文案应包含「立即生成机会卡」",
+            )
+            self.assertIn("OpportunityAgentRunner", text)
+            self.assertIn("/xhs-opportunities/agent-runs", text)
+
+    def test_no_source_run_emits_failed_with_guide(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            client = self._make_client(Path(tmpdir))
+            # 启动一个 lens=wig 的任务，因 fixtures 中无 wig 笔记应得 no_source
+            resp = client.post(
+                "/xhs-opportunities/agent-runs",
+                json={"lens_id": "wig", "max_notes": 3},
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertIn("task_id", data)
+            self.assertEqual(data["lens_id"], "wig")
+            task_id = data["task_id"]
+
+            # 轮询 snapshot 直到 failed/done
+            ok = _wait_until(
+                lambda: client.get(f"/xhs-opportunities/agent-runs/{task_id}").json().get("status")
+                in {"failed", "done", "cancelled"},
+                timeout=8.0,
+                interval=0.05,
+            )
+            self.assertTrue(ok, "Agent 任务未在超时内进入终态")
+            snap = client.get(f"/xhs-opportunities/agent-runs/{task_id}").json()
+            self.assertEqual(snap["status"], "failed")
+            self.assertIsNotNone(snap.get("error"))
+            self.assertEqual(snap["error"]["error_kind"], "no_source")
+            self.assertIn("/notes?lens=wig", snap["error"]["suggested_url"])
+
+    def test_double_start_returns_409(self) -> None:
+        from apps.intel_hub.services.agent_run_registry import agent_run_registry
+
+        # 清理可能残留的注册表（避免与其他测试串扰）
+        agent_run_registry._tasks.clear()  # type: ignore[attr-defined]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            client = self._make_client(Path(tmpdir))
+            # 先占住一个 lens
+            tid, _ = agent_run_registry.start("wig", lens_label="假发")
+            try:
+                resp = client.post(
+                    "/xhs-opportunities/agent-runs",
+                    json={"lens_id": "wig", "max_notes": 3},
+                )
+                self.assertEqual(resp.status_code, 409)
+            finally:
+                agent_run_registry.mark_cancelled(tid)
+
+    def test_cancel_endpoint_returns_404_for_unknown_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            client = self._make_client(Path(tmpdir))
+            resp = client.post("/xhs-opportunities/agent-runs/__missing__/cancel")
+            self.assertEqual(resp.status_code, 404)
+
+    def test_get_snapshot_returns_404_for_unknown_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            client = self._make_client(Path(tmpdir))
+            resp = client.get("/xhs-opportunities/agent-runs/__missing__")
+            self.assertEqual(resp.status_code, 404)
+
+    def test_start_agent_run_default_max_notes_is_one(self) -> None:
+        """默认请求体只带 lens_id 时，max_notes 应被解析为 1（先跑 1 条预览）。"""
+        from apps.intel_hub.services.agent_run_registry import agent_run_registry
+
+        agent_run_registry._tasks.clear()  # type: ignore[attr-defined]
+
+        captured: dict[str, object] = {}
+
+        class _StubAgent:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            async def run(self) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 注意：create_app 内 `from ... import OpportunityGenAgent`
+            # 会把 class 绑定到 closure 局部变量，因此 patch 必须在
+            # _make_client 之前进入，才能让闭包拿到 stub。
+            with patch(
+                "apps.intel_hub.services.opportunity_gen_agent.OpportunityGenAgent",
+                _StubAgent,
+            ):
+                client = self._make_client(Path(tmpdir))
+                resp = client.post(
+                    "/xhs-opportunities/agent-runs",
+                    json={"lens_id": "wig"},
+                )
+                self.assertEqual(resp.status_code, 200, resp.text)
+                self.assertEqual(captured.get("max_notes"), 1)
+                self.assertEqual(list(captured.get("skip_note_ids") or []), [])
+                self.assertIsNone(captured.get("note_id_filter"))
+
+    def test_start_agent_run_passes_skip_note_ids_to_agent(self) -> None:
+        """skip_note_ids 应被透传到 OpportunityGenAgent，用于增量补跑。"""
+        from apps.intel_hub.services.agent_run_registry import agent_run_registry
+
+        agent_run_registry._tasks.clear()  # type: ignore[attr-defined]
+
+        captured: dict[str, object] = {}
+
+        class _StubAgent:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            async def run(self) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch(
+                "apps.intel_hub.services.opportunity_gen_agent.OpportunityGenAgent",
+                _StubAgent,
+            ):
+                client = self._make_client(Path(tmpdir))
+                resp = client.post(
+                    "/xhs-opportunities/agent-runs",
+                    json={
+                        "lens_id": "wig",
+                        "max_notes": 5,
+                        "skip_note_ids": ["a", "b", "c"],
+                    },
+                )
+                self.assertEqual(resp.status_code, 200, resp.text)
+                self.assertEqual(captured.get("max_notes"), 5)
+                self.assertEqual(list(captured.get("skip_note_ids") or []), ["a", "b", "c"])
+
+    def test_xhs_opportunities_groups_cards_by_source_note(self) -> None:
+        """带 lens 过滤的列表渲染应按 source_note_id 分组、显示 angle chip。"""
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.schemas.evidence import XHSEvidenceRef
+        from apps.intel_hub.schemas.opportunity import XHSOpportunityCard
+        from apps.intel_hub.storage.xhs_review_store import XHSReviewStore
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+
+            # 写 mediacrawler 风格 jsonl，让 _get_notes 能把 note_id -> 标题/封面
+            # join 进 note_groups 元信息（用于断言 "本笔记产出 N 张机会卡"）。
+            jsonl_dir = tmp / "mc_jsonl"
+            jsonl_dir.mkdir()
+            jsonl_dir.joinpath("search_contents_test.jsonl").write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "note_id": "note_shared",
+                                "title": "桌布同源原始笔记",
+                                "desc": "两张机会卡的来源笔记。",
+                                "image_list": "https://sns-img-bd.xhscdn.com/share.jpg",
+                                "source_keyword": "桌布",
+                                "lens_id": "tablecloth",
+                            },
+                            ensure_ascii=False,
+                        ),
+                        json.dumps(
+                            {
+                                "note_id": "note_other",
+                                "title": "另一篇桌布笔记",
+                                "desc": "用于检查跨来源排序。",
+                                "image_list": "https://sns-img-bd.xhscdn.com/other.jpg",
+                                "source_keyword": "桌布",
+                                "lens_id": "tablecloth",
+                            },
+                            ensure_ascii=False,
+                        ),
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            runtime_path = tmp / "runtime.yaml"
+            runtime_path.write_text(
+                "\n".join(
+                    [
+                        f"trendradar_output_dir: {FIXTURE_OUTPUT.as_posix()}",
+                        f"storage_path: {(tmp / 'intel_hub.sqlite').as_posix()}",
+                        "default_page_size: 20",
+                        "fixture_fallback_dir: ''",
+                        "mediacrawler_sources:",
+                        "  - enabled: true",
+                        "    platform: xiaohongshu",
+                        f"    output_path: {jsonl_dir.as_posix()}",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            review_store = XHSReviewStore(tmp / "xhs_review.sqlite")
+
+            cards = [
+                XHSOpportunityCard(
+                    opportunity_id="opp_grp_visual",
+                    title="视觉钩子卡",
+                    summary="同源笔记的视觉角度",
+                    opportunity_type="visual",
+                    content_angle="撞色对比",
+                    source_note_ids=["note_shared"],
+                    evidence_refs=[XHSEvidenceRef(snippet="s1")],
+                    confidence=0.91,
+                    lens_id="tablecloth",
+                ),
+                XHSOpportunityCard(
+                    opportunity_id="opp_grp_demand",
+                    title="需求洞察卡",
+                    summary="同源笔记的需求角度",
+                    opportunity_type="demand",
+                    content_angle="租房党痛点",
+                    source_note_ids=["note_shared"],
+                    evidence_refs=[XHSEvidenceRef(snippet="s2")],
+                    confidence=0.85,
+                    lens_id="tablecloth",
+                ),
+                XHSOpportunityCard(
+                    opportunity_id="opp_grp_other",
+                    title="另一篇笔记的卡",
+                    summary="独立来源",
+                    opportunity_type="visual",
+                    source_note_ids=["note_other"],
+                    evidence_refs=[XHSEvidenceRef(snippet="s3")],
+                    confidence=0.7,
+                    lens_id="tablecloth",
+                ),
+            ]
+            cards_json = tmp / "cards.json"
+            cards_json.write_text(
+                json.dumps([c.model_dump(mode="json") for c in cards], ensure_ascii=False),
+                encoding="utf-8",
+            )
+            review_store.sync_cards_from_json(cards_json)
+
+            client = TestClient(
+                create_app(
+                    runtime_path,
+                    review_store=review_store,
+                    enable_embedded_crawl_worker=False,
+                )
+            )
+            resp = client.get(
+                "/xhs-opportunities",
+                params={"lens": "tablecloth"},
+                headers={"Accept": "text/html"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            text = resp.text
+            self.assertIn("note-group", text, "应渲染 note-group 容器")
+            self.assertIn("本笔记产出 2 张机会卡", text)
+            self.assertIn("angle-chip", text, "应在卡片上渲染角度 chip")
+            self.assertIn("撞色对比", text)
+            self.assertIn("租房党痛点", text)
+            visual_idx = text.find("视觉钩子卡")
+            demand_idx = text.find("需求洞察卡")
+            other_idx = text.find("另一篇笔记的卡")
+            self.assertTrue(0 < visual_idx < other_idx, "同源两张卡应排在另一篇笔记前")
+            self.assertTrue(0 < demand_idx < other_idx, "同源两张卡应排在另一篇笔记前")
 
 
 if __name__ == "__main__":

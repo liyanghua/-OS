@@ -7,6 +7,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from apps.intel_hub.domain.category_lens import (
+    ContentExecutionItem,
+    EvidenceScore,
+    Layer1Signals,
+    ProductMappingItem,
+    RecommendedAction,
+    UserJob,
+)
 from apps.intel_hub.schemas.evidence import XHSEvidenceRef
 
 
@@ -72,3 +80,14 @@ class XHSOpportunityCard(BaseModel):
     supporting_signal_ids: list[str] = Field(default_factory=list)
     benchmark_refs: list[str] = Field(default_factory=list)
     card_status: str = "draft"
+
+    # V2.1 类目透视引擎绑定字段（Phase E+F）
+    lens_id: str | None = None
+    lens_version: str | None = None
+    lens_layer1_signals: Layer1Signals | None = None
+    lens_layer2_ontology: dict | None = None
+    lens_layer3_user_jobs: list[UserJob] = Field(default_factory=list)
+    lens_layer4_product_mapping: list[ProductMappingItem] = Field(default_factory=list)
+    lens_layer5_content_execution: list[ContentExecutionItem] = Field(default_factory=list)
+    lens_evidence_score: EvidenceScore | None = None
+    lens_recommended_action: RecommendedAction | None = None

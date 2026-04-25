@@ -555,15 +555,19 @@
 <body>
 
 <nav class="topnav">
-  <span class="brand">增长实验室</span>
-  <a href="/growth-lab/radar">热点雷达</a>
+  <a href="/" style="font-size:12px;color:#94A3B8;text-decoration:none;margin-right:8px;">← 主线选择</a>
+  <span class="brand">套图工作台</span>
+  <a href="/growth-lab/workspace" class="active">无限画布<span class="beta-tag">主线 3</span></a>
+  <a href="/growth-lab/radar">热点雷达 (主线 2)</a>
   <a href="/growth-lab/compiler">卖点编译器</a>
-  <a href="/growth-lab/workspace" class="active">视觉工作台<span class="beta-tag">NEW</span></a>
-  <a href="/growth-lab/lab">主图(旧)</a>
-  <a href="/growth-lab/first3s">前3秒(旧)</a>
+  <a href="/growth-lab/lab">主图裂变</a>
+  <a href="/growth-lab/first3s">前3秒裂变</a>
   <a href="/growth-lab/board">测试放大板</a>
   <a href="/growth-lab/assets">资产图谱</a>
 </nav>
+
+{% set lane_step = "workspace" %}
+{% include "_lane_bar.html" %}
 
 <div class="workspace">
 

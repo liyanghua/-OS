@@ -313,12 +313,14 @@
   <span class="brand">增长实验室</span>
   <a href="/growth-lab/radar">热点雷达</a>
   <a href="/growth-lab/compiler" class="active">卖点编译器</a>
-  <a href="/growth-lab/workspace">视觉工作台</a>
   <a href="/growth-lab/lab">主图工作台</a>
   <a href="/growth-lab/first3s">前3秒工作台</a>
   <a href="/growth-lab/board">测试放大板</a>
   <a href="/growth-lab/assets">资产图谱</a>
 </nav>
+
+{% set lane_step = "compiler" %}
+{% include "_lane_bar.html" %}
 
 <div class="shell">
   <div class="page-header">
@@ -689,9 +691,8 @@ function renderSpecs() {
       <h4>${specTitle(s)}</h4>
       <div class="meta">人群：${(s.target_people || []).join('、') || '-'}　场景：${(s.target_scenarios || []).join('、') || '-'}</div>
       <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;" onclick="event.stopPropagation()">
-        <a href="/growth-lab/workspace?spec_id=${s.spec_id}" class="btn btn-primary btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">视觉工作台 →</a>
-        <a href="/growth-lab/lab?spec_id=${s.spec_id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">主图(旧) →</a>
-        <a href="/growth-lab/first3s?spec_id=${s.spec_id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">前3秒(旧) →</a>
+        <a href="/growth-lab/lab?spec_id=${s.spec_id}" class="btn btn-primary btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">主图裂变 →</a>
+        <a href="/growth-lab/first3s?spec_id=${s.spec_id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;text-decoration:none;">前3秒裂变 →</a>
       </div>
     </div>`).join('');
 }
@@ -730,9 +731,8 @@ function updateActionLinks() {
   const el = document.getElementById('action-links');
   if (!activeSpecId) { el.innerHTML = ''; return; }
   el.innerHTML = `
-    <a href="/growth-lab/workspace?spec_id=${activeSpecId}" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:11px;">视觉工作台 →</a>
-    <a href="/growth-lab/lab?spec_id=${activeSpecId}" class="btn btn-ghost btn-sm" style="text-decoration:none;font-size:11px;">主图(旧) →</a>
-    <a href="/growth-lab/first3s?spec_id=${activeSpecId}" class="btn btn-ghost btn-sm" style="text-decoration:none;font-size:11px;">前3秒(旧) →</a>
+    <a href="/growth-lab/lab?spec_id=${activeSpecId}" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:11px;">主图裂变 →</a>
+    <a href="/growth-lab/first3s?spec_id=${activeSpecId}" class="btn btn-ghost btn-sm" style="text-decoration:none;font-size:11px;">前3秒裂变 →</a>
   `;
 }
 

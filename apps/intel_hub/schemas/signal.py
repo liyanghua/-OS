@@ -46,3 +46,10 @@ class Signal(BaseModel):
     buying_barrier_refs: list[str] = Field(default_factory=list)
     value_proposition_refs: list[str] = Field(default_factory=list)
     target_roles: list[str] = Field(default_factory=list)
+
+    # V2.1: 类目透视引擎接入点
+    # ``lens_id`` 由 ingestion 阶段根据 keyword 路由填充，
+    # ``business_signals`` 透传 Layer 2 的 BusinessSignalFrame.model_dump()，
+    # 让下游 projector / CategoryLensEngine 可以读取视觉/评论等字段级信号。
+    lens_id: str | None = None
+    business_signals: dict[str, Any] | None = None

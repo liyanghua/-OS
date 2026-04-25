@@ -1,0 +1,346 @@
+lens_id: wig
+category_cn: 假发
+version: "1.0.0"
+core_consumption_logic: 形象变化 + 遮盖痛点 + 信任验证
+keyword_aliases:
+  - 假发
+  - 发片
+  - 头顶发片
+  - 全头套
+  - 补发
+  - 发块
+  - 接发
+  - cos假发
+  - 男士假发
+  - 遮白发
+  - 仿真头皮
+
+primary_user_jobs:
+  - 遮发缝
+  - 增发量
+  - 换发型
+  - 拍照上镜
+  - cosplay造型
+  - 遮白发
+  - 社交自信
+
+key_pain_dimensions:
+  - 自然度
+  - 舒适度
+  - 稳固性
+  - 透气性
+  - 适配脸型
+  - 新手难度
+
+trust_barriers:
+  - 怕一眼假
+  - 怕掉
+  - 怕夏天热
+  - 怕夹子不舒服
+  - 怕近距离看出
+  - 怕头顶反光
+  - 怕不会戴
+  - 怕客服不回
+
+product_feature_taxonomy:
+  - 仿真头皮
+  - 蕾丝边
+  - 递针工艺
+  - 高温丝
+  - 真人发
+  - 透气网帽
+  - 防滑夹
+  - 哑光发丝
+  - 自然发旋
+  - 低密度发量
+
+content_patterns:
+  - 改造前后
+  - 新手避坑
+  - 真实测评
+  - 场景挑战
+  - 风格切换
+  - 近距离验证
+  - 价格带对比
+
+audience_personas:
+  - 发量少女生
+  - 秃顶男性
+  - Coser
+  - 直播主播
+  - 新手党
+  - 产后脱发妈妈
+  - 中年银发族
+
+scene_tasks:
+  - 日常通勤
+  - 约会拍照
+  - 婚礼现场
+  - 线下聚会
+  - 办公室
+  - 直播间
+  - cosplay现场
+
+price_bands:
+  - band: 入门款
+    range_cny: [79, 199]
+    user_mindset: 试水、第一次尝试
+    strategy: 用"低门槛 + 免退顾虑"卖认知
+  - band: 主力款
+    range_cny: [199, 499]
+    user_mindset: 自用、通勤、想要自然
+    strategy: "主打仿真头皮 + 真人近拍证据"
+  - band: 高端款
+    range_cny: [499, 1500]
+    user_mindset: 婚礼、直播、长期用
+    strategy: "主打真人发 + 定制版型 + 持久度"
+
+visual_prompt_hints:
+  focus:
+    - 佩戴前后对比
+    - 头顶发缝可见状态
+    - 近距离自然光验证
+    - 夹子/网帽是否外露
+    - 通勤真人场景
+  risk_flags:
+    - 明显假发边缘
+    - 过度精修/无佩戴真人图
+    - 只拍模特棚图
+    - 头顶反光/发丝僵硬
+  people_state_taxonomy:
+    - 发量少
+    - 发缝宽
+    - 头顶塌
+    - 产后脱发
+    - 中年白发
+    - 男士M型
+  trust_signal_taxonomy:
+    - 近距离头顶特写
+    - 侧面/低头/拨头发测试
+    - 通勤一天后状态
+    - 同事近距离反应
+  content_format_taxonomy:
+    - 改造前后
+    - 新手教程
+    - 真实测评
+    - 场景挑战
+    - 避坑测评
+  sample_strategy:
+    max_images_per_note: 3
+    prefer_cover: true
+    prefer_first_and_last: true
+
+text_lexicons:
+  pain_words:
+    - 发缝宽
+    - 发量少
+    - 头顶塌
+    - 产后脱发
+    - 白发
+    - M型
+    - 秃顶
+    - 稀疏
+    - 地中海
+    - 显老
+  emotion_words:
+    - 救命
+    - 后悔没早买
+    - 太自然了
+    - 真香
+    - 像自己长的
+    - 自信回来了
+    - 瞬间年轻
+    - 妈生感
+  trust_barrier_words:
+    - 怕假
+    - 怕掉
+    - 怕热
+    - 会不会假
+    - 会不会掉
+    - 夏天热不热
+    - 近距离看得出吗
+    - 会反光吗
+    - 夹子疼吗
+  scene_words:
+    通勤:
+      - 通勤
+      - 上班
+      - 地铁
+      - 办公室
+    约会:
+      - 约会
+      - 拍照
+      - 自拍
+    婚礼:
+      - 婚礼
+      - 伴娘
+      - 新娘
+    直播:
+      - 直播
+      - 镜头前
+    cosplay:
+      - cos
+      - cosplay
+      - 二次元
+      - 漫展
+  style_words:
+    妈生感:
+      - 妈生感
+      - 自然长出
+    韩剧:
+      - 韩剧
+      - 韩系
+    港风:
+      - 港风
+      - 港式
+    少女:
+      - 少女
+      - 减龄
+  audience_words:
+    发量少女生:
+      - 发量少
+      - 细软
+      - 发缝宽
+      - 头顶塌
+    秃顶男性:
+      - M型
+      - 秃顶
+      - 地中海
+      - 男士
+    Coser:
+      - cos
+      - cosplay
+      - 漫展
+      - 二次元
+    产后妈妈:
+      - 产后
+      - 宝妈
+      - 哺乳
+    银发族:
+      - 白发
+      - 中年
+      - 阿姨
+  product_feature_words:
+    仿真头皮:
+      - 仿真头皮
+      - 真头皮
+      - 头皮感
+    蕾丝边:
+      - 蕾丝边
+      - lace
+      - 蕾丝网
+    真人发:
+      - 真人发
+      - 真发
+      - 人发
+    高温丝:
+      - 高温丝
+      - 化纤
+    透气网帽:
+      - 透气
+      - 网帽
+      - 不闷
+    防滑夹:
+      - 防滑夹
+      - 夹子
+      - 不滑
+    自然发旋:
+      - 发旋
+      - 旋儿
+    低密度:
+      - 低密度
+      - 薄款
+  content_pattern_words:
+    改造前后:
+      - 前后对比
+      - 改造
+      - 大变样
+      - before
+    新手避坑:
+      - 新手
+      - 避坑
+      - 踩坑
+      - 第一次
+    真实测评:
+      - 测评
+      - 实测
+      - 亲测
+      - 真实
+    场景挑战:
+      - 通勤一天
+      - 挑战
+      - 实穿
+    近距离验证:
+      - 近距离
+      - 特写
+      - 拨头发
+    价格带对比:
+      - "99"
+      - "599"
+      - 价位对比
+      - 差在哪
+  comment_question_words:
+    - 会不会假
+    - 会不会掉
+    - 夏天热不热
+    - 适合头发少吗
+    - 链接在哪
+    - 夹子疼吗
+    - 多久需要护理
+    - 洗了会变形吗
+    - 怎么清洗
+    - 会反光吗
+  comment_trust_barrier_words:
+    - 会不会被看出
+    - 近距离能看出吗
+    - 会不会尴尬
+    - 靠谱吗
+    - 真的吗
+    - 是不是托
+
+user_expression_map:
+  - user_phrase: 想要自然到看不出
+    product_features:
+      - 仿真头皮
+      - 自然发旋
+      - 低密度发量
+      - 哑光发丝
+    proof_shots:
+      - 近距离头顶特写
+      - 自然光正面
+      - 无滤镜侧面
+  - user_phrase: 怕夹子疼、怕不舒服
+    product_features:
+      - 防滑夹
+      - 软夹工艺
+      - 透气网帽
+    proof_shots:
+      - 夹子细节
+      - 佩戴过程
+      - 通勤一天后状态
+  - user_phrase: 夏天不想闷
+    product_features:
+      - 透气网帽
+      - 轻薄透气
+    proof_shots:
+      - 网帽内部
+      - 夏天实拍
+  - user_phrase: 新手不会戴
+    product_features:
+      - 懒人一片式
+      - 扣合教程卡
+    proof_shots:
+      - 佩戴步骤
+      - 新手上手视频
+
+scoring_weights:
+  pain_score: 0.25
+  heat_score: 0.15
+  trust_gap_score: 0.25
+  product_fit_score: 0.20
+  execution_score: 0.10
+  competition_gap_score: 0.05
+  scene_heat_score: 0.00
+  style_trend_score: 0.00
+
+linked_prompt_profile: wig_v1
