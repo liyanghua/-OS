@@ -2,18 +2,18 @@
 
 {% block content %}
 <section class="headline">
-  <div class="meta">视觉策略编译器 · Rule Review</div>
-  <h2 style="margin: 8px 0 4px;">规则审核台</h2>
+  <div class="meta">视觉策略编译器 · 策略评审台</div>
+  <h2 style="margin: 8px 0 4px;">策略评审台 · 由专家把关每一条策略规则</h2>
   <p style="margin: 8px 0 0;">
-    专家 SOP 抽取的 RuleSpec 候选都先进入此处审核：
-    <strong>通过 / 拒绝 / 调整权重 / 修改 must_avoid</strong>。
-    审核通过的规则才会被纳入 RulePack，作为后续策略候选生成的依据。
+    从行业 Know-how 文档提炼出来的候选 <strong>策略规则</strong> 都先进入此处评审：
+    <strong>通过 / 拒绝 / 标记待修改 / 微调权重</strong>。
+    通过的规则才会被纳入 <strong>行业策略库</strong>，作为后续策划与生图的策略候选生成依据。
   </p>
 </section>
 
 <section class="card" style="margin-bottom: 16px;">
   <form method="get" action="/content-planning/visual-strategy/rule-review" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;">
-    <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);">类目
+    <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);">行业（类目）
       <input type="text" name="category" value="{{ filter_category or '' }}" placeholder="children_desk_mat"
         style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; min-width:180px;" />
     </label>
@@ -25,12 +25,12 @@
         {% endfor %}
       </select>
     </label>
-    <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);">审核状态
+    <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);">评审状态
       <select name="review_status" style="padding:6px 10px; border:1px solid var(--border); border-radius:8px;">
         <option value="">全部</option>
-        <option value="draft" {% if filter_status == 'draft' %}selected{% endif %}>草稿待审</option>
+        <option value="draft" {% if filter_status == 'draft' %}selected{% endif %}>待评审</option>
         <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>已通过</option>
-        <option value="needs_edit" {% if filter_status == 'needs_edit' %}selected{% endif %}>需修改</option>
+        <option value="needs_edit" {% if filter_status == 'needs_edit' %}selected{% endif %}>待修改</option>
         <option value="rejected" {% if filter_status == 'rejected' %}selected{% endif %}>已拒绝</option>
       </select>
     </label>
@@ -38,22 +38,24 @@
       style="background:var(--accent); color:#fff; border:none; padding:8px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
       筛选
     </button>
+    <a href="/expert-strategy-workbench"
+      style="margin-left:auto; color:var(--muted); font-size:12px; text-decoration:none; align-self:center;">← 返回专家策略工作台</a>
   </form>
 
   <div style="margin-top:12px; display:flex; gap:14px; font-size:13px; color:var(--muted);">
     <span>共 <strong style="color:var(--ink);">{{ rules|length }}</strong> 条</span>
-    <span>· 待审 <strong style="color:var(--ink);">{{ stats.draft }}</strong></span>
+    <span>· 待评审 <strong style="color:var(--ink);">{{ stats.draft }}</strong></span>
     <span>· 已通过 <strong style="color:var(--ink);">{{ stats.approved }}</strong></span>
-    <span>· 需修改 <strong style="color:var(--ink);">{{ stats.needs_edit }}</strong></span>
+    <span>· 待修改 <strong style="color:var(--ink);">{{ stats.needs_edit }}</strong></span>
     <span>· 已拒绝 <strong style="color:var(--ink);">{{ stats.rejected }}</strong></span>
   </div>
 </section>
 
 {% if not rules %}
 <div class="empty">
-  当前筛选条件下没有规则。请先在
-  <a href="/content-planning/visual-strategy/rulepacks">RulePack 管理页</a>
-  导入 SOP 并执行抽取，或调整筛选条件。
+  当前筛选条件下没有策略规则。请先回到
+  <a href="/expert-strategy-workbench">专家策略工作台</a>
+  导入行业 Know-how 并执行提炼，或调整筛选条件。
 </div>
 {% endif %}
 
@@ -148,7 +150,7 @@ document.querySelectorAll(".btn-approve").forEach((btn) => {
 });
 document.querySelectorAll(".btn-reject").forEach((btn) => {
   btn.addEventListener("click", () => {
-    if (!confirm("确定拒绝该规则？拒绝后不会进入 RulePack。")) return;
+    if (!confirm("确定拒绝该策略规则？拒绝后不会被纳入行业策略库。")) return;
     callReview(btn.dataset.rule, "reject", { reviewer: "current_user" });
   });
 });

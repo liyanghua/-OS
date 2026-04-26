@@ -463,7 +463,10 @@ def create_app(
 
         if base_job.status == "running":
             freshness_anchor = crawl_updated_at or heartbeat_at or _parse_iso(base_job.started_at)
-            if freshness_anchor and (now - freshness_anchor).total_seconds() >= 20:
+            # 评论爬取阶段单条笔记可能耗时数分钟，按 phase 分级阈值，避免误判 stalled
+            phase = (crawl.get("phase") or "").strip()
+            stale_threshold = 300 if phase == "crawling_comments" else 20
+            if freshness_anchor and (now - freshness_anchor).total_seconds() >= stale_threshold:
                 return "stalled", "status_stale"
             return "crawling", ""
 
@@ -515,6 +518,10 @@ def create_app(
                 "avg_note_delay_seconds": crawl.get("avg_note_delay_seconds", 0),
                 "updated_at": crawl.get("updated_at", ""),
                 "errors": crawl.get("errors", []),
+                "phase": crawl.get("phase", ""),
+                "comment_notes_total": crawl.get("comment_notes_total", 0),
+                "comment_notes_done": crawl.get("comment_notes_done", 0),
+                "current_comment_note_id": crawl.get("current_comment_note_id", ""),
             },
             "pipeline": pipeline,
             "derived_state": derived_state,
@@ -858,6 +865,14 @@ def create_app(
                 "xhs_cards_total": xhs_cards_total,
                 "promoted_total": promoted_total,
             },
+        )
+
+    @app.get("/expert-strategy-workbench", response_class=HTMLResponse)
+    async def expert_strategy_workbench(request: Request) -> HTMLResponse:
+        """专家策略工作台：行业 Know-how 导入 → 策略规则提炼/评审 → 行业策略库发布。"""
+        return _render(
+            "expert_strategy_workbench.html",
+            {"request": request},
         )
 
     @app.get("/signals")
@@ -1941,6 +1956,86 @@ def create_app(
         send_to_workbench_handler=_vs_send_to_workbench_handler,
     )
     app.include_router(visual_strategy_router)
+
+    # ── 视觉策略编译器：HTML 控制台路由 ─────────────────────────
+    # 与 visual_strategy_router 暴露的 JSON 端点共用同一个 RuleStore，
+    # 这里只挂可访问的 HTML 页面（评审台 / 行业策略库管理）。
+    _SUPPORTED_REVIEW_STATUSES = {"draft", "approved", "needs_edit", "rejected"}
+
+    @app.get("/content-planning/visual-strategy/rule-review", response_class=HTMLResponse)
+    async def rule_review_console_html(
+        request: Request,
+        category: str = "",
+        dimension: str = "",
+        review_status: str = "",
+    ) -> HTMLResponse:
+        """策略评审台：从 RuleStore 预读规则列表。"""
+        category_q = (category or "").strip()
+        dimension_q = (dimension or "").strip()
+        status_q = (review_status or "").strip()
+        if status_q and status_q not in _SUPPORTED_REVIEW_STATUSES:
+            status_q = ""
+
+        rules = _vs_rule_store.list_rule_specs(
+            category=category_q or None,
+            dimension=dimension_q or None,
+            review_status=status_q or None,
+            limit=500,
+        )
+
+        all_for_stats = (
+            _vs_rule_store.list_rule_specs(
+                category=category_q or None,
+                dimension=dimension_q or None,
+                limit=2000,
+            )
+            if (category_q or dimension_q)
+            else _vs_rule_store.list_rule_specs(limit=2000)
+        )
+        stats = {"draft": 0, "approved": 0, "needs_edit": 0, "rejected": 0}
+        dimensions: set[str] = set()
+        for r in all_for_stats:
+            dim = r.get("dimension")
+            if dim:
+                dimensions.add(dim)
+            st = (r.get("review") or {}).get("status") or "draft"
+            if st in stats:
+                stats[st] += 1
+
+        return _render(
+            "rule_review.html",
+            {
+                "request": request,
+                "rules": rules,
+                "stats": stats,
+                "dimensions": sorted(dimensions),
+                "filter_category": category_q,
+                "filter_dimension": dimension_q,
+                "filter_status": status_q,
+            },
+        )
+
+    @app.get("/content-planning/visual-strategy/rulepacks-console", response_class=HTMLResponse)
+    async def rulepacks_console_html(
+        request: Request,
+        category: str = "",
+    ) -> HTMLResponse:
+        """行业策略库管理：列出该类目所有 RulePack 版本。
+
+        路径用 ``/rulepacks-console`` 而不是 ``/rulepacks/console``，避免
+        与 visual_strategy_router 已注册的 ``GET /rulepacks/{rule_pack_id}``
+        路由模板冲突（"console" 会被当作 rule_pack_id 命中 404）。
+        """
+        category_q = (category or "").strip()
+        rule_packs = _vs_rule_store.list_rule_packs(category=category_q or None)
+        return _render(
+            "rulepacks.html",
+            {
+                "request": request,
+                "rule_packs": rule_packs,
+                "filter_category": category_q,
+            },
+        )
 
     # ── growth_lab 路由挂载（裂变系统） ─────────────────────────
     from apps.growth_lab.api.routes import router as growth_lab_router

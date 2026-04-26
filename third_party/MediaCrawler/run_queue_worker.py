@@ -32,6 +32,24 @@ def _status_path_for_platform(platform: str) -> str:
     return str(base.with_name(f"{base.stem}_{normalized}{base.suffix or '.json'}"))
 
 
+async def _heartbeat_loop(
+    queue: FileJobQueue,
+    jobs: list[CrawlJob],
+    interval: float = 10.0,
+) -> None:
+    """每 interval 秒为所有 in-flight job 刷新 last_heartbeat_at，避免观察窗误判 stalled。"""
+    while True:
+        for j in jobs:
+            try:
+                queue.touch_heartbeat(j.job_id)
+            except Exception as ex:
+                print(f"[heartbeat] touch_heartbeat({j.job_id}) failed: {ex}")
+        try:
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            break
+
+
 async def worker_main() -> None:
     queue = FileJobQueue(QUEUE_PATH)
     alert_mgr = AlertManager(str(REPO_ROOT / "data" / "alerts.json"))
@@ -77,6 +95,8 @@ async def worker_main() -> None:
     )
     set_crawl_reporter(reporter)
 
+    heartbeat_task = asyncio.create_task(_heartbeat_loop(queue, jobs_to_process))
+
     try:
         await mc_main()
         reporter.crawl_finished("completed")
@@ -92,6 +112,12 @@ async def worker_main() -> None:
             queue.fail(job.job_id, str(ex))
         alert_mgr.emit_crawl_failure("batch", str(ex))
         print(f"\n✗ 批量任务失败: {ex}")
+    finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
     # Show final stats
     final = queue.stats()

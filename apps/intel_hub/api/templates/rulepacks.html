@@ -2,47 +2,49 @@
 
 {% block content %}
 <section class="headline">
-  <div class="meta">视觉策略编译器 · RulePack</div>
-  <h2 style="margin: 8px 0 4px;">RulePack 管理</h2>
+  <div class="meta">视觉策略编译器 · 行业策略库</div>
+  <h2 style="margin: 8px 0 4px;">行业策略库管理 · 版本化的可复用类目知识</h2>
   <p style="margin: 8px 0 0;">
-    类目级规则包：从已审核通过的 RuleSpec 聚合发布。每个类目同一时间只允许一个 active 包驱动策略候选生成。
+    类目级 <strong>行业策略库</strong>：从已通过的策略规则聚合发布。同一行业同一时刻只允许一个 active 版本驱动后续策划与生图。
   </p>
 </section>
 
 <section class="card" style="margin-bottom: 16px;">
   <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
-    <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);">类目（slug）
-      <input type="text" id="import-category" value="children_desk_mat" placeholder="children_desk_mat"
+    <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);">行业（slug）
+      <input type="text" id="import-category" value="{{ filter_category or 'children_desk_mat' }}" placeholder="children_desk_mat"
         style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; min-width:200px;" />
     </label>
     <button id="btn-import-sop"
       style="background:var(--accent); color:#fff; border:none; padding:9px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
-      1. 导入 SOP
+      1. 导入行业 Know-how
     </button>
     <button id="btn-extract-rules"
       style="background:#fff; color:var(--accent); border:1px solid var(--accent); padding:9px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
-      2. 抽取 RuleSpec
+      2. 提炼策略规则
     </button>
     <a id="btn-go-review" href="#" target="_blank"
       style="background:#fff; color:var(--accent); border:1px solid var(--accent); padding:9px 18px; border-radius:8px; font-weight:600; text-decoration:none;">
-      3. 去审核台
+      3. 进入策略评审台
     </a>
     <button id="btn-build-pack"
       style="background:#2d8a4e; color:#fff; border:none; padding:9px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
-      4. 构建 RulePack
+      4. 发布行业策略库
     </button>
+    <a href="/expert-strategy-workbench"
+      style="margin-left:auto; color:var(--muted); font-size:12px; text-decoration:none;">← 返回专家策略工作台</a>
   </div>
   <div id="op-feedback" style="margin-top:10px; font-size:12px; color:var(--muted);"></div>
 </section>
 
 <div class="section-title">
-  <h3 style="margin: 0;">已发布 RulePack</h3>
+  <h3 style="margin: 0;">已发布行业策略库</h3>
   <span class="meta">{{ rule_packs|length }} 个版本</span>
 </div>
 
 {% if not rule_packs %}
 <div class="empty">
-  暂无 RulePack。请先按上方流程：导入 SOP → 抽取 RuleSpec → 在审核台通过 ≥ 30 条 → 构建 RulePack。
+  暂无行业策略库。请先按上方流程：导入行业 Know-how → 提炼策略规则 → 在策略评审台通过若干条 → 发布行业策略库。
 </div>
 {% endif %}
 
@@ -71,7 +73,7 @@
 
     <div style="margin-top:12px; display:grid; grid-template-columns: repeat(3, 1fr); gap:14px;">
       <div>
-        <div class="meta">规则数 (approved/total)</div>
+        <div class="meta">策略规则（已通过 / 总数）</div>
         <div style="font-size:18px; font-weight:700;">
           {{ pack.metrics.approved_rule_count }} / {{ pack.metrics.rule_count }}
         </div>
@@ -81,14 +83,14 @@
         <div style="font-size:18px; font-weight:700;">{{ '%.0f'|format(pack.metrics.avg_confidence * 100) }}%</div>
       </div>
       <div>
-        <div class="meta">Archetype 数量</div>
+        <div class="meta">策略原型 (Archetype) 数量</div>
         <div style="font-size:18px; font-weight:700;">{{ pack.default_strategy_archetypes|length }}</div>
       </div>
     </div>
 
     {% if pack.default_strategy_archetypes %}
     <details>
-      <summary>查看 archetype 列表</summary>
+      <summary>查看策略原型列表</summary>
       <div class="chips" style="margin-top:8px;">
         {% for arche in pack.default_strategy_archetypes %}
         <span class="chip">{{ arche.slug }} · {{ arche.name }}</span>
@@ -109,8 +111,8 @@ function setStatus(msg, ok) {
 
 document.getElementById("btn-import-sop").addEventListener("click", async () => {
   const category = document.getElementById("import-category").value.trim();
-  if (!category) return alert("请填写类目 slug");
-  setStatus("正在导入 SOP MD ...", null);
+  if (!category) return alert("请填写行业 slug");
+  setStatus("正在导入行业 Know-how 文档 ...", null);
   try {
     const res = await fetch("/content-planning/visual-strategy/source-documents/import", {
       method: "POST",
@@ -119,7 +121,8 @@ document.getElementById("btn-import-sop").addEventListener("click", async () => 
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "导入失败");
-    setStatus(`导入成功：${data.documents.length} 个 MD 文件`, true);
+    const importedCount = (data.documents || []).length || data.imported || 0;
+    setStatus(`导入成功：${importedCount} 份行业 Know-how 文档已建档`, true);
   } catch (err) {
     setStatus("导入失败：" + err.message, false);
   }
@@ -127,8 +130,8 @@ document.getElementById("btn-import-sop").addEventListener("click", async () => 
 
 document.getElementById("btn-extract-rules").addEventListener("click", async () => {
   const category = document.getElementById("import-category").value.trim();
-  if (!category) return alert("请填写类目 slug");
-  setStatus("正在抽取 RuleSpec（首次会调用 LLM 长句增强，时间较长）...", null);
+  if (!category) return alert("请填写行业 slug");
+  setStatus("正在提炼策略规则（首次会调用 LLM 长句增强，时间较长）...", null);
   try {
     const res = await fetch("/content-planning/visual-strategy/rules/extract", {
       method: "POST",
@@ -136,10 +139,10 @@ document.getElementById("btn-extract-rules").addEventListener("click", async () 
       body: JSON.stringify({ category }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "抽取失败");
-    setStatus(`抽取成功：共 ${data.rule_count} 条 RuleSpec 候选已写入审核台`, true);
+    if (!res.ok) throw new Error(data.detail || "提炼失败");
+    setStatus(`提炼成功：共 ${data.extracted || 0} 条候选策略规则已写入评审台`, true);
   } catch (err) {
-    setStatus("抽取失败：" + err.message, false);
+    setStatus("提炼失败：" + err.message, false);
   }
 });
 
@@ -150,9 +153,9 @@ document.getElementById("btn-go-review").addEventListener("click", (e) => {
 
 document.getElementById("btn-build-pack").addEventListener("click", async () => {
   const category = document.getElementById("import-category").value.trim();
-  if (!category) return alert("请填写类目 slug");
-  if (!confirm(`将基于 ${category} 当前 approved 的 RuleSpec 构建并激活新版 RulePack。继续？`)) return;
-  setStatus("正在构建 RulePack ...", null);
+  if (!category) return alert("请填写行业 slug");
+  if (!confirm(`将基于「${category}」当前已通过的策略规则，发布并激活新版本行业策略库。继续？`)) return;
+  setStatus("正在发布行业策略库 ...", null);
   try {
     const res = await fetch("/content-planning/visual-strategy/rulepacks/build", {
       method: "POST",
@@ -160,11 +163,11 @@ document.getElementById("btn-build-pack").addEventListener("click", async () => 
       body: JSON.stringify({ category }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "构建失败");
-    setStatus(`构建成功：${data.rule_pack.name}`, true);
+    if (!res.ok) throw new Error(data.detail || "发布失败");
+    setStatus(`发布成功：${data.name || data.version || "新版本"}`, true);
     setTimeout(() => location.reload(), 600);
   } catch (err) {
-    setStatus("构建失败：" + err.message, false);
+    setStatus("发布失败：" + err.message, false);
   }
 });
 </script>

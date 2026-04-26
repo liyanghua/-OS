@@ -1,0 +1,638 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .esw-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .esw-headline-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .esw-cat-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+  .esw-cat-bar label {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .esw-cat-bar select {
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    min-width: 240px;
+    background: #fff;
+    font-family: inherit;
+  }
+  .esw-cat-bar .esw-status {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .esw-cat-bar .esw-status strong { color: var(--ink); }
+
+  .esw-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+    gap: 16px;
+  }
+  .esw-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 22px 22px 18px;
+    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+    min-height: 280px;
+  }
+  .esw-step::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 4px;
+    background: var(--step-color, var(--accent));
+  }
+  .esw-step.s1 { --step-color: #d97706; }
+  .esw-step.s2 { --step-color: #7c3aed; }
+  .esw-step.s3 { --step-color: #2d8a4e; }
+
+  .esw-step-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--step-color, var(--accent));
+    background: color-mix(in srgb, var(--step-color, var(--accent)) 12%, transparent);
+    padding: 4px 10px;
+    border-radius: 999px;
+    align-self: flex-start;
+  }
+  .esw-step h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--ink);
+  }
+  .esw-step p.desc {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+  .esw-step .progress {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  .esw-step .progress small {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 2px;
+  }
+  .esw-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .esw-btn {
+    padding: 9px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    border: 1px solid transparent;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: filter .15s, opacity .15s;
+  }
+  .esw-btn[disabled] { opacity: .55; cursor: not-allowed; }
+  .esw-btn:hover:not([disabled]) { filter: brightness(0.95); }
+  .esw-btn-primary {
+    background: var(--step-color, var(--accent));
+    color: #fff;
+  }
+  .esw-btn-secondary {
+    background: #fff;
+    color: var(--step-color, var(--accent));
+    border-color: var(--step-color, var(--accent));
+  }
+  .esw-btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border-color: var(--border);
+  }
+
+  .esw-form-inline {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 8px 12px;
+    margin-top: 8px;
+    align-items: center;
+  }
+  .esw-form-inline label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .esw-form-inline input[type="text"],
+  .esw-form-inline textarea {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    background: #fff;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .esw-form-inline textarea { min-height: 50px; resize: vertical; }
+  .esw-form-inline .row-full { grid-column: 1 / span 2; }
+
+  .esw-toast {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.6;
+    background: color-mix(in srgb, var(--step-color, var(--accent)) 8%, transparent);
+    color: color-mix(in srgb, var(--step-color, var(--accent)) 70%, var(--ink) 30%);
+    display: none;
+    word-break: break-word;
+  }
+  .esw-toast.show { display: block; }
+  .esw-toast.err {
+    background: rgba(180,68,68,0.08);
+    color: #b44;
+  }
+
+  .esw-history {
+    margin-top: 4px;
+  }
+  .esw-history table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .esw-history th, .esw-history td {
+    text-align: left;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .esw-history th {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    background: rgba(0,0,0,0.02);
+  }
+  .esw-history td.version { font-weight: 700; color: var(--ink); }
+  .esw-history .pill {
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .esw-history .pill-active { background: #2d8a4e; color: #fff; }
+  .esw-history .pill-archived { background: #999; color: #fff; }
+  .esw-history .pill-draft { background: var(--border); color: var(--muted); }
+</style>
+
+<section class="headline">
+  <div class="meta">视觉策略编译器 · 行业 Know-how 沉淀</div>
+  <h2 style="margin: 8px 0 4px;">专家策略工作台</h2>
+  <p style="margin: 8px 0 0;">
+    把行业 Know-how 文档编译成可执行、可沉淀的策略规则与策略库。三步走：
+    <strong>导入行业 Know-how → 提炼并评审策略规则 → 沉淀为行业策略库</strong>，
+    通过的规则会进入后续策划与生图链路，作为该行业的视觉策略候选生成依据。
+  </p>
+</section>
+
+<div class="esw-shell">
+  <section class="esw-cat-bar">
+    <label for="esw-category">选择行业（类目）</label>
+    <select id="esw-category" aria-label="行业 / 类目"></select>
+    <button class="esw-btn esw-btn-ghost" id="esw-refresh">刷新进度</button>
+    <span class="esw-status" id="esw-cat-summary">正在加载行业候选 ...</span>
+  </section>
+
+  <div class="esw-grid">
+    <!-- 步骤一 -->
+    <section class="esw-step s1" data-step="1">
+      <span class="esw-step-tag">步骤一 · 沉淀原料</span>
+      <h3>导入行业 Know-how</h3>
+      <p class="desc">扫描 <code>assets/SOP/&lt;行业&gt;/</code> 下的专家文档，建档为可追溯来源。后续抽取出的每条策略规则，都能回链到具体段落。</p>
+      <div class="esw-actions">
+        <button class="esw-btn esw-btn-primary" id="esw-btn-import-extract">一键导入并提炼</button>
+        <button class="esw-btn esw-btn-secondary" id="esw-btn-import-only">仅导入</button>
+        <button class="esw-btn esw-btn-secondary" id="esw-btn-extract-only">仅重新提炼</button>
+      </div>
+      <div class="esw-toast" id="esw-toast-1"></div>
+      <div class="progress" id="esw-progress-1">
+        <strong>—</strong>
+        <small>选择行业后展示已建档的来源数量与未提炼条目情况</small>
+      </div>
+    </section>
+
+    <!-- 步骤二 -->
+    <section class="esw-step s2" data-step="2">
+      <span class="esw-step-tag">步骤二 · 专家把关</span>
+      <h3>提炼并评审策略规则</h3>
+      <p class="desc">机器从来源文档中自动提炼候选策略规则，专家在评审台逐条决定 <strong>通过 / 改写 / 拒绝</strong>，并可微调权重。</p>
+      <div class="esw-actions">
+        <a class="esw-btn esw-btn-primary" id="esw-btn-go-review" href="#">进入策略评审台</a>
+      </div>
+      <div class="esw-toast" id="esw-toast-2"></div>
+      <div class="progress" id="esw-progress-2">
+        <strong>—</strong>
+        <small>选择行业后展示候选条目总数、待评审、已通过、已拒绝</small>
+      </div>
+    </section>
+
+    <!-- 步骤三 -->
+    <section class="esw-step s3" data-step="3">
+      <span class="esw-step-tag">步骤三 · 复用资产</span>
+      <h3>沉淀为行业策略库</h3>
+      <p class="desc">把通过的策略规则封装成版本化的 <strong>行业策略库</strong>，供策划台与无限画布在生图时引用。</p>
+
+      <div class="esw-form-inline">
+        <label for="esw-pack-version">版本号</label>
+        <input type="text" id="esw-pack-version" placeholder="留空自动取 v{N+1}" />
+        <label for="esw-pack-desc">备注</label>
+        <textarea id="esw-pack-desc" placeholder="比如：补充 Q2 拍摄风格修订"></textarea>
+        <div class="row-full">
+          <label style="display:inline-flex; align-items:center; gap:6px; font-size:12px;">
+            <input type="checkbox" id="esw-pack-activate" checked />
+            <span>发布即激活（自动归档历史版本）</span>
+          </label>
+        </div>
+      </div>
+      <div class="esw-actions">
+        <button class="esw-btn esw-btn-primary" id="esw-btn-publish">发布新版本策略库</button>
+        <a class="esw-btn esw-btn-secondary" id="esw-btn-go-console" href="#">进入策略库管理</a>
+      </div>
+      <div class="esw-toast" id="esw-toast-3"></div>
+      <div class="progress" id="esw-progress-3">
+        <strong>—</strong>
+        <small>选择行业后展示已发布版本数与当前激活版本</small>
+      </div>
+    </section>
+  </div>
+
+  <section class="card esw-history">
+    <div class="section-title" style="margin: 0 0 12px;">
+      <h3 style="margin: 0; font-size: 16px;">历史版本（行业策略库）</h3>
+      <span class="meta" id="esw-history-count">—</span>
+    </div>
+    <div id="esw-history-empty" class="empty" style="display:none;">
+      该行业还没有发布过策略库，完成步骤二的评审后，到步骤三发布第一版。
+    </div>
+    <div id="esw-history-table-wrap" style="display:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>版本</th>
+            <th>名称</th>
+            <th>状态</th>
+            <th>规则数（通过/总）</th>
+            <th>覆盖维度</th>
+            <th>Archetype</th>
+            <th>更新时间</th>
+          </tr>
+        </thead>
+        <tbody id="esw-history-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const VS_PREFIX = "/content-planning/visual-strategy";
+
+  const els = {
+    cat: document.getElementById("esw-category"),
+    catSummary: document.getElementById("esw-cat-summary"),
+    btnImportExtract: document.getElementById("esw-btn-import-extract"),
+    btnImportOnly: document.getElementById("esw-btn-import-only"),
+    btnExtractOnly: document.getElementById("esw-btn-extract-only"),
+    btnRefresh: document.getElementById("esw-refresh"),
+    btnGoReview: document.getElementById("esw-btn-go-review"),
+    btnGoConsole: document.getElementById("esw-btn-go-console"),
+    btnPublish: document.getElementById("esw-btn-publish"),
+    packVersion: document.getElementById("esw-pack-version"),
+    packDesc: document.getElementById("esw-pack-desc"),
+    packActivate: document.getElementById("esw-pack-activate"),
+    progress1: document.getElementById("esw-progress-1"),
+    progress2: document.getElementById("esw-progress-2"),
+    progress3: document.getElementById("esw-progress-3"),
+    toast1: document.getElementById("esw-toast-1"),
+    toast2: document.getElementById("esw-toast-2"),
+    toast3: document.getElementById("esw-toast-3"),
+    historyTbody: document.getElementById("esw-history-tbody"),
+    historyCount: document.getElementById("esw-history-count"),
+    historyEmpty: document.getElementById("esw-history-empty"),
+    historyWrap: document.getElementById("esw-history-table-wrap"),
+  };
+
+  let sopSources = [];
+  let activeCategory = "";
+
+  function showToast(el, text, ok) {
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle("err", ok === false);
+    el.classList.add("show");
+  }
+  function clearToast(el) {
+    if (!el) return;
+    el.classList.remove("show");
+    el.textContent = "";
+  }
+  function setBusy(btn, busy, busyText) {
+    if (!btn) return;
+    if (busy) {
+      btn.dataset._origText = btn.textContent;
+      btn.textContent = busyText || "处理中…";
+      btn.setAttribute("disabled", "true");
+    } else {
+      if (btn.dataset._origText) btn.textContent = btn.dataset._origText;
+      btn.removeAttribute("disabled");
+    }
+  }
+
+  async function fetchJSON(url, opts) {
+    const res = await fetch(url, opts);
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) {
+      const detail = data && (data.detail || data.error || data.message);
+      throw new Error(detail || ("HTTP " + res.status));
+    }
+    return data;
+  }
+
+  async function loadSopSources() {
+    try {
+      const data = await fetchJSON(VS_PREFIX + "/sop-sources");
+      sopSources = data.items || [];
+    } catch (e) {
+      sopSources = [];
+      els.catSummary.textContent = "行业候选加载失败：" + e.message;
+      return;
+    }
+    const opts = sopSources.map(function (it) {
+      const slug = it.slug || it.display_name;
+      const display = (it.display_name && it.display_name !== slug)
+        ? (it.display_name + "（" + slug + "）")
+        : slug;
+      return '<option value="' + slug + '">' + display + "</option>";
+    }).join("");
+    els.cat.innerHTML = opts || '<option value="">未发现 assets/SOP/ 子目录</option>';
+    if (sopSources.length) {
+      activeCategory = sopSources[0].slug;
+      els.cat.value = activeCategory;
+    }
+    els.catSummary.textContent = "共发现 " + sopSources.length + " 个行业";
+  }
+
+  async function refreshCategoryStats() {
+    if (!activeCategory) return;
+    updateNavLinks();
+
+    try {
+      const [docs, ruleAll, ruleDraft, ruleApproved, ruleRejected, ruleNeeds, packs] = await Promise.all([
+        fetchJSON(VS_PREFIX + "/source-documents?category=" + encodeURIComponent(activeCategory)).catch(function () { return { count: 0 }; }),
+        fetchJSON(VS_PREFIX + "/rules?category=" + encodeURIComponent(activeCategory) + "&limit=1000").catch(function () { return { count: 0 }; }),
+        fetchJSON(VS_PREFIX + "/rules?category=" + encodeURIComponent(activeCategory) + "&review_status=draft&limit=1000").catch(function () { return { count: 0 }; }),
+        fetchJSON(VS_PREFIX + "/rules?category=" + encodeURIComponent(activeCategory) + "&review_status=approved&limit=1000").catch(function () { return { count: 0 }; }),
+        fetchJSON(VS_PREFIX + "/rules?category=" + encodeURIComponent(activeCategory) + "&review_status=rejected&limit=1000").catch(function () { return { count: 0 }; }),
+        fetchJSON(VS_PREFIX + "/rules?category=" + encodeURIComponent(activeCategory) + "&review_status=needs_edit&limit=1000").catch(function () { return { count: 0 }; }),
+        fetchJSON(VS_PREFIX + "/rulepacks?category=" + encodeURIComponent(activeCategory)).catch(function () { return { count: 0, rulepacks: [] }; }),
+      ]);
+
+      const docsCount = docs.count || (docs.documents && docs.documents.length) || 0;
+      const totalRules = ruleAll.count || 0;
+      const draftCount = ruleDraft.count || 0;
+      const approvedCount = ruleApproved.count || 0;
+      const rejectedCount = ruleRejected.count || 0;
+      const needsCount = ruleNeeds.count || 0;
+      const packList = packs.rulepacks || [];
+      const activePack = packList.find(function (p) { return p.status === "active"; });
+
+      // 进度文案
+      els.progress1.innerHTML =
+        '<strong>已建档 ' + docsCount + ' 份行业 Know-how 文档</strong>' +
+        '<small>' + (docsCount === 0
+          ? '该行业暂未导入。点击右上角"一键导入并提炼"开始'
+          : ('共提炼 ' + totalRules + ' 条候选策略规则' + (totalRules === 0 ? '；建议执行"仅重新提炼"' : ''))) +
+        '</small>';
+
+      els.progress2.innerHTML =
+        '<strong>共 ' + totalRules + ' 条候选策略规则</strong>' +
+        '<small>待评审 ' + draftCount + ' / 已通过 ' + approvedCount + ' / 待修改 ' + needsCount + ' / 已拒绝 ' + rejectedCount + '</small>';
+
+      const versionsLine = packList.length === 0
+        ? '该行业还没有发布过策略库'
+        : ('共 ' + packList.length + ' 个版本' + (activePack ? '，当前激活：' + activePack.version : '，暂无激活版本'));
+      els.progress3.innerHTML =
+        '<strong>' + (activePack ? '当前激活：' + activePack.version : '尚未发布') + '</strong>' +
+        '<small>' + versionsLine + '</small>';
+
+      els.catSummary.innerHTML =
+        '行业 <strong>' + activeCategory + '</strong> · ' +
+        '来源 <strong>' + docsCount + '</strong> · ' +
+        '候选 <strong>' + totalRules + '</strong>（待审 ' + draftCount + '）· ' +
+        '策略库 <strong>' + packList.length + '</strong>';
+
+      renderHistory(packList);
+    } catch (e) {
+      els.catSummary.textContent = "进度加载失败：" + e.message;
+    }
+  }
+
+  function renderHistory(packs) {
+    if (!packs || !packs.length) {
+      els.historyEmpty.style.display = "";
+      els.historyWrap.style.display = "none";
+      els.historyCount.textContent = "0 个版本";
+      return;
+    }
+    els.historyEmpty.style.display = "none";
+    els.historyWrap.style.display = "";
+    els.historyCount.textContent = packs.length + " 个版本";
+
+    const sorted = packs.slice().sort(function (a, b) {
+      return (b.updated_at || b.created_at || "").localeCompare(a.updated_at || a.created_at || "");
+    });
+
+    els.historyTbody.innerHTML = sorted.map(function (p) {
+      const status = p.status || "draft";
+      let pillClass = "pill-draft";
+      if (status === "active") pillClass = "pill-active";
+      else if (status === "archived") pillClass = "pill-archived";
+      const metrics = p.metrics || {};
+      const archetypes = p.default_strategy_archetypes || [];
+      const dims = p.dimensions || [];
+      return ''
+        + '<tr>'
+        + '  <td class="version">' + esc(p.version || "—") + '</td>'
+        + '  <td>' + esc(p.name || "—") + '</td>'
+        + '  <td><span class="pill ' + pillClass + '">' + esc(status) + '</span></td>'
+        + '  <td>' + (metrics.approved_rule_count || 0) + ' / ' + (metrics.rule_count || 0) + '</td>'
+        + '  <td>' + (dims.length ? dims.map(esc).join('、') : '—') + '</td>'
+        + '  <td>' + archetypes.length + '</td>'
+        + '  <td>' + esc((p.updated_at || p.created_at || "").slice(0, 19).replace("T", " ")) + '</td>'
+        + '</tr>';
+    }).join("");
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function updateNavLinks() {
+    if (!activeCategory) return;
+    els.btnGoReview.href = VS_PREFIX + "/rule-review?category=" + encodeURIComponent(activeCategory) + "&review_status=draft";
+    els.btnGoConsole.href = VS_PREFIX + "/rulepacks-console?category=" + encodeURIComponent(activeCategory);
+  }
+
+  // ── 步骤一：导入 + 提炼 ─────────────────────────
+  async function doImport() {
+    return await fetchJSON(VS_PREFIX + "/source-documents/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: activeCategory }),
+    });
+  }
+  async function doExtract() {
+    return await fetchJSON(VS_PREFIX + "/rules/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: activeCategory }),
+    });
+  }
+
+  els.btnImportExtract.addEventListener("click", async function () {
+    if (!activeCategory) return;
+    clearToast(els.toast1);
+    setBusy(els.btnImportExtract, true, "导入中…");
+    try {
+      const imp = await doImport();
+      setBusy(els.btnImportExtract, true, "提炼中…");
+      const ext = await doExtract();
+      showToast(els.toast1, "导入 " + (imp.imported || 0) + " 份文档，提炼出 " + (ext.extracted || 0) + " 条候选策略规则。", true);
+      await refreshCategoryStats();
+    } catch (e) {
+      showToast(els.toast1, "失败：" + e.message, false);
+    } finally {
+      setBusy(els.btnImportExtract, false);
+    }
+  });
+
+  els.btnImportOnly.addEventListener("click", async function () {
+    if (!activeCategory) return;
+    clearToast(els.toast1);
+    setBusy(els.btnImportOnly, true, "导入中…");
+    try {
+      const imp = await doImport();
+      showToast(els.toast1, "已导入 " + (imp.imported || 0) + " 份文档。", true);
+      await refreshCategoryStats();
+    } catch (e) {
+      showToast(els.toast1, "失败：" + e.message, false);
+    } finally {
+      setBusy(els.btnImportOnly, false);
+    }
+  });
+
+  els.btnExtractOnly.addEventListener("click", async function () {
+    if (!activeCategory) return;
+    clearToast(els.toast1);
+    setBusy(els.btnExtractOnly, true, "提炼中…");
+    try {
+      const ext = await doExtract();
+      showToast(els.toast1, "提炼出 " + (ext.extracted || 0) + " 条候选策略规则。", true);
+      await refreshCategoryStats();
+    } catch (e) {
+      showToast(els.toast1, "失败：" + e.message, false);
+    } finally {
+      setBusy(els.btnExtractOnly, false);
+    }
+  });
+
+  // ── 步骤三：发布行业策略库 ─────────────────────
+  els.btnPublish.addEventListener("click", async function () {
+    if (!activeCategory) return;
+    clearToast(els.toast3);
+    if (!confirm("将基于「" + activeCategory + "」当前已通过的策略规则，发布新版本行业策略库。继续？")) return;
+    setBusy(els.btnPublish, true, "发布中…");
+    try {
+      const data = await fetchJSON(VS_PREFIX + "/rulepacks/build", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: activeCategory,
+          version: (els.packVersion.value || "").trim() || null,
+          description: (els.packDesc.value || "").trim(),
+          activate: !!els.packActivate.checked,
+        }),
+      });
+      showToast(els.toast3, "已发布：" + (data.name || data.version || "新版本") + "（id=" + (data.id || "—").slice(0, 8) + "）", true);
+      els.packVersion.value = "";
+      els.packDesc.value = "";
+      await refreshCategoryStats();
+    } catch (e) {
+      showToast(els.toast3, "失败：" + e.message, false);
+    } finally {
+      setBusy(els.btnPublish, false);
+    }
+  });
+
+  // ── 行业切换 / 刷新 ─────────────────────────────
+  els.cat.addEventListener("change", function () {
+    activeCategory = els.cat.value;
+    refreshCategoryStats();
+  });
+  els.btnRefresh.addEventListener("click", refreshCategoryStats);
+
+  // ── 启动 ───────────────────────────────────────
+  (async function init() {
+    await loadSopSources();
+    if (activeCategory) {
+      await refreshCategoryStats();
+    }
+  })();
+})();
+</script>
+{% endblock %}

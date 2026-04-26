@@ -26,6 +26,7 @@ Phase 1-3 必备端点：
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
@@ -35,7 +36,10 @@ from apps.content_planning.schemas.context_spec import ContextSpec
 from apps.content_planning.schemas.rule_pack import RulePack
 from apps.content_planning.schemas.rule_spec import RuleSpec
 from apps.content_planning.services.context_compiler import ContextCompiler
-from apps.content_planning.services.md_ingestion_service import MDIngestionService
+from apps.content_planning.services.md_ingestion_service import (
+    MDIngestionService,
+    category_to_slug,
+)
 from apps.content_planning.services.rule_extractor import RuleExtractor
 from apps.content_planning.services.rule_review_service import RuleReviewService
 from apps.content_planning.services.rulepack_builder import RulePackBuilder
@@ -54,6 +58,9 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/content-planning/visual-strategy", tags=["visual_strategy"])
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_ASSETS_SOP_ROOT = _REPO_ROOT / "assets" / "SOP"
 
 
 # ── store / service singleton 注入 ──────────────────────────────
@@ -186,6 +193,35 @@ class FeedbackRequest(BaseModel):
 # ── routes ─────────────────────────────────────────────────────
 
 # ── Phase 1：SOP → RuleSpec 生产线 ──────────────────────────────
+
+@router.get("/sop-sources")
+def list_sop_sources() -> dict[str, Any]:
+    """扫描 assets/SOP/ 子目录，返回可用的行业（类目）候选列表。
+
+    工作台 / 评审台的下拉数据源；为后续多类目扩展做准备。
+    """
+    items: list[dict[str, Any]] = []
+    if _ASSETS_SOP_ROOT.is_dir():
+        for sub in sorted(p for p in _ASSETS_SOP_ROOT.iterdir() if p.is_dir()):
+            slug = category_to_slug(sub.name)
+            md_files = list(sub.glob("*.md"))
+            items.append(
+                {
+                    "slug": slug,
+                    "display_name": sub.name,
+                    "directory": str(sub.relative_to(_REPO_ROOT)),
+                    "file_count": len(md_files),
+                }
+            )
+    return {"count": len(items), "items": items}
+
+
+@router.get("/source-documents")
+def list_source_documents(category: str | None = None) -> dict[str, Any]:
+    """列出指定行业（类目）已建档的来源文档（行业 Know-how 文档）。"""
+    rows = _rs().list_source_documents(category=category)
+    return {"count": len(rows), "documents": rows}
+
 
 @router.post("/source-documents/import")
 def import_source_documents(req: ImportRequest) -> dict[str, Any]:

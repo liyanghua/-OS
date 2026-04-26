@@ -48,6 +48,11 @@ class CrawlStatus:
     extractor_versions: dict[str, str] = field(default_factory=dict)
     duration_seconds: float = 0.0
     avg_note_delay_seconds: float = 0.0
+    # Phase 3.1: 评论阶段可观测性 — 用于观察窗 stalled 判定按 phase 分级
+    phase: str = "idle"  # idle | searching | crawling_comments | wrapping_up
+    comment_notes_total: int = 0
+    comment_notes_done: int = 0
+    current_comment_note_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -116,6 +121,24 @@ class CrawlStatusReporter:
         self._status.comments_saved += count
         self._flush()
 
+    def set_phase(self, phase: str) -> None:
+        self._status.phase = phase
+        if phase != "crawling_comments":
+            self._status.current_comment_note_id = ""
+        self._flush()
+
+    def note_comments_started(self, note_id: str, index: int, total: int) -> None:
+        self._status.current_comment_note_id = note_id
+        self._status.comment_notes_total = total
+        self._status.comment_notes_done = max(self._status.comment_notes_done, index)
+        self._flush()
+
+    def note_comments_done(self, note_id: str) -> None:
+        self._status.comment_notes_done += 1
+        if self._status.current_comment_note_id == note_id:
+            self._status.current_comment_note_id = ""
+        self._flush()
+
     def keyword_finished(self) -> None:
         self._flush()
 
@@ -166,6 +189,9 @@ class NoopReporter:
     def note_saved(self, note_id: str) -> None: ...
     def note_failed(self, note_id: str, error: str) -> None: ...
     def comments_saved(self, count: int) -> None: ...
+    def set_phase(self, phase: str) -> None: ...
+    def note_comments_started(self, note_id: str, index: int, total: int) -> None: ...
+    def note_comments_done(self, note_id: str) -> None: ...
     def keyword_finished(self) -> None: ...
     def trace_captured(self, trace_dir: str) -> None: ...
     def set_session_id(self, session_id: str) -> None: ...

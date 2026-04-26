@@ -258,6 +258,9 @@ class XiaoHongShuCrawler(AbstractCrawler):
             elif config.CRAWLER_TYPE == "creator":
                 await self.get_creators_and_notes()
 
+            rpt = _crawl_reporter
+            if rpt and hasattr(rpt, "set_phase"):
+                rpt.set_phase("wrapping_up")
             utils.logger.info("[XiaoHongShuCrawler.start] Xhs Crawler finished ...")
 
     async def search(self) -> None:
@@ -269,6 +272,8 @@ class XiaoHongShuCrawler(AbstractCrawler):
         rpt = _crawl_reporter
         if rpt and hasattr(rpt, "set_keywords"):
             rpt.set_keywords(keywords_list)
+        if rpt and hasattr(rpt, "set_phase"):
+            rpt.set_phase("searching")
         for kw_idx, keyword in enumerate(keywords_list):
             if rpt and hasattr(rpt, "keyword_started"):
                 rpt.keyword_started(keyword, kw_idx)
@@ -331,9 +336,13 @@ class XiaoHongShuCrawler(AbstractCrawler):
                                 rpt.note_failed("unknown", "detail returned None")
                     page += 1
                     utils.logger.info(f"[XiaoHongShuCrawler.search] Page done, collected {collected}/{max_notes} notes")
-                    await self.batch_get_note_comments(note_ids, xsec_tokens)
+                    if rpt and hasattr(rpt, "set_phase"):
+                        rpt.set_phase("crawling_comments")
+                    await self.batch_get_note_comments(note_ids, xsec_tokens, reporter=rpt)
                     if rpt and hasattr(rpt, "comments_saved"):
                         rpt.comments_saved(len(note_ids))
+                    if rpt and hasattr(rpt, "set_phase"):
+                        rpt.set_phase("searching")
 
                     page_cooldown = random.uniform(3, 6)
                     utils.logger.info(f"[XiaoHongShuCrawler.search] Page cooldown: {page_cooldown:.1f}s")
@@ -493,7 +502,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         except Exception as ex:
             utils.logger.debug(f"[_capture_failure_trace] Could not capture: {ex}")
 
-    async def batch_get_note_comments(self, note_list: List[str], xsec_tokens: List[str]):
+    async def batch_get_note_comments(self, note_list: List[str], xsec_tokens: List[str], reporter: object | None = None):
         """Batch get note comments"""
         if not config.ENABLE_GET_COMMENTS:
             utils.logger.info(f"[XiaoHongShuCrawler.batch_get_note_comments] Crawling comment mode is not enabled")
@@ -502,9 +511,17 @@ class XiaoHongShuCrawler(AbstractCrawler):
         utils.logger.info(f"[XiaoHongShuCrawler.batch_get_note_comments] Begin batch get note comments, note list: {note_list}")
         semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
         task_list: List[Task] = []
+        total = len(note_list)
         for index, note_id in enumerate(note_list):
             task = asyncio.create_task(
-                self.get_comments(note_id=note_id, xsec_token=xsec_tokens[index], semaphore=semaphore),
+                self.get_comments(
+                    note_id=note_id,
+                    xsec_token=xsec_tokens[index],
+                    semaphore=semaphore,
+                    reporter=reporter,
+                    index=index,
+                    total=total,
+                ),
                 name=note_id,
             )
             task_list.append(task)
@@ -513,19 +530,39 @@ class XiaoHongShuCrawler(AbstractCrawler):
             if isinstance(r, Exception):
                 utils.logger.warning(f"[batch_get_note_comments] Comment fetch error: {r}")
 
-    async def get_comments(self, note_id: str, xsec_token: str, semaphore: asyncio.Semaphore):
+    async def get_comments(
+        self,
+        note_id: str,
+        xsec_token: str,
+        semaphore: asyncio.Semaphore,
+        reporter: object | None = None,
+        index: int = 0,
+        total: int = 0,
+    ):
         """Get note comments with keyword filtering and quantity limitation"""
         async with semaphore:
             utils.logger.info(f"[XiaoHongShuCrawler.get_comments] Begin get note id comments {note_id}")
+            if reporter and hasattr(reporter, "note_comments_started"):
+                try:
+                    reporter.note_comments_started(note_id, index, total)
+                except Exception as ex:
+                    utils.logger.warning(f"[XiaoHongShuCrawler.get_comments] reporter.note_comments_started failed: {ex}")
             # Use fixed crawling interval
             crawl_interval = config.CRAWLER_MAX_SLEEP_SEC
-            await self.xhs_client.get_note_all_comments(
-                note_id=note_id,
-                xsec_token=xsec_token,
-                crawl_interval=crawl_interval,
-                callback=xhs_store.batch_update_xhs_note_comments,
-                max_count=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES,
-            )
+            try:
+                await self.xhs_client.get_note_all_comments(
+                    note_id=note_id,
+                    xsec_token=xsec_token,
+                    crawl_interval=crawl_interval,
+                    callback=xhs_store.batch_update_xhs_note_comments,
+                    max_count=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES,
+                )
+            finally:
+                if reporter and hasattr(reporter, "note_comments_done"):
+                    try:
+                        reporter.note_comments_done(note_id)
+                    except Exception as ex:
+                        utils.logger.warning(f"[XiaoHongShuCrawler.get_comments] reporter.note_comments_done failed: {ex}")
 
             # Sleep after fetching comments
             await asyncio.sleep(crawl_interval)

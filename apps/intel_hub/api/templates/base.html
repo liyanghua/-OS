@@ -633,7 +633,19 @@
         return m + 'm' + (r ? r + 's' : '');
       }
 
-      function describeStage(state) {
+      function describeStage(state, crawl) {
+        crawl = crawl || {};
+        if (state === 'crawling' && crawl.phase === 'crawling_comments') {
+          var done = crawl.comment_notes_done || 0;
+          var total = crawl.comment_notes_total || 0;
+          if (total > 0) {
+            return '正在抓取评论 ' + done + '/' + total;
+          }
+          return '正在抓取评论';
+        }
+        if (state === 'crawling' && crawl.phase === 'wrapping_up') {
+          return '正在收尾整理';
+        }
         return {
           idle: '空闲',
           queued: '排队等待执行',
@@ -679,14 +691,26 @@
         var root = document.getElementById('crawl-observer-diagnostics');
         if (!root) return;
         var items = [];
+        var crawl = observer.crawl || {};
         if (observer.stalled_reason === 'worker_not_running') {
           items.push('任务排队超过 30 秒仍未被消费，可能是采集 worker 未运行。');
         }
         if (observer.stalled_reason === 'status_stale') {
-          items.push('运行中的任务超过 20 秒未更新状态，建议检查采集进程是否卡住。');
+          var staleHint = '运行中的任务长时间未更新状态，建议检查采集进程是否卡住。';
+          if (crawl.phase === 'crawling_comments') {
+            staleHint = '评论抓取阶段已超过 5 分钟没有进展，建议检查采集进程是否卡在某条笔记。';
+          }
+          items.push(staleHint);
         }
         if (observer.stalled_reason === 'pipeline_not_ready') {
           items.push('采集已完成，正在等待结果整理链路接力。');
+        }
+        if (crawl.phase === 'crawling_comments' && (crawl.comment_notes_total || 0) > 0) {
+          var noteHint = '评论抓取进度 ' + (crawl.comment_notes_done || 0) + '/' + crawl.comment_notes_total;
+          if (crawl.current_comment_note_id) {
+            noteHint += '，当前笔记 ' + crawl.current_comment_note_id;
+          }
+          items.push(noteHint);
         }
         var queue = observer.queue || {};
         if ((queue.batch_total || 0) > 0) {
@@ -752,7 +776,7 @@
         observerState = observer;
         var active = observer.active_job || null;
         var state = observer.derived_state || 'idle';
-        var stageLabel = describeStage(state);
+        var stageLabel = describeStage(state, observer.crawl || {});
         var headline = document.getElementById('crawl-observer-status-line');
         var subline = document.getElementById('crawl-observer-subline');
         var progressFill = document.getElementById('crawl-observer-progress-fill');

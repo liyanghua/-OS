@@ -175,6 +175,140 @@ class ApiSurfaceTests(unittest.TestCase):
             self.assertEqual(payload["derived_state"], "idle")
             self.assertIsNone(payload["active_job"])
 
+    def test_crawl_status_reporter_writes_phase_and_comment_progress(self) -> None:
+        from apps.intel_hub.workflow.crawl_status import CrawlStatusReporter
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            status_file = tmp / "crawl_status_xhs.json"
+            reporter = CrawlStatusReporter(status_file, platform="xhs")
+
+            reporter.set_phase("crawling_comments")
+            reporter.note_comments_started("note_a", index=0, total=3)
+            payload = json.loads(status_file.read_text(encoding="utf-8"))
+            self.assertEqual(payload["phase"], "crawling_comments")
+            self.assertEqual(payload["comment_notes_total"], 3)
+            self.assertEqual(payload["current_comment_note_id"], "note_a")
+            self.assertEqual(payload["comment_notes_done"], 0)
+
+            reporter.note_comments_done("note_a")
+            payload = json.loads(status_file.read_text(encoding="utf-8"))
+            self.assertEqual(payload["comment_notes_done"], 1)
+            self.assertEqual(payload["current_comment_note_id"], "")
+
+            reporter.set_phase("wrapping_up")
+            payload = json.loads(status_file.read_text(encoding="utf-8"))
+            self.assertEqual(payload["phase"], "wrapping_up")
+
+    def test_crawl_observer_does_not_misjudge_during_comment_phase(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.workflow.crawl_status import CrawlStatusReporter
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            queue = FileJobQueue(tmp / "job_queue.json")
+            job = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "儿童桌垫", "max_notes": 20},
+                display_keyword="儿童桌垫",
+            )
+            queue.enqueue(job)
+            queue.dequeue()
+
+            status_path = tmp / "crawl_status_xhs.json"
+            reporter = CrawlStatusReporter(status_path, platform="xhs")
+            reporter.set_phase("crawling_comments")
+            reporter.note_comments_started("note_a", index=0, total=4)
+
+            stale_ts = (datetime.now(tz=timezone.utc) - timedelta(seconds=60)).isoformat()
+            crawl_payload = json.loads(status_path.read_text(encoding="utf-8"))
+            crawl_payload["updated_at"] = stale_ts
+            status_path.write_text(
+                json.dumps(crawl_payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            queue_path = tmp / "job_queue.json"
+            queue_payload = json.loads(queue_path.read_text(encoding="utf-8"))
+            for entry in queue_payload.get("jobs", []):
+                if entry.get("job_id") == job.job_id:
+                    entry["last_heartbeat_at"] = stale_ts
+                    entry["started_at"] = stale_ts
+            queue_path.write_text(
+                json.dumps(queue_payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+            response = client.get(f"/crawl-observer?job_id={job.job_id}")
+            self.assertEqual(response.status_code, 200)
+            observer_payload = response.json()
+
+            self.assertEqual(observer_payload["derived_state"], "crawling")
+            self.assertEqual(observer_payload["stalled_reason"], "")
+            self.assertEqual(observer_payload["crawl"]["phase"], "crawling_comments")
+            self.assertEqual(observer_payload["crawl"]["comment_notes_total"], 4)
+            self.assertEqual(observer_payload["crawl"]["current_comment_note_id"], "note_a")
+
+    def test_crawl_observer_still_flags_stalled_outside_comment_phase(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.workflow.crawl_status import CrawlStatusReporter
+        from apps.intel_hub.workflow.job_models import CrawlJob
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            queue = FileJobQueue(tmp / "job_queue.json")
+            job = CrawlJob(
+                platform="xhs",
+                job_type="keyword_search",
+                payload={"keywords": "儿童桌垫", "max_notes": 20},
+                display_keyword="儿童桌垫",
+            )
+            queue.enqueue(job)
+            queue.dequeue()
+
+            status_path = tmp / "crawl_status_xhs.json"
+            reporter = CrawlStatusReporter(status_path, platform="xhs")
+            reporter.set_phase("searching")
+
+            stale_ts = (datetime.now(tz=timezone.utc) - timedelta(seconds=60)).isoformat()
+            crawl_payload = json.loads(status_path.read_text(encoding="utf-8"))
+            crawl_payload["updated_at"] = stale_ts
+            status_path.write_text(
+                json.dumps(crawl_payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            queue_path = tmp / "job_queue.json"
+            queue_payload = json.loads(queue_path.read_text(encoding="utf-8"))
+            for entry in queue_payload.get("jobs", []):
+                if entry.get("job_id") == job.job_id:
+                    entry["last_heartbeat_at"] = stale_ts
+                    entry["started_at"] = stale_ts
+            queue_path.write_text(
+                json.dumps(queue_payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+            response = client.get(f"/crawl-observer?job_id={job.job_id}")
+            self.assertEqual(response.status_code, 200)
+            observer_payload = response.json()
+
+            self.assertEqual(observer_payload["derived_state"], "stalled")
+            self.assertEqual(observer_payload["stalled_reason"], "status_stale")
+            self.assertEqual(observer_payload["crawl"]["phase"], "searching")
+
     def test_dashboard_and_notes_include_shared_observer_hooks(self) -> None:
         from fastapi.testclient import TestClient
 
