@@ -3,6 +3,64 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## 儿童桌垫品类独立化 + LLM Lens 生成（2026-04-26）
+
+### 痛点
+- 用户新抓的"儿童桌垫"关键词笔记被错误归到 `tablecloth`（桌布）lens 下，导致品类透视沿用历史"桌布机会卡"，无法围绕儿童学习场景生成新机会卡。
+- 根因：[`apps/intel_hub/config_loader.py`](../apps/intel_hub/config_loader.py) 的 `route_keyword_to_lens_id` 用 `token in keyword_lower` 子串匹配 + 顺序首匹配，遇到关键词「儿童桌垫」时被 `tablecloth` 规则中的短 token「桌垫」截胡。
+- 同时在没有"独立 lens 配置生成工具"的前提下，每加一个新品类都得手写一份 ~300 行 YAML（人群/场景/痛点/词库/打分权重），是扩品类的最大门槛。
+
+### 方案要点
+- **路由算法升级**：把 `route_keyword_to_lens_id` 改为「全局最长命中 token 优先；并列时按规则书写顺序」，无需依赖排序就能让"儿童桌垫"(4 字) 战胜"桌垫"(2 字)。同时更新 [`config/category_lenses/_keyword_routing.yaml`](../config/category_lenses/_keyword_routing.yaml) 文件头注释，说明新算法。
+- **LLM lens_generator CLI**：新增 [`apps/intel_hub/services/lens_generator.py`](../apps/intel_hub/services/lens_generator.py) + [`apps/intel_hub/prompts/generate_category_lens.md`](../apps/intel_hub/prompts/generate_category_lens.md)，支持：
+  - 通过 `LLMRouter` 调任意 provider（默认 `deepseek`）生成 `CategoryLens` JSON；
+  - Pydantic `CategoryLens.model_validate` 严格校验，失败把 `ValidationError` 文本回喂下一轮 prompt（最多 2 次重试）；
+  - 强制 normalize：post-validate 阶段把 `lens_id` / `category_cn` 重写为 CLI 入参，避免 LLM 改名导致 routing 错位；
+  - 落 `build/lens_drafts/<lens_id>.yaml` + `<lens_id>.review.md`（review 报告含填充率、空字段告警、必检 checklist），人工 review 后再 `mv` 到 `config/category_lenses/`。
+  - 在 [`.gitignore`](../.gitignore) 加 `build/lens_drafts/`，避免草稿污染主仓库。
+- **DeepSeek 接入 LLM Router**：在 [`apps/content_planning/adapters/llm_router.py`](../apps/content_planning/adapters/llm_router.py) 新增独立 `DeepSeekProvider`（OpenAI-compatible，env: `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL`，默认 `https://api.deepseek.com` / `deepseek-chat`），注册到 `_PROVIDERS`，并把 `LLM_FALLBACK_CHAIN` 默认值追加 `deepseek`；不改 `LLM_PROVIDER` 默认值（仍 `openai`），不影响 `RuleExtractor` 等现有流水线。
+- **儿童桌垫 lens 上线（future-only）**：用 lens_generator 真实跑 DeepSeek（`deepseek-v4-pro`，重试 1 次后通过 schema 校验，elapsed ~90s）生成 [`config/category_lenses/children_desk_mat.yaml`](../config/category_lenses/children_desk_mat.yaml)，覆盖学习场景 + 儿童安全 + 易清洁的核心消费逻辑（防水/防摔/无毒/可擦洗、护眼配色、圆角设计、加厚缓冲），8 项 `scoring_weights` 总和 1.0。
+- **路由 / ontology / watchlist 同步**：[`_keyword_routing.yaml`](../config/category_lenses/_keyword_routing.yaml) 顶部插入 `children_desk_mat` 规则（match_any 仅含含完整子品类语义的复合词，**不**包含上位词「桌垫」）；[`config/ontology_mapping.yaml`](../config/ontology_mapping.yaml) 与 [`config/watchlists.yaml`](../config/watchlists.yaml) 新增 `category_children_desk_mat` 实体 / watchlist。`canonicalizer.py` 现有 `max(len(alias))` 打分逻辑保证「儿童桌垫」(4 字别名) 优先命中新实体，无需算法改动。
+- **future_only**：所有变更只对**未来新抓取的笔记 / 机会卡**生效；历史 `tablecloth` 桶里旧"儿童桌垫"笔记保持原 `lens_id=tablecloth` 不变，不写迁移脚本。
+
+### 关键改动文件
+- 新增：`apps/intel_hub/services/lens_generator.py`、`apps/intel_hub/prompts/generate_category_lens.md`、`config/category_lenses/children_desk_mat.yaml`、`apps/intel_hub/tests/test_keyword_routing.py`、`apps/intel_hub/tests/test_lens_generator.py`、`apps/content_planning/tests/test_llm_router_deepseek.py`。
+- 修改：`apps/content_planning/adapters/llm_router.py`（新增 `DeepSeekProvider` + 注册到 `_PROVIDERS` + 默认 fallback chain 追加 `deepseek`）、`apps/intel_hub/config_loader.py`（`route_keyword_to_lens_id` 升级为最长 token 优先）、`config/category_lenses/_keyword_routing.yaml`（顶部加 `children_desk_mat` 规则 + 文件头注释更新）、`config/ontology_mapping.yaml`（新增 `category_children_desk_mat` 实体）、`config/watchlists.yaml`（新增 `category_children_desk_mat` watchlist）、`.gitignore`（加 `build/lens_drafts/`）。
+
+### 验证
+- 新增单测：`apps/intel_hub/tests/test_keyword_routing.py`（11 项：生产 yaml + 合成 routing dict 双覆盖，断言「儿童桌垫」→ `children_desk_mat`、「桌垫」→ `tablecloth`、长 token 优先、并列 token 取首条规则、`default_lens_id` 兜底）；`apps/intel_hub/tests/test_lens_generator.py`（5 项：mock LLMRouter 走通路径、ValidationError 回喂重试一次后成功、超出重试次数抛 `LensGenerationError`、`post_normalize` 强制 lens_id 不被 LLM 改、review.md 含 checklist）；`apps/content_planning/tests/test_llm_router_deepseek.py`（7 项：注册到 `_PROVIDERS`、`is_available` 依赖 API key、env base_url/model 注入、缺 key 抛 RuntimeError、显式 model 入参覆盖 env、默认 fallback 链含 `deepseek`）。
+- 真实 LLM 烟测：`DEEPSEEK_API_KEY=... .venv/bin/python -m apps.intel_hub.services.lens_generator --category "儿童桌垫" --lens-id children_desk_mat --reference tablecloth --provider deepseek` 成功产出 `build/lens_drafts/children_desk_mat.yaml`，Pydantic 通过、字段填充率 100%。
+- `pytest apps/intel_hub/tests/test_keyword_routing.py apps/intel_hub/tests/test_lens_generator.py apps/content_planning/tests/test_llm_router_deepseek.py -v` 23/23 PASSED；`pytest apps/intel_hub/tests apps/content_planning/tests` 全集 411 passed，10 个失败均与本次改动无关（4 个历史 `xhs vs xiaohongshu` 字符串不一致 + 6 个 `image_generator` 真实 API 集成 `_real` 测试无网络）。
+
+### 使用说明（lens_generator CLI）
+```bash
+# 1. 生成草稿（默认 deepseek，温度 0.2，最多重试 2 次）
+DEEPSEEK_API_KEY=... .venv/bin/python -m apps.intel_hub.services.lens_generator \
+    --category "儿童手表保护壳" \
+    --lens-id children_watch_case \
+    --core-logic "学龄儿童家长 + 防摔耐用 + 卡通可定制" \
+    --reference tablecloth \
+    --provider deepseek
+
+# 2. 人工 review build/lens_drafts/<lens_id>.review.md
+# 3. review 通过后入库
+mv build/lens_drafts/children_watch_case.yaml config/category_lenses/
+
+# 4. 同步加路由 / ontology / watchlist 三件套
+#    config/category_lenses/_keyword_routing.yaml  (rules 顶部加规则；match_any 不含上位词)
+#    config/ontology_mapping.yaml                  (entities.category_<id>)
+#    config/watchlists.yaml                        (watchlists 列表新增 category_<id>)
+```
+
+### 不在本次范围
+- 不重跑历史 `data/output/xhs_opportunities/*` 与 sqlite 中已落地的笔记/机会卡（`future_only` 决策）。
+- 不改 `config/category_lenses/tablecloth.yaml` 与 `category_tablecloth` 实体里现存的「桌垫」「餐垫」别名（最长 token 算法已能区分）。
+- 不改 `LLM_PROVIDER` 默认值（仍 `openai`）。
+- 不做 lens_generator 的 REST API 与 Workbench UI 集成（按"CLI + dry-run"决策）。
+- LLM 生成的 lens 中"价格带 / 用户口吻"等深度字段如需进一步沉淀真实买家数据，仍需走 SOP → RuleSpec → RulePack 流水线补强。
+
+---
+
 ## SOP 视觉策略编译器 Phase 1-3（2026-04-25 续 3）
 
 ### 痛点

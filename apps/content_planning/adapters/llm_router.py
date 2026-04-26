@@ -420,13 +420,146 @@ class AnthropicProvider(BaseLLMProvider):
         return result
 
 
+class DeepSeekProvider(BaseLLMProvider):
+    """DeepSeek provider via OpenAI-compatible API.
+
+    Independent from OpenAIProvider so users can have both OpenAI and DeepSeek
+    keys configured at the same time without env clashes.
+
+    Env:
+        DEEPSEEK_API_KEY    required
+        DEEPSEEK_BASE_URL   default https://api.deepseek.com
+        DEEPSEEK_MODEL      default deepseek-chat (use deepseek-reasoner or
+                            user-specified latest id for reasoning model)
+    """
+
+    name = "deepseek"
+
+    _DEFAULT_BASE_URL = "https://api.deepseek.com"
+    _DEFAULT_MODEL = "deepseek-chat"
+
+    def is_available(self) -> bool:
+        if not os.environ.get("DEEPSEEK_API_KEY"):
+            return False
+        try:
+            import openai  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        return {
+            "api_key": os.environ.get("DEEPSEEK_API_KEY", ""),
+            "base_url": os.environ.get("DEEPSEEK_BASE_URL", self._DEFAULT_BASE_URL),
+        }
+
+    def _resolve_model(self, model: str | None) -> str:
+        return model or os.environ.get("DEEPSEEK_MODEL", self._DEFAULT_MODEL)
+
+    def chat(self, messages: list[LLMMessage], *, model: str | None = None,
+             temperature: float = 0.3, max_tokens: int = 2000,
+             tools: list[dict] | None = None) -> LLMResponse:
+        if not os.environ.get("DEEPSEEK_API_KEY"):
+            raise RuntimeError("DEEPSEEK_API_KEY 未配置")
+        import openai
+        client = openai.OpenAI(**self._client_kwargs())
+        used_model = self._resolve_model(model)
+        t0 = time.perf_counter()
+        try:
+            kwargs: dict[str, Any] = dict(
+                model=used_model,
+                messages=self._format_messages(messages),
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            if tools:
+                kwargs["tools"] = tools
+            resp = client.chat.completions.create(**kwargs)
+            elapsed = int((time.perf_counter() - t0) * 1000)
+            content = resp.choices[0].message.content or ""
+            tc = self._extract_tool_calls(resp.choices[0].message)
+            usage = {}
+            if resp.usage:
+                usage = {"prompt_tokens": resp.usage.prompt_tokens,
+                         "completion_tokens": resp.usage.completion_tokens}
+            return LLMResponse(
+                content=content, model=used_model, provider=self.name,
+                usage=usage, elapsed_ms=elapsed, tool_calls=tc,
+                finish_reason=resp.choices[0].finish_reason or "",
+            )
+        except Exception as exc:
+            elapsed = int((time.perf_counter() - t0) * 1000)
+            logger.warning("[DeepSeek-ERR] %s elapsed=%dms", exc, elapsed)
+            return LLMResponse(content="", model=used_model, provider=self.name, elapsed_ms=elapsed)
+
+    async def achat(self, messages: list[LLMMessage], *, model: str | None = None,
+                    temperature: float = 0.3, max_tokens: int = 2000,
+                    tools: list[dict] | None = None) -> LLMResponse:
+        if not os.environ.get("DEEPSEEK_API_KEY"):
+            raise RuntimeError("DEEPSEEK_API_KEY 未配置")
+        try:
+            import openai
+            client = openai.AsyncOpenAI(**self._client_kwargs())
+            used_model = self._resolve_model(model)
+            t0 = time.perf_counter()
+            kwargs: dict[str, Any] = dict(
+                model=used_model,
+                messages=self._format_messages(messages),
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            if tools:
+                kwargs["tools"] = tools
+            resp = await client.chat.completions.create(**kwargs)
+            elapsed = int((time.perf_counter() - t0) * 1000)
+            content = resp.choices[0].message.content or ""
+            tc = self._extract_tool_calls(resp.choices[0].message)
+            usage = {}
+            if resp.usage:
+                usage = {"prompt_tokens": resp.usage.prompt_tokens,
+                         "completion_tokens": resp.usage.completion_tokens}
+            return LLMResponse(
+                content=content, model=used_model, provider=self.name,
+                usage=usage, elapsed_ms=elapsed, tool_calls=tc,
+                finish_reason=resp.choices[0].finish_reason or "",
+            )
+        except Exception:
+            return await super().achat(messages, model=model, temperature=temperature,
+                                       max_tokens=max_tokens, tools=tools)
+
+    def _format_messages(self, messages: list[LLMMessage]) -> list[dict]:
+        formatted = []
+        for m in messages:
+            msg: dict[str, Any] = {"role": m.role, "content": m.content}
+            if m.tool_calls:
+                msg["tool_calls"] = m.tool_calls
+            if m.tool_call_id:
+                msg["tool_call_id"] = m.tool_call_id
+            if m.name:
+                msg["name"] = m.name
+            formatted.append(msg)
+        return formatted
+
+    def _extract_tool_calls(self, message: Any) -> list[ToolCall]:
+        if not hasattr(message, "tool_calls") or not message.tool_calls:
+            return []
+        result = []
+        for tc in message.tool_calls:
+            result.append(ToolCall(
+                id=tc.id or "",
+                type=tc.type or "function",
+                function={"name": tc.function.name, "arguments": tc.function.arguments},
+            ))
+        return result
+
+
 # ── Provider Registry ──────────────────────────────────────────────
 
 _PROVIDERS: dict[str, BaseLLMProvider] = {}
 
 
 def _init_providers() -> None:
-    for cls in (DashScopeProvider, OpenAIProvider, AnthropicProvider):
+    for cls in (DashScopeProvider, OpenAIProvider, AnthropicProvider, DeepSeekProvider):
         p = cls()
         _PROVIDERS[p.name] = p
 
@@ -435,7 +568,7 @@ _init_providers()
 
 _DEFAULT_PROVIDER = os.environ.get("LLM_PROVIDER", "openai")
 _DEFAULT_FALLBACK_CHAIN = os.environ.get(
-    "LLM_FALLBACK_CHAIN", "openai,dashscope,anthropic"
+    "LLM_FALLBACK_CHAIN", "openai,dashscope,anthropic,deepseek"
 ).split(",")
 
 

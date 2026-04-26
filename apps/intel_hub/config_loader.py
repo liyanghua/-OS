@@ -158,6 +158,14 @@ def route_keyword_to_lens_id(
 ) -> str | None:
     """按照 ``_keyword_routing.yaml`` 的规则为单个关键词决定 lens_id。
 
+    路由策略：**全局最长命中 token 优先**；当多个 token 同长度并列时，按
+    规则在 yaml 中的书写顺序取最先出现的那条规则。
+
+    例如「儿童桌垫」既能命中 ``children_desk_mat`` 规则的 ``儿童桌垫``
+    （4 字），又能命中 ``tablecloth`` 规则的 ``桌垫``（2 字），最长 token
+    优先，最终归到 ``children_desk_mat``，避免短的上位品类词把更精确的
+    子品类截胡。
+
     在 ingestion 阶段调用：``keyword`` 通常来自 ``mediacrawler_sources[*].keywords``
     或 ``xhs_sources[*].keywords`` 单个关键词。未命中返回 ``default_lens_id``。
     """
@@ -167,14 +175,19 @@ def route_keyword_to_lens_id(
         return default_lens_id
 
     keyword_lower = str(keyword).lower()
-    for rule in routing.get("rules", []):
+    hits: list[tuple[int, int, str | None]] = []  # (-len(token), rule_index, lens_id)
+    for rule_idx, rule in enumerate(routing.get("rules", [])):
         lens_id = rule.get("lens_id")
         for token in rule.get("match_any", []):
-            if not token:
+            token_lower = str(token or "").lower()
+            if not token_lower:
                 continue
-            if str(token).lower() in keyword_lower:
-                return lens_id
-    return default_lens_id
+            if token_lower in keyword_lower:
+                hits.append((-len(token_lower), rule_idx, lens_id))
+    if not hits:
+        return default_lens_id
+    hits.sort()
+    return hits[0][2]
 
 
 def clear_config_caches() -> None:

@@ -71,6 +71,25 @@ entities:
       - 北欧桌布
     watchlist_ids:
       - category_tablecloth
+  # 儿童桌垫从桌布独立拆出。canonicalizer.py L47-87 用 max(len(alias)) 打分，
+  # "儿童桌垫"(4 字) 会胜过 "桌垫"(2 字)，所以两个实体共存不会冲突。
+  # **不要**把短的"桌垫"放进这里的 aliases，否则会跟 category_tablecloth 同分。
+  category_children_desk_mat:
+    entity_type: category
+    aliases:
+      - 儿童学习桌垫
+      - 儿童桌面保护垫
+      - 儿童桌垫
+      - 宝宝桌垫
+      - 学生桌垫
+      - 小学生桌垫
+      - 幼儿桌垫
+      - 写字桌垫
+      - 学习桌垫
+      - 防水儿童桌垫
+      - 防摔桌垫
+    watchlist_ids:
+      - category_children_desk_mat
 platform_refs:
   news:
     synonyms:

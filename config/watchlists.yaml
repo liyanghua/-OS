@@ -101,6 +101,37 @@ watchlists:
       - ins风桌布
       - 北欧桌布
     priority: 0.91
+  - id: category_children_desk_mat
+    watchlist_type: category
+    title: Children desk mat category intelligence
+    summary: 儿童桌垫品类（学习场景 + 儿童安全 + 易清洁）独立 watchlist，跟踪宝妈/学龄家长对防水、防摔、无毒、护眼的需求与风险信号。
+    source_refs:
+      - manual_watchlist
+      - mediacrawler_xhs
+    entity_refs:
+      - category_children_desk_mat
+    topic_tags:
+      - category
+      - opportunity
+    timestamps:
+      created_at: "2026-04-26T00:00:00+08:00"
+    confidence: 1.0
+    evidence_refs: []
+    review_status: pending
+    keywords:
+      - 儿童桌垫
+      - 宝宝桌垫
+      - 学生桌垫
+      - 小学生桌垫
+      - 儿童学习桌垫
+      - 幼儿桌垫
+      - 写字桌垫
+      - 学习桌垫
+    aliases:
+      - 儿童桌面保护垫
+      - 防水儿童桌垫
+      - 防摔桌垫
+    priority: 0.85
 
   # ── V2: 场景 watchlist ──
   - id: scene_rental_room

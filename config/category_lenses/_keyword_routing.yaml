@@ -1,16 +1,39 @@
 # 关键词 → lens_id 路由
 #
-# 规则：
-#  - 按顺序匹配，命中即取第一个 lens。
-#  - 优先放更精确的关键词（如"头顶发片" 放在"假发"前）。
+# 路由策略（见 apps/intel_hub/config_loader.py::route_keyword_to_lens_id）：
+#  - **全局最长命中 token 优先**：所有规则的 match_any token 与关键词
+#    做子串匹配后，按 token 字符长度倒序取最长一条；并列时按规则在
+#    yaml 中的书写顺序取最先出现的那条。
+#  - 这意味着无需手动把"更精确"的规则排到前面，但仍建议按品类把更
+#    具体/独立的子品类放在前面，便于阅读。
 #  - 未命中使用 default_lens_id。
 #  - 用于 mediacrawler_loader / xhs_opportunity_pipeline 为每条 raw
 #    信号标注 ``lens_id``，后续 CategoryLensEngine 据此选择词库、
 #    VLM prompt、打分权重。
+#
+# 维护要点：新增独立子品类（如儿童桌垫从桌布拆出）时——
+#  1. 新建 config/category_lenses/<lens_id>.yaml；
+#  2. 在本文件加规则，match_any 仅放含完整子品类语义的复合词
+#     （如「儿童桌垫」），**不要**放上位品类词（如「桌垫」），最长
+#     匹配会自动让长 token 胜出。
+#  3. 同步更新 ontology_mapping.yaml + watchlists.yaml。
 
 default_lens_id: tablecloth
 
 rules:
+  - lens_id: children_desk_mat
+    match_any:
+      - 儿童学习桌垫
+      - 儿童桌面保护垫
+      - 儿童桌垫
+      - 宝宝桌垫
+      - 学生桌垫
+      - 小学生桌垫
+      - 幼儿桌垫
+      - 写字桌垫
+      - 学习桌垫
+      - 防水儿童桌垫
+      - 防摔桌垫
   - lens_id: wig
     match_any:
       - 头顶发片
