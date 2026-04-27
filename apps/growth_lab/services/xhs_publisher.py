@@ -17,6 +17,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from apps.intel_hub.config_loader import resolve_browser_headless
+
 logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -71,8 +73,8 @@ def _is_storage_state_valid() -> Optional[str]:
 class XHSPublishService:
     """Playwright-based XHS video publisher."""
 
-    def __init__(self, headless: bool = False) -> None:
-        self._headless = headless
+    def __init__(self, headless: bool | None = None) -> None:
+        self._headless = resolve_browser_headless(headless, default=False)
         self._cookie_str = os.environ.get("XHS_COOKIE_STR", "")
 
     async def publish_video(

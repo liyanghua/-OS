@@ -18,6 +18,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from apps.intel_hub.config_loader import resolve_browser_headless
+
 logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -51,8 +53,8 @@ async (noteId) => {
 class NoteMetricsSyncer:
     """Fetch note interaction metrics from Xiaohongshu Creator Center."""
 
-    def __init__(self, headless: bool = True) -> None:
-        self._headless = headless
+    def __init__(self, headless: bool | None = None) -> None:
+        self._headless = resolve_browser_headless(headless, default=True)
 
     def _has_storage_state(self) -> bool:
         return _STORAGE_STATE_PATH.exists()

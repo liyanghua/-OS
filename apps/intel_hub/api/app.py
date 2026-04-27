@@ -17,7 +17,11 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
 
 from apps.b2b_platform.storage import B2BPlatformStore
-from apps.intel_hub.config_loader import load_runtime_settings, resolve_repo_path
+from apps.intel_hub.config_loader import (
+    load_runtime_settings,
+    resolve_browser_headless,
+    resolve_repo_path,
+)
 from apps.intel_hub.ingest.mediacrawler_loader import load_mediacrawler_records
 from apps.intel_hub.ingest.rss_loader import load_rss_records
 from apps.intel_hub.schemas import ReviewUpdateRequest
@@ -1038,6 +1042,7 @@ def create_app(
     async def create_crawl_job(req: CrawlJobRequest) -> dict[str, Any]:
         job_group_id = job_queue.find_open_batch() or ""
         platform = _normalize_platform(req.platform)
+        headless = resolve_browser_headless(default=False)
         job = CrawlJob(
             platform=platform,
             job_type=req.job_type,
@@ -1048,6 +1053,7 @@ def create_app(
                 "max_comments": req.max_comments,
                 "login_type": req.login_type,
                 "sort_type": req.sort_type,
+                "headless": headless,
             },
             display_keyword=req.keywords,
             priority=req.priority,
@@ -1060,6 +1066,7 @@ def create_app(
             "job_group_id": job.job_group_id,
             "status": job.status,
             "message": "任务已入队",
+            "headless": headless,
         }
 
     @app.get("/crawl-jobs")

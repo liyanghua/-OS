@@ -17,17 +17,14 @@ sys.path.append(str(REPO_ROOT))
 
 from apps.intel_hub.workflow.crawl_status import CrawlStatusReporter
 
-import config as mc_config
-from media_platform.xhs.core import set_crawl_reporter
-from main import async_cleanup, crawler, main
-from tools.app_runner import run
-
 
 def _to_bool(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    import config as mc_config
+
     parser = argparse.ArgumentParser(description="intel_hub legacy MediaCrawler runner")
     parser.add_argument("--platform", default="xhs")
     parser.add_argument("--lt", default="qrcode")
@@ -48,6 +45,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _apply_args(args: argparse.Namespace) -> CrawlStatusReporter:
+    import config as mc_config
+    from media_platform.xhs.core import set_crawl_reporter
+
     mc_config.PLATFORM = args.platform
     mc_config.LOGIN_TYPE = args.lt
     mc_config.CRAWLER_TYPE = args.type
@@ -78,6 +78,8 @@ def _reset_argv_for_mediacrawler() -> None:
 
 
 def _force_stop() -> None:
+    from main import crawler
+
     c = crawler
     if not c:
         return
@@ -92,6 +94,8 @@ def _force_stop() -> None:
 
 
 def _main_with_status_factory(reporter: CrawlStatusReporter):
+    from main import main
+
     async def _main_with_status():
         try:
             await main()
@@ -107,7 +111,14 @@ def _main_with_status_factory(reporter: CrawlStatusReporter):
 
 def cli() -> int:
     parser = _build_parser()
+    if any(flag in sys.argv[1:] for flag in ("-h", "--help")):
+        parser.print_help()
+        return 0
     args = parser.parse_args()
+
+    from main import async_cleanup
+    from tools.app_runner import run
+
     reporter = _apply_args(args)
     _reset_argv_for_mediacrawler()
     run(

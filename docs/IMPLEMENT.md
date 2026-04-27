@@ -3904,3 +3904,50 @@ image -> image_execution_briefs
 - 笔记 body 张数动态化：当前固定 3，由 archetype 默认 plan 决定。
 - LLM 增强版 `CopywritingCompiler`（先模板兜底，留 `llm_client` hook）。
 - vs_mode 下 chip 编辑触发 `PATCH /briefs/{id}` 真正回传 brief 字段（当前只把 textarea 内容写回 NotePack 对应 slot；brief 级局部更新未启用）。
+
+---
+
+## Ubuntu 一键部署升级（2026-04-27）
+
+围绕 Ubuntu 纯命令行服务器，把主线部署从“开发机脚本”升级成可落地的一键安装器，覆盖主站、TrendRadar、MediaCrawler、登录态导入、LLM key 模板和 systemd。
+
+### 关键变更
+
+- `install.sh` 改为 **Ubuntu-only**，启动检查 `/etc/os-release`，非 Ubuntu 直接失败；默认安装 `git/curl/build-essential/pkg-config/libssl-dev/libffi-dev/libsqlite3-dev/python3-venv/python3-dev/unzip` 以及 Playwright 所需系统库。
+- Python 版本与虚拟环境拆分：
+  - 根 `.venv` → `python3.11`
+  - `third_party/MediaCrawler/.venv` → `python3.11`
+  - `third_party/TrendRadar/.venv` → `python3.12`
+- `third_party/TrendRadar` 由部署脚本自动 clone，并固定到 commit `b1d09d08ea27e67382c044ba67bbb0af2fd8a979`。
+- 部署期生成 `config/runtime.server.yaml`，主服务通过 `INTEL_HUB_RUNTIME_CONFIG` 只读取服务器配置，不再沿用开发机 `config/runtime.yaml` 中的绝对路径 `xhs_sources`。
+- 新增服务器入口 `apps/intel_hub/api/server_entry.py`；systemd 不再调用开发态 `start.sh`。
+- systemd 编排：
+  - `ontology-os.service`
+  - `ontology-trendradar.service`
+  - `ontology-trendradar.timer`
+- 登录态导入机制：
+  - `install.sh --sessions-dir <path>`
+  - 导入目标：根目录 `data/sessions/`
+  - `third_party/MediaCrawler/data/sessions` 优先 symlink 到根 sessions 目录
+- 服务器浏览器策略：
+  - 统一环境变量 `BROWSER_HEADLESS`
+  - `POST /crawl-jobs` 默认带 `headless`
+  - `XHSPublishService` / `NoteMetricsSyncer` 默认读取该变量
+  - 无登录态时采集会快速失败并提示“请导入登录态”
+  - 服务器扫码登录接口改为明确提示不支持现场扫码
+- 主系统依赖补齐：
+  - `feedparser`
+  - `requests`
+  - `dashscope`（通过 `vision` extra，由脚本默认安装）
+
+### 验证
+
+- `bash -n install.sh` 通过
+- `python -m pytest apps/intel_hub/tests/test_server_deploy_runtime.py apps/intel_hub/tests/test_api.py -k 'server_deploy_runtime or env_headless_default' -q` → 7 passed
+- `python -m compileall apps/intel_hub/api/server_entry.py apps/intel_hub/config_loader.py apps/intel_hub/workflow/collector_worker.py apps/intel_hub/workflow/session_service.py apps/growth_lab/services/xhs_publisher.py apps/growth_lab/services/note_metrics_syncer.py apps/growth_lab/api/routes.py` 通过
+
+### 当前边界
+
+- 本轮不引入 Nginx / Caddy，默认端口直出。
+- 本轮不把根目录 Next.js 原型纳入 Ubuntu 一键部署。
+- `install.sh --doctor` 主要覆盖部署前后环境巡检；真正的 Ubuntu 服务器端到端安装和 systemd 启动仍需在目标机器上执行验证。

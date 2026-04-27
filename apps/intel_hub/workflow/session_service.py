@@ -25,6 +25,15 @@ def _now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat()
 
 
+def _normalize_platform(platform: str | None) -> str:
+    value = (platform or "").strip().lower()
+    if value in {"xhs", "xiaohongshu", "rednote"}:
+        return "xhs"
+    if value in {"dy", "douyin", "tiktok_cn"}:
+        return "dy"
+    return value or "xhs"
+
+
 @dataclass
 class AccountSession:
     account_id: str
@@ -64,6 +73,7 @@ class SessionService:
                     self._sessions[s.account_id] = s
             except Exception:
                 self._sessions = {}
+        self._discover_imported_sessions()
 
     def _save(self) -> None:
         payload = {
@@ -85,6 +95,53 @@ class SessionService:
                 os.unlink(tmp)
             raise
 
+    def _discover_imported_sessions(self) -> None:
+        discovered: dict[str, AccountSession] = {}
+        for state_path in sorted(self._dir.glob("*_state.json")):
+            stem = state_path.stem
+            platform = _normalize_platform(stem[:-6] if stem.endswith("_state") else stem)
+            account_id = f"{platform}_imported"
+            exported_at = ""
+            meta_candidates = [
+                state_path.with_suffix(".meta.json"),
+                state_path.with_name(f"{state_path.name}.meta.json"),
+            ]
+            for meta_path in meta_candidates:
+                if not meta_path.exists():
+                    continue
+                try:
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                exported_at = str(meta.get("exported_at", "") or "")
+                platform = _normalize_platform(meta.get("platform", platform))
+                break
+
+            existing = self._sessions.get(account_id)
+            session = existing or AccountSession(
+                account_id=account_id,
+                platform=platform,
+                storage_state_path=str(state_path),
+                exported_at=exported_at or _now_iso(),
+                status="available",
+            )
+            session.platform = platform
+            session.storage_state_path = str(state_path)
+            if exported_at:
+                session.exported_at = exported_at
+            if session.status == "stale" and state_path.exists():
+                session.status = "available"
+            self._sessions[account_id] = session
+            discovered[account_id] = session
+
+        stale_import_ids = [
+            account_id
+            for account_id, session in self._sessions.items()
+            if account_id.endswith("_imported") and account_id not in discovered
+        ]
+        for account_id in stale_import_ids:
+            self._sessions.pop(account_id, None)
+
     def register_session(
         self,
         account_id: str,
@@ -104,11 +161,13 @@ class SessionService:
 
     def acquire_session(self, platform: str) -> AccountSession | None:
         """分配一个可用会话，优先选最近成功过的。"""
+        self._discover_imported_sessions()
         now = datetime.now(tz=timezone.utc)
+        normalized_platform = _normalize_platform(platform)
 
         candidates = []
         for s in self._sessions.values():
-            if s.platform != platform:
+            if _normalize_platform(s.platform) != normalized_platform:
                 continue
             if s.status == "needs_relogin":
                 continue
@@ -182,12 +241,15 @@ class SessionService:
             self._save()
 
     def list_sessions(self, platform: str | None = None) -> list[AccountSession]:
+        self._discover_imported_sessions()
         if platform:
-            return [s for s in self._sessions.values() if s.platform == platform]
+            normalized_platform = _normalize_platform(platform)
+            return [s for s in self._sessions.values() if _normalize_platform(s.platform) == normalized_platform]
         return list(self._sessions.values())
 
     def get_alerts(self) -> list[dict[str, Any]]:
         """返回需要人工介入的会话告警。"""
+        self._discover_imported_sessions()
         alerts = []
         for s in self._sessions.values():
             if s.status == "needs_relogin":
@@ -198,4 +260,17 @@ class SessionService:
                     "reason": s.last_failure_reason,
                     "since": s.last_failure_at,
                 })
+        platforms_with_session = {_normalize_platform(s.platform) for s in self._sessions.values()}
+        for platform, title in (("xhs", "请导入小红书登录态"), ("dy", "请导入抖音登录态")):
+            if platform in platforms_with_session:
+                continue
+            alerts.append(
+                {
+                    "type": "session_import_required",
+                    "platform": platform,
+                    "title": title,
+                    "reason": "未发现可用 storage_state 文件",
+                    "since": "",
+                }
+            )
         return alerts

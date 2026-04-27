@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from apps.intel_hub.config_loader import resolve_browser_headless
+
 from .crawl_runner import MC_ROOT, build_legacy_crawl_command
 from .job_models import CrawlJob
 from .job_queue import FileJobQueue
@@ -95,6 +97,10 @@ async def execute_keyword_search(
     payload = job.payload
     platform = str(job.platform or payload.get("platform", "xhs") or "xhs")
     output_dir = str(MC_ROOT / "data" / platform / "jsonl")
+    headless = resolve_browser_headless(
+        payload.get("headless") if isinstance(payload.get("headless"), bool) else None,
+        default=False,
+    )
 
     account_id: str | None = None
     if session_service:
@@ -104,6 +110,9 @@ async def execute_keyword_search(
             logger.info(f"[collector_worker] Acquired session: {account_id}")
             if reporter:
                 reporter.set_session_id(account_id)
+        elif headless and platform in {"xhs", "dy"}:
+            platform_label = "小红书" if platform == "xhs" else "抖音"
+            raise RuntimeError(f"{platform_label} 服务器模式缺少登录态，请先导入登录态后再采集")
 
     if queue:
         queue.touch_heartbeat(job.job_id)
@@ -117,7 +126,7 @@ async def execute_keyword_search(
             max_notes=int(payload.get("max_notes", 20)),
             max_comments=int(payload.get("max_comments", 10)),
             sort_type=str(payload.get("sort_type", "popularity_descending")),
-            headless=bool(payload.get("headless", False)),
+            headless=headless,
             status_path=str(reporter.path if reporter else REPO_ROOT / "data" / "crawl_status.json"),
             session_id=account_id or "",
         )

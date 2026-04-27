@@ -1,5 +1,6 @@
 import asyncio
 import json
+import subprocess
 import tempfile
 import threading
 import time
@@ -399,6 +400,34 @@ class ApiSurfaceTests(unittest.TestCase):
             queue = FileJobQueue(tmp / "job_queue.json")
             group_jobs = queue.list_batch_jobs(first_payload["job_group_id"])
             self.assertEqual([job.display_keyword for job in group_jobs], ["婴儿面霜", "婴儿防晒"])
+
+    def test_create_crawl_job_uses_env_headless_default(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from apps.intel_hub.api.app import create_app
+        from apps.intel_hub.workflow.job_queue import FileJobQueue
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            runtime_path = _write_runtime(tmp)
+            with patch.dict("os.environ", {"BROWSER_HEADLESS": "true"}, clear=False):
+                client = TestClient(create_app(runtime_path, enable_embedded_crawl_worker=False))
+                response = client.post(
+                    "/crawl-jobs",
+                    json={
+                        "platform": "xhs",
+                        "job_type": "keyword_search",
+                        "keywords": "婴儿面霜",
+                        "max_notes": 20,
+                        "max_comments": 10,
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()["headless"])
+            jobs = FileJobQueue(tmp / "job_queue.json").list_all()
+            self.assertEqual(len(jobs), 1)
+            self.assertTrue(jobs[0].payload["headless"])
 
     def test_file_job_queue_dequeues_crawl_before_pipeline_refresh(self) -> None:
         from apps.intel_hub.workflow.job_models import CrawlJob
@@ -843,11 +872,7 @@ class ApiSurfaceTests(unittest.TestCase):
             self.assertNotIn("INTEL_HUB_KEYWORDS", env)
 
     def test_legacy_runner_resets_argv_before_delegating_to_mediacrawler(self) -> None:
-        from pathlib import Path as _Path
-
-        runner_path = _Path(
-            "/Users/yichen/Desktop/OntologyBrain/Ai- native 经营操作OS/third_party/MediaCrawler/legacy_intel_hub_runner.py"
-        )
+        runner_path = ROOT / "third_party" / "MediaCrawler" / "legacy_intel_hub_runner.py"
         source = runner_path.read_text(encoding="utf-8")
 
         namespace: dict[str, object] = {}
@@ -861,6 +886,23 @@ class ApiSurfaceTests(unittest.TestCase):
         reset_argv()
 
         self.assertEqual(fake_sys.argv, ["legacy_intel_hub_runner.py"])
+
+    def test_legacy_runner_help_avoids_heavy_runtime_imports(self) -> None:
+        runner_path = ROOT / "third_party" / "MediaCrawler" / "legacy_intel_hub_runner.py"
+        result = subprocess.run(
+            [
+                "/Users/yichen/Desktop/OntologyBrain/Ai- native 经营操作OS/.venv/bin/python",
+                str(runner_path),
+                "--help",
+            ],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("intel_hub legacy MediaCrawler runner", result.stdout)
 
     def test_b2b_platform_bootstrap_queue_and_content_planning_review(self) -> None:
         from fastapi.testclient import TestClient

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,8 @@ from apps.intel_hub.schemas.watchlist import Watchlist
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_DIR = REPO_ROOT / "config"
 DEFAULT_CATEGORY_LENSES_DIR = DEFAULT_CONFIG_DIR / "category_lenses"
+RUNTIME_CONFIG_ENV_KEY = "INTEL_HUB_RUNTIME_CONFIG"
+BROWSER_HEADLESS_ENV_KEY = "BROWSER_HEADLESS"
 
 
 class RuntimeSettings(BaseModel):
@@ -65,11 +68,42 @@ class RuntimeSettings(BaseModel):
         return resolve_repo_path(self.raw_snapshot_dir)
 
 
+def _parse_bool(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if not normalized:
+        return default
+    return normalized in {"1", "true", "yes", "y", "on"}
+
+
 def resolve_repo_path(path_value: str | Path) -> Path:
     path = Path(path_value)
     if path.is_absolute():
         return path
     return REPO_ROOT / path
+
+
+def runtime_config_env_path() -> Path | None:
+    raw_value = os.environ.get(RUNTIME_CONFIG_ENV_KEY, "").strip()
+    if not raw_value:
+        return None
+    return Path(raw_value)
+
+
+def resolve_runtime_config_path(path: str | Path | None = None) -> Path:
+    if path is not None:
+        return resolve_repo_path(path)
+    env_path = runtime_config_env_path()
+    if env_path is not None:
+        return resolve_repo_path(env_path)
+    return DEFAULT_CONFIG_DIR / "runtime.yaml"
+
+
+def resolve_browser_headless(explicit: bool | None = None, *, default: bool = False) -> bool:
+    if explicit is not None:
+        return explicit
+    return _parse_bool(os.environ.get(BROWSER_HEADLESS_ENV_KEY), default=default)
 
 
 def load_yaml(path: str | Path) -> dict[str, Any]:
@@ -80,7 +114,7 @@ def load_yaml(path: str | Path) -> dict[str, Any]:
 
 @lru_cache(maxsize=8)
 def load_runtime_settings(path: str | Path | None = None) -> RuntimeSettings:
-    config_path = path or (DEFAULT_CONFIG_DIR / "runtime.yaml")
+    config_path = resolve_runtime_config_path(path)
     return RuntimeSettings.model_validate(load_yaml(config_path))
 
 

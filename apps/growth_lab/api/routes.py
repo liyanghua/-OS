@@ -871,7 +871,7 @@ async def publish_to_xhs(req: PublishRequest) -> dict:
     async def _run_publish() -> None:
         _publish_jobs[job_id]["status"] = "publishing"
         try:
-            svc = XHSPublishService(headless=False)
+            svc = XHSPublishService()
             result = await svc.publish_video(
                 video_path=video_path,
                 title=title,
@@ -1009,70 +1009,11 @@ async def xhs_login_status() -> dict:
 
 @router.post("/api/first3s/xhs-login")
 async def xhs_login() -> dict:
-    """启动浏览器扫码登录小红书，异步完成后保存 storage_state。"""
-    import asyncio
-
-    job_id = __import__("uuid").uuid4().hex[:16]
-    _login_jobs[job_id] = {"status": "pending", "step": "starting"}
-
-    async def _run_login() -> None:
-        _login_jobs[job_id]["status"] = "running"
-        try:
-            from playwright.async_api import async_playwright
-            _login_jobs[job_id]["step"] = "launching_browser"
-
-            async with async_playwright() as pw:
-                browser = await pw.chromium.launch(
-                    headless=False,
-                    args=["--disable-blink-features=AutomationControlled"],
-                )
-                context = await browser.new_context(viewport={"width": 1400, "height": 900})
-                page = await context.new_page()
-
-                _login_jobs[job_id]["step"] = "navigating"
-                await page.goto("https://creator.xiaohongshu.com", wait_until="domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(2000)
-
-                _login_jobs[job_id]["step"] = "waiting_for_login"
-
-                for i in range(120):
-                    await page.wait_for_timeout(2000)
-                    url = page.url.lower()
-                    if "login" not in url and ("creator" in url or "home" in url):
-                        break
-                    try:
-                        avatar = page.locator('[class*="avatar"], [class*="user-info"], [class*="nickname"]')
-                        if await avatar.count() > 0:
-                            break
-                    except Exception:
-                        pass
-                else:
-                    _login_jobs[job_id].update({"status": "failed", "error": "登录超时(4分钟)"})
-                    await context.close()
-                    await browser.close()
-                    return
-
-                _login_jobs[job_id]["step"] = "exporting"
-                from apps.growth_lab.services.xhs_publisher import _SESSIONS_DIR
-                _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-                ss_path = _SESSIONS_DIR / "xhs_state.json"
-                await context.storage_state(path=str(ss_path))
-
-                import json as _json
-                from datetime import datetime, timezone
-                meta_path = ss_path.with_suffix(".meta.json")
-                meta_path.write_text(
-                    _json.dumps({"exported_at": datetime.now(tz=timezone.utc).isoformat()}, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-
-                await context.close()
-                await browser.close()
-                _login_jobs[job_id].update({"status": "success", "step": "done"})
-
-        except Exception as e:
-            logger.exception("[XHSLogin] failed: %s", e)
-            _login_jobs[job_id].update({"status": "failed", "error": str(e)})
+    """服务器部署不支持现场扫码，统一提示导入已有 storage_state。"""
+    raise HTTPException(
+        status_code=501,
+        detail="服务器环境不支持现场扫码登录，请先通过 --sessions-dir 导入已有小红书登录态",
+    )
 
     asyncio.create_task(_run_login())
     return {"job_id": job_id, "status": "pending"}
@@ -1192,7 +1133,7 @@ async def sync_note_metrics(task_id: str) -> dict:
     if not note_id:
         raise HTTPException(400, "该任务尚未关联笔记 ID，请先绑定")
 
-    syncer = NoteMetricsSyncer(headless=True)
+    syncer = NoteMetricsSyncer()
     try:
         metrics = await syncer.fetch(note_id)
     except Exception as exc:

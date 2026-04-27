@@ -361,6 +361,33 @@ Notes:
 
 Validation: `npm run build` and `npm run lint` pass.
 
+### Ubuntu 一键部署升级（2026-04-27）
+Status: **done**
+
+- `install.sh` 改为 **Ubuntu-only**：启动先校验 `/etc/os-release`，非 Ubuntu 直接失败；默认通过 `apt-get` 安装编译依赖、`python3.11/3.12` 所需组件和 Playwright 运行库，并支持 `--skip-apt`。
+- Python / venv 分拆：
+  - 根目录 `.venv` 固定 `python3.11`
+  - `third_party/MediaCrawler/.venv` 固定 `python3.11`
+  - `third_party/TrendRadar/.venv` 固定 `python3.12`
+- `third_party/TrendRadar` 改为部署期自动 clone，并固定 checkout 到 `b1d09d08ea27e67382c044ba67bbb0af2fd8a979`；`third_party/deer-flow`、`third_party/hermes-agent` 不纳入部署。
+- 部署期生成 `config/runtime.server.yaml`，主服务通过 `INTEL_HUB_RUNTIME_CONFIG` 只读取这份服务器配置，不再默认使用开发态 `config/runtime.yaml`；服务器配置中移除了开发机绝对路径 `xhs_sources`。
+- 新增服务器启动入口 `apps/intel_hub/api/server_entry.py`，systemd 改为调用该入口；开发态 `start.sh` 仍保留，但不再作为部署用入口。
+- systemd 产物与命名：
+  - `ontology-os.service`
+  - `ontology-trendradar.service`
+  - `ontology-trendradar.timer`
+- 登录态部署方式改为 `--sessions-dir <path>` 导入已有 `storage_state`；导入目标统一为根目录 `data/sessions/`，并优先通过 symlink 将 `third_party/MediaCrawler/data/sessions` 对齐到同一路径。
+- 服务器浏览器策略统一收口到 `BROWSER_HEADLESS`：
+  - `POST /crawl-jobs` 默认写入 `headless`
+  - `collector_worker` 在 Ubuntu CLI + 无登录态时会快速失败并提示先导入登录态
+  - `XHSPublishService` / `NoteMetricsSyncer` 默认也读取同一环境变量
+  - 服务器扫码登录接口改为明确返回“请导入登录态”，不再支持现场扫码
+- 主系统运行依赖补齐到 `pyproject.toml`：
+  - `feedparser`
+  - `requests`
+  - `dashscope`（通过 `vision` extra 暴露，安装脚本默认安装）
+- `install.sh --doctor` 新增部署巡检：Ubuntu 版本、Python 3.11/3.12、三套 venv、TrendRadar/MediaCrawler、sessions、runtime.server、LLM keys 缺失项。
+
 ### Pre-M2：界面中文业务化命名（仅展示文案）
 
 Status: **done**（路由、文件名、`src/domain/types`、`RoleView` 等标识未改）
