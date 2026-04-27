@@ -4029,3 +4029,35 @@ image -> image_execution_briefs
   → `8 passed, 1 warning`
 - `/tmp/mc-editable-check/bin/pip install --no-build-isolation --no-deps -e third_party/MediaCrawler`
   → editable wheel 构建与安装成功
+
+## 视觉工作台图片网关切换与参考图兼容修复（2026-04-27）
+
+解决了服务器上视觉工作台生图的两个独立问题：一是图片第二通道原先固定走
+`openrouter.ai`，在目标区域会被 403 拒绝；二是导入数据里残留的开发机绝对路径
+`/Users/.../data/source_images/...` 会导致参考图解析失败，进而把整条生图链路拖死。
+
+### 关键变更
+
+- `apps/content_planning/services/image_generator.py`
+  - 图片分支新增 `IMAGE_GEN_OPENAI_BASE_URL`，默认仍是 `https://openrouter.ai/api/v1`
+  - 当切到自定义图片网关时，认证改为复用 `OPENAI_API_KEY`，不再要求 `OPENROUTER_API_KEY`
+  - 继续沿用 `OPENROUTER_IMAGE_MODEL` 作为图片模型来源，不改文本 LLM 路由
+  - 新增历史参考图路径规范化：任何包含 `/data/source_images/` 的旧绝对路径都会映射到当前仓库 `data/source_images/...`
+  - DashScope 参考图分支在“参考图不可解析”或 `qwen-image-edit` 失败时，统一降级为 prompt-only，不再把坏参考图当成硬失败
+  - 图片网关日志和错误文案改为按当前网关模式输出；切到自定义代理后不再误写成固定 `OpenRouter`
+- `install.sh`
+  - `.env` 模板新增 `IMAGE_GEN_OPENAI_BASE_URL`
+  - `install.sh --doctor` 新增该项检查
+  - 安装完成摘要明确区分默认 OpenRouter 与自定义图片网关的 key 依赖
+- `docs/INSTALL_BOOTSTRAP.md`
+  - 补充图片网关最小配置与排查说明
+
+### 验证
+
+- `PYTHONPATH=. .venv/bin/python -m pytest apps/content_planning/tests/test_image_generator.py -q -k 'not integration'`
+  → `18 passed, 4 deselected`
+- 新增覆盖：
+  - 自定义 `IMAGE_GEN_OPENAI_BASE_URL` 时使用该地址与 `OPENAI_API_KEY`
+  - 默认未配置时仍走 `https://openrouter.ai/api/v1`
+  - 历史 `/Users/.../data/source_images/...` 能映射到当前仓库
+  - 坏参考图与 `qwen-image-edit` 失败都会降级为 prompt-only

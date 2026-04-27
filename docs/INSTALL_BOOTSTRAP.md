@@ -225,6 +225,7 @@ sudo bash install.sh \
 图像 / 视觉层：
 
 - `OPENROUTER_API_KEY`
+- `IMAGE_GEN_OPENAI_BASE_URL`
 - `OPENROUTER_IMAGE_MODEL`
 - `OPENROUTER_GPT5_IMAGE_KEY`
 - `DASHSCOPE_API_KEY`
@@ -261,6 +262,7 @@ ANTHROPIC_API_KEY=
 
 # ===== 图像 / 视觉 =====
 OPENROUTER_API_KEY=
+IMAGE_GEN_OPENAI_BASE_URL=https://singapore.zw-ai.com/api/v1
 OPENROUTER_IMAGE_MODEL=google/gemini-2.5-flash-image
 OPENROUTER_GPT5_IMAGE_KEY=
 DASHSCOPE_API_KEY=
@@ -287,7 +289,8 @@ INTEL_HUB_PORT=8000
 - 想要 Anthropic 能力：
   - `ANTHROPIC_API_KEY`
 - 想要图片 / 视频 / 视觉生成：
-  - `OPENROUTER_API_KEY`
+  - `OPENROUTER_API_KEY`，或
+  - `OPENAI_API_KEY` + `IMAGE_GEN_OPENAI_BASE_URL`
   - `OPENROUTER_IMAGE_MODEL`
   - 或 `DASHSCOPE_API_KEY`
 
@@ -296,18 +299,22 @@ INTEL_HUB_PORT=8000
 - `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL`
   - 主 LLM 链路默认推荐配置
   - 内容策划、文本生成、部分 AI 工作台能力通常优先依赖这一层
+- `IMAGE_GEN_OPENAI_BASE_URL`
+  - 只作用于图片生成链路，不影响文本 LLM 路由
+  - 设成 `https://singapore.zw-ai.com/api/v1` 后，图片通道改为复用 `OPENAI_API_KEY`
+  - 留空时继续默认走 OpenRouter
 - `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL`
   - DeepSeek 路由与补充推理链路
 - `ANTHROPIC_API_KEY`
   - Anthropic 路由能力
 - `OPENROUTER_API_KEY`
-  - 视频生成、部分图像/视觉能力
+  - 默认图片网关未切换时的图像/视觉认证
 - `OPENROUTER_IMAGE_MODEL`
-  - OpenRouter 图像模型名
+  - 当前图片链路统一使用的模型名；默认网关和自定义图片网关都继续读取它
 - `OPENROUTER_GPT5_IMAGE_KEY`
   - 图像链路扩展 key，按当前模板保留
 - `DASHSCOPE_API_KEY`
-  - 视觉分析、部分图像/VLM 能力
+  - DashScope 图像 / 视觉 / 参考图优先链路
 
 更实用地说：
 
@@ -338,9 +345,13 @@ OPENAI_BASE_URL: SET
 OPENAI_API_KEY: SET
 OPENAI_MODEL: SET
 DEEPSEEK_API_KEY: MISSING
+IMAGE_GEN_OPENAI_BASE_URL: SET
 OPENROUTER_API_KEY: MISSING
 DASHSCOPE_API_KEY: MISSING
 ```
+
+如果 `IMAGE_GEN_OPENAI_BASE_URL` 显示 `MISSING`，含义是“图片链路仍走默认 OpenRouter”，
+不是错误。
 
 如果你后面要测试 raw 重建，也建议顺手再执行：
 

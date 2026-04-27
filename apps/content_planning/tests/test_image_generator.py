@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import os
 import types
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -64,6 +65,29 @@ def _make_dashscope_fetch_rsp(task_status: str = "SUCCEEDED", url: str = "https:
     return rsp
 
 
+def _make_qwen_image_edit_rsp(
+    status_code: int = 200,
+    image_url: str = "https://oss.example.com/img.png",
+    **overrides: Any,
+) -> MagicMock:
+    rsp = MagicMock()
+    rsp.status_code = status_code
+    rsp.output = overrides.get("output", {
+        "choices": [
+            {
+                "message": {
+                    "content": [
+                        {"image": image_url},
+                    ],
+                },
+            }
+        ],
+    })
+    rsp.code = overrides.get("code", "")
+    rsp.message = overrides.get("message", "")
+    return rsp
+
+
 def _make_openrouter_raw_response(b64_img: str | None = None) -> MagicMock:
     """Simulate the OpenRouter raw_response from client.chat.completions.with_raw_response.create."""
     import json
@@ -101,14 +125,12 @@ def _service_with_keys(**env: str) -> ImageGeneratorService:
 class TestDashScopeRefImage:
     """Case 1: dashscope + ref_image (本地路径)"""
 
-    @patch("dashscope.ImageSynthesis.fetch")
-    @patch("dashscope.ImageSynthesis.async_call")
-    def test_imageedit_called_with_local_path(self, mock_async_call: MagicMock, mock_fetch: MagicMock, tmp_path: Path) -> None:
+    @patch("dashscope.MultiModalConversation.call")
+    def test_imageedit_called_with_local_path(self, mock_mm_call: MagicMock, tmp_path: Path) -> None:
         ref = tmp_path / "cover.jpg"
         ref.write_bytes(b"\xff\xd8\xff" + b"\x00" * 100)
 
-        mock_async_call.return_value = _make_dashscope_rsp(200, task_id="t-ref1")
-        mock_fetch.return_value = _make_dashscope_fetch_rsp("SUCCEEDED", "https://oss.example.com/result.png")
+        mock_mm_call.return_value = _make_qwen_image_edit_rsp(200, "https://oss.example.com/result.png")
 
         svc = _service_with_keys()
         prompt = _make_prompt(ref_image_url=str(ref))
@@ -117,11 +139,11 @@ class TestDashScopeRefImage:
             result = svc.generate_single(prompt, _TEST_OPP_ID, provider="dashscope")
 
         assert result.status == "completed"
-        assert result.provider == "dashscope"
-        call_kwargs = mock_async_call.call_args
-        assert call_kwargs.kwargs.get("model") == "wanx2.1-imageedit"
-        assert call_kwargs.kwargs.get("base_image_url") == str(ref)
-        assert call_kwargs.kwargs.get("function") == "stylization_all"
+        assert result.provider == "dashscope-qwen-image-edit"
+        call_kwargs = mock_mm_call.call_args
+        assert call_kwargs.kwargs.get("model") == "qwen-image-edit"
+        messages = call_kwargs.kwargs.get("messages", [])
+        assert messages[0]["content"][0]["image"] == f"file://{ref.resolve()}"
 
 
 class TestDashScopePromptOnly:
@@ -212,8 +234,79 @@ class TestOpenRouterPromptOnly:
         assert "Scene description:" in user_content
 
 
+class TestImageGatewayConfig:
+    """Case 4b: 图片网关基地址与认证来源可切换。"""
+
+    @patch("openai.OpenAI")
+    def test_custom_gateway_uses_image_base_url_and_openai_key(
+        self, mock_openai_cls: MagicMock, tmp_path: Path,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.with_raw_response.create.return_value = _make_openrouter_raw_response()
+
+        svc = _service_with_keys(
+            DASHSCOPE_API_KEY="",
+            OPENROUTER_API_KEY="",
+            OPENAI_API_KEY="sk-openai-image",
+            IMAGE_GEN_OPENAI_BASE_URL="https://singapore.zw-ai.com/api/v1",
+        )
+        prompt = _make_prompt()
+
+        with patch.object(svc, "_extract_multipart_image", return_value=None), \
+             patch.object(svc, "_extract_and_save_image", return_value=tmp_path / "out.png"):
+            result = svc.generate_single(prompt, _TEST_OPP_ID, provider="openrouter")
+
+        assert result.status == "completed"
+        assert result.provider == "openai_compatible"
+        client_call = mock_openai_cls.call_args
+        assert client_call.kwargs.get("base_url") == "https://singapore.zw-ai.com/api/v1"
+        assert client_call.kwargs.get("api_key") == "sk-openai-image"
+
+    @patch("openai.OpenAI")
+    def test_default_gateway_still_uses_openrouter_base_url(
+        self, mock_openai_cls: MagicMock, tmp_path: Path,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.with_raw_response.create.return_value = _make_openrouter_raw_response()
+
+        svc = _service_with_keys(OPENROUTER_API_KEY="sk-main")
+        prompt = _make_prompt()
+
+        with patch.object(svc, "_extract_multipart_image", return_value=None), \
+             patch.object(svc, "_extract_and_save_image", return_value=tmp_path / "out.png"):
+            result = svc.generate_single(prompt, _TEST_OPP_ID, provider="openrouter")
+
+        assert result.status == "completed"
+        assert result.provider == "openrouter"
+        client_call = mock_openai_cls.call_args
+        assert client_call.kwargs.get("base_url") == "https://openrouter.ai/api/v1"
+        assert client_call.kwargs.get("api_key") == "sk-main"
+
+    @patch("openai.OpenAI")
+    def test_custom_gateway_errors_are_not_labeled_openrouter(self, mock_openai_cls: MagicMock) -> None:
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.with_raw_response.create.side_effect = RuntimeError("region blocked")
+
+        svc = _service_with_keys(
+            DASHSCOPE_API_KEY="",
+            OPENROUTER_API_KEY="",
+            OPENAI_API_KEY="sk-openai-image",
+            IMAGE_GEN_OPENAI_BASE_URL="https://singapore.zw-ai.com/api/v1",
+        )
+        prompt = _make_prompt()
+
+        result = svc.generate_single(prompt, _TEST_OPP_ID, provider="openrouter")
+
+        assert result.status == "failed"
+        assert "OpenRouter" not in result.error
+        assert "https://singapore.zw-ai.com/api/v1" in result.error
+
+
 class TestOpenRouterGpt5Image:
-    """Case 4b: openai/gpt-5.4-image-2 走独立 key + 必带 modalities"""
+    """Case 4c: openai/gpt-5.4-image-2 走独立 key + 必带 modalities"""
 
     @patch("openai.OpenAI")
     def test_uses_dedicated_key_and_modalities(self, mock_openai_cls: MagicMock, tmp_path: Path) -> None:
@@ -310,12 +403,20 @@ class TestAutoFallback:
 class TestDashScopeErrorHandling:
     """Case 6: DashScope 非 200 时不崩溃，正确降级 text-only"""
 
+    @patch("dashscope.MultiModalConversation.call")
     @patch("dashscope.ImageSynthesis.fetch")
     @patch("dashscope.ImageSynthesis.async_call")
-    def test_imageedit_non200_falls_back_to_t2i(self, mock_async_call: MagicMock, mock_fetch: MagicMock, tmp_path: Path) -> None:
-        rsp_fail = _make_dashscope_rsp(400, message="invalid image")
+    def test_imageedit_non200_falls_back_to_t2i(
+        self,
+        mock_async_call: MagicMock,
+        mock_fetch: MagicMock,
+        mock_mm_call: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        rsp_fail = _make_qwen_image_edit_rsp(400, message="invalid image")
         rsp_ok = _make_dashscope_rsp(200, task_id="t-fallback")
-        mock_async_call.side_effect = [rsp_fail, rsp_ok]
+        mock_mm_call.return_value = rsp_fail
+        mock_async_call.return_value = rsp_ok
         mock_fetch.return_value = _make_dashscope_fetch_rsp("SUCCEEDED", "https://oss.example.com/result.png")
 
         svc = _service_with_keys()
@@ -327,9 +428,8 @@ class TestDashScopeErrorHandling:
             result = svc.generate_single(prompt, _TEST_OPP_ID, provider="dashscope")
 
         assert result.status == "completed"
-        assert mock_async_call.call_count == 2
-        second_call = mock_async_call.call_args_list[1]
-        assert "imageedit" not in second_call.kwargs.get("model", "")
+        assert mock_async_call.call_count == 1
+        assert "imageedit" not in mock_async_call.call_args.kwargs.get("model", "")
 
     @patch("openai.OpenAI")
     @patch("dashscope.ImageSynthesis.async_call")
@@ -345,6 +445,49 @@ class TestDashScopeErrorHandling:
         result = svc.generate_single(prompt, _TEST_OPP_ID, provider="dashscope")
 
         assert result.status == "failed"
+
+
+class TestRefPathCompatibility:
+    """Case 6b: 历史绝对路径兼容与坏参考图降级。"""
+
+    def test_legacy_source_image_absolute_path_maps_to_repo_file(self) -> None:
+        repo_ref = _REPO_ROOT / "data" / "source_images" / "test_legacy_ref" / "cover.jpg"
+        repo_ref.parent.mkdir(parents=True, exist_ok=True)
+        repo_ref.write_bytes(b"\xff\xd8\xff" + b"\x00" * 20)
+        legacy_path = "/Users/demo/project/data/source_images/test_legacy_ref/cover.jpg"
+        try:
+            resolved = ImageGeneratorService._resolve_local_path(legacy_path)
+            assert resolved == repo_ref
+            normalized = ImageGeneratorService._normalize_ref_image_url(legacy_path)
+            assert normalized == "/source-images/test_legacy_ref/cover.jpg"
+        finally:
+            repo_ref.unlink(missing_ok=True)
+            with suppress(OSError):
+                repo_ref.parent.rmdir()
+
+    @patch("dashscope.MultiModalConversation.call")
+    @patch("dashscope.ImageSynthesis.fetch")
+    @patch("dashscope.ImageSynthesis.async_call")
+    def test_missing_legacy_ref_downgrades_to_prompt_only(
+        self,
+        mock_async_call: MagicMock,
+        mock_fetch: MagicMock,
+        mock_mm_call: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        mock_async_call.return_value = _make_dashscope_rsp(200, task_id="t-downgrade")
+        mock_fetch.return_value = _make_dashscope_fetch_rsp("SUCCEEDED", "https://oss.example.com/result.png")
+
+        svc = _service_with_keys()
+        prompt = _make_prompt(ref_image_url="/Users/demo/project/data/source_images/missing_ref/cover.jpg")
+
+        with patch.object(svc, "_save_from_url", return_value=tmp_path / "out.png"):
+            result = svc.generate_single(prompt, _TEST_OPP_ID, provider="dashscope")
+
+        assert result.status == "completed"
+        assert mock_mm_call.called is False
+        assert mock_async_call.call_count == 1
+        assert mock_async_call.call_args.kwargs.get("base_image_url") is None
 
 
 class TestOnProgressCallback:

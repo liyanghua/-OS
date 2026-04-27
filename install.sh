@@ -263,6 +263,8 @@ ANTHROPIC_API_KEY=
 
 # ===== 图像 / 视觉 =====
 OPENROUTER_API_KEY=
+# 自定义图片网关（例如 https://singapore.zw-ai.com/api/v1）；留空则默认走 OpenRouter
+IMAGE_GEN_OPENAI_BASE_URL=
 OPENROUTER_IMAGE_MODEL=google/gemini-2.5-flash-image
 OPENROUTER_GPT5_IMAGE_KEY=
 DASHSCOPE_API_KEY=
@@ -460,6 +462,7 @@ $(llm_key_status "DEEPSEEK_API_KEY")
 $(llm_key_status "DEEPSEEK_MODEL")
 $(llm_key_status "ANTHROPIC_API_KEY")
 $(llm_key_status "OPENROUTER_API_KEY")
+$(llm_key_status "IMAGE_GEN_OPENAI_BASE_URL")
 $(llm_key_status "OPENROUTER_IMAGE_MODEL")
 $(llm_key_status "OPENROUTER_GPT5_IMAGE_KEY")
 $(llm_key_status "DASHSCOPE_API_KEY")
@@ -523,7 +526,8 @@ ${C_GREEN}===== Ubuntu 部署完成 =====${C_RESET}
 能力降级提醒:
   OPENAI_API_KEY 缺失会影响主 LLM 链路
   DEEPSEEK / ANTHROPIC 缺失会失去对应 provider fallback
-  OPENROUTER / DASHSCOPE 缺失会影响图像与视觉链路
+  图片链路默认依赖 OPENROUTER_API_KEY；若设置 IMAGE_GEN_OPENAI_BASE_URL，则改为复用 OPENAI_API_KEY
+  DASHSCOPE_API_KEY 缺失会失去 DashScope 图像通道与参考图优先链路
   未导入登录态时，主站与 TrendRadar 可运行，但采集会提示先导入登录态
 
 常用命令:

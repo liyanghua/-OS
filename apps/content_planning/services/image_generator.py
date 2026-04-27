@@ -1,4 +1,4 @@
-"""ImageGeneratorService: 多通道文生图（OpenRouter Gemini 优先，DashScope 通义万相 fallback）。"""
+"""ImageGeneratorService: 多通道文生图（图片网关 + DashScope fallback）。"""
 
 from __future__ import annotations
 
@@ -32,9 +32,10 @@ def _ensure_env() -> None:
 
 _ensure_env()
 
-_GENERATED_DIR = Path(__file__).resolve().parents[3] / "data" / "generated_images"
-
-_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_GENERATED_DIR = _REPO_ROOT / "data" / "generated_images"
+_SOURCE_IMAGES_DIR = _REPO_ROOT / "data" / "source_images"
+_DEFAULT_IMAGE_GATEWAY_BASE_URL = "https://openrouter.ai/api/v1"
 _DASHSCOPE_DEFAULT_MODEL = os.environ.get("IMAGE_GEN_MODEL", "wan2.5-t2i-preview")
 _DASHSCOPE_FALLBACK_MODEL = os.environ.get("IMAGE_GEN_FALLBACK_MODEL", "wanx2.1-t2i-turbo")
 _DASHSCOPE_IMAGE_EDIT_MODEL = os.environ.get("DASHSCOPE_IMAGE_EDIT_MODEL", "qwen-image-edit")
@@ -177,10 +178,15 @@ class RichImagePrompt(BaseModel):
 
 
 class ImageGeneratorService:
-    """多通道文生图服务：OpenRouter Gemini 优先，DashScope 通义万相 fallback。"""
+    """多通道文生图服务：DashScope 优先，图片网关作为第二通道。"""
 
     def __init__(self) -> None:
         _ensure_env()
+        self._image_gateway_base_url = (
+            os.environ.get("IMAGE_GEN_OPENAI_BASE_URL", _DEFAULT_IMAGE_GATEWAY_BASE_URL).strip()
+            or _DEFAULT_IMAGE_GATEWAY_BASE_URL
+        ).rstrip("/")
+        self._openai_key = os.environ.get("OPENAI_API_KEY", "")
         self._openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
         self._openrouter_gpt5_image_key = os.environ.get("OPENROUTER_GPT5_IMAGE_KEY", "")
         self._openrouter_model = os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-3.1-flash-image-preview")
@@ -193,9 +199,27 @@ class ImageGeneratorService:
     def is_available(self) -> bool:
         return self._is_openrouter_available() or self._is_dashscope_available()
 
+    def _uses_default_openrouter_gateway(self) -> bool:
+        return self._image_gateway_base_url == _DEFAULT_IMAGE_GATEWAY_BASE_URL.rstrip("/")
+
+    def _image_gateway_provider(self) -> str:
+        return "openrouter" if self._uses_default_openrouter_gateway() else "openai_compatible"
+
+    def _image_gateway_label(self) -> str:
+        if self._uses_default_openrouter_gateway():
+            return "OpenRouter"
+        return f"图片网关({self._image_gateway_base_url})"
+
+    def _image_gateway_missing_key_hint(self) -> str:
+        if self._uses_default_openrouter_gateway():
+            return "OPENROUTER_API_KEY"
+        return "OPENAI_API_KEY"
+
     def _is_openrouter_available(self) -> bool:
-        # 主 key 或任一独立模型 key 存在即视为 OpenRouter 通道可用。
-        if not (self._openrouter_key or self._openrouter_gpt5_image_key):
+        if self._uses_default_openrouter_gateway():
+            if not (self._openrouter_key or self._openrouter_gpt5_image_key):
+                return False
+        elif not self._openai_key:
             return False
         try:
             import openai  # noqa: F401
@@ -217,6 +241,11 @@ class ImageGeneratorService:
             if override_key:
                 return override_key, env_var
         return self._openrouter_key, "OPENROUTER_API_KEY"
+
+    def _resolve_image_gateway_key(self, model_name: str) -> tuple[str, str]:
+        if self._uses_default_openrouter_gateway():
+            return self._resolve_openrouter_key(model_name)
+        return self._openai_key, "OPENAI_API_KEY"
 
     def _is_dashscope_available(self) -> bool:
         if not self._dashscope_key:
@@ -246,19 +275,28 @@ class ImageGeneratorService:
                 result = self._generate_openrouter(prompt, opportunity_id, on_progress)
                 if result.status == "completed":
                     return result
-                logger.warning("OpenRouter failed for slot=%s: %s, fallback to DashScope", prompt.slot_id, result.error)
+                logger.warning(
+                    "%s failed for slot=%s: %s, fallback to DashScope",
+                    self._image_gateway_label(), prompt.slot_id, result.error,
+                )
                 if self._is_dashscope_available():
                     return self._generate_dashscope(prompt, opportunity_id, on_progress)
                 return result
             return ImageResult(slot_id=prompt.slot_id, status="failed",
-                               error="OpenRouter 不可用（缺少 OPENROUTER_API_KEY）")
+                               error=(
+                                   f"{self._image_gateway_label()} 不可用"
+                                   f"（缺少 {self._image_gateway_missing_key_hint()}）"
+                               ))
 
         if provider == "dashscope":
             if self._is_dashscope_available():
                 result = self._generate_dashscope(prompt, opportunity_id, on_progress)
                 if result.status == "completed":
                     return result
-                logger.warning("DashScope failed for slot=%s: %s, fallback to OpenRouter", prompt.slot_id, result.error)
+                logger.warning(
+                    "DashScope failed for slot=%s: %s, fallback to %s",
+                    prompt.slot_id, result.error, self._image_gateway_label(),
+                )
                 if self._is_openrouter_available():
                     return self._generate_openrouter(prompt, opportunity_id, on_progress)
                 return result
@@ -270,7 +308,10 @@ class ImageGeneratorService:
             result = self._generate_dashscope(prompt, opportunity_id, on_progress)
             if result.status == "completed":
                 return result
-            logger.warning("DashScope failed for slot=%s: %s, trying OpenRouter", prompt.slot_id, result.error)
+            logger.warning(
+                "DashScope failed for slot=%s: %s, trying %s",
+                prompt.slot_id, result.error, self._image_gateway_label(),
+            )
 
         if self._is_openrouter_available():
             return self._generate_openrouter(prompt, opportunity_id, on_progress)
@@ -280,26 +321,61 @@ class ImageGeneratorService:
     # ── OpenRouter / Gemini ──────────────────────────────────────────
 
     @staticmethod
+    def _normalize_ref_image_url(ref_image_url: str) -> str:
+        """把历史绝对路径等参考图地址归一成当前仓库可理解的形式。"""
+        if not ref_image_url:
+            return ""
+        normalized = ref_image_url.strip().replace("\\", "/")
+        if not normalized:
+            return ""
+        if normalized.startswith(("http://", "https://", "/source-images/", "/generated-images/")):
+            return normalized
+        marker = "/data/source_images/"
+        idx = normalized.find(marker)
+        if idx >= 0:
+            rel = normalized[idx + len(marker):].lstrip("/")
+            return f"/source-images/{rel}"
+        return normalized
+
+    @staticmethod
     def _resolve_local_path(file_path: str) -> Path | None:
         """把 URL/相对路径 规整成文件系统路径。
         支持：
         - 绝对文件系统路径
         - `/generated-images/{oid}/{name}` → `_GENERATED_DIR / oid / name`
         - `/source-images/{rel}` → `data/source_images/{rel}`（含用户上传的参考图）
+        - 历史绝对路径 `.../data/source_images/{rel}` → 当前仓库 `data/source_images/{rel}`
         - 其它以 '/' 开头的 URL 路径暂不支持（返回 None）
         """
         if not file_path:
             return None
+        file_path = ImageGeneratorService._normalize_ref_image_url(file_path)
         if file_path.startswith("/generated-images/"):
             rel = file_path[len("/generated-images/"):]
             candidate = _GENERATED_DIR / rel
             return candidate if candidate.is_file() else None
         if file_path.startswith("/source-images/"):
             rel = file_path[len("/source-images/"):]
-            candidate = Path(__file__).resolve().parents[3] / "data" / "source_images" / rel
+            candidate = _SOURCE_IMAGES_DIR / rel
             return candidate if candidate.is_file() else None
         p = Path(file_path)
         return p if p.is_file() else None
+
+    def _resolve_openrouter_ref(self, ref_image_url: str) -> tuple[str, str]:
+        """返回 (规范化参考图, 可实际发送给图片网关的 URL/data URI)。"""
+        from apps.content_planning.utils.ref_image_filter import is_usable_ref_url
+
+        normalized = self._normalize_ref_image_url(ref_image_url)
+        if not normalized:
+            return "", ""
+        if normalized.startswith(("http://", "https://")):
+            if is_usable_ref_url(normalized):
+                return normalized, normalized
+            return normalized, ""
+        local_path = self._resolve_local_path(normalized)
+        if not local_path:
+            return normalized, ""
+        return normalized, self._local_path_to_data_uri(normalized)
 
     @staticmethod
     def _local_path_to_data_uri(file_path: str) -> str:
@@ -325,7 +401,7 @@ class ImageGeneratorService:
         """Clean prompt text to reduce ToS false-positive rejections."""
         import re
         cleaned = text.strip()
-        cleaned = re.sub(r'[^\w\s，。、：；！？""''（）\-,.:;!?\'"()\[\]{}#@&+=/\n]', '', cleaned)
+        cleaned = re.sub(r"[^\w\s，。、：；！？\"'（）,.:;!?()\[\]{}#@&+=/\n-]", "", cleaned)
         if len(cleaned) > 600:
             cleaned = cleaned[:600]
         return cleaned
@@ -383,9 +459,13 @@ class ImageGeneratorService:
                 if is_tos: reason = "ToS 403"
                 elif is_missing: reason = "model unavailable (404)"
                 else: reason = "invalid model id (400)"
-                logger.warning("OpenRouter %s from %s, fallback to %s", reason, model_name, model_chain[idx + 1])
+                logger.warning(
+                    "%s %s from %s, fallback to %s",
+                    self._image_gateway_label(), reason, model_name, model_chain[idx + 1],
+                )
         return last_result or ImageResult(slot_id=prompt.slot_id, status="failed",
-                                          error="OpenRouter: 无可用模型", provider="openrouter")
+                                          error=f"{self._image_gateway_label()}: 无可用模型",
+                                          provider=self._image_gateway_provider())
 
     def _generate_openrouter_once(
         self,
@@ -397,17 +477,17 @@ class ImageGeneratorService:
         import openai
 
         t0 = time.perf_counter()
-        api_key, key_kind = self._resolve_openrouter_key(model_name)
+        api_key, key_kind = self._resolve_image_gateway_key(model_name)
         try:
             if not api_key:
                 elapsed = int((time.perf_counter() - t0) * 1000)
                 return ImageResult(
                     slot_id=prompt.slot_id, status="failed",
-                    error=f"OpenRouter: 缺少 API key（model={model_name}, expected={key_kind}）",
-                    elapsed_ms=elapsed, provider="openrouter",
+                    error=f"{self._image_gateway_label()}: 缺少 API key（model={model_name}, expected={key_kind}）",
+                    elapsed_ms=elapsed, provider=self._image_gateway_provider(),
                 )
             client = openai.OpenAI(
-                base_url=_OPENROUTER_BASE_URL,
+                base_url=self._image_gateway_base_url,
                 api_key=api_key,
                 timeout=60.0,
             )
@@ -425,20 +505,19 @@ class ImageGeneratorService:
 
             _prompt_sent = text_instruction
 
-            from apps.content_planning.utils.ref_image_filter import is_usable_ref_url
-
-            ref_url_raw = prompt.ref_image_url or ""
-            ref_usable = is_usable_ref_url(ref_url_raw) or (
-                bool(ref_url_raw) and not ref_url_raw.startswith(("http://", "https://"))
-            )
+            ref_url_raw, ref_url_payload = self._resolve_openrouter_ref(prompt.ref_image_url or "")
+            ref_usable = bool(ref_url_payload)
             if ref_url_raw and not ref_usable:
                 logger.warning(
-                    "OpenRouter request: slot=%s 参考图 URL 不可用（占位/无效），降级为 prompt_only：%r",
+                    "%s request: slot=%s 参考图不可用，降级为 prompt_only：%r",
+                    self._image_gateway_label(),
                     prompt.slot_id, ref_url_raw,
                 )
 
-            logger.info("OpenRouter request: slot=%s, model=%s, key=%s, has_ref=%s, prompt_len=%d",
-                        prompt.slot_id, model_name, key_kind, ref_usable, len(safe_prompt))
+            logger.info(
+                "%s request: slot=%s, model=%s, key=%s, has_ref=%s, prompt_len=%d",
+                self._image_gateway_label(), prompt.slot_id, model_name, key_kind, ref_usable, len(safe_prompt),
+            )
 
             if ref_usable:
                 if prompt.mode == "edit":
@@ -458,17 +537,16 @@ class ImageGeneratorService:
                 if safe_negative:
                     text_instruction += f"\n\nPlease avoid: {safe_negative}"
                 _prompt_sent = text_instruction
-                ref_url = prompt.ref_image_url
-                if not ref_url.startswith("http"):
-                    ref_url = self._local_path_to_data_uri(ref_url)
                 user_msg_content: Any = [
-                    {"type": "image_url", "image_url": {"url": ref_url}},
+                    {"type": "image_url", "image_url": {"url": ref_url_payload}},
                     {"type": "text", "text": text_instruction},
                 ]
             else:
                 user_msg_content = text_instruction
 
-            extra_body: dict[str, Any] = {"provider": {"allow_fallbacks": True}}
+            extra_body: dict[str, Any] = {}
+            if self._uses_default_openrouter_gateway():
+                extra_body["provider"] = {"allow_fallbacks": True}
             if model_name in _OPENROUTER_NEEDS_MODALITIES:
                 extra_body["modalities"] = ["image", "text"]
 
@@ -478,7 +556,7 @@ class ImageGeneratorService:
                     {"role": "user", "content": user_msg_content},
                 ],
                 max_tokens=4096,
-                extra_body=extra_body,
+                **({"extra_body": extra_body} if extra_body else {}),
             )
 
             raw_json = json.loads(raw_response.text.strip())
@@ -486,7 +564,8 @@ class ImageGeneratorService:
             if not choices:
                 elapsed = int((time.perf_counter() - t0) * 1000)
                 return ImageResult(slot_id=prompt.slot_id, status="failed",
-                                   error="OpenRouter 返回空响应", elapsed_ms=elapsed, provider="openrouter")
+                                   error=f"{self._image_gateway_label()} 返回空响应",
+                                   elapsed_ms=elapsed, provider=self._image_gateway_provider())
 
             msg = choices[0].get("message", {})
 
@@ -502,12 +581,19 @@ class ImageGeneratorService:
                         if image_path:
                             elapsed = int((time.perf_counter() - t0) * 1000)
                             serve_url = f"/generated-images/{opportunity_id}/{image_path.name}"
-                            logger.info("OpenRouter image (via images[]): slot=%s elapsed=%dms", prompt.slot_id, elapsed)
+                            logger.info(
+                                "%s image (via images[]): slot=%s elapsed=%dms",
+                                self._image_gateway_label(), prompt.slot_id, elapsed,
+                            )
                             if on_progress:
-                                on_progress(prompt.slot_id, "completed", {"image_url": serve_url, "provider": "openrouter"})
-                            _trace = dict(prompt_sent=_prompt_sent, ref_image_sent=prompt.ref_image_url)
+                                on_progress(
+                                    prompt.slot_id, "completed",
+                                    {"image_url": serve_url, "provider": self._image_gateway_provider()},
+                                )
+                            _trace = dict(prompt_sent=_prompt_sent, ref_image_sent=ref_url_raw)
                             return ImageResult(slot_id=prompt.slot_id, status="completed",
-                                               image_url=serve_url, elapsed_ms=elapsed, provider="openrouter", **_trace)
+                                               image_url=serve_url, elapsed_ms=elapsed,
+                                               provider=self._image_gateway_provider(), **_trace)
 
             content = msg.get("content") or ""
             if content:
@@ -515,35 +601,48 @@ class ImageGeneratorService:
                 if image_path:
                     elapsed = int((time.perf_counter() - t0) * 1000)
                     serve_url = f"/generated-images/{opportunity_id}/{image_path.name}"
-                    logger.info("OpenRouter image (via content): slot=%s elapsed=%dms", prompt.slot_id, elapsed)
+                    logger.info(
+                        "%s image (via content): slot=%s elapsed=%dms",
+                        self._image_gateway_label(), prompt.slot_id, elapsed,
+                    )
                     if on_progress:
-                        on_progress(prompt.slot_id, "completed", {"image_url": serve_url, "provider": "openrouter"})
-                    _trace = dict(prompt_sent=_prompt_sent, ref_image_sent=prompt.ref_image_url)
+                        on_progress(
+                            prompt.slot_id, "completed",
+                            {"image_url": serve_url, "provider": self._image_gateway_provider()},
+                        )
+                    _trace = dict(prompt_sent=_prompt_sent, ref_image_sent=ref_url_raw)
                     return ImageResult(slot_id=prompt.slot_id, status="completed",
-                                       image_url=serve_url, elapsed_ms=elapsed, provider="openrouter", **_trace)
+                                       image_url=serve_url, elapsed_ms=elapsed,
+                                       provider=self._image_gateway_provider(), **_trace)
 
             image_path = self._extract_multipart_image(msg, opportunity_id, prompt.slot_id)
             if image_path:
                 elapsed = int((time.perf_counter() - t0) * 1000)
                 serve_url = f"/generated-images/{opportunity_id}/{image_path.name}"
                 if on_progress:
-                    on_progress(prompt.slot_id, "completed", {"image_url": serve_url, "provider": "openrouter"})
-                _trace = dict(prompt_sent=_prompt_sent, ref_image_sent=prompt.ref_image_url)
+                    on_progress(
+                        prompt.slot_id, "completed",
+                        {"image_url": serve_url, "provider": self._image_gateway_provider()},
+                    )
+                _trace = dict(prompt_sent=_prompt_sent, ref_image_sent=ref_url_raw)
                 return ImageResult(slot_id=prompt.slot_id, status="completed",
-                                   image_url=serve_url, elapsed_ms=elapsed, provider="openrouter", **_trace)
+                                   image_url=serve_url, elapsed_ms=elapsed,
+                                   provider=self._image_gateway_provider(), **_trace)
 
             elapsed = int((time.perf_counter() - t0) * 1000)
             return ImageResult(slot_id=prompt.slot_id, status="failed",
-                               error="OpenRouter 响应中未找到图片数据", elapsed_ms=elapsed, provider="openrouter",
-                               prompt_sent=_prompt_sent, ref_image_sent=prompt.ref_image_url)
+                               error=f"{self._image_gateway_label()} 响应中未找到图片数据",
+                               elapsed_ms=elapsed, provider=self._image_gateway_provider(),
+                               prompt_sent=_prompt_sent, ref_image_sent=ref_url_raw)
 
         except Exception as exc:
             elapsed = int((time.perf_counter() - t0) * 1000)
-            logger.warning("OpenRouter image gen error: %s", exc, exc_info=True)
+            logger.warning("%s image gen error: %s", self._image_gateway_label(), exc, exc_info=True)
             return ImageResult(slot_id=prompt.slot_id, status="failed",
-                               error=f"OpenRouter: {exc}", elapsed_ms=elapsed, provider="openrouter",
+                               error=f"{self._image_gateway_label()}: {exc}",
+                               elapsed_ms=elapsed, provider=self._image_gateway_provider(),
                                prompt_sent=locals().get("_prompt_sent", prompt.prompt),
-                               ref_image_sent=prompt.ref_image_url)
+                               ref_image_sent=locals().get("ref_url_raw", self._normalize_ref_image_url(prompt.ref_image_url)))
 
     def _extract_and_save_image(self, content: str, opportunity_id: str, slot_id: str) -> Path | None:
         """从响应内容中提取 base64 图片或 URL 并保存。"""
@@ -610,6 +709,7 @@ class ImageGeneratorService:
         - 公网 http(s) URL（非 localhost）→ 原样返回
         - `/generated-images/...` 本地 serve path → 解析成 `file://<abs>` 供 SDK 自动上传 OSS
         - 绝对文件系统路径 → 转 `file://<abs>`
+        - 历史 `.../data/source_images/...` 绝对路径 → 先映射到当前仓库后再转 `file://`
         - 无法解析 → 返回 ""
         """
         if not ref_image_url:
@@ -731,21 +831,28 @@ class ImageGeneratorService:
     ) -> ImageResult:
         from dashscope import ImageSynthesis
 
-        _ds_trace = dict(prompt_sent=prompt.prompt, ref_image_sent=prompt.ref_image_url)
+        normalized_ref = self._normalize_ref_image_url(prompt.ref_image_url)
+        _ds_trace = dict(prompt_sent=prompt.prompt, ref_image_sent=normalized_ref)
         t0 = time.perf_counter()
         try:
             # 有参考图 → 走 qwen-image-edit（MultiModalConversation）：公网 URL 原样；本地路径 SDK 自动传 OSS。
-            if prompt.ref_image_url:
-                image_ref = self._resolve_dashscope_image_ref(prompt.ref_image_url)
-                if not image_ref:
-                    elapsed = int((time.perf_counter() - t0) * 1000)
-                    logger.info("DashScope: ref_image_url 无法解析（%s），跳过", prompt.ref_image_url[:80])
-                    return ImageResult(slot_id=prompt.slot_id, status="failed",
-                                       error="ref image 无法解析", elapsed_ms=elapsed,
-                                       provider="dashscope", **_ds_trace)
-                return self._generate_dashscope_image_edit(
-                    prompt, opportunity_id, image_ref, on_progress, t0, _ds_trace,
-                )
+            if normalized_ref:
+                image_ref = self._resolve_dashscope_image_ref(normalized_ref)
+                if image_ref:
+                    edit_result = self._generate_dashscope_image_edit(
+                        prompt, opportunity_id, image_ref, on_progress, t0, _ds_trace,
+                    )
+                    if edit_result.status == "completed":
+                        return edit_result
+                    logger.warning(
+                        "DashScope ref-image branch failed for slot=%s: %s, downgrade to prompt_only",
+                        prompt.slot_id, edit_result.error,
+                    )
+                else:
+                    logger.warning(
+                        "DashScope ref image unavailable for slot=%s: %s, downgrade to prompt_only",
+                        prompt.slot_id, normalized_ref,
+                    )
 
             # 纯文生图：主模型 → 失败再退兜底模型；两个模型的 size 约束不同，
             # 在调用前各自映射到匹配分辨率，避免 wan2.5 拒小尺寸 / wanx 拒大尺寸。
@@ -793,8 +900,10 @@ class ImageGeneratorService:
                                    error=err_msg, elapsed_ms=elapsed, provider="dashscope", **_ds_trace)
 
             task_id = rsp.output.get("task_id", "")
-            logger.warning("DashScope task submitted: slot=%s task_id=%s has_ref=%s",
-                           prompt.slot_id, task_id, bool(prompt.ref_image_url))
+            logger.warning(
+                "DashScope task submitted: slot=%s task_id=%s has_ref=%s",
+                prompt.slot_id, task_id, bool(normalized_ref),
+            )
 
             deadline = time.perf_counter() + _MAX_POLL_SECONDS
             while time.perf_counter() < deadline:
