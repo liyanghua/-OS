@@ -110,14 +110,79 @@ ensure_dir() {
 }
 
 # ---------------------------- 1. 解包流程（快照） ----------------------------
+# bundle 解析：支持
+#   - 单个 tar.gz 文件
+#   - 目录（含 dataset.tar.gz / dataset.tar.gz.part_* / dataset.tar.gz.sha256）
+#   - 任意一个 dataset.tar.gz.part_aa（同目录内自动找全部 part_*）
+resolve_bundle_to_tarball() {
+  local input="$BUNDLE"
+  [[ -n "$input" ]] || die "--bundle 必填"
+
+  local search_dir tarball
+  if [[ -d "$input" ]]; then
+    search_dir="$input"
+  elif [[ -f "$input" ]]; then
+    if [[ "$input" == *.part_* ]]; then
+      search_dir="$(dirname "$input")"
+    else
+      # 直接是 tar.gz
+      RESOLVED_BUNDLE="$input"
+      return 0
+    fi
+  else
+    die "bundle 不存在: $input"
+  fi
+
+  # 优先用现成的 dataset.tar.gz
+  if [[ -f "$search_dir/dataset.tar.gz" ]]; then
+    RESOLVED_BUNDLE="$search_dir/dataset.tar.gz"
+    log "复用已存在的 $RESOLVED_BUNDLE"
+    return 0
+  fi
+
+  # 重组分片
+  local parts=()
+  while IFS= read -r f; do parts+=("$f"); done < <(find "$search_dir" -maxdepth 1 -type f -name 'dataset.tar.gz.part_*' | sort)
+  [[ ${#parts[@]} -gt 0 ]] || die "在 $search_dir 中未找到 dataset.tar.gz 也未找到 dataset.tar.gz.part_* 切片"
+
+  tarball="$search_dir/dataset.tar.gz"
+  log "重组 ${#parts[@]} 个分片 -> $tarball"
+  cat "${parts[@]}" > "$tarball"
+
+  # 校验 SHA256（如果有 .sha256 文件）
+  local sha_file="$search_dir/dataset.tar.gz.sha256"
+  if [[ -f "$sha_file" ]]; then
+    local expected actual
+    expected="$(awk '{print $1}' "$sha_file" | head -1)"
+    if command -v shasum >/dev/null 2>&1; then
+      actual="$(shasum -a 256 "$tarball" | awk '{print $1}')"
+    elif command -v sha256sum >/dev/null 2>&1; then
+      actual="$(sha256sum "$tarball" | awk '{print $1}')"
+    else
+      warn "未找到 shasum/sha256sum，跳过校验"
+      actual=""
+    fi
+    if [[ -n "$actual" ]]; then
+      if [[ "$expected" == "$actual" ]]; then
+        ok "SHA256 校验通过 ($expected)"
+      else
+        die "SHA256 不匹配!  expected=$expected  actual=$actual"
+      fi
+    fi
+  else
+    warn "未找到 dataset.tar.gz.sha256，跳过完整性校验"
+  fi
+  RESOLVED_BUNDLE="$tarball"
+}
+
 extract_bundle() {
-  [[ -n "$BUNDLE" ]] || die "--bundle 必填"
-  [[ -f "$BUNDLE" ]] || die "bundle 不存在: $BUNDLE"
+  resolve_bundle_to_tarball
+  [[ -f "$RESOLVED_BUNDLE" ]] || die "无法解析 bundle: $BUNDLE"
 
   STAGING="$(mktemp -d -t ontoboot.XXXXXX)"
   trap 'rm -rf "$STAGING"' EXIT
-  log "解包 $BUNDLE 到临时目录 $STAGING"
-  tar -xzf "$BUNDLE" -C "$STAGING"
+  log "解包 $RESOLVED_BUNDLE 到临时目录 $STAGING"
+  tar -xzf "$RESOLVED_BUNDLE" -C "$STAGING"
 
   # manifest 校验（warn 不阻断）
   if [[ -f "$STAGING/manifest.json" ]]; then
