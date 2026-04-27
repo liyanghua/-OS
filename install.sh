@@ -35,6 +35,8 @@ RUN_USER="${SUDO_USER:-${USER:-root}}"
 SESSIONS_IMPORT_DIR=""
 RUNTIME_CONFIG_OUT="$DEFAULT_RUNTIME_CONFIG_OUT"
 TRENDRADAR_ON_CALENDAR="$DEFAULT_TRENDRADAR_ON_CALENDAR"
+DATA_BUNDLE=""
+DATA_BUNDLE_MODE="safe"
 
 if [[ -t 1 ]]; then
   C_RED="\033[31m"; C_GREEN="\033[32m"; C_YELLOW="\033[33m"; C_BLUE="\033[34m"; C_RESET="\033[0m"
@@ -64,6 +66,9 @@ usage() {
   --doctor                       只做环境巡检，不做安装
   --port <port>                  主站监听端口，默认 8000
   --host <host>                  主站监听地址，默认 0.0.0.0
+  --bundle <tar.gz>              安装完成后自动导入由 scripts/export_dataset.sh
+                                 在本机产出的数据快照（免浏览器采集即可起服务）
+  --bundle-mode <safe|overwrite> 已存在文件的处理策略，默认 safe（备份后覆盖）
   -h, --help                     显示帮助
 EOF
 }
@@ -79,6 +84,8 @@ while [[ $# -gt 0 ]]; do
     --doctor) DOCTOR_ONLY=1; shift ;;
     --port) PORT="$2"; shift 2 ;;
     --host) HOST="$2"; shift 2 ;;
+    --bundle) DATA_BUNDLE="$2"; shift 2 ;;
+    --bundle-mode) DATA_BUNDLE_MODE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "未知参数: $1" ;;
   esac
@@ -463,6 +470,31 @@ post_install_smoke() {
   fi
 }
 
+import_data_bundle_if_provided() {
+  if [[ -z "$DATA_BUNDLE" ]]; then
+    return 0
+  fi
+  local bundle_path="$DATA_BUNDLE"
+  if [[ ! -f "$bundle_path" ]]; then
+    warn "--bundle 指定的文件不存在，跳过导入: $bundle_path"
+    return 0
+  fi
+  local bootstrap_script="$REPO_ROOT/scripts/bootstrap_data.sh"
+  if [[ ! -x "$bootstrap_script" ]]; then
+    warn "缺少 scripts/bootstrap_data.sh，跳过 --bundle 导入"
+    return 0
+  fi
+  log "导入数据快照: $bundle_path (mode=$DATA_BUNDLE_MODE)"
+  PYTHON_BIN="$APP_VENV/bin/python" \
+    bash "$bootstrap_script" \
+      --bundle "$bundle_path" \
+      --install-dir "$REPO_ROOT" \
+      --mode "$DATA_BUNDLE_MODE" \
+      --service "$APP_SERVICE_NAME" \
+      --restart-service \
+    || warn "数据快照导入失败，请人工排查（详见上方 [WARN]/[FAIL] 日志）"
+}
+
 summary() {
   cat <<EOF
 
@@ -480,6 +512,9 @@ ${C_GREEN}===== Ubuntu 部署完成 =====${C_RESET}
   sessions dir: $SESSIONS_DIR
   xhs imported: $( [[ -f "$SESSIONS_DIR/xhs_state.json" ]] && echo "yes" || echo "no" )
   dy imported : $( [[ -f "$SESSIONS_DIR/dy_state.json" ]] && echo "yes" || echo "no" )
+
+数据快照:
+  bundle      : $( [[ -n "$DATA_BUNDLE" ]] && echo "$DATA_BUNDLE (mode=$DATA_BUNDLE_MODE)" || echo "<未提供，可后续 bash scripts/bootstrap_data.sh --bundle ...>" )
 
 能力降级提醒:
   OPENAI_API_KEY 缺失会影响主 LLM 链路
@@ -514,6 +549,7 @@ main() {
   align_mediacrawler_sessions_dir
   install_systemd_units
   post_install_smoke
+  import_data_bundle_if_provided
   run_doctor
   summary
 }
