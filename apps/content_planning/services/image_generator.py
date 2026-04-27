@@ -189,6 +189,9 @@ class ImageGeneratorService:
         self._openai_key = os.environ.get("OPENAI_API_KEY", "")
         self._openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
         self._openrouter_gpt5_image_key = os.environ.get("OPENROUTER_GPT5_IMAGE_KEY", "")
+        self._openrouter_override_keys = {
+            "OPENROUTER_GPT5_IMAGE_KEY": self._openrouter_gpt5_image_key,
+        }
         self._openrouter_model = os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-3.1-flash-image-preview")
         fallbacks_raw = os.environ.get("OPENROUTER_IMAGE_MODEL_FALLBACKS", "")
         self._openrouter_fallbacks = [
@@ -235,9 +238,7 @@ class ImageGeneratorService:
         """
         env_var = _OPENROUTER_KEY_OVERRIDES.get(model_name or "")
         if env_var:
-            override_key = os.environ.get(env_var, "")
-            if not override_key and env_var == "OPENROUTER_GPT5_IMAGE_KEY":
-                override_key = self._openrouter_gpt5_image_key
+            override_key = self._openrouter_override_keys.get(env_var, "")
             if override_key:
                 return override_key, env_var
         return self._openrouter_key, "OPENROUTER_API_KEY"

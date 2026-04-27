@@ -111,7 +111,13 @@ def _make_openrouter_raw_response(b64_img: str | None = None) -> MagicMock:
 
 def _service_with_keys(**env: str) -> ImageGeneratorService:
     """Create a service instance with controlled env vars."""
-    defaults = {"DASHSCOPE_API_KEY": "sk-test-ds", "OPENROUTER_API_KEY": "sk-test-or"}
+    defaults = {
+        "DASHSCOPE_API_KEY": "sk-test-ds",
+        "OPENAI_API_KEY": "",
+        "IMAGE_GEN_OPENAI_BASE_URL": "",
+        "OPENROUTER_API_KEY": "sk-test-or",
+        "OPENROUTER_GPT5_IMAGE_KEY": "",
+    }
     defaults.update(env)
     with patch.dict(os.environ, defaults, clear=False):
         return ImageGeneratorService()
