@@ -3,6 +3,49 @@
 > V0.9 AI-native 协同架构升级：协同网关 + Lead Agent + SSE 实时流 + 多轮对话 + Plan Graph + Agent Memory + Skill Registry + 前端富交互。
 > V0.3 核心升级：把小红书笔记从"内容样本"编译成"经营决策资产"。
 
+## 视觉策略 Retrieval 形式化技术报告（2026-04-26）
+
+- 新增文档：[`docs/visual_strategy_retrieval_report.md`](visual_strategy_retrieval_report.md)
+- 内容摘要：
+  - 用 Retrieval / Re-rank 形式化语言重写 `assets/SOP → RuleSpec → RulePack → StrategyCandidate → CreativeBrief → PromptSpec` 全链路。
+  - 区分**离线生产线（MDIngestion / RuleExtractor / RuleReview / RulePackBuilder）** 与**在线编译线（ContextCompiler / StrategyCompiler / VisualBriefCompiler / VisualPromptCompiler）**，并附 Mermaid 分层架构图（L0 资产 → L1 离线 → L2 存储 → L3 在线 → L4 API → L5 前端 → L6 反馈）。
+  - 把在线编译形式化为「召回 (per-archetype × per-dim 硬过滤) → 一阶打分 (`base × conf × (1+0.15·prefer) × max(0.1, 1−0.25·avoid)`) → 多目标 re-rank (8 子维度加权 − 冲突惩罚×0.3) → 上下文生成 (Brief/Prompt 双段渲染)」，逐项给出形式化 vs 实现命中度。
+  - 列出 P0-P3 改造建议：①`trigger.conditions` 接召回硬过滤；②`must_follow` 透传到 PromptSpec / workflow_json；③`conflict_rules` 入 RulePack 配置；④BM25 + 向量混合召回；⑤MMR 多样性；⑥contextual bandit 反馈；⑦retrieval_trace 可观测性。
+- 落地动作：本次仅落文档，源码改动留待后续按 P0 三项排期。
+
+## 策划工作台 AI-native 简化重构（2026-04-26）
+
+### 痛点
+- `/planning/{opportunity_id}` 早期承载 12+ 区块、5 套并存的 AI 协同 UI（快速分析按钮 / 策略块行内检视 / 委员会抽屉 / Agent 一键管线 / 健康分独立卡），用户无从下手。
+- 死代码 `_legacyNotePreviewStub` ≈800 行（`return;` 即结束），`ctx.bundle` 注入但模板不渲染，`_compilation_report.html` include 但本页从不调 `compilationUI`，`#pw-btn-followup / lock / approve` 仅 `alert` 占位，右栏直接打印 `{{ review_summary }}` dict 字面量。
+- 「V6 生产链路」「Agent 一键策划」「Agent 状态卡」三块本质同一组管线观测，分别用 3 套 UI 展示。
+
+### 方案要点
+- **新骨架：顶部 ContextBar + 左主栏 5 步 Hero Flow + 右栏 380px 常驻 Agent Co-pilot**。三 partial 拆分：
+  - [`apps/intel_hub/api/templates/_pw_context_bar.html`](../apps/intel_hub/api/templates/_pw_context_bar.html)：单行 chip 头条（标题 / 置信度 / 类型 / lens / 品牌 / 来源笔记），尾部资产包 + 视觉工作台主跳转。
+  - [`apps/intel_hub/api/templates/_pw_hero_flow.html`](../apps/intel_hub/api/templates/_pw_hero_flow.html)：5 step 纵向（Brief / Strategy / 视觉策略 / NotePlan / 接力），每 step 三态徽章（ready / empty / stale）+ active 默认展开 + per-step `data-pw-toggle` / `data-pw-inspect` 按钮。Step 3 直接整块搬迁 `#vs-panel`（候选网格 + Brief / Prompt 内联 + 推送视觉工作台）。
+  - [`apps/intel_hub/api/templates/_pw_copilot.html`](../apps/intel_hub/api/templates/_pw_copilot.html)：右栏三 tab：
+    - **Pulse**：health-check 健康分 + issues + next-best-action chip 委托（`inspect:*` / `recompile_visual` / `refresh`）+ 管线状态条（合并 V6 + agent-pipeline + Agent 状态）+ 评审摘要。
+    - **Inspect**：focus 选择器（brief / strategy / visual / plan）→ 统一调 `POST /content-planning/run-agent/{id}` (`brief_synthesizer` / `strategy_director` / `template_planner` / `visual_director`)；结果内联渲染优势 / 待改进 / 建议 chip；二级「派生变体」按钮调 `POST /content-planning/asset-bundle/{id}/generate-variant`。
+    - **Council**：`_council_ui.html` 直接 include + `councilUI.initCouncilSession` / `loadDiscussionHistory`；删除主模板内联约 200 行的 council 自拼 UI。
+- **路由 + VM 重接**：[`apps/intel_hub/api/app.py`](../apps/intel_hub/api/app.py) `planning_workspace_page` 移除 `ctx.bundle` 与 `bundle_dict` 注入；[`apps/content_planning/viewmodels/planning_workspace_vm.py`](../apps/content_planning/viewmodels/planning_workspace_vm.py) 新增 `build_context_bar` / `build_step_states`（active = 首个非 ready，全 ready → handoff）/ `build_pulse_initial`，`build_workspace_vm` 输出 `step_states / context_bar / pulse_initial`。
+- **一刀切删除**：`_legacyNotePreviewStub` 整段（≈800 行 `return;` 死代码）/ `ctx.bundle` 注入 / `_compilation_report.html` include / 「审批状态」与「继续追问」`<details>` / `pw-btn-followup` / `pw-btn-lock` / `pw-btn-approve` / `{{ review_summary }}` 原始打印 / 「V6 生产链路」独立 section 与 `#v6-run-pipeline-btn` / `_agent_pipeline_panel.html` include / `pw-btn-analyze` / `pw-btn-council` / `pw-btn-variant` 三个右栏主按钮 / 中栏每个策略块的「AI 检视」按钮。`openDrawer` 通用能力保留（仅给 Brief 编辑用）。
+
+### 关键改动文件
+- 新增：`apps/intel_hub/api/templates/_pw_context_bar.html`、`apps/intel_hub/api/templates/_pw_hero_flow.html`、`apps/intel_hub/api/templates/_pw_copilot.html`。
+- 重写：`apps/intel_hub/api/templates/planning_workspace.html`（从 ~2540 行 → ~580 行）。
+- 修改：`apps/intel_hub/api/app.py`（`planning_workspace_page` 移除 `ctx.bundle`、传入新 VM 参数）、`apps/content_planning/viewmodels/planning_workspace_vm.py`（加 `build_context_bar` / `build_step_states` / `build_pulse_initial`）。
+
+### 验证
+- `pytest apps/intel_hub/tests/test_api.py -q` → 38 passed。
+- `pytest apps/content_planning/tests/ --ignore=test_image_generator.py -q` → 165 passed（被忽略的 image_generator 真实 API 测试需外网，与本次改动无关）。
+- TestClient `GET /planning/cd6e652a27a548fa` → 200，HTML 含：1 个 `class="pw-context-bar"` / 5 个 `<section class="pw-step">`（恰 1 个 `data-active="1"`）/ 3 个 `data-cop-panel` / `councilUI` 全局；不含禁止项（`_legacyNotePreviewStub` / `_compilation_report` / `pw-btn-analyze` / `pw-btn-council` / `pw-btn-variant` / `审批状态` / `V6 生产链路` / `_agent_pipeline_panel`）。
+- has-pack 分支：在 `data/growth_lab.sqlite` 临时 seed 1 个 `VisualStrategyPack` + 2 个候选 → Step 3 服务端直出 `vs-cand-card` 网格、状态徽章「已编译 2 · taobao_main_image」；测试后清理。
+
+### 不变项
+- `/content-planning/visual-strategy/*` / `run-agent` / `strategy-block` / `health-check` / `agent-pipeline` / `asset-bundle/.../generate-variant` / `discussions/by-opportunity` / `proposals/.../apply` / `proposals/.../reject` 全部端点保留。
+- `/planning/{id}/visual-builder`、`/asset-workspace`、`/xhs-opportunities/{id}` 边界不动；Guidelines.md 色系 / 字体 / `pw-section` / `pw-card` 层级 / 业务中文文案规则保留。
+
 ## 儿童桌垫品类独立化 + LLM Lens 生成（2026-04-26）
 
 ### 痛点
@@ -3815,3 +3858,49 @@ image -> image_execution_briefs
 
 - 真正的"完成 → POST 沉淀到 SystemAsset"动作（仅校正按钮文案；后续单独立项决定每条 lane 的提交口径与产物字段）。
 - `/growth-lab/lab` 与 `/growth-lab/first3s` 页面本身的功能合并/迁移到视觉工作台（仅入口去重、文案统一为"裂变"，路由保留）。
+
+---
+
+## 视觉产线分流 + 小红书联动（2026-04-26）
+
+把"内容策划台 → 视觉工作台"这条手动衔接的环节做成了按 scene 自动分流，并把 xhs_cover 的封面 + 内文图 + 文案一次性产出。从后端到前端形成完整闭环：
+
+1. **Schema：NotePack / 字段级归因** — 新增 [`apps/growth_lab/schemas/note_pack.py`](apps/growth_lab/schemas/note_pack.py) 定义 `BodyImageSpec / CopywritingPack / NotePack`；`PromptSpec` 与 `CreativeBrief` 都补 `field_provenance: dict[str, str]`，跟踪每个字段是来自 `rule_id / archetype_default / brief_field / manual`。`apps/growth_lab/storage/visual_strategy_store.py` 增 `note_packs` 表与 `save_note_pack / get_note_pack / get_note_pack_by_candidate`。
+
+2. **Compiler：xhs 多 slot + 文案** — `VisualPromptCompiler.compile_xhs_pack` 接受单个 candidate，先按封面 archetype 复用全 brief 编译 cover，再按 `_BODY_DIM_PLAN_BY_ARCHETYPE` 把 body × 3 拆成不同维度（`function_demo / before_after / lifestyle / scene / ingredient / texture`），每张通过 `_narrow_brief_for_dim` 收窄 brief 后独立编译；`field_provenance` 写到 NotePack 顶层。新增 [`apps/growth_lab/services/copywriting_compiler.py`](apps/growth_lab/services/copywriting_compiler.py)：archetype 模板版生成 `headline / body_text / hashtags`，并标 `field_source` 归因，预留 `llm_router` 增强 hook。
+
+3. **Routes：分流 + NotePack 端点** — [`apps/content_planning/api/visual_strategy_routes.py`](apps/content_planning/api/visual_strategy_routes.py) 重写 `POST /candidates/{id}/send-to-workbench`：
+   - `scene == "xhs_cover"` → `compile_xhs_pack` + `CopywritingCompiler` + 老的 `_send_to_workbench_handler`（仍写 PlanStore 兜底） → 返回 `/planning/{opp}/visual-builder?candidate_id=...&creative_brief_id=...`。
+   - `scene ∈ {taobao_main_image, detail_first_screen, video_first_frame}` → `WorkspaceLoader.load_candidate` 在 GrowthLabStore 创建 plan/frames/nodes 并把 `candidate_meta` 嵌入 `generation_rules.visual_strategy_candidate` → 返回 `/growth-lab/workspace?plan_id=...&candidate_id=...&creative_brief_id=...`。
+   新增 `POST /candidates/{id}/note-pack`、`GET /candidates/{id}/full-context`、`POST /candidates/{id}/note-pack/recompile-slot`（slot 局部覆写，不重过 LLM）。
+
+4. **无限画布装载** — 新增 [`apps/growth_lab/services/workspace_loader.py`](apps/growth_lab/services/workspace_loader.py)：把 candidate/brief 拼成 `IntentContext`，先尝试 `VisualPlanCompiler.compile`，模板缺失时退化到空 plan；候选 metadata 始终写到 `generation_rules.visual_strategy_candidate`。`apps/growth_lab/api/routes.py` 新增 `POST /api/workspace/load-candidate` 显式入口（同样的核心逻辑也内嵌在 send-to-workbench 中，避免重复请求）。`apps/growth_lab/templates/workspace.html` 顶栏读 `?candidate_id` query → 调 `/content-planning/visual-strategy/candidates/{id}/full-context` → 渲染顶部黄色"策略候选"徽章 + 抽屉显示 archetype/score/selected_variables/rule_refs_detail/brief，并提供"采纳/优化/拒绝"三按钮直发 `/visual-strategy/feedback`。
+
+5. **策划台跳转** — `apps/intel_hub/api/templates/planning_workspace.html` 的 `vsSendToWorkbench` 改为直接使用后端返回的 `visual_builder_url`（不再自拼 `?prompt_id=`），按钮旁增加 scene 标签提示："封面 → 视觉工作台" / "主图 → 无限画布"。
+
+6. **视觉工作台策略包模式** — `apps/intel_hub/api/app.py::visual_builder_page` 新增 `candidate_id / creative_brief_id` query，命中时通过 `get_full_context` 注入 `bootstrap.vs_context`、`bootstrap.vs_pack_candidates` 与基于 NotePack 的 `initial_prompts`（cover + body × N），PlanStore 仍作兜底。`apps/intel_hub/api/templates/visual_builder.html`：
+   - 左栏新增 partial [`_vb_strategy_evidence.html`](apps/intel_hub/api/templates/_vb_strategy_evidence.html)：archetype + 综合分 / 品牌 / 人群 / 差异化 / 可行性 / 覆盖度 + selected_variables × N + 命中规则（rule_id / dimension / weight / source_quote）+ 风险 + brief 摘要。
+   - 中栏顶部 6 候选 ribbon：点击切换 → `POST /candidates/{id}/note-pack` lazy 重编 → 替换 `_inspectorPrompts`、cover_image_prompt、headline、body_text；URL 用 `replaceState` 同步 `candidate_id`。
+   - Prompt Builder 每个 slot 头部加 archetype_dim / 规则×N / 归因 三个徽章（hover 显示 rationale + rule_refs + field_provenance），右侧加"↻ 重编"按钮 → `POST /candidates/{id}/note-pack/recompile-slot` 把当前 textarea 内容写回 NotePack（`field_provenance.positive_prompt_zh = manual`）。
+   - 「立即生图」按钮在 vs_mode 下直接调 `/v6/image-gen` + `edited_prompts`，绕过 `quick-draft`；image_gen_complete SSE 触发 5 维 expert_score 反馈条（`first_glance / audience_fit / function_clarity / style_fit / differentiation`）→ `POST /visual-strategy/feedback` 自动带上当前 slot 的全部 `rule_refs`，回执显示"影响 N 条规则权重"。
+
+7. **回归测试** — 新增 [`apps/content_planning/tests/test_visual_strategy_handoff.py`](apps/content_planning/tests/test_visual_strategy_handoff.py)，使用 TestClient + tmp sqlite 隔离的 6 个用例：
+   - xhs_cover send-to-workbench → 返回 visual_builder url + NotePack（cover + body × 3 + headline + body_text）。
+   - 主图 send-to-workbench → 返回 `/growth-lab/workspace?plan_id=...`，且 note_pack_id 为空。
+   - `GET /full-context` 聚合返回 candidate / brief / pack / note_pack / rule_refs_detail。
+   - `POST /note-pack` 可重复调用，`force_recompile=True` 仍返回 cover+body×3 完整结构。
+   - `POST /note-pack/recompile-slot` 局部覆写并持久化（cover/body 都 OK）。
+   - `POST /feedback` 走通 FeedbackEngine。
+
+### 验证
+
+- `.venv/bin/python -m pytest apps/content_planning/tests/test_visual_strategy_handoff.py -v` → 6 passed。
+- `.venv/bin/python -m pytest apps/content_planning/tests/test_visual_strategy_pipeline.py apps/content_planning/tests/test_brief_compiler.py -q` → 14 passed，原有用例无回归。
+- 端到端人工验证路径：`/planning/{opp}` 编译 6 候选 → 推送（封面）→ `/planning/{opp}/visual-builder?candidate_id=...&creative_brief_id=...` 加载 NotePack；推送（主图）→ `/growth-lab/workspace?plan_id=...&candidate_id=...` 显示候选徽章。
+
+### 不在本次范围
+
+- 无限画布上把 NotePack 里 cover+body 多张图分散到画布节点的可视化推演（仅做候选装载与标签可见）。
+- 笔记 body 张数动态化：当前固定 3，由 archetype 默认 plan 决定。
+- LLM 增强版 `CopywritingCompiler`（先模板兜底，留 `llm_client` hook）。
+- vs_mode 下 chip 编辑触发 `PATCH /briefs/{id}` 真正回传 brief 字段（当前只把 textarea 内容写回 NotePack 对应 slot；brief 级局部更新未启用）。

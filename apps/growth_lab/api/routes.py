@@ -1392,6 +1392,78 @@ async def get_workspace_template(template_id: str) -> dict:
     return data
 
 
+class WorkspaceLoadCandidateRequest(BaseModel):
+    candidate_id: str
+    creative_brief_id: str = ""
+    opportunity_id: str = ""
+    notes: str = ""
+    workspace_id: str = ""
+    brand_id: str = ""
+
+
+@router.post("/api/workspace/load-candidate")
+async def load_workspace_candidate(req: WorkspaceLoadCandidateRequest) -> dict:
+    """从视觉策略候选装载到无限画布；写入 plan + frames + nodes，返回 plan_id。
+
+    送达策略：策划台 send-to-workbench 已经做了一次装载，本端点用于
+    显式重装载或 e2e 测试。重复调用会创建多个 plan（无去重）。
+    """
+    from apps.growth_lab.schemas.creative_brief import CreativeBrief
+    from apps.growth_lab.schemas.prompt_spec import PromptSpec
+    from apps.growth_lab.schemas.strategy_candidate import StrategyCandidate
+    from apps.growth_lab.services.visual_prompt_compiler import VisualPromptCompiler
+    from apps.growth_lab.services.workspace_loader import WorkspaceLoader
+    from apps.growth_lab.storage.visual_strategy_store import VisualStrategyStore
+
+    vs = VisualStrategyStore()
+    cand_raw = vs.get_strategy_candidate(req.candidate_id)
+    if not cand_raw:
+        raise HTTPException(404, "candidate not found")
+    cand = StrategyCandidate.model_validate(cand_raw)
+
+    brief_id = req.creative_brief_id or cand.creative_brief_id
+    if not brief_id:
+        raise HTTPException(400, "missing creative_brief_id；请先生成 brief")
+    brief_raw = vs.get_creative_brief(brief_id)
+    if not brief_raw:
+        raise HTTPException(404, "brief not found")
+    brief = CreativeBrief.model_validate(brief_raw)
+
+    pack_raw = vs.get_visual_strategy_pack(cand.visual_strategy_pack_id) if cand.visual_strategy_pack_id else None
+    scene = (pack_raw or {}).get("scene") or "taobao_main_image"
+
+    spec_raw = vs.get_prompt_spec(cand.prompt_spec_id) if cand.prompt_spec_id else None
+    if not spec_raw:
+        spec = VisualPromptCompiler(vs).compile(brief=brief)
+        cand.prompt_spec_id = spec.id
+        vs.save_strategy_candidate(cand.model_dump())
+    else:
+        spec = PromptSpec.model_validate(spec_raw)
+
+    loader = WorkspaceLoader(_get_store())
+    result = loader.load_candidate(
+        candidate=cand,
+        brief=brief,
+        prompt_spec=spec,
+        scene=scene,
+        opportunity_id=req.opportunity_id,
+        notes=req.notes,
+        workspace_id=req.workspace_id,
+        brand_id=req.brand_id,
+    )
+    return {
+        "plan_id": result["plan_id"],
+        "frame_count": result["frame_count"],
+        "node_count": result["node_count"],
+        "scene": scene,
+        "candidate_meta": result["candidate_meta"],
+        "workspace_url": (
+            f"/growth-lab/workspace?plan_id={result['plan_id']}"
+            f"&candidate_id={cand.id}&creative_brief_id={brief.id}"
+        ),
+    }
+
+
 @router.post("/api/workspace/compile")
 async def compile_workspace(req: WorkspaceCompileRequest) -> dict:
     """从 IntentContext 编译一个新的 CompilePlan + Frames + Nodes。"""

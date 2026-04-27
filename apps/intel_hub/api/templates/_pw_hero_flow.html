@@ -1,0 +1,232 @@
+{# 策划工作台 左主栏 Hero Flow：5 step 纵向，仅 active 默认展开
+   依赖：vm.step_states / vm.brief_summary / vm.template_candidates / vm.strategy_summary
+         vm.visual_strategy / vm.plan_board / brief / note_plan / generated / opportunity_id
+#}
+{% set _steps = vm.step_states if vm and vm.step_states else [] %}
+{% set _bs = vm.brief_summary if vm and vm.brief_summary else {} %}
+{% set _tc = vm.template_candidates if vm and vm.template_candidates else {} %}
+{% set _ss = vm.strategy_summary if vm and vm.strategy_summary else {} %}
+{% set _vs = vm.visual_strategy if vm and vm.visual_strategy else {} %}
+{% set _pb = vm.plan_board if vm and vm.plan_board else {} %}
+{% set _np = note_plan if note_plan is defined and note_plan else {} %}
+
+{% macro _step_head(s, extra_status_label='') -%}
+<header class="pw-step-head">
+  <span class="pw-step-dot pw-step-dot--{{ s.status }}"></span>
+  <h3 class="pw-step-h">
+    <span class="pw-step-idx">Step {{ s.idx }}</span>
+    <span class="pw-step-label">· {{ s.label }}</span>
+  </h3>
+  <span class="pw-step-badge pw-step-badge--{{ s.status }}">
+    {% if s.status == 'ready' %}已就绪{% elif s.status == 'stale' %}已过期{% else %}待生成{% endif %}{% if extra_status_label %} · {{ extra_status_label }}{% endif %}
+  </span>
+  <span class="pw-step-summary">{{ s.summary }}</span>
+  <button type="button" class="pw-btn-tertiary pw-step-toggle" data-pw-toggle="{{ s.key }}" title="展开/折叠">{% if s.active %}收起{% else %}展开{% endif %}</button>
+  <button type="button" class="pw-btn-tertiary pw-step-inspect" data-pw-inspect="{{ s.key }}" title="让 Co-pilot 检视该步骤">Co-pilot 检视 ✦</button>
+</header>
+{%- endmacro %}
+
+{% for s in _steps %}
+<section class="pw-step" data-step="{{ s.key }}" data-status="{{ s.status }}" {% if s.active %}data-active="1"{% endif %}>
+{{ _step_head(s) }}
+<div class="pw-step-body" {% if not s.active %}hidden{% endif %}>
+
+  {# ─────── Step 1 · Brief ─────── #}
+  {% if s.key == 'brief' %}
+    {% if _bs %}
+    <div class="pw-mini-grid">
+      {% for k, blk in _bs.items() %}
+      {% set _blk_items = blk['items'] if blk['items'] is defined else [] %}
+      {% set _has_items = (_blk_items|select|list|length > 0) %}
+      <div class="pw-mini-card">
+        <div class="pw-mini-card-label">{{ blk['label'] }}</div>
+        {% if _has_items %}
+        <ul class="pw-mini-card-value">
+          {% for item in _blk_items %}
+            {% if item %}<li>{{ item }}</li>{% endif %}
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="pw-mini-card-value pw-mini-card-empty">—</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="pw-step-actions">
+      <button type="button" class="pw-btn-tertiary" id="pw-btn-edit-brief">编辑 Brief</button>
+      {% set _what = _bs.get('what') if _bs else {} %}
+      {% set _what_items = (_what['items'] if _what and _what['items'] is defined else []) %}
+      {% if not _what_items or not (_what_items|select|list) %}
+      <a class="pw-btn-tertiary" href="{{ refresh_url }}">显式构建 →</a>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="pw-empty">尚未生成 Brief。<a class="pw-empty-btn" href="{{ refresh_url }}">显式构建 Brief</a></div>
+    {% endif %}
+
+  {# ─────── Step 2 · Strategy ─────── #}
+  {% elif s.key == 'strategy' %}
+    {# 模板候选 #}
+    {% if _tc.primary and _tc.primary.name %}
+    <div class="pw-tpl-cluster">
+      <div class="pw-tpl-cluster-title">主模板</div>
+      <div class="pw-template-card pw-template-primary">
+        <div class="pw-template-name">{{ _tc.primary.name }}</div>
+        {% if _tc.primary.reason %}<div class="pw-template-reason">{{ _tc.primary.reason }}</div>{% endif %}
+        <div class="pw-progress-track"><div class="pw-progress-fill" style="width: {{ ((_tc.primary.score or 0) * 100)|round(0)|int }}%;"></div></div>
+      </div>
+      {% if _tc.secondaries %}
+      <div class="pw-template-alts">
+        {% for alt in _tc.secondaries %}
+        <div class="pw-template-alt">
+          <div class="pw-template-name" style="font-size:13px;">{{ alt.name }}</div>
+          {% if alt.reason %}<div class="pw-template-reason" style="font-size:11px;">{{ alt.reason }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# RewriteStrategy 4 块 #}
+    {% if _ss %}
+    <div class="pw-strategy-cluster">
+      {% for key, blk in _ss.items() %}
+      {% set _blk_items = blk['items'] if blk['items'] is defined else [] %}
+      {% set _items = (_blk_items|select|list) %}
+      {% if _items %}
+      <div class="pw-strategy-block">
+        <div class="pw-strategy-block-content">
+          <div class="pw-strategy-label">{{ blk['label'] }}</div>
+          {% if _items|length > 1 %}
+          <ul class="pw-strategy-items">{% for item in _items %}<li>{{ item }}</li>{% endfor %}</ul>
+          {% else %}
+          <div class="pw-strategy-items">{{ _items[0] }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="pw-empty">Brief 就绪后由 StrategyDirector 产出策略。</div>
+    {% endif %}
+
+  {# ─────── Step 3 · 视觉策略 6 候选 ─────── #}
+  {% elif s.key == 'visual' %}
+    <div id="vs-panel"
+         data-pack-id="{{ _vs.pack_id }}"
+         data-default-category="{{ _vs.default_category }}"
+         data-default-scene="{{ _vs.default_scene }}">
+      <div id="vs-panel-controls">
+        <span class="pw-badge" id="vs-panel-status">
+          {% if _vs.has_pack %}已编译 {{ _vs.candidate_count }} · {{ _vs.scene or _vs.default_scene }}{% else %}未编译{% endif %}
+        </span>
+        <label>类目</label>
+        <input id="vs-category" type="text" value="{{ _vs.default_category }}" />
+        <label style="margin-left:6px;">场景</label>
+        <select id="vs-scene">
+          {% set _cur_scene = _vs.scene or _vs.default_scene %}
+          <option value="taobao_main_image" {% if _cur_scene == 'taobao_main_image' %}selected{% endif %}>淘宝主图</option>
+          <option value="xhs_cover" {% if _cur_scene == 'xhs_cover' %}selected{% endif %}>小红书封面</option>
+          <option value="detail_first_screen" {% if _cur_scene == 'detail_first_screen' %}selected{% endif %}>详情首屏</option>
+          <option value="video_first_frame" {% if _cur_scene == 'video_first_frame' %}selected{% endif %}>短视频首帧</option>
+        </select>
+        <button type="button" class="pw-btn-tertiary" id="vs-panel-recompile">{% if _vs.has_pack %}重新编译{% else %}立即编译 6 类候选{% endif %}</button>
+      </div>
+      <div id="vs-panel-body">
+        {% if _vs.has_pack %}
+          {% include "_vs_candidates_inline.html" %}
+        {% else %}
+        <div class="pw-empty">
+          尚未编译。点击「立即编译 6 类候选」基于 <strong>{{ _vs.default_category }}</strong> 行业 RulePack 生成视觉策略候选。<br>
+          首次编译需先在<a href="/expert-strategy-workbench" style="color:var(--accent);">专家策略工作台</a>批通过该类目规则。
+        </div>
+        {% endif %}
+      </div>
+      <div id="vs-panel-detail"></div>
+    </div>
+
+  {# ─────── Step 4 · NotePlan ─────── #}
+  {% elif s.key == 'plan' %}
+    {% if _np %}
+    <div class="pw-plan-grid">
+      {# 标题候选 #}
+      <div>
+        <div class="pw-plan-col-title">标题候选</div>
+        {% set titles = _pb.titles if _pb else [] %}
+        {% if titles %}
+          {% for t in titles %}
+          <div class="pw-plan-slot">
+            <div class="pw-plan-slot-idx">{{ loop.index }}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;">{{ t.title_text }}</div>
+              {% if t.axis %}<div style="font-size:10px;color:var(--muted);margin-top:2px;">{{ t.axis }}</div>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div class="pw-empty" style="padding:14px;">尚无标题候选</div>
+        {% endif %}
+      </div>
+      {# 正文摘要 #}
+      <div>
+        <div class="pw-plan-col-title">正文摘要</div>
+        {% set _body = _pb.body_summary if _pb else {} %}
+        {% if _body and (_body.opening_hook or _body.body_outline or _body.cta_direction) %}
+          {% if _body.opening_hook %}<div class="pw-plan-slot"><strong style="font-size:11px;color:var(--accent);">开篇钩子</strong><div style="font-size:12px;margin-top:2px;">{{ _body.opening_hook }}</div></div>{% endif %}
+          {% if _body.body_outline %}<div class="pw-plan-slot"><strong style="font-size:11px;color:var(--accent);">正文大纲</strong><div style="font-size:12px;margin-top:2px;line-height:1.55;">{{ _body.body_outline }}</div></div>{% endif %}
+          {% if _body.cta_direction %}<div class="pw-plan-slot"><strong style="font-size:11px;color:var(--accent);">CTA 方向</strong><div style="font-size:12px;margin-top:2px;">{{ _body.cta_direction }}</div></div>{% endif %}
+        {% else %}
+        <div class="pw-empty" style="padding:14px;">尚无正文摘要</div>
+        {% endif %}
+      </div>
+      {# 图位规划 #}
+      <div>
+        <div class="pw-plan-col-title">图位规划</div>
+        {% set slots = _pb.image_slots if _pb else [] %}
+        {% if slots %}
+          {% for slot in slots %}
+          <div class="pw-plan-slot">
+            <div class="pw-plan-slot-idx">{{ slot.slot_index + 1 if slot.slot_index is number else loop.index }}</div>
+            <div style="flex:1;min-width:0;">
+              {% if slot.role %}<div style="font-size:11px;color:var(--accent);font-weight:600;">{{ slot.role }}</div>{% endif %}
+              <div style="font-size:12px;">{{ slot.subject or '—' }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div class="pw-empty" style="padding:14px;">尚无图位规划</div>
+        {% endif %}
+      </div>
+    </div>
+    {% if _pb.publish_notes %}
+    <div class="pw-publish-notes">
+      <strong style="font-size:11px;color:var(--accent);">发布注意事项</strong>
+      <ul>{% for n in _pb.publish_notes %}<li>{{ n }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="pw-empty">NotePlan 尚未生成。<a class="pw-empty-btn" href="{{ refresh_url }}">显式生成计划</a></div>
+    {% endif %}
+
+  {# ─────── Step 5 · 接力 ─────── #}
+  {% elif s.key == 'handoff' %}
+    <div class="pw-handoff-grid">
+      <div class="pw-handoff-preview">
+        <div class="pw-plan-col-title">笔记预览</div>
+        <div id="pw-handoff-preview" class="pw-empty" style="padding:18px;">
+          点击「进入视觉工作台」开始挑选标题、生成主图与定稿正文。
+        </div>
+      </div>
+      <div class="pw-handoff-actions">
+        <a class="pw-btn pw-btn-primary" href="/planning/{{ opportunity_id }}/visual-builder?from=planning">进入视觉工作台 →</a>
+        <a class="pw-btn pw-btn-secondary" href="/asset-workspace?from={{ opportunity_id }}">查看资产包</a>
+        <a class="pw-btn pw-btn-tertiary" href="/xhs-opportunities/{{ opportunity_id }}" style="text-align:center;">返回机会卡详情</a>
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+</section>
+{% endfor %}

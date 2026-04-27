@@ -1,119 +1,167 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% set _mr = match_result if match_result is not none else {} %}
-{% set _brief = brief if brief is not none else {} %}
-{% set _strategy = strategy if strategy is not none else {} %}
-{% set _card = card if card is not none else {} %}
-{% set _np = note_plan if note_plan is not none else {} %}
-{% set _gen = generated if generated is not none else {} %}
 {% set _vm = vm if vm is defined and vm else {} %}
-{% set _ctx = _vm.context if _vm and _vm.context else {} %}
 {% set _bs = _vm.brief_summary if _vm and _vm.brief_summary else {} %}
-{% set _tc = _vm.template_candidates if _vm and _vm.template_candidates else {} %}
-{% set _ss = _vm.strategy_summary if _vm and _vm.strategy_summary else {} %}
-{% set _pb = _vm.plan_board if _vm and _vm.plan_board else {} %}
+{% set _brief = brief if brief is not none else {} %}
+{% set _np = note_plan if note_plan is not none else {} %}
 
 <style>
-  @keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes pulseDots { 0%,80%,100% { opacity:.3; } 40% { opacity:1; } }
-  .council-dots { animation: pulseDots 1.2s infinite; }
+  /* ── Tokens & Layout ── */
   body .shell { max-width: 1560px; }
   .pw-shell { max-width: 1560px; margin: 0 auto; }
 
-  /* ── 顶部状态条 ── */
-  .pw-status-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px; margin-bottom: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
-  .pw-status-title { font-size: 15px; font-weight: 700; color: var(--ink); }
-  .pw-status-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
-  .pw-status-badge-warn { background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; }
-  .pw-status-badge-stale { background: #fef9c4; color: #92400e; border: 1px solid #fde68a; }
-  .pw-status-badge-ok { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-  .pw-status-id { font-size: 11px; color: var(--muted); margin-left: auto; font-family: monospace; }
+  /* ── ContextBar ── */
+  .pw-context-bar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; margin: 0 0 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; flex-wrap: wrap; }
+  .pw-cb-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 0; }
+  .pw-cb-back { font-size: 18px; font-weight: 700; color: var(--accent); text-decoration: none; padding: 0 4px; }
+  .pw-cb-title { font-size: 15px; font-weight: 700; color: var(--ink); max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pw-cb-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: rgba(138,75,47,0.06); color: var(--ink); border: 1px solid var(--border); }
+  .pw-cb-chip--type { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .pw-cb-chip--conf[data-level="high"] { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .pw-cb-chip--conf[data-level="mid"]  { background: #fef9c4; color: #92400e; border-color: #fde68a; }
+  .pw-cb-chip--conf[data-level="low"]  { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+  .pw-cb-chip--lens { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+  .pw-cb-chip--brand { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+  .pw-cb-chip--notes { cursor: pointer; }
+  .pw-cb-notes { position: relative; }
+  .pw-cb-notes[open] > summary::after { content: ''; }
+  .pw-cb-notes summary { list-style: none; }
+  .pw-cb-notes summary::-webkit-details-marker { display: none; }
+  .pw-cb-notes-pop { position: absolute; top: 28px; left: 0; min-width: 280px; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px; box-shadow: 0 12px 28px rgba(92,66,39,0.12); z-index: 30; }
+  .pw-cb-note-item { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+  .pw-cb-note-item:last-child { border-bottom: 0; }
+  .pw-cb-note-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+  .pw-cb-note-title { font-size: 12px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+  .pw-cb-note-id { font-size: 10px; color: var(--muted); font-family: monospace; }
+  .pw-cb-actions { display: flex; align-items: center; gap: 8px; }
 
-  /* ── 三栏布局 ── */
-  .pw-row { display: flex; gap: 20px; align-items: flex-start; }
-  .pw-left { width: 300px; flex-shrink: 0; position: sticky; top: 20px; align-self: flex-start; max-height: calc(100vh - 40px); overflow-y: auto; }
-  .pw-mid { flex: 1; min-width: 0; }
-  .pw-right { width: 350px; flex-shrink: 0; }
+  /* ── Two-column shell ── */
+  .pw-twocol { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
+  .pw-hero { min-width: 0; }
+  .pw-copilot { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 80px); overflow: hidden auto; }
 
-  /* ── 卡片 ── */
+  /* ── 卡片 / Section base ── */
   .pw-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 14px; box-shadow: 0 8px 22px rgba(92,66,39,0.06); }
-  .pw-card h3 { margin: 0 0 10px; font-size: 14px; color: var(--accent); font-weight: 700; }
-
-  /* ── 区块 ── */
   .pw-section { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; margin-bottom: 16px; box-shadow: 0 8px 22px rgba(92,66,39,0.06); }
-  .pw-section-title { display: flex; justify-content: space-between; align-items: center; margin: 0 0 14px; }
-  .pw-section-title h3 { margin: 0; font-size: 15px; color: var(--accent); font-weight: 700; }
-
-  /* ── Brief 2x2 Grid ── */
-  .pw-mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .pw-mini-card { background: rgba(255,253,248,0.85); border: 1px solid rgba(138,75,47,0.12); border-radius: 14px; padding: 12px; }
-  .pw-mini-card-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; margin: 0 0 6px; }
-  .pw-mini-card-value { font-size: 13px; line-height: 1.55; color: var(--ink); }
-  .pw-mini-card-value li { margin-bottom: 2px; }
-
-  /* ── 模板卡 ── */
-  .pw-template-card { border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; background: rgba(255,255,255,0.65); }
-  .pw-template-primary { border-color: var(--accent); background: linear-gradient(135deg, rgba(138,75,47,0.04), rgba(255,253,248,0.9)); }
-  .pw-template-name { font-size: 14px; font-weight: 700; color: var(--ink); }
-  .pw-template-alts { display: flex; gap: 10px; flex-wrap: wrap; }
-  .pw-template-alt { flex: 1; min-width: 140px; border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: rgba(255,255,255,0.5); }
-  .pw-progress-track { height: 6px; border-radius: 999px; background: rgba(138,75,47,0.12); overflow: hidden; margin-top: 6px; }
-  .pw-progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), #c46a45); }
-
-  /* ── 策略 Block ── */
-  .pw-strategy-block { border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-  .pw-strategy-block-content { flex: 1; min-width: 0; }
-  .pw-strategy-label { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
-  .pw-strategy-items { font-size: 13px; line-height: 1.55; color: var(--ink); }
-  .pw-strategy-items li { margin-bottom: 3px; }
-
-  /* ── Plan Board ── */
-  .pw-plan-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-  .pw-plan-col-title { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
-  .pw-plan-slot { border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; background: #f9f7f4; font-size: 12px; display: flex; align-items: center; gap: 8px; }
-  .pw-plan-slot-idx { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-
-  /* ── Badge ── */
   .pw-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+  .pw-empty { text-align: center; padding: 24px 16px; color: var(--muted); font-size: 13px; border: 1px dashed var(--border); border-radius: 14px; background: rgba(255,255,255,0.5); }
+  .pw-empty-btn { display: inline-block; margin-top: 10px; padding: 8px 20px; background: var(--accent); color: #fff; border-radius: 12px; text-decoration: none; font-size: 13px; font-weight: 600; }
 
-  /* ── 按钮三级 ── */
+  /* ── 按钮 ── */
   .pw-btn { display: block; width: 100%; box-sizing: border-box; border: none; border-radius: 14px; padding: 11px 16px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; text-align: center; text-decoration: none; margin-bottom: 10px; transition: opacity 0.15s; }
   .pw-btn:hover { opacity: 0.88; }
   .pw-btn:disabled { opacity: 0.55; cursor: not-allowed; }
   .pw-btn-primary { background: var(--accent); color: #fff; }
   .pw-btn-secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--accent); }
-  .pw-btn-tertiary { background: transparent; color: var(--accent); border: none; padding: 6px 12px; font-size: 12px; font-weight: 600; }
+  .pw-btn-tertiary { background: transparent; color: var(--accent); border: none; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
   .pw-btn-tertiary:hover { background: var(--accent-soft); border-radius: 8px; }
   .pw-btn-inline { display: inline-block; width: auto; margin: 0; padding: 6px 14px; font-size: 12px; }
 
-  /* ── 右栏 ── */
-  .pw-action-group { margin-bottom: 14px; }
-  .pw-agent-board { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border: 1px solid #c4b5fd; border-radius: 16px; padding: 14px; margin-bottom: 14px; }
-  .pw-agent-title { font-size: 12px; font-weight: 700; color: #6d28d9; margin-bottom: 8px; }
-  .pw-agent-text { font-size: 13px; line-height: 1.6; color: #4c1d95; }
-  .pw-ops-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  /* ── Hero Flow Steps ── */
+  .pw-needs-build { padding: 10px 14px; margin-bottom: 12px; border-radius: 12px; background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; font-size: 13px; }
+  .pw-needs-build a { color: var(--accent); font-weight: 700; }
+  .pw-step { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; margin-bottom: 14px; box-shadow: 0 8px 22px rgba(92,66,39,0.05); }
+  .pw-step[data-active="1"] { border-color: var(--accent); box-shadow: 0 12px 30px rgba(138,75,47,0.10); }
+  .pw-step-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; flex-wrap: wrap; }
+  .pw-step-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pw-step-dot--ready { background: #10b981; box-shadow: 0 0 0 2px rgba(16,185,129,0.25); }
+  .pw-step-dot--empty { background: transparent; border: 1.5px solid #cbd5e1; }
+  .pw-step-dot--stale { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.25); }
+  .pw-step[data-active="1"] .pw-step-dot { box-shadow: 0 0 0 3px rgba(138,75,47,0.18); }
+  .pw-step-h { display: flex; align-items: baseline; gap: 4px; margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); }
+  .pw-step-idx { color: var(--accent); }
+  .pw-step-label { color: var(--ink); }
+  .pw-step-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .pw-step-badge--ready { background: #dcfce7; color: #166534; }
+  .pw-step-badge--empty { background: #f1f5f9; color: #64748b; }
+  .pw-step-badge--stale { background: #fef9c4; color: #92400e; }
+  .pw-step-summary { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pw-step-toggle, .pw-step-inspect { font-size: 12px; font-weight: 600; }
+  .pw-step-body { padding: 0 18px 18px; }
 
-  /* ── 置信度条 ── */
-  .pw-conf-bar { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-  .pw-conf-track { flex: 1; height: 6px; border-radius: 999px; background: rgba(138,75,47,0.12); overflow: hidden; }
-  .pw-conf-fill { height: 100%; border-radius: 999px; }
-  .pw-conf-label { font-size: 12px; font-weight: 700; min-width: 38px; text-align: right; }
+  /* Step body — Brief 2x2 / Strategy / Plan / Handoff 复用旧风格 */
+  .pw-mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pw-mini-card { background: rgba(255,253,248,0.85); border: 1px solid rgba(138,75,47,0.12); border-radius: 14px; padding: 12px; }
+  .pw-mini-card-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; margin: 0 0 6px; }
+  .pw-mini-card-value { font-size: 13px; line-height: 1.55; color: var(--ink); }
+  .pw-mini-card-value li { margin-bottom: 2px; }
+  .pw-mini-card-empty { color: var(--muted); }
+  .pw-step-actions { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
 
-  /* ── Stale Row ── */
-  .pw-stale-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  .pw-stale { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+  .pw-tpl-cluster-title { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  .pw-template-card { border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; background: rgba(255,255,255,0.65); }
+  .pw-template-primary { border-color: var(--accent); background: linear-gradient(135deg, rgba(138,75,47,0.04), rgba(255,253,248,0.9)); }
+  .pw-template-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .pw-template-reason { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+  .pw-template-alts { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pw-template-alt { flex: 1; min-width: 140px; border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: rgba(255,255,255,0.5); }
+  .pw-progress-track { height: 6px; border-radius: 999px; background: rgba(138,75,47,0.12); overflow: hidden; margin-top: 6px; }
+  .pw-progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), #c46a45); }
+  .pw-strategy-cluster { margin-top: 14px; }
+  .pw-strategy-block { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; }
+  .pw-strategy-label { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  .pw-strategy-items { font-size: 13px; line-height: 1.55; color: var(--ink); }
+  .pw-strategy-items li { margin-bottom: 3px; }
 
-  /* ── 空状态 ── */
-  .pw-empty { text-align: center; padding: 24px 16px; color: var(--muted); font-size: 13px; border: 1px dashed var(--border); border-radius: 14px; background: rgba(255,255,255,0.5); }
-  .pw-empty-btn { display: inline-block; margin-top: 10px; padding: 8px 20px; background: var(--accent); color: #fff; border-radius: 12px; text-decoration: none; font-size: 13px; font-weight: 600; }
+  .pw-plan-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .pw-plan-col-title { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+  .pw-plan-slot { border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; background: #f9f7f4; font-size: 12px; display: flex; align-items: flex-start; gap: 8px; }
+  .pw-plan-slot-idx { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .pw-publish-notes { margin-top: 14px; padding: 10px 14px; background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.25); border-radius: 12px; font-size: 12px; color: #92400e; }
+  .pw-publish-notes ul { margin: 4px 0 0 18px; }
+  .pw-handoff-grid { display: grid; grid-template-columns: 1fr 240px; gap: 16px; align-items: start; }
+  .pw-handoff-actions .pw-btn { margin-bottom: 10px; }
+  @media (max-width: 1100px) { .pw-handoff-grid { grid-template-columns: 1fr; } .pw-plan-grid { grid-template-columns: 1fr; } .pw-mini-grid { grid-template-columns: 1fr; } }
 
-  /* ── 定位和钩子展示 ── */
-  .pw-highlight { padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, rgba(138,75,47,0.06), rgba(255,253,248,0.95)); border: 1px solid rgba(138,75,47,0.15); margin-bottom: 10px; }
-  .pw-highlight-label { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
-  .pw-highlight-value { font-size: 14px; font-weight: 600; line-height: 1.55; color: var(--ink); }
+  /* ── 视觉策略 (Step 3) ── */
+  #vs-panel-controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  #vs-panel-controls input, #vs-panel-controls select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 12px; }
+  #vs-panel-controls label { font-size: 11px; color: var(--muted); }
+  .vs-cand-card.is-active { border-color: var(--accent) !important; box-shadow: 0 6px 18px rgba(138,75,47,0.12); }
+  .vs-cand-card:hover { border-color: var(--accent); }
+  #vs-panel-detail { margin-top: 12px; }
 
-  /* ── 抽屉 ── */
+  /* ── Co-pilot ── */
+  .pw-cop-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 0; box-shadow: 0 8px 22px rgba(92,66,39,0.06); overflow: hidden; }
+  .pw-cop-head { display: flex; align-items: baseline; gap: 8px; padding: 14px 16px 10px; border-bottom: 1px solid var(--border); }
+  .pw-cop-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .pw-cop-sub { font-size: 11px; color: var(--muted); }
+  .pw-cop-tabs { display: flex; padding: 0 8px; border-bottom: 1px solid var(--border); background: rgba(255,253,248,0.5); }
+  .pw-cop-tab { flex: 1; padding: 10px 8px; background: transparent; border: none; border-bottom: 2px solid transparent; font: inherit; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; }
+  .pw-cop-tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .pw-cop-panel { padding: 14px 16px; }
+  .pw-cop-section { margin-bottom: 16px; }
+  .pw-cop-section:last-child { margin-bottom: 4px; }
+  .pw-cop-section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 8px; display: block; }
+  .pw-cop-score { display: flex; align-items: baseline; gap: 8px; padding: 12px 14px; background: var(--accent-soft); border-radius: 12px; }
+  .pw-cop-score-num { font-size: 22px; font-weight: 800; color: var(--accent); }
+  .pw-cop-score-stage { font-size: 11px; color: var(--muted); }
+  .pw-cop-issues { margin-top: 8px; font-size: 12px; line-height: 1.55; color: var(--ink); }
+  .pw-cop-issues li { margin-bottom: 4px; }
+  .pw-cop-issue-row { padding: 6px 8px; border-radius: 8px; background: rgba(245,158,11,0.06); margin-bottom: 4px; font-size: 12px; }
+  .pw-cop-issue-row--err { background: rgba(220,38,38,0.06); color: #991b1b; }
+  .pw-cop-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pw-cop-chip { padding: 5px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); border: 1px solid transparent; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .pw-cop-chip:hover:not(:disabled) { background: var(--accent); color: #fff; }
+  .pw-cop-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pw-cop-chip--warn { background: #fff7ed; color: #9a3412; border-color: #fdba74; }
+  .pw-cop-pipeline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+  .pw-cop-pipeline-tag { display: inline-block; padding: 4px 10px; border-radius: 999px; background: rgba(15,23,42,0.05); color: var(--ink); font-size: 11px; font-weight: 600; }
+  .pw-cop-pipeline-tag--ok { background: #dcfce7; color: #166534; }
+  .pw-cop-pipeline-tag--warn { background: #fef9c4; color: #92400e; }
+  .pw-cop-pipeline-tag--err { background: #fee2e2; color: #991b1b; }
+  .pw-cop-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .pw-cop-select, .pw-cop-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; background: #fff; }
+  .pw-cop-empty { font-size: 12px; color: var(--muted); padding: 8px 0; }
+  .pw-cop-result { font-size: 13px; line-height: 1.55; color: var(--ink); }
+  .pw-cop-result h4 { margin: 8px 0 6px; font-size: 12px; color: var(--accent); }
+  .pw-cop-result ul { margin: 4px 0 8px 18px; }
+  .pw-cop-history { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .pw-cop-stream { max-height: 360px; overflow-y: auto; padding: 8px; border: 1px solid var(--border); border-radius: 10px; }
+  .pw-cop-review { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* ── Brief 编辑抽屉 ── */
   .pw-drawer-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 998; }
   .pw-drawer-overlay.pw-drawer-open { display: block; }
   .pw-drawer { position: fixed; right: 0; top: 0; width: 480px; max-width: 92vw; height: 100vh; background: var(--surface); border-left: 1px solid var(--border); z-index: 999; transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); display: flex; flex-direction: column; box-shadow: -8px 0 30px rgba(92,66,39,0.1); }
@@ -128,2262 +176,622 @@
   .pw-form-textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 13px; color: var(--ink); background: #fff; resize: vertical; min-height: 60px; }
   .pw-form-textarea:focus { outline: none; border-color: var(--accent); }
 
-  /* ── Responsive ── */
   @media (max-width: 1100px) {
-    .pw-row { flex-direction: column; }
-    .pw-left, .pw-right { width: 100%; position: relative; top: 0; max-height: none; }
-    .pw-plan-grid { grid-template-columns: 1fr; }
-    .pw-mini-grid { grid-template-columns: 1fr; }
+    .pw-twocol { grid-template-columns: 1fr; }
+    .pw-copilot { position: relative; top: 0; max-height: none; }
     .pw-drawer { width: 100%; max-width: 100vw; }
   }
 </style>
 
 <div class="pw-shell">
 
-  {# ═══ 全链路进度条 ═══ #}
-  {% set lifecycle_statuses = {
-    "brief": (_brief.get("lifecycle_status","") if _brief else ""),
-    "strategy": (_strategy.get("lifecycle_status","") if _strategy else ""),
-    "plan": (_np.get("lifecycle_status","") if _np else ""),
-    "assets": ""
-  } %}
+  {# 全链路阶段进度条 #}
   {% with current_stage="plan" %}{% include "_progress_bar.html" %}{% endwith %}
 
-  {# ═══ 对象状态条 + V2 健康度指示器 ═══ #}
-  <div class="pw-status-bar">
-    <span class="pw-status-title">{{ _ctx.title or (_card.title if _card else '') or '策划台' }}</span>
-    {% if needs_build %}
-    <span class="pw-status-badge pw-status-badge-warn">需要构建</span>
-    {% elif stale_flags %}
-    {% set any_stale = stale_flags.values()|select|list|length > 0 if stale_flags else false %}
-    {% if any_stale %}
-    <span class="pw-status-badge pw-status-badge-stale">部分过期</span>
-    {% else %}
-    <span class="pw-status-badge pw-status-badge-ok">就绪</span>
-    {% endif %}
-    {% else %}
-    <span class="pw-status-badge pw-status-badge-ok">就绪</span>
-    {% endif %}
-    <span id="pw-health-badge" class="pw-status-badge" style="display:none;"></span>
-    <span class="pw-status-id">{{ (opportunity_id|string)[:12] }}…</span>
-  </div>
-
-  {# ═══ V2 健康检查 + Action Chips 区域 ═══ #}
-  <div id="pw-health-bar" style="display:none; margin-bottom:14px; padding:12px 16px; border-radius:14px; border:1px solid var(--border); background:var(--surface);">
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-      <span style="font-size:13px; font-weight:700; color:var(--ink);">阶段健康度</span>
-      <span id="pw-health-score" style="font-size:13px; font-weight:700;"></span>
-      <span id="pw-health-next" style="font-size:12px; color:var(--muted); margin-left:auto;"></span>
-    </div>
-    <div id="pw-health-issues" style="display:flex; flex-direction:column; gap:4px;"></div>
-    <div id="pw-action-chips" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;"></div>
-  </div>
-
-  {% if stale_flags %}
-  <div class="pw-stale-row">
-    {% for key in ['brief','match','strategy','plan','titles','body','image_briefs','asset_bundle'] %}
-    {% set is_stale = stale_flags.get(key, false) %}
-    <span class="pw-stale" style="background:{{ '#fee2e2' if is_stale else '#dcfce7' }};color:{{ '#991b1b' if is_stale else '#166534' }};">{{ key }} {{ '⟳' if is_stale else '✓' }}</span>
-    {% endfor %}
-  </div>
-  {% endif %}
+  {# 顶部 ContextBar #}
+  {% include "_pw_context_bar.html" %}
 
   {% if needs_build %}
-  <div style="margin-bottom: 14px; padding: 12px 14px; border-radius: 14px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; font-size: 13px; line-height: 1.6;">
-    当前 Session 尚未生成策略快照。
-    <a href="{{ refresh_url }}" style="color: #c2410c; font-weight: 700; text-decoration: none;">点击此处显式生成 →</a>
+  <div class="pw-needs-build">
+    当前 Session 尚未生成策略快照（数据缺失，可能是机会卡新建后未触发构建）。
+    <a href="{{ refresh_url }}">显式生成 →</a>
   </div>
   {% endif %}
 
-  <div class="pw-row">
-    {# ═══════════════════ 左栏 ═══════════════════ #}
-    <aside class="pw-left">
-
-      {# ── 机会摘要 ── #}
-      <div class="pw-card">
-        <h3>机会摘要</h3>
-        {% if _ctx.title or _card.title %}
-        <div style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">{{ _ctx.title or _card.title or '—' }}</div>
-        {% if _ctx.opportunity_type %}
-        <span class="pw-badge">{{ _ctx.opportunity_type }}</span>
-        {% endif %}
-        {% set conf_val = (_ctx.confidence or 0) %}
-        {% set conf_pct = (conf_val * 100) if conf_val <= 1 else conf_val %}
-        {% set conf_pct = [0, [conf_pct, 100]|min]|max %}
-        <div class="pw-conf-bar">
-          <div class="pw-conf-track">
-            <div class="pw-conf-fill" style="width: {{ '%.0f'|format(conf_pct) }}%; background: {{ '#2e7d32' if conf_pct >= 70 else '#f57f17' if conf_pct >= 40 else '#c62828' }};"></div>
-          </div>
-          <span class="pw-conf-label" style="color: {{ '#2e7d32' if conf_pct >= 70 else '#f57f17' if conf_pct >= 40 else '#c62828' }};">{{ '%.0f'|format(conf_pct) }}%</span>
-        </div>
-        {% if _ctx.insight_statement %}
-        <div style="margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: #fff8e1; border: 1px solid #ffe082;">
-          <div style="font-size: 13px; font-weight: 600; color: #e65100; line-height: 1.5;">{{ _ctx.insight_statement }}</div>
-        </div>
-        {% endif %}
-        {% else %}
-        <p style="margin: 0; font-size: 12px; color: var(--muted);">机会卡数据加载中…</p>
-        {% endif %}
-      </div>
-
-      {# ── 品牌上下文 ── #}
-      {% set _brand_id = (_brief.brand_id | default("", true)) if _brief else "" %}
-      {% if _brand_id %}
-      <div class="pw-card">
-        <h3>品牌上下文</h3>
-        {% set _gw = (_brief.guardrail_warnings | default([], true)) if _brief else [] %}
-        {% with brand_id=_brand_id, brand_name=_brand_id, guardrail_warnings=_gw %}{% include "_brand_context_bar.html" %}{% endwith %}
-      </div>
-      {% else %}
-      <div class="pw-card">
-        <h3>品牌上下文</h3>
-        <p style="margin: 0; font-size: 12px; color: var(--muted);">未绑定品牌</p>
-      </div>
-      {% endif %}
-
-      {# ── 审批状态 ── #}
-      <details style="margin-top: 4px;">
-        <summary style="cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 0;">审批状态</summary>
-        <div class="pw-card" style="margin-top: 6px;">
-          <p style="margin: 0; font-size: 12px; color: var(--muted);">暂无审批记录</p>
-        </div>
-      </details>
-
-      {# ── 来源笔记 ── #}
-      {% if source_notes %}
-      <details style="margin-top: 4px;">
-        <summary style="cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 0;">来源笔记 ({{ source_notes|length }})</summary>
-        <div class="pw-card" style="margin-top: 6px;">
-          {% for sn in source_notes[:5] %}
-          {% set nc = sn.get('note_context', {}) if sn is mapping else {} %}
-          {% set cover = nc.get('cover_image', '') %}
-          <div style="padding: 6px 0; border-bottom: 1px solid rgba(138,75,47,0.08); font-size: 12px; color: var(--ink);">
-            {% if cover %}
-            <img src="{{ cover | proxy_img }}" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-bottom:4px;" onerror="this.style.display='none'" loading="lazy">
-            {% endif %}
-            <div>{{ nc.get('title', '') or '来源笔记 #' ~ loop.index }}</div>
-          </div>
-          {% endfor %}
-          {% if source_notes|length > 5 %}
-          <p style="margin: 6px 0 0; font-size: 11px; color: var(--muted);">还有 {{ source_notes|length - 5 }} 条…</p>
-          {% endif %}
-        </div>
-      </details>
-      {% endif %}
-
-    </aside>
-
-    {# ═══════════════════ 中栏 ═══════════════════ #}
-    <main class="pw-mid">
-
-      {# ── V6 生产链路状态 ── #}
-      <div class="pw-section" id="v6-pipeline-panel" style="display:none;">
-        <div class="pw-section-title">
-          <h3>V6 生产链路状态</h3>
-          <button type="button" class="pw-btn pw-btn-secondary pw-btn-inline" id="v6-run-pipeline-btn">一键全链路</button>
-        </div>
-        <div id="v6-gates" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;"></div>
-        <div id="v6-scorecard-mini" style="display:none; margin-top:8px;">
-          <div style="display:flex; gap:14px; align-items:center;">
-            <span style="font-size:12px; font-weight:700; color:var(--ink);">评分卡</span>
-            <span id="v6-sc-total" style="font-size:18px; font-weight:800;"></span>
-            <span id="v6-sc-rec" style="font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px;"></span>
-            <span id="v6-sc-conf" style="font-size:12px; color:var(--muted);"></span>
-          </div>
-        </div>
-      </div>
-
-      {# ── 区块 A: Brief 方向 ── #}
-      <div class="pw-section">
-        <div class="pw-section-title">
-          <h3>Brief 方向</h3>
-          {% if _brief %}
-          <button type="button" class="pw-btn pw-btn-secondary pw-btn-inline" onclick="openDrawer('编辑 Brief', document.getElementById('pw-brief-form-tpl').innerHTML)">编辑 Brief</button>
-          {% endif %}
-        </div>
-        {% if _bs %}
-        <div class="pw-mini-grid">
-          {% for key in ['what', 'why', 'direction', 'avoid'] %}
-          {% set slot = _bs[key] if _bs and key in _bs else none %}
-          {% if slot %}
-          <div class="pw-mini-card">
-            <div class="pw-mini-card-label">{{ slot.label }}</div>
-            <div class="pw-mini-card-value">
-              {% set slot_items = slot['items'] if 'items' in slot else [] %}
-              {% set real_items = slot_items|select|list if slot_items else [] %}
-              {% if real_items %}
-              <ul style="margin: 0; padding-left: 14px; list-style: disc;">
-                {% for item in real_items %}
-                {% if item and item|string|trim %}
-                <li>{{ item }}</li>
-                {% endif %}
-                {% endfor %}
-              </ul>
-              {% else %}
-              <span style="color: var(--muted);">—</span>
-              {% endif %}
-            </div>
-          </div>
-          {% endif %}
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="pw-empty">
-          尚未生成 Brief
-          {% if refresh_url %}
-          <br><a class="pw-empty-btn" href="{{ refresh_url }}">生成 Brief</a>
-          {% endif %}
-        </div>
-        {% endif %}
-      </div>
-
-      {# ── 区块 B: 模板候选 ── #}
-      <div class="pw-section">
-        <div class="pw-section-title">
-          <h3>模板候选</h3>
-        </div>
-        {% set primary_tpl = _tc.primary if _tc else none %}
-        {% set secondary_tpls = _tc.secondaries if _tc else [] %}
-        {% if primary_tpl and primary_tpl.name %}
-        <div class="pw-template-card pw-template-primary">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span class="pw-template-name">{{ primary_tpl.name }}</span>
-            <span class="pw-badge" style="background: #e8f5e9; color: #2e7d32;">推荐</span>
-          </div>
-          {% set s_val = primary_tpl.score or 0 %}
-          {% set s_pct = (s_val * 100) if s_val <= 1 else s_val %}
-          {% set s_pct = [0, [s_pct, 100]|min]|max %}
-          <div class="pw-conf-bar">
-            <div class="pw-conf-track">
-              <div class="pw-conf-fill" style="width: {{ '%.0f'|format(s_pct) }}%; background: {{ '#2e7d32' if s_pct >= 70 else '#f57f17' if s_pct >= 40 else '#c62828' }};"></div>
-            </div>
-            <span class="pw-conf-label" style="color: {{ '#2e7d32' if s_pct >= 70 else '#f57f17' if s_pct >= 40 else '#c62828' }};">{{ '%.0f'|format(s_pct) }}分</span>
-          </div>
-          {% if primary_tpl.reason %}
-          <p style="margin: 8px 0 0; font-size: 13px; line-height: 1.55; color: var(--muted);">{{ primary_tpl.reason }}</p>
-          {% endif %}
-        </div>
-        {% if secondary_tpls %}
-        <div class="pw-template-alts">
-          {% for alt in secondary_tpls %}
-          <div class="pw-template-alt">
-            <div style="font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">{{ alt.name or '—' }}</div>
-            {% set a_val = alt.score or 0 %}
-            {% set a_pct = (a_val * 100) if a_val <= 1 else a_val %}
-            {% set a_pct = [0, [a_pct, 100]|min]|max %}
-            <div class="pw-conf-bar">
-              <div class="pw-conf-track">
-                <div class="pw-conf-fill" style="width: {{ '%.0f'|format(a_pct) }}%; background: var(--accent);"></div>
-              </div>
-              <span style="font-size: 11px; color: var(--muted); min-width: 30px; text-align: right;">{{ '%.0f'|format(a_pct) }}分</span>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-        {% else %}
-        <div class="pw-empty">尚未匹配模板</div>
-        {% endif %}
-      </div>
-
-      {# ── 区块 C: 策略摘要 ── #}
-      <div class="pw-section">
-        <div class="pw-section-title">
-          <h3>策略摘要</h3>
-        </div>
-        {% if _strategy %}
-
-        {% if _strategy.positioning_statement %}
-        <div class="pw-highlight">
-          <div class="pw-highlight-label">定位陈述</div>
-          <div class="pw-highlight-value">{{ _strategy.positioning_statement }}</div>
-        </div>
-        {% endif %}
-        {% if _strategy.new_hook %}
-        <div class="pw-highlight">
-          <div class="pw-highlight-label">新钩子</div>
-          <div class="pw-highlight-value">{{ _strategy.new_hook }}</div>
-        </div>
-        {% endif %}
-
-        {% for key in ['title_strategy', 'body_strategy', 'image_strategy', 'tone_and_risk'] %}
-        {% set block = _ss[key] if _ss and key in _ss else none %}
-        {% if block %}
-        <div class="pw-strategy-block" data-block-name="{{ key }}" data-block-type="{{ key.replace('_strategy','').replace('_and_risk','') }}">
-          <div class="pw-strategy-block-content">
-            <div class="pw-strategy-label">{{ block.label }}</div>
-            <div class="pw-strategy-items">
-              {% set blk_items = block['items'] if 'items' in block else [] %}
-              {% set real_items = blk_items|select|list if blk_items else [] %}
-              {% if real_items %}
-              <ul style="margin: 0; padding-left: 16px;">
-                {% for item in real_items %}
-                {% if item and item|string|trim %}
-                <li>{{ item }}</li>
-                {% endif %}
-                {% endfor %}
-              </ul>
-              {% else %}
-              <span style="color: var(--muted);">—</span>
-              {% endif %}
-            </div>
-          </div>
-          <button type="button" class="pw-btn-tertiary pw-strategy-inspect-btn" style="flex-shrink: 0;" data-block-name="{{ key }}">AI 检视</button>
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% else %}
-        <div class="pw-empty">尚未生成策略</div>
-        {% endif %}
-      </div>
-
-      {# ── 区块 D: Plan Board ── #}
-      <div class="pw-section">
-        <div class="pw-section-title">
-          <h3>Plan Board</h3>
-        </div>
-        {% if _np %}
-        <div class="pw-plan-grid">
-
-          {# 标题候选 #}
-          <div>
-            <div class="pw-plan-col-title">标题候选</div>
-            {% set titles = _pb.titles if _pb else [] %}
-            {% if titles %}
-            {% for t in titles %}
-            <div class="pw-plan-slot">
-              <span class="pw-plan-slot-idx">{{ loop.index }}</span>
-              <div style="flex: 1; min-width: 0;">
-                <div style="font-size: 13px; font-weight: 600; line-height: 1.4;">{{ t.title_text or '—' }}</div>
-                {% if t.axis %}<span class="pw-badge" style="margin-top: 4px; font-size: 10px;">{{ t.axis }}</span>{% endif %}
-              </div>
-            </div>
-            {% endfor %}
-            {% else %}
-            <div style="font-size: 12px; color: var(--muted); padding: 8px 0;">暂无标题</div>
-            {% endif %}
-          </div>
-
-          {# 正文摘要 #}
-          <div>
-            <div class="pw-plan-col-title">正文摘要</div>
-            {% set bs = _pb.body_summary if _pb else {} %}
-            {% if bs %}
-            {% if bs.opening_hook %}
-            <div style="margin-bottom: 8px;">
-              <div style="font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 3px;">开场钩子</div>
-              <div style="font-size: 13px; line-height: 1.55; color: var(--ink);">{{ bs.opening_hook }}</div>
-            </div>
-            {% endif %}
-            {% if bs.body_outline %}
-            <div style="margin-bottom: 8px;">
-              <div style="font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 3px;">提纲</div>
-              <div style="font-size: 12px; line-height: 1.55; color: var(--ink);">{{ bs.body_outline }}</div>
-            </div>
-            {% endif %}
-            {% if bs.cta_direction %}
-            <div>
-              <div style="font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 3px;">CTA 方向</div>
-              <div style="font-size: 12px; line-height: 1.55; color: var(--ink);">{{ bs.cta_direction }}</div>
-            </div>
-            {% endif %}
-            {% else %}
-            <div style="font-size: 12px; color: var(--muted); padding: 8px 0;">—</div>
-            {% endif %}
-          </div>
-
-          {# 图位概览 #}
-          <div>
-            <div class="pw-plan-col-title">图位概览</div>
-            {% set slots = _pb.image_slots if _pb else [] %}
-            {% if slots %}
-            {% for slot in slots %}
-            <div class="pw-plan-slot">
-              <span class="pw-plan-slot-idx">{{ slot.slot_index + 1 if slot.slot_index is defined else loop.index }}</span>
-              <div style="flex: 1; min-width: 0;">
-                {% if slot.role %}<div style="font-size: 11px; font-weight: 600; color: var(--accent);">{{ slot.role }}</div>{% endif %}
-                {% if slot.subject %}<div style="font-size: 12px; color: var(--ink); line-height: 1.4;">{{ slot.subject }}</div>{% endif %}
-              </div>
-            </div>
-            {% endfor %}
-            {% else %}
-            {% for i in range(5) %}
-            <div class="pw-plan-slot">
-              <span class="pw-plan-slot-idx">{{ i + 1 }}</span>
-              <div style="font-size: 11px; color: var(--muted);">待定</div>
-            </div>
-            {% endfor %}
-            {% endif %}
-          </div>
-        </div>
-
-        {# 发布建议 #}
-        {% set pn = _pb.publish_notes if _pb else [] %}
-        {% if pn %}
-        <div style="margin-top: 14px; padding: 10px 14px; border-radius: 12px; background: rgba(138,75,47,0.04); border: 1px solid rgba(138,75,47,0.1);">
-          <div style="font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px;">发布建议</div>
-          <ul style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.55; color: var(--ink);">
-            {% for note in pn %}
-            <li>{{ note }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-        {% endif %}
-
-        {% else %}
-        <div class="pw-empty">
-          尚未生成内容计划
-          {% if refresh_url %}
-          <br><a class="pw-empty-btn" href="{{ refresh_url }}">生成计划</a>
-          {% endif %}
-        </div>
-        {% endif %}
-      </div>
-
-      {# ── 区块 E: 笔记预览（精简版 - 完整功能请进入视觉工作台） ── #}
-      <div class="pw-section" id="note-preview-section">
-        <div class="pw-section-title">
-          <h3>笔记预览</h3>
-          <a href="/planning/{{ opportunity_id }}/visual-builder?from=planning" class="pw-btn pw-btn-primary pw-btn-inline" style="font-size:12px; text-decoration:none;">进入视觉工作台（已接力策划结果）&rarr;</a>
-        </div>
-        <div id="note-preview-container" style="display:flex; justify-content:center; padding:12px 0;">
-          <div id="note-preview-empty" style="text-align:center; color:var(--muted); font-size:13px; padding:20px 0;">
-            <div style="margin-bottom:10px;">视觉工作台会自动带入此处的标题/正文/参考图，无需重新生成</div>
-            <a href="/planning/{{ opportunity_id }}/visual-builder?from=planning" style="font-size:13px; color:var(--accent);">打开视觉工作台 →</a>
-          </div>
-          <div id="note-preview-phone" style="display:none;"></div>
-        </div>
-      </div>
-
+  {# 左主栏 Hero Flow + 右栏 Co-pilot #}
+  <div class="pw-twocol">
+    <main class="pw-hero">
+      {% include "_pw_hero_flow.html" %}
     </main>
-
-    {# ═══════════════════ 右栏 ═══════════════════ #}
-    <aside class="pw-right">
-
-      {# ── 主按钮区 ── #}
-      <div class="pw-action-group">
-        <button type="button" class="pw-btn pw-btn-primary" id="pw-btn-analyze">快速分析</button>
-        <button type="button" class="pw-btn pw-btn-secondary" id="pw-btn-council">发起委员会</button>
-        <button type="button" class="pw-btn pw-btn-secondary" id="pw-btn-variant">生成变体</button>
-        <button type="button" class="pw-btn pw-btn-secondary" id="pw-btn-visual-strategy" title="基于专家 SOP 编译 6 类视觉策略候选">视觉策略 ✦</button>
-      </div>
-
-      {# ── Agent Board ── #}
-      <div class="pw-agent-board">
-        <div class="pw-agent-title">Agent 状态</div>
-        <div class="pw-agent-text" id="pw-agent-status">
-          {% if pipeline_run_id %}
-          管线已运行 <code style="font-size: 11px; background: rgba(109,40,213,0.08); padding: 1px 6px; border-radius: 4px;">{{ (pipeline_run_id|string)[:10] }}…</code>
-          {% else %}
-          待命
-          {% endif %}
-        </div>
-        {% set is_promoted = true %}{% include "_agent_pipeline_panel.html" %}
-      </div>
-
-      {# ── 继续追问 ── #}
-      <details style="margin-bottom: 14px;">
-        <summary style="cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; padding: 4px 0;">继续追问</summary>
-        <div style="margin-top: 8px;">
-          <textarea id="pw-followup-input" rows="3" style="width: 100%; box-sizing: border-box; resize: vertical; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); font-family: inherit; font-size: 13px; background: var(--surface);" placeholder="输入追问内容…"></textarea>
-          <button type="button" class="pw-btn pw-btn-primary" style="margin-top: 8px;" id="pw-btn-followup">发送</button>
-        </div>
-      </details>
-
-      {# ── 操作区 ── #}
-      <div class="pw-ops-row">
-        <button type="button" class="pw-btn-tertiary" id="pw-btn-lock">锁定</button>
-        <button type="button" class="pw-btn-tertiary" id="pw-btn-approve">批准</button>
-      </div>
-      <a class="pw-btn pw-btn-primary" href="/content-planning/assets/{{ opportunity_id }}" style="text-decoration: none; margin-top: 10px;">查看资产包 →</a>
-
-      {# ── Review 摘要 ── #}
-      {% if review_summary %}
-      <div class="pw-card" style="margin-top: 14px;">
-        <h3>Review 摘要</h3>
-        <div style="font-size: 13px; line-height: 1.55; color: var(--ink);">{{ review_summary }}</div>
-      </div>
-      {% endif %}
+    <aside class="pw-copilot" id="pw-copilot">
+      {% include "_pw_copilot.html" %}
     </aside>
   </div>
+
 </div>
 
-{# ═══════════════════ 抽屉 ═══════════════════ #}
-<div class="pw-drawer-overlay" id="pw-drawer-overlay" onclick="closeDrawer()"></div>
-<div class="pw-drawer" id="pw-drawer">
-  <div class="pw-drawer-header">
-    <h3 id="pw-drawer-title">抽屉</h3>
-    <button type="button" class="pw-drawer-close" onclick="closeDrawer()">&times;</button>
-  </div>
-  <div class="pw-drawer-body" id="pw-drawer-body"></div>
-</div>
-
-{# ── Brief 编辑表单模板（隐藏） ── #}
+{# Brief 编辑表单（隐藏模板，由 openDrawer 取出） #}
 <template id="pw-brief-form-tpl">
-  <form id="pw-brief-edit-form" onsubmit="return false;">
-    <div class="pw-form-field">
-      <label class="pw-form-label">机会标题</label>
-      <textarea class="pw-form-textarea" name="opportunity_title" rows="2">{{ _brief.get('opportunity_title', '') if _brief else '' }}</textarea>
+  <form id="pw-brief-form" onsubmit="event.preventDefault(); pwSubmitBriefForm();">
+    <div class="pw-form-field"><label class="pw-form-label">为什么值得做</label>
+      <textarea class="pw-form-textarea" name="why_worth_doing" rows="3">{{ _brief.why_worth_doing or '' }}</textarea>
     </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">机会概述</label>
-      <textarea class="pw-form-textarea" name="opportunity_summary" rows="3">{{ _brief.get('opportunity_summary', '') if _brief else '' }}</textarea>
+    <div class="pw-form-field"><label class="pw-form-label">竞争差异</label>
+      <textarea class="pw-form-textarea" name="competitive_angle" rows="3">{{ _brief.competitive_angle or '' }}</textarea>
     </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">目标用户</label>
-      <textarea class="pw-form-textarea" name="target_user" rows="2">{{ (_brief.get('target_user', [])|join('、')) if _brief else '' }}</textarea>
+    <div class="pw-form-field"><label class="pw-form-label">核心动机</label>
+      <textarea class="pw-form-textarea" name="core_motive" rows="2">{{ _brief.core_motive or '' }}</textarea>
     </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">目标场景</label>
-      <textarea class="pw-form-textarea" name="target_scene" rows="2">{{ (_brief.get('target_scene', [])|join('、')) if _brief else '' }}</textarea>
+    <div class="pw-form-field"><label class="pw-form-label">目标场景（逗号分隔）</label>
+      <textarea class="pw-form-textarea" name="target_scene" rows="2">{{ (_brief.target_scene or [])|join(', ') }}</textarea>
     </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">内容目标</label>
-      <textarea class="pw-form-textarea" name="content_goal" rows="2">{{ _brief.get('content_goal', '') if _brief else '' }}</textarea>
+    <div class="pw-form-field"><label class="pw-form-label">规避方向（逗号分隔）</label>
+      <textarea class="pw-form-textarea" name="avoid_directions" rows="2">{{ (_brief.avoid_directions or [])|join(', ') }}</textarea>
     </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">核心价值</label>
-      <textarea class="pw-form-textarea" name="primary_value" rows="2">{{ _brief.get('primary_value', '') if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">推荐方向</label>
-      <textarea class="pw-form-textarea" name="suggested_direction" rows="2">{{ _brief.get('suggested_direction', '') if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">规避方向</label>
-      <textarea class="pw-form-textarea" name="avoid_directions" rows="2">{{ (_brief.get('avoid_directions', [])|join('、')) if _brief else '' }}</textarea>
-    </div>
-
-    {# ── V6 Production-Ready 字段 ── #}
-    <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border);">
-      <div style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-        V6 生产就绪字段
-        {% if _brief and _brief.get('production_readiness_status') %}
-        <span style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px;
-          {% if _brief.get('production_readiness_status') == 'ready_for_review' %}background:#dcfce7;color:#166534;
-          {% elif _brief.get('production_readiness_status') == 'approved' %}background:#dbeafe;color:#1e40af;
-          {% else %}background:var(--accent-soft);color:var(--accent);{% endif %}">
-          {{ _brief.get('production_readiness_status', 'draft') }}
-        </span>
-        {% endif %}
-      </div>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">标题方向</label>
-      <textarea class="pw-form-textarea" name="title_directions" rows="2">{{ (_brief.get('title_directions', [])|join('、')) if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">开篇钩子</label>
-      <textarea class="pw-form-textarea" name="opening_hook" rows="2">{{ _brief.get('opening_hook', '') if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">内容结构</label>
-      <textarea class="pw-form-textarea" name="content_structure" rows="3">{{ (_brief.get('content_structure', [])|join('\n')) if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">CTA</label>
-      <textarea class="pw-form-textarea" name="cta" rows="1">{{ _brief.get('cta', '') if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">核心主张</label>
-      <textarea class="pw-form-textarea" name="core_claim" rows="2">{{ _brief.get('core_claim', '') if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">论据支撑</label>
-      <textarea class="pw-form-textarea" name="proof_points" rows="2">{{ (_brief.get('proof_points', [])|join('、')) if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">语气风格</label>
-      <textarea class="pw-form-textarea" name="tone" rows="1">{{ _brief.get('tone', '') if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">视觉方向</label>
-      <textarea class="pw-form-textarea" name="visual_direction" rows="1">{{ _brief.get('visual_direction', '') if _brief else '' }}</textarea>
-    </div>
-    <div class="pw-form-field">
-      <label class="pw-form-label">封面方向</label>
-      <textarea class="pw-form-textarea" name="cover_direction" rows="1">{{ _brief.get('cover_direction', '') if _brief else '' }}</textarea>
-    </div>
-    <div style="padding-top: 10px; border-top: 1px solid var(--border);">
-      <button type="button" class="pw-btn pw-btn-primary" onclick="alert('Brief 保存功能即将上线')">保存 Brief</button>
-    </div>
+    <button type="submit" class="pw-btn pw-btn-primary">保存 Brief</button>
   </form>
 </template>
 
+{# 抽屉容器（仅供 Brief 编辑使用） #}
+<div class="pw-drawer-overlay" id="pw-drawer-overlay" onclick="closeDrawer()"></div>
+<aside class="pw-drawer" id="pw-drawer" role="dialog" aria-hidden="true">
+  <header class="pw-drawer-header">
+    <h3 id="pw-drawer-title">编辑</h3>
+    <button type="button" class="pw-drawer-close" onclick="closeDrawer()" aria-label="关闭">×</button>
+  </header>
+  <div class="pw-drawer-body" id="pw-drawer-body"></div>
+</aside>
+
+{# Council UI 提供 councilUI.* 全部 helper #}
 {% include "_council_ui.html" %}
-{% include "_compilation_report.html" %}
-{% include "_preview_canvas.html" %}
+
 <script>
-(function () {
-  /* ── 抽屉逻辑 ── */
-  window.openDrawer = function(title, html) {
-    var drawer = document.getElementById('pw-drawer');
-    var overlay = document.getElementById('pw-drawer-overlay');
-    var titleEl = document.getElementById('pw-drawer-title');
-    var bodyEl = document.getElementById('pw-drawer-body');
-    if (titleEl) titleEl.textContent = title || '';
-    if (bodyEl) bodyEl.innerHTML = html || '';
-    if (drawer) drawer.classList.add('pw-drawer-open');
-    if (overlay) overlay.classList.add('pw-drawer-open');
-    document.body.style.overflow = 'hidden';
+(function() {
+  var opportunityId = {{ opportunity_id|tojson }};
+  window.opportunityId = opportunityId;
+  var FOCUS_AGENT_MAP = {
+    brief: 'brief_synthesizer',
+    strategy: 'strategy_director',
+    plan: 'template_planner',
+    visual: 'visual_director'
   };
+  var FOCUS_LABEL = { brief: 'Brief 方向', strategy: 'RewriteStrategy', visual: '视觉策略候选', plan: 'NotePlan' };
 
-  window.closeDrawer = function() {
-    var drawer = document.getElementById('pw-drawer');
-    var overlay = document.getElementById('pw-drawer-overlay');
-    if (drawer) drawer.classList.remove('pw-drawer-open');
-    if (overlay) overlay.classList.remove('pw-drawer-open');
-    document.body.style.overflow = '';
-  };
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeDrawer();
-  });
+  // ────── Drawer (Brief 编辑专用) ──────
+  function openDrawer(title, html) {
+    var t = document.getElementById('pw-drawer-title');
+    var b = document.getElementById('pw-drawer-body');
+    var ov = document.getElementById('pw-drawer-overlay');
+    var dw = document.getElementById('pw-drawer');
+    if (!t || !b || !ov || !dw) return;
+    t.textContent = title || '';
+    b.innerHTML = html || '';
+    ov.classList.add('pw-drawer-open');
+    dw.classList.add('pw-drawer-open');
+    dw.setAttribute('aria-hidden', 'false');
+  }
+  function closeDrawer() {
+    var ov = document.getElementById('pw-drawer-overlay');
+    var dw = document.getElementById('pw-drawer');
+    if (ov) ov.classList.remove('pw-drawer-open');
+    if (dw) { dw.classList.remove('pw-drawer-open'); dw.setAttribute('aria-hidden', 'true'); }
+  }
+  window.openDrawer = openDrawer;
+  window.closeDrawer = closeDrawer;
 
-  /* ── 基础 ── */
-  var opportunityId = {{ opportunity_id | tojson }};
-
-  var roleMeta = councilUI.roleMeta;
-  var esc = councilUI.esc;
-
-  /* ── V6 Pipeline Panel ── */
-  (function v6Init() {
-    var panel = document.getElementById('v6-pipeline-panel');
-    if (!panel || !opportunityId) return;
-
-    var REC_STYLES = {
-      initiate: { bg: '#dcfce7', color: '#166534', label: '启动' },
-      evaluate: { bg: '#fef9c3', color: '#854d0e', label: '评估' },
-      observe:  { bg: '#e0e7ff', color: '#3730a3', label: '观察' },
-      ignore:   { bg: '#fee2e2', color: '#991b1b', label: '忽略' },
+  // ────── Brief 表单提交 ──────
+  window.pwSubmitBriefForm = function() {
+    var form = document.getElementById('pw-brief-form');
+    if (!form) return;
+    var data = new FormData(form);
+    var payload = {
+      why_worth_doing: (data.get('why_worth_doing') || '').trim() || null,
+      competitive_angle: (data.get('competitive_angle') || '').trim() || null,
+      core_motive: (data.get('core_motive') || '').trim() || null,
+      target_scene: (data.get('target_scene') || '').split(',').map(function(s){return s.trim();}).filter(Boolean),
+      avoid_directions: (data.get('avoid_directions') || '').split(',').map(function(s){return s.trim();}).filter(Boolean)
     };
-
-    function loadStatus() {
-      fetch('/content-planning/v6/pipeline-status/' + encodeURIComponent(opportunityId))
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(d) {
-        if (!d) return;
-        panel.style.display = 'block';
-        var gatesEl = document.getElementById('v6-gates');
-        if (gatesEl) {
-          var stages = [
-            { key: 'ingest', label: 'Ingest' },
-            { key: 'card', label: 'Card' },
-            { key: 'scorecard', label: 'Scorecard' },
-            { key: 'brief', label: 'Brief' },
-          ];
-          gatesEl.innerHTML = '';
-          stages.forEach(function(s) {
-            var ev = (d.stage_evaluations || {})[s.key];
-            var score = ev ? Math.round((ev.overall_score || 0) * 100) : null;
-            var color = score === null ? '#9ca3af' : score >= 60 ? '#16a34a' : score >= 35 ? '#ca8a04' : '#dc2626';
-            gatesEl.innerHTML += '<div style="text-align:center;min-width:56px;">'
-              + '<div style="font-size:16px;font-weight:800;color:' + color + ';">' + (score !== null ? score + '%' : '--') + '</div>'
-              + '<div style="font-size:10px;font-weight:600;color:var(--muted);">' + s.label + '</div></div>';
-          });
-        }
-        if (d.has_scorecard && d.scorecard_summary) {
-          var scMini = document.getElementById('v6-scorecard-mini');
-          if (scMini) scMini.style.display = 'block';
-          var totalEl = document.getElementById('v6-sc-total');
-          if (totalEl) totalEl.textContent = Math.round(d.scorecard_summary.total_score * 100) + '%';
-          var recEl = document.getElementById('v6-sc-rec');
-          var rs = REC_STYLES[d.scorecard_summary.recommendation] || {};
-          if (recEl) {
-            recEl.textContent = rs.label || d.scorecard_summary.recommendation;
-            recEl.style.background = rs.bg || '#f3f4f6';
-            recEl.style.color = rs.color || '#374151';
-          }
-          var confEl = document.getElementById('v6-sc-conf');
-          if (confEl) confEl.textContent = '置信度 ' + Math.round(d.scorecard_summary.confidence * 100) + '%';
-        }
-      })
-      .catch(function() {});
-    }
-
-    loadStatus();
-
-    var runBtn = document.getElementById('v6-run-pipeline-btn');
-    if (runBtn) {
-      runBtn.addEventListener('click', function() {
-        runBtn.disabled = true; runBtn.textContent = '运行中...';
-        fetch('/content-planning/v6/run-pipeline/' + encodeURIComponent(opportunityId), { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function() { runBtn.disabled = false; runBtn.textContent = '一键全链路'; loadStatus(); location.reload(); })
-        .catch(function() { runBtn.disabled = false; runBtn.textContent = '一键全链路'; });
-      });
-    }
-  })();
-
-  /* ── 笔记预览（精简 - 只读缩略预览，完整功能在 Visual Builder） ── */
-  (function notePreviewInit() {
-    if (!opportunityId) return;
-    var phoneEl = document.getElementById('note-preview-phone');
-    var emptyEl = document.getElementById('note-preview-empty');
-    if (!phoneEl) return;
-
-    fetch('/content-planning/v6/quick-draft/' + opportunityId)
-      .then(function(r) { if (!r.ok) return null; return r.json(); })
-      .then(function(data) {
-        if (data && data.selected_title) {
-          emptyEl.style.display = 'none';
-          phoneEl.style.display = 'block';
-          previewCanvas.renderPreview(data, 'note-preview-phone');
-        }
-      })
-      .catch(function() {});
-  })();
-
-  /* ── [LEGACY] 笔记预览旧代码已迁移到 visual_builder.html ── */
-  (function _legacyNotePreviewStub() {
-    return; // 以下代码保留但不执行，防止引用错误
-    /* eslint-disable */
-    var genBtn = null, regenBtn = null, actionsEl = null, phoneEl = null, emptyEl = null;
-    if (!genBtn) return;
-
-    var currentDraft = null;
-
-    function showDraft(draft) {
-      if (!draft || (!draft.selected_title && !draft.final_body)) return;
-      currentDraft = draft;
-      emptyEl.style.display = 'none';
-      phoneEl.style.display = 'block';
-      actionsEl.style.display = 'block';
-      previewCanvas.renderPreview(draft, 'note-preview-phone');
-      previewCanvas.enableInlineEdit('note-preview-phone', function(field, value) {
-        draft[field === 'title' ? 'selected_title' : 'final_body'] = value;
-        draft.character_count = draft.final_body.length;
-      });
-      var hintEl = document.getElementById('note-preview-mode-hint');
-      if (hintEl) hintEl.remove();
-      if (draft.mode === 'rule_fallback') {
-        var hint = document.createElement('div');
-        hint.id = 'note-preview-mode-hint';
-        hint.style.cssText = 'text-align:center;font-size:11px;color:var(--muted);padding:6px 0;';
-        hint.textContent = 'LLM 暂不可用，已使用规则拼装草稿';
-        phoneEl.parentElement.insertBefore(hint, actionsEl);
-      }
-    }
-
-    function showError(msg) {
-      emptyEl.style.display = 'block';
-      emptyEl.innerHTML = '<span style="color:#c53030;">' + (msg || '生成失败，请稍后重试') + '</span>';
-      setTimeout(function() {
-        emptyEl.textContent = '点击「一键生成预览」，从 Brief 快速生成小红书笔记草稿';
-      }, 5000);
-    }
-
-    function generate(btn) {
-      var origText = btn.textContent;
-      btn.disabled = true; btn.textContent = '生成中…';
-      fetch('/content-planning/v6/quick-draft/' + encodeURIComponent(opportunityId), { method: 'POST' })
-      .then(function(r) {
-        if (r.ok) return r.json();
-        return r.json().then(function(err) { throw new Error(err.detail || ('HTTP ' + r.status)); });
-      })
-      .then(function(d) {
-        btn.disabled = false; btn.textContent = origText;
-        if (d && d.draft) showDraft(d.draft);
-      })
-      .catch(function(e) {
-        btn.disabled = false; btn.textContent = origText;
-        showError(e.message || '生成失败');
-      });
-    }
-
-    fetch('/content-planning/v6/quick-draft/' + encodeURIComponent(opportunityId))
-    .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(d) { if (d && d.draft) showDraft(d.draft); })
-    .catch(function() {});
-
-    genBtn.addEventListener('click', function() { generate(genBtn); });
-    if (regenBtn) regenBtn.addEventListener('click', function() { generate(regenBtn); });
-
-    /* ── 图片生成 ── */
-    var imgGenBtn = document.getElementById('btn-gen-images');
-    var imgStatusEl = document.getElementById('note-image-gen-status');
-    var imgStatusText = document.getElementById('image-gen-status-text');
-
-    var providerSel = document.getElementById('sel-image-provider');
-    var genModeSel = document.getElementById('sel-gen-mode');
-    var providerLabels = { openrouter: 'Gemini Nano', dashscope: '通义万相', auto: '' };
-    var modeLabels = { ref_image: '参考图+提示词', prompt_only: '纯提示词' };
-
-    /* ── Prompt Builder 逻辑 ── */
-    var pbPanel = document.getElementById('prompt-builder-panel');
-    var pbBody = document.getElementById('pb-body');
-    var pbToggleIcon = document.getElementById('pb-toggle-icon');
-    var piSlots = document.getElementById('pi-slots');
-    var piLoading = document.getElementById('pi-loading');
-    var piActions = document.getElementById('pi-actions');
-    var piCancelBtn = document.getElementById('pi-cancel');
-    var piConfirmBtn = document.getElementById('pi-confirm');
-    var _piCurrentPrompts = [];
-    var _pbExpanded = true;
-
-    var sourceLabels = {
-      'image_briefs': '图片指令',
-      'plan': '策划方案',
-      'strategy': '改写策略',
-      'brief': 'Brief',
-      'draft': '草稿',
-      'match': '模板匹配'
-    };
-
-    function getSourceLabel(field) {
-      var key = (field || '').split('.')[0];
-      return sourceLabels[key] || key;
-    }
-
-    function getSourceColor(field) {
-      var key = (field || '').split('.')[0];
-      var colors = { image_briefs: '#1976d2', plan: '#7b1fa2', strategy: '#388e3c', brief: '#f57c00', draft: '#78909c', match: '#00838f' };
-      return colors[key] || '#666';
-    }
-
-    function togglePromptBuilder() {
-      if (!pbBody) return;
-      _pbExpanded = !_pbExpanded;
-      pbBody.style.display = _pbExpanded ? 'block' : 'none';
-      if (pbToggleIcon) pbToggleIcon.style.transform = _pbExpanded ? '' : 'rotate(-90deg)';
-    }
-
-    function openInspector() {
-      if (!imgGenBtn) return;
-      var genMode = genModeSel ? genModeSel.value : 'prompt_only';
-      imgGenBtn.disabled = true;
-      imgGenBtn.textContent = '加载中…';
-      pbPanel.style.display = 'block';
-      _pbExpanded = true;
-      pbBody.style.display = 'block';
-      if (pbToggleIcon) pbToggleIcon.style.transform = '';
-      piLoading.style.display = 'block';
-      piSlots.style.display = 'none';
-      piActions.style.display = 'none';
-
-      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/preview-prompts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gen_mode: genMode })
-      })
-      .then(function(r) {
-        if (r.ok) return r.json();
-        return r.json().then(function(err) { throw new Error(err.detail || ('HTTP ' + r.status)); });
-      })
-      .then(function(d) {
-        _piCurrentPrompts = d.prompts || [];
-        _currentRefUrls = d.ref_image_urls || [];
-        renderInspectorSlots(_piCurrentPrompts, d.gen_mode, d.ref_images_count);
-        piLoading.style.display = 'none';
-        piSlots.style.display = 'block';
-        piActions.style.display = 'flex';
-        imgGenBtn.disabled = false;
-        imgGenBtn.textContent = '生成配图';
-        showSourceHint(d.source || 'composed');
-        if (d.preferences_applied && d.preferences_applied > 0) {
-          if (sourceHint) {
-            sourceHint.style.display = 'block';
-            sourceHint.textContent = '基于你的 ' + d.preferences_applied + ' 次编辑偏好，已自动调整提示词';
-          }
-        }
-        updateQualityScore();
-      })
-      .catch(function(e) {
-        piLoading.textContent = '加载失败: ' + (e.message || '未知错误');
-        imgGenBtn.disabled = false;
-        imgGenBtn.textContent = '生成配图';
-      });
-    }
-
-    function _renderChips(items, slotId, field, placeholder) {
-      var html = '<div class="pb-chips-wrap" data-slot="' + esc(slotId) + '" data-field="' + esc(field) + '" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">';
-      (items || []).forEach(function(t, i) {
-        html += '<span class="pb-chip" style="display:inline-flex;align-items:center;gap:2px;font-size:11px;padding:2px 8px;border-radius:12px;background:rgba(138,75,47,0.08);color:var(--ink);">'
-          + esc(t) + '<span class="pb-chip-x" style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1;margin-left:2px;" onclick="removeChip(this)">&times;</span></span>';
-      });
-      html += '<input type="text" class="pb-chip-input" placeholder="' + esc(placeholder) + '" style="flex:1;min-width:60px;font-size:11px;border:none;background:transparent;outline:none;color:var(--ink);padding:2px 0;" onkeydown="chipKeydown(event,this)">';
-      html += '</div>';
-      return html;
-    }
-
-    function removeChip(xEl) {
-      var chipEl = xEl.parentElement;
-      chipEl.parentElement.removeChild(chipEl);
-      updateQualityScore();
-    }
-
-    function chipKeydown(ev, inputEl) {
-      if (ev.key === 'Enter' && inputEl.value.trim()) {
-        ev.preventDefault();
-        var val = inputEl.value.trim();
-        var chip = document.createElement('span');
-        chip.className = 'pb-chip';
-        chip.style.cssText = 'display:inline-flex;align-items:center;gap:2px;font-size:11px;padding:2px 8px;border-radius:12px;background:rgba(138,75,47,0.08);color:var(--ink);';
-        chip.innerHTML = esc(val) + '<span class="pb-chip-x" style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1;margin-left:2px;" onclick="removeChip(this)">&times;</span>';
-        inputEl.parentElement.insertBefore(chip, inputEl);
-        inputEl.value = '';
-        updateQualityScore();
-      }
-    }
-
-    var _currentRefUrls = [];
-
-    function renderInspectorSlots(prompts, genMode, refCount) {
-      var html = '';
-
-      if (_currentRefUrls.length > 0) {
-        html += '<div style="margin-bottom:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);">';
-        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;">原始笔记参考图 (' + _currentRefUrls.length + ')</div>';
-        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
-        _currentRefUrls.forEach(function(url, i) {
-          html += '<div style="width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer;flex-shrink:0;" onclick="window.open(\'' + esc(url) + '\',\'_blank\')">';
-          html += '<img src="' + esc(url) + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display=\'none\'" loading="lazy">';
-          html += '</div>';
-        });
-        html += '</div>';
-        if (genMode === 'ref_image') {
-          html += '<div style="font-size:10px;color:var(--accent);margin-top:4px;">参考图模式：这些图片将作为风格参考传入生图模型</div>';
-        } else {
-          html += '<div style="font-size:10px;color:var(--muted);margin-top:4px;">切换到「参考图+提示词」模式可将图片作为风格参考</div>';
-        }
-        html += '</div>';
-      } else if (genMode === 'ref_image' && refCount > 0) {
-        html += '<div style="background:var(--accent-soft);color:var(--accent);padding:6px 12px;border-radius:6px;font-size:12px;margin-bottom:10px;">参考图模式 | 已关联 ' + refCount + ' 张原始笔记图片</div>';
-      }
-      prompts.forEach(function(p, idx) {
-        var slotLabel = p.slot_id === 'cover' ? '封面图' : '配图 ' + p.slot_id.replace('content_', '#');
-        var sizeLabel = (p.size || '1024*1024').replace('*', ' x ');
-        var sourceTags = '';
-        var seenFields = {};
-        (p.sources || []).forEach(function(s) {
-          var label = getSourceLabel(s.field);
-          if (seenFields[label]) return;
-          seenFields[label] = true;
-          sourceTags += '<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;background:' + getSourceColor(s.field) + '22;color:' + getSourceColor(s.field) + ';margin-right:4px;">' + esc(label) + '</span>';
-        });
-
-        html += '<div class="pi-slot-card" style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--bg);">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
-        html += '<div style="display:flex;align-items:center;gap:6px;"><strong style="font-size:13px;">' + esc(slotLabel) + '</strong>' + sourceTags + '</div>';
-        html += '<span style="font-size:10px;color:var(--muted);">' + sizeLabel + '</span>';
-        html += '</div>';
-
-        /* 主体描述 */
-        html += '<div style="margin-bottom:8px;">';
-        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">主体描述</div>';
-        html += '<textarea data-slot="' + esc(p.slot_id) + '" data-field="subject" oninput="updateQualityScore()" placeholder="描述图片主要内容，如：精致的下午茶场景，桌上摆放着…" style="width:100%;min-height:42px;font-size:12px;line-height:1.5;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;background:var(--surface);color:var(--ink);font-family:inherit;">' + esc(p.subject || p.prompt_text || '') + '</textarea>';
-        html += '</div>';
-
-        /* 风格/色调 */
-        html += '<div style="margin-bottom:8px;">';
-        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">风格 / 色调</div>';
-        html += _renderChips(p.style_tags, p.slot_id, 'style_tags', '+添加风格');
-        html += '</div>';
-
-        /* 必含元素 */
-        html += '<div style="margin-bottom:8px;">';
-        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">必含元素</div>';
-        html += _renderChips(p.must_include, p.slot_id, 'must_include', '+添加元素');
-        html += '</div>';
-
-        /* 规避项 */
-        html += '<div style="margin-bottom:8px;">';
-        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">规避项</div>';
-        html += _renderChips(p.avoid_items, p.slot_id, 'avoid_items', '+添加规避项');
-        html += '</div>';
-
-        /* 负向 prompt */
-        html += '<div style="margin-bottom:8px;">';
-        html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">负向提示词（补充）</div>';
-        html += '<textarea data-slot="' + esc(p.slot_id) + '" data-field="negative_prompt" oninput="updateQualityScore()" placeholder="输入规避项，如：模糊、暗色调、低质量" style="width:100%;min-height:28px;font-size:12px;line-height:1.5;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;background:var(--surface);color:var(--ink);font-family:inherit;">' + esc(p.negative_prompt || '') + '</textarea>';
-        html += '</div>';
-
-        /* 参考图 */
-        if (p.ref_image_url) {
-          html += '<div style="margin-bottom:4px;">';
-          html += '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">参考图</div>';
-          html += '<div style="width:120px;height:120px;border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer;" onclick="window.open(\'' + esc(p.ref_image_url) + '\',\'_blank\')">';
-          html += '<img src="' + esc(p.ref_image_url) + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'<div style=padding:30px;font-size:10px;color:var(--muted);text-align:center>加载失败</div>\'">';
-          html += '</div></div>';
-        }
-
-        /* AI 优化按钮 + 来源详情 */
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">';
-        html += '<button type="button" class="pb-ai-optimize" data-slot="' + esc(p.slot_id) + '" style="font-size:11px;padding:3px 10px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft);color:var(--accent);cursor:pointer;" onclick="aiOptimizeSlot(this)">AI 优化提示词</button>';
-        if (p.sources && p.sources.length) {
-          html += '<details style="flex:1;margin-left:10px;"><summary style="font-size:11px;color:var(--muted);cursor:pointer;">来源详情 (' + p.sources.length + ')</summary>';
-          html += '<div style="margin-top:4px;max-height:120px;overflow-y:auto;">';
-          p.sources.forEach(function(s) {
-            var isNeg = s.content && s.content.indexOf('[negative]') === 0;
-            html += '<div style="font-size:11px;padding:2px 0;color:' + (isNeg ? '#c62828' : 'var(--ink)') + ';"><code style="font-size:10px;background:var(--surface);padding:1px 4px;border-radius:3px;">' + esc(s.field) + '</code> ' + esc(s.content) + '</div>';
-          });
-          html += '</div></details>';
-        }
-        html += '</div>';
-        html += '</div>';
-      });
-      piSlots.innerHTML = html;
-    }
-
-    function closeInspector() {
-      if (pbPanel) pbPanel.style.display = 'none';
-      _piCurrentPrompts = [];
-    }
-
-    function _collectChips(wrap) {
-      var chips = wrap.querySelectorAll('.pb-chip');
-      var values = [];
-      chips.forEach(function(c) {
-        var text = c.childNodes[0];
-        if (text && text.nodeType === 3) values.push(text.textContent.trim());
-        else if (text && text.nodeType === 1 && !text.classList.contains('pb-chip-x')) values.push(text.textContent.trim());
-      });
-      return values;
-    }
-
-    function confirmGenerate() {
-      var areas = piSlots.querySelectorAll('textarea');
-      var edits = {};
-      areas.forEach(function(ta) {
-        var slot = ta.getAttribute('data-slot');
-        var field = ta.getAttribute('data-field');
-        if (!edits[slot]) edits[slot] = { slot_id: slot };
-        edits[slot][field] = ta.value;
-      });
-      var chipWraps = piSlots.querySelectorAll('.pb-chips-wrap');
-      chipWraps.forEach(function(w) {
-        var slot = w.getAttribute('data-slot');
-        var field = w.getAttribute('data-field');
-        if (!edits[slot]) edits[slot] = { slot_id: slot };
-        edits[slot][field] = _collectChips(w);
-      });
-      var editedPrompts = Object.values(edits);
-
-      /* E2: diff 提示 */
-      var diffHints = [];
-      _piCurrentPrompts.forEach(function(orig) {
-        var ed = edits[orig.slot_id];
-        if (!ed) return;
-        var label = orig.slot_id === 'cover' ? '封面图' : '配图 ' + orig.slot_id.replace('content_', '#');
-        if (ed.subject && ed.subject !== (orig.subject || orig.prompt_text || '')) diffHints.push(label + '：主体描述已修改');
-        var origStyleCount = (orig.style_tags || []).length;
-        var edStyleCount = (ed.style_tags || []).length;
-        if (edStyleCount !== origStyleCount) diffHints.push(label + '：风格标签 ' + origStyleCount + ' → ' + edStyleCount);
-        var origMustCount = (orig.must_include || []).length;
-        var edMustCount = (ed.must_include || []).length;
-        if (edMustCount !== origMustCount) diffHints.push(label + '：必含元素 ' + origMustCount + ' → ' + edMustCount);
-      });
-      if (diffHints.length > 0 && !confirm('本次修改概要：\n' + diffHints.join('\n') + '\n\n确认生成？')) {
-        return;
-      }
-
-      closeInspector();
-      startImageGen(editedPrompts);
-    }
-
-    /* C3: 质量分计算 */
-    function updateQualityScore() {
-      if (!_piCurrentPrompts.length) return;
-      var totalScore = 0;
-      var details = [];
-      var slots = piSlots.querySelectorAll('.pi-slot-card');
-      var slotCount = slots.length || 1;
-
-      slots.forEach(function(slotEl) {
-        var subjectTa = slotEl.querySelector('[data-field="subject"]');
-        var subjectLen = (subjectTa ? subjectTa.value.trim().length : 0);
-        var subjectScore = Math.min(30, Math.round(subjectLen / 3));
-        totalScore += subjectScore;
-
-        var styleWrap = slotEl.querySelector('[data-field="style_tags"]');
-        var styleCount = styleWrap ? styleWrap.querySelectorAll('.pb-chip').length : 0;
-        var styleScore = Math.min(20, styleCount * 10);
-        totalScore += styleScore;
-
-        var mustWrap = slotEl.querySelector('[data-field="must_include"]');
-        var mustCount = mustWrap ? mustWrap.querySelectorAll('.pb-chip').length : 0;
-        var mustScore = Math.min(15, mustCount * 5);
-        totalScore += mustScore;
-
-        var avoidWrap = slotEl.querySelector('[data-field="avoid_items"]');
-        var avoidCount = avoidWrap ? avoidWrap.querySelectorAll('.pb-chip').length : 0;
-        var negTa = slotEl.querySelector('[data-field="negative_prompt"]');
-        var negLen = (negTa ? negTa.value.trim().length : 0);
-        var avoidScore = Math.min(15, avoidCount * 5 + (negLen > 0 ? 5 : 0));
-        totalScore += avoidScore;
-
-        var refImg = slotEl.querySelector('img[src]');
-        var refScore = refImg ? 10 : 0;
-        totalScore += refScore;
-      });
-
-      var avgScore = Math.round(totalScore / slotCount);
-      var maxPossible = 90;
-      var pct = Math.min(100, Math.round(avgScore / maxPossible * 100));
-      var color = pct >= 70 ? '#2e7d32' : (pct >= 40 ? '#f57c00' : '#c62828');
-      var bg = pct >= 70 ? '#e8f5e9' : (pct >= 40 ? '#fff3e0' : '#ffebee');
-
-      var badge = document.getElementById('pb-quality-badge');
-      var scoreFill = document.getElementById('pb-score-fill');
-      var scoreText = document.getElementById('pb-score-text');
-      var qualityBar = document.getElementById('pb-quality-bar');
-
-      if (badge) { badge.textContent = avgScore + ' 分'; badge.style.display = 'inline-block'; badge.style.background = bg; badge.style.color = color; }
-      if (scoreFill) { scoreFill.style.width = pct + '%'; scoreFill.style.background = color; }
-      if (scoreText) { scoreText.textContent = avgScore + ' / ' + maxPossible; scoreText.style.color = color; }
-      if (qualityBar) qualityBar.style.display = 'block';
-    }
-
-    if (piCancelBtn) piCancelBtn.addEventListener('click', closeInspector);
-    if (piConfirmBtn) piConfirmBtn.addEventListener('click', confirmGenerate);
-
-    /* D2: 保存提示词 */
-    var savePromptsBtn = document.getElementById('pi-save-prompts');
-    if (savePromptsBtn) {
-      savePromptsBtn.addEventListener('click', function() {
-        var collected = _collectAllSlots();
-        savePromptsBtn.disabled = true;
-        savePromptsBtn.textContent = '保存中…';
-        fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/save-prompts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompts: collected })
-        })
-        .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
-        .then(function(d) {
-          savePromptsBtn.disabled = false;
-          savePromptsBtn.textContent = '已保存 ✓';
-          setTimeout(function() { savePromptsBtn.textContent = '保存提示词'; }, 2000);
-        })
-        .catch(function() {
-          savePromptsBtn.disabled = false;
-          savePromptsBtn.textContent = '保存提示词';
-          showError('保存失败');
-        });
-      });
-    }
-
-    function _collectAllSlots() {
-      var areas = piSlots.querySelectorAll('textarea');
-      var edits = {};
-      areas.forEach(function(ta) {
-        var slot = ta.getAttribute('data-slot');
-        var field = ta.getAttribute('data-field');
-        if (!edits[slot]) edits[slot] = { slot_id: slot };
-        edits[slot][field] = ta.value;
-      });
-      var chipWraps = piSlots.querySelectorAll('.pb-chips-wrap');
-      chipWraps.forEach(function(w) {
-        var slot = w.getAttribute('data-slot');
-        var field = w.getAttribute('data-field');
-        if (!edits[slot]) edits[slot] = { slot_id: slot };
-        edits[slot][field] = _collectChips(w);
-      });
-      return Object.values(edits);
-    }
-
-    /* source hint */
-    var sourceHint = document.getElementById('pb-source-hint');
-    function showSourceHint(source) {
-      if (!sourceHint) return;
-      if (source === 'saved') {
-        sourceHint.style.display = 'block';
-        sourceHint.textContent = '已加载上次保存的提示词，可继续编辑';
-      } else {
-        sourceHint.style.display = 'none';
-      }
-    }
-
-    /* E1: 评价按钮 */
-    function submitFeedback(roundIdx, slotId, rating, btnEl) {
-      btnEl.disabled = true;
-      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ round_idx: roundIdx, slot_id: slotId, rating: rating })
-      })
-      .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
-      .then(function() {
-        var parent = btnEl.parentElement;
-        if (parent) {
-          parent.querySelectorAll('button').forEach(function(b) {
-            b.style.opacity = '0.4'; b.disabled = true;
-          });
-          btnEl.style.opacity = '1';
-        }
-      })
-      .catch(function() { btnEl.disabled = false; });
-    }
-
-    /* D3: 历史复用 */
-    function reuseHistoryPrompts(roundIdx) {
-      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/history')
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(d) {
-        if (!d || !d.history) return;
-        var history = d.history;
-        if (roundIdx < 0 || roundIdx >= history.length) return;
-        var round = history[roundIdx];
-        if (!round.prompt_log || !round.prompt_log.length) return;
-        var fakePrompts = round.prompt_log.map(function(pl) {
-          return {
-            slot_id: pl.slot_id,
-            subject: pl.subject || pl.final_prompt || '',
-            prompt_text: pl.final_prompt || '',
-            negative_prompt: pl.final_negative || '',
-            style_tags: pl.style_tags || [],
-            must_include: pl.must_include || [],
-            avoid_items: pl.avoid_items || [],
-            ref_image_url: pl.has_ref ? '(参考图)' : '',
-            sources: pl.sources || [],
-            size: '1024*1024'
-          };
-        });
-        pbPanel.style.display = 'block';
-        _pbExpanded = true;
-        pbBody.style.display = 'block';
-        _piCurrentPrompts = fakePrompts;
-        renderInspectorSlots(fakePrompts, '', 0);
-        piSlots.style.display = 'block';
-        piActions.style.display = 'flex';
-        piLoading.style.display = 'none';
-        showSourceHint('reused');
-        if (sourceHint) { sourceHint.textContent = '已从第 ' + (roundIdx + 1) + ' 轮历史加载提示词'; sourceHint.style.display = 'block'; }
-        updateQualityScore();
-      });
-    }
-
-    /* G2: AI 优化提示词 */
-    function aiOptimizeSlot(btnEl) {
-      var slotId = btnEl.getAttribute('data-slot');
-      var card = btnEl.closest('.pi-slot-card');
-      if (!card) return;
-
-      var subjectTa = card.querySelector('[data-field="subject"]');
-      var negTa = card.querySelector('[data-field="negative_prompt"]');
-      var styleWrap = card.querySelector('[data-field="style_tags"]');
-      var mustWrap = card.querySelector('[data-field="must_include"]');
-      var avoidWrap = card.querySelector('[data-field="avoid_items"]');
-
-      var promptData = {
-        slot_id: slotId,
-        subject: subjectTa ? subjectTa.value : '',
-        style_tags: styleWrap ? _collectChips(styleWrap) : [],
-        must_include: mustWrap ? _collectChips(mustWrap) : [],
-        avoid_items: avoidWrap ? _collectChips(avoidWrap) : [],
-      };
-
-      btnEl.disabled = true;
-      btnEl.textContent = '优化中…';
-
-      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/optimize-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: promptData })
-      })
-      .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
-      .then(function(d) {
-        btnEl.disabled = false;
-        btnEl.textContent = 'AI 优化提示词';
-        var res = d.result;
-        if (!res || !res.optimized) {
-          showError(res.explanation || '优化失败');
-          return;
-        }
-        if (subjectTa && res.subject) subjectTa.value = res.subject;
-        if (negTa && res.avoid_items && res.avoid_items.length) {
-          negTa.value = res.avoid_items.join('、');
-        }
-        _replaceChips(styleWrap, res.style_tags || []);
-        _replaceChips(mustWrap, res.must_include || []);
-        _replaceChips(avoidWrap, res.avoid_items || []);
-        updateQualityScore();
-        if (res.explanation) {
-          alert('AI 优化说明：\n' + res.explanation);
-        }
-      })
-      .catch(function() {
-        btnEl.disabled = false;
-        btnEl.textContent = 'AI 优化提示词';
-        showError('AI 优化请求失败');
-      });
-    }
-
-    function _replaceChips(wrap, values) {
-      if (!wrap) return;
-      var chips = wrap.querySelectorAll('.pb-chip');
-      chips.forEach(function(c) { c.parentElement.removeChild(c); });
-      var input = wrap.querySelector('.pb-chip-input');
-      (values || []).forEach(function(v) {
-        var chip = document.createElement('span');
-        chip.className = 'pb-chip';
-        chip.style.cssText = 'display:inline-flex;align-items:center;gap:2px;font-size:11px;padding:2px 8px;border-radius:12px;background:rgba(138,75,47,0.08);color:var(--ink);';
-        chip.innerHTML = esc(v) + '<span class="pb-chip-x" style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1;margin-left:2px;" onclick="removeChip(this)">&times;</span>';
-        if (input) wrap.insertBefore(chip, input);
-        else wrap.appendChild(chip);
-      });
-    }
-
-    /* ── 实际生图提交 ── */
-    function startImageGen(editedPrompts) {
-      if (!imgGenBtn) return;
-      var provider = providerSel ? providerSel.value : 'auto';
-      var genMode = genModeSel ? genModeSel.value : 'prompt_only';
-      var label = providerLabels[provider] || '';
-      var modeLabel = modeLabels[genMode] || genMode;
-      imgGenBtn.disabled = true;
-      imgGenBtn.textContent = '生成中…';
-      imgStatusEl.style.display = 'block';
-      imgStatusText.textContent = '正在提交图片生成任务 [' + modeLabel + ']' + (label ? ' (' + label + ')' : '') + '…';
-
-      var payload = { provider: provider, gen_mode: genMode };
-      if (editedPrompts && editedPrompts.length) payload.edited_prompts = editedPrompts;
-
-      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      .then(function(r) {
-        if (r.ok) return r.json();
-        return r.json().then(function(err) { throw new Error(err.detail || ('HTTP ' + r.status)); });
-      })
-      .then(function(d) {
-        var total = d.total_images || 0;
-        var prov = d.provider || provider;
-        var pLabel = providerLabels[prov] || prov;
-        var refCount = d.ref_images_count || 0;
-        var statusLine = '已提交 ' + total + ' 张图片' + (pLabel ? ' (' + pLabel + ')' : '');
-        if (d.gen_mode === 'ref_image') statusLine += ' | 参考图 ' + refCount + ' 张';
-        statusLine += '，请等待…';
-        imgStatusText.textContent = statusLine;
-        if (d.prompts) {
-          d.prompts.forEach(function(p) {
-            var hint = p.has_ref ? '参考图+' : '';
-            previewCanvas.setImageLoading('note-preview-phone', p.slot_id, hint + '生成中: ' + p.prompt.substring(0, 30) + '…');
-          });
-        }
-      })
-      .catch(function(e) {
-        imgGenBtn.disabled = false;
-        imgGenBtn.textContent = '生成配图';
-        imgStatusText.textContent = '图片生成失败: ' + (e.message || '未知错误');
-        setTimeout(function() { imgStatusEl.style.display = 'none'; }, 5000);
-      });
-    }
-
-    if (imgGenBtn) {
-      imgGenBtn.addEventListener('click', openInspector);
-    }
-
-    /* SSE 监听图片生成进度 */
-    var sseSource = null;
-    try {
-      sseSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
-    } catch(e) {}
-
-    if (sseSource) {
-      sseSource.addEventListener('image_gen_progress', function(ev) {
-        try {
-          var d = JSON.parse(ev.data);
-          var p = d.payload || d;
-          var slotId = p.slot_id;
-          var status = p.status;
-          if (status === 'completed' && p.image_url) {
-            previewCanvas.updateImage('note-preview-phone', slotId, p.image_url);
-            if (currentDraft) {
-              if (!currentDraft.images) currentDraft.images = [];
-              currentDraft.images.push({ slot_id: slotId, image_url: p.image_url, status: 'completed' });
-            }
-            imgStatusText.textContent = slotId + ' 已完成';
-          } else if (status === 'generating') {
-            previewCanvas.setImageLoading('note-preview-phone', slotId, '生成中: ' + (p.prompt || '').substring(0, 30) + '…');
-          } else if (status === 'failed') {
-            imgStatusText.textContent = slotId + ' 生成失败: ' + (p.error || '');
-          }
-        } catch(e) {}
-      });
-
-      sseSource.addEventListener('image_gen_complete', function(ev) {
-        try {
-          var d = JSON.parse(ev.data);
-          var p = d.payload || d;
-          imgGenBtn.disabled = false;
-          imgGenBtn.textContent = '重新生成配图';
-          imgStatusText.textContent = '图片生成完成：' + (p.completed || 0) + '/' + (p.total || 0) + ' 张成功';
-          setTimeout(function() { imgStatusEl.style.display = 'none'; }, 8000);
-          loadGenHistory();
-          enableCompareView();
-        } catch(e) {}
-      });
-    }
-
-    /* ── 生成历史 ── */
-    var historyToggle = document.getElementById('gen-history-toggle');
-    var historyPanel = document.getElementById('gen-history-panel');
-    var historyList = document.getElementById('gen-history-list');
-    var historyBtn = document.getElementById('btn-show-history');
-    var _historyVisible = false;
-
-    function loadGenHistory() {
-      fetch('/content-planning/v6/image-gen/' + encodeURIComponent(opportunityId) + '/history')
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(d) {
-        if (!d || !d.history || !d.history.length) {
-          historyToggle.style.display = 'none';
-          return;
-        }
-        historyToggle.style.display = 'block';
-        historyBtn.textContent = '查看生成历史 (' + d.total_rounds + ' 轮)';
-        renderHistory(d.history);
-      })
-      .catch(function() {});
-    }
-
-    function renderHistory(history) {
-      var html = '';
-      history.slice().reverse().forEach(function(round, idx) {
-        var ts = round.timestamp ? new Date(round.timestamp).toLocaleString('zh-CN') : '';
-        var provLabel = providerLabels[round.provider] || round.provider || '';
-        var mLabel = modeLabels[round.gen_mode] || round.gen_mode || '';
-        var successCount = 0;
-        var totalCount = (round.results || []).length;
-        (round.results || []).forEach(function(r) { if (r.status === 'completed') successCount++; });
-
-        html += '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg);">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
-        html += '<div style="font-size:12px;font-weight:600;">第 ' + (history.length - idx) + ' 轮</div>';
-        html += '<div style="font-size:11px;color:var(--muted);">' + esc(ts) + '</div>';
-        html += '</div>';
-        html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
-        if (provLabel) html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent);">' + esc(provLabel) + '</span>';
-        if (mLabel) html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(138,75,47,0.08);color:var(--ink);">' + esc(mLabel) + '</span>';
-        if (round.user_edited) html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:#e3f2fd;color:#1565c0;">已编辑</span>';
-        html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:' + (successCount === totalCount ? '#e8f5e9' : '#fff3e0') + ';color:' + (successCount === totalCount ? '#2e7d32' : '#e65100') + ';">' + successCount + '/' + totalCount + ' 成功</span>';
-        html += '</div>';
-
-        /* results thumbnails with ratings (E1) */
-        var realIdx = history.length - 1 - idx;
-        var completed = (round.results || []).filter(function(r) { return r.status === 'completed' && r.image_url; });
-        if (completed.length) {
-          html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
-          completed.forEach(function(r) {
-            var currentRating = r.rating || '';
-            html += '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">';
-            html += '<div style="width:48px;height:48px;border-radius:4px;overflow:hidden;border:1px solid var(--border);cursor:pointer;" title="' + esc(r.slot_id) + '" onclick="previewCanvas.updateImage(\'note-preview-phone\',\'' + esc(r.slot_id) + '\',\'' + esc(r.image_url) + '\')"><img src="' + esc(r.image_url) + '" style="width:100%;height:100%;object-fit:cover;"></div>';
-            html += '<div style="display:flex;gap:1px;">';
-            ['good','ok','bad'].forEach(function(rt) {
-              var icons = { good: '👍', ok: '➖', bad: '👎' };
-              var active = currentRating === rt ? 'opacity:1' : 'opacity:0.3';
-              html += '<button type="button" style="font-size:10px;border:none;background:none;cursor:pointer;padding:0 2px;' + active + '" onclick="submitFeedback(' + realIdx + ',\'' + esc(r.slot_id) + '\',\'' + rt + '\',this)" title="' + rt + '">' + icons[rt] + '</button>';
-            });
-            html += '</div></div>';
-          });
-          html += '</div>';
-        }
-        /* D3: 复用按钮 */
-        html += '<div style="display:flex;gap:6px;margin-bottom:4px;">';
-        html += '<button type="button" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--accent);cursor:pointer;" onclick="reuseHistoryPrompts(' + realIdx + ')">复用此提示词</button>';
-        html += '</div>';
-
-        /* prompt log expandable */
-        if (round.prompt_log && round.prompt_log.length) {
-          html += '<details><summary style="font-size:11px;color:var(--muted);cursor:pointer;">查看提示词</summary>';
-          round.prompt_log.forEach(function(pl) {
-            html += '<div style="font-size:11px;margin-top:4px;padding:4px 6px;background:var(--surface);border-radius:4px;">';
-            html += '<strong>' + esc(pl.slot_id) + '</strong>';
-            if (pl.has_ref) html += ' <span style="color:var(--accent);font-size:10px;">[参考图]</span>';
-            html += '<div style="color:var(--ink);margin-top:2px;">' + esc((pl.final_prompt || '').substring(0, 120)) + (pl.final_prompt && pl.final_prompt.length > 120 ? '…' : '') + '</div>';
-            if (pl.final_negative) html += '<div style="color:#c62828;margin-top:2px;">规避: ' + esc(pl.final_negative.substring(0, 80)) + '</div>';
-            if (pl.style_tags && pl.style_tags.length) {
-              html += '<div style="margin-top:2px;">';
-              pl.style_tags.forEach(function(t) { html += '<span style="font-size:9px;padding:0 4px;border-radius:3px;background:rgba(138,75,47,0.08);color:var(--ink);margin-right:3px;">' + esc(t) + '</span>'; });
-              html += '</div>';
-            }
-            html += '</div>';
-          });
-          html += '</details>';
-        }
-        html += '</div>';
-      });
-      historyList.innerHTML = html;
-    }
-
-    if (historyBtn) {
-      historyBtn.addEventListener('click', function() {
-        _historyVisible = !_historyVisible;
-        historyPanel.style.display = _historyVisible ? 'block' : 'none';
-      });
-    }
-
-    /* ── B2: 原图 vs 生成图对比 ── */
-    var compareView = document.getElementById('note-compare-view');
-    var compareToggle = document.getElementById('note-compare-toggle');
-    var compareBtn = document.getElementById('btn-toggle-compare');
-    var _compareVisible = false;
-
-    function enableCompareView() {
-      if (!compareToggle || !currentDraft) return;
-      compareToggle.style.display = 'block';
-    }
-
-    if (compareBtn) {
-      compareBtn.addEventListener('click', function() {
-        _compareVisible = !_compareVisible;
-        compareBtn.textContent = _compareVisible ? '切换单图预览' : '切换原图对比';
-        if (_compareVisible && currentDraft) {
-          compareView.style.display = 'block';
-          var variantA = {
-            title: '原始笔记',
-            cover_image: '',
-            body: ''
-          };
-          {% if source_notes %}
-          {% set first_nc = source_notes[0].get('note_context', {}) if source_notes[0] is mapping else {} %}
-          variantA.title = {{ (first_nc.get('title', '原始笔记') | tojson) }};
-          variantA.cover_image = {{ (first_nc.get('cover_image', '') | tojson) }};
-          variantA.body = {{ (first_nc.get('desc', '') | tojson) }};
-          {% endif %}
-          var variantB = {
-            title: currentDraft.title || '生成笔记',
-            cover_image: (currentDraft.images && currentDraft.images.length && currentDraft.images[0].image_url) || '',
-            body: currentDraft.body || ''
-          };
-          previewCanvas.renderVariantCompare([variantA, variantB], 'note-compare-view');
-        } else {
-          compareView.style.display = 'none';
-        }
-      });
-    }
-
-    loadGenHistory();
-  })();
-
-  /* ── 快速分析（抽屉） ── */
-  var analyzeBtn = document.getElementById('pw-btn-analyze');
-  if (analyzeBtn) {
-    analyzeBtn.addEventListener('click', function () {
-      openDrawer('Agent 快速分析', '<div style="text-align:center;padding:40px;color:var(--muted);"><div style="font-size:28px;margin-bottom:8px;">⏳</div>正在调用 Agent 分析…</div>');
-      analyzeBtn.disabled = true;
-      fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({agent_role: 'strategy_director', mode: 'fast'})
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        analyzeBtn.disabled = false;
-        var confPct = Math.round((data.confidence || 0) * 100);
-        var confColor = confPct >= 70 ? '#2e7d32' : confPct >= 40 ? '#f57f17' : '#c62828';
-        var chips = (data.suggestion_chips || []).map(function(c) {
-          return '<span style="display:inline-block;font-size:11px;padding:3px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);margin:0 4px 4px 0;">' + esc(c) + '</span>';
-        }).join('');
-        document.getElementById('pw-drawer-body').innerHTML =
-          '<div style="margin-bottom:14px;">' +
-            '<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:4px;">' + esc(data.agent_name || 'Strategy Director') + '</div>' +
-            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
-              '<div style="flex:1;height:6px;border-radius:999px;background:rgba(138,75,47,0.12);overflow:hidden;">' +
-                '<div style="height:100%;width:' + confPct + '%;border-radius:999px;background:' + confColor + ';"></div>' +
-              '</div>' +
-              '<span style="font-size:12px;font-weight:700;color:' + confColor + ';">' + confPct + '%</span>' +
-            '</div>' +
-          '</div>' +
-          '<div style="font-size:13px;line-height:1.7;color:var(--ink);white-space:pre-wrap;">' + esc(data.explanation || '无解释') + '</div>' +
-          (chips ? '<div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">' + chips + '</div>' : '');
-      })
-      .catch(function(e) {
-        analyzeBtn.disabled = false;
-        document.getElementById('pw-drawer-body').innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">分析失败：' + esc(e.message || '网络错误') + '</div>';
-      });
-    });
-  }
-
-  /* ── 发起委员会（抽屉 - 完整 Council UI） ── */
-  var councilBtn = document.getElementById('pw-btn-council');
-  if (councilBtn) {
-    councilBtn.addEventListener('click', function () {
-      var html =
-        '<div id="council-ui">' +
-          '<div id="council-history-section" style="margin-bottom:16px;">' +
-            '<div style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(138,75,47,0.04);border:1px solid var(--border);border-radius:12px;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span.toggle-arrow\').textContent=this.nextElementSibling.style.display===\'none\'?\'▸\':\'▾\';">' +
-              '<span style="font-size:12px;font-weight:700;color:var(--ink);">历史讨论</span>' +
-              '<span class="toggle-arrow" style="font-size:11px;color:var(--muted);">▸</span>' +
-            '</div>' +
-            '<div id="council-history-list" style="display:none;max-height:200px;overflow-y:auto;margin-top:8px;"></div>' +
-          '</div>' +
-          '<div style="margin-bottom:14px;">' +
-            '<label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">讨论阶段</label>' +
-            '<select id="council-stage" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font:inherit;font-size:13px;background:#fff;">' +
-              '<option value="brief">Brief</option>' +
-              '<option value="strategy" selected>Strategy</option>' +
-              '<option value="plan">Plan</option>' +
-              '<option value="asset">Asset</option>' +
-            '</select>' +
-          '</div>' +
-          '<div style="margin-bottom:14px;">' +
-            '<label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">讨论主题</label>' +
-            '<textarea id="council-topic" rows="3" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:12px;font:inherit;font-size:13px;resize:vertical;" placeholder="例如：当前策略的品牌一致性是否足够？"></textarea>' +
-          '</div>' +
-          '<button type="button" id="council-start-btn" style="width:100%;padding:11px 16px;background:var(--accent);color:#fff;border:none;border-radius:14px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;">发起讨论</button>' +
-          '<div id="council-thread" style="margin-top:16px;max-height:60vh;overflow-y:auto;"></div>' +
-          '<div id="council-proposal" style="margin-top:14px;"></div>' +
-        '</div>';
-      openDrawer('策略委员会讨论', html);
-
-      councilUI.loadDiscussionHistory('council-history-list', opportunityId, null);
-
-      document.getElementById('council-start-btn').addEventListener('click', function () {
-        var stage = document.getElementById('council-stage').value;
-        var topic = document.getElementById('council-topic').value.trim();
-        if (!topic) { alert('请输入讨论主题'); return; }
-        var startBtn = this;
-        startBtn.disabled = true;
-        startBtn.textContent = '讨论进行中…';
-        var thread = document.getElementById('council-thread');
-        thread.innerHTML = '';
-        document.getElementById('council-proposal').innerHTML = '';
-
-        var _phaseEl = document.createElement('div');
-        _phaseEl.id = 'council-phase-banner';
-        _phaseEl.style.cssText = 'text-align:center;padding:14px;color:var(--muted);font-size:13px;font-weight:600;';
-        _phaseEl.innerHTML = '<span style="font-size:20px;">🔄</span> 正在初始化 Council…';
-        thread.appendChild(_phaseEl);
-
-        var _r1Header = null, _r2Header = null;
-        var _currentRound = 0;
-        var _sseSource = null;
-        var _finalData = null;
-
-        function _ensureRoundHeader(round) {
-          if (round === 1 && !_r1Header) {
-            _r1Header = document.createElement('div');
-            _r1Header.style.cssText = 'font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:12px 0 8px;';
-            _r1Header.textContent = '第一轮 · 独立观点';
-            thread.insertBefore(_r1Header, _phaseEl);
-          } else if (round === 2 && !_r2Header) {
-            _r2Header = document.createElement('div');
-            _r2Header.style.cssText = 'font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:16px 0 8px;';
-            _r2Header.textContent = '第二轮 · 互见后补充/反驳';
-            thread.insertBefore(_r2Header, _phaseEl);
-          }
-        }
-
-        function _appendAgentCard(d, round) {
-          var agentId = d.agent_id || '';
-          var rm = roleMeta(agentId);
-          var agentName = d.agent_name || rm.label;
-          var tagline = (d.soul_tagline || '').trim();
-          var snippet = d.snippet || '';
-          var stance = d.stance || '';
-          var claim = d.claim || '';
-          var roundBadge = '';
-          if (round === 2) {
-            roundBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#b45309;">补充/反驳</span>';
-          } else if (_currentRound >= 2 || round === 1) {
-            roundBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3;">第一轮</span>';
-          }
-          var stanceBadge = '';
-          if (stance === 'support') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;">赞同</span>';
-          else if (stance === 'oppose') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fee2e2;color:#991b1b;">反对</span>';
-          else if (stance === 'supplement') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fef9c3;color:#854d0e;">补充</span>';
-          else if (stance === 'neutral') stanceBadge = '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569;">中立</span>';
-          var card = document.createElement('div');
-          card.style.cssText = 'border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(255,255,255,0.6);animation:fadeSlideIn 0.35s ease;';
-          card.innerHTML =
-            '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' +
-              '<span style="font-size:16px;">' + rm.icon + '</span>' +
-              '<span style="font-size:13px;font-weight:700;color:' + rm.color + ';">' + esc(agentName) + '</span>' +
-              roundBadge + stanceBadge +
-            '</div>' +
-            (tagline ? '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">' + esc(tagline) + '</div>' : '') +
-            (claim ? '<div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px;">' + esc(claim) + '</div>' : '') +
-            '<div style="font-size:13px;line-height:1.65;color:var(--ink);white-space:pre-wrap;">' + esc(snippet) + '</div>';
-          _ensureRoundHeader(round);
-          thread.insertBefore(card, _phaseEl);
-          thread.scrollTop = thread.scrollHeight;
-        }
-
-        function _appendThinkingDot(d) {
-          var agentId = d.agent_id || '';
-          var rm = roleMeta(agentId);
-          var dotId = 'thinking-' + agentId + '-' + (d.council_round || 1);
-          if (document.getElementById(dotId)) return;
-          var dot = document.createElement('div');
-          dot.id = dotId;
-          dot.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:6px 12px;margin:0 6px 6px 0;border-radius:999px;background:rgba(138,75,47,0.06);border:1px solid var(--border);font-size:12px;color:var(--muted);';
-          dot.innerHTML = '<span>' + rm.icon + '</span><span>' + esc(d.agent_name || rm.label) + '</span><span class="council-dots">…</span>';
-          var round = d.council_round || 1;
-          _ensureRoundHeader(round);
-          thread.insertBefore(dot, _phaseEl);
-        }
-
-        function _removeThinkingDot(d) {
-          var dotId = 'thinking-' + (d.agent_id || '') + '-' + (d.council_round || 1);
-          var el = document.getElementById(dotId);
-          if (el) el.remove();
-        }
-
-        function _updatePhase(text) {
-          if (_phaseEl) _phaseEl.innerHTML = '<span style="font-size:16px;">🔄</span> ' + esc(text);
-        }
-
-        function _renderParticipants(parts) {
-          if (!parts || !parts.length) return;
-          var el = document.createElement('div');
-          el.style.cssText = 'margin-bottom:14px;padding:10px 12px;background:rgba(138,75,47,0.06);border-radius:12px;border:1px solid var(--border);';
-          el.innerHTML =
-            '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:8px;">本轮参与者 · SOUL 定位</div>' +
-            '<div style="display:flex;flex-wrap:wrap;gap:10px 14px;">' +
-              parts.map(function(p) {
-                var rm = roleMeta(p.agent_id);
-                var tag = (p.soul_tagline || '').trim();
-                return '<div style="display:flex;align-items:flex-start;gap:6px;min-width:120px;max-width:100%;">' +
-                  '<span style="font-size:15px;line-height:1.2;">' + rm.icon + '</span>' +
-                  '<div><div style="font-size:12px;font-weight:700;color:' + rm.color + ';">' + esc(p.display_name || p.agent_name || rm.label) + '</div>' +
-                  (tag ? '<div style="font-size:11px;color:var(--muted);line-height:1.35;margin-top:2px;">' + esc(tag) + '</div>' : '') +
-                  '</div></div>';
-              }).join('') +
-            '</div>';
-          thread.insertBefore(el, thread.firstChild);
-        }
-
-        function _renderFinalProposal(data) {
-          var proposal = (data || {}).proposal || null;
-          var proposalEl = document.getElementById('council-proposal');
-          if (!proposal || !proposalEl) return;
-          var proposalId = data.proposal_id || proposal.proposal_id || '';
-
-          var updates = proposal.proposed_updates || proposal.field_changes || proposal.changes || {};
-          var diffRows = proposal.diff || [];
-          var changesHtml = '';
-          var fieldKeys = Object.keys(updates);
-
-          if (diffRows.length > 0) {
-            diffRows.forEach(function(row) {
-              var field = row.field || '';
-              var isBlocked = row.blocked;
-              var beforeVal = row.before != null ? (typeof row.before === 'string' ? row.before : JSON.stringify(row.before)) : '—';
-              var afterVal = row.after != null ? (typeof row.after === 'string' ? row.after : JSON.stringify(row.after)) : '—';
-              changesHtml += '<div style="padding:8px 0;border-bottom:1px solid rgba(215,206,191,0.4);">' +
-                '<label style="display:flex;align-items:flex-start;gap:8px;cursor:' + (isBlocked ? 'not-allowed' : 'pointer') + ';">' +
-                  '<input type="checkbox" class="pw-proposal-field-cb" data-field="' + esc(field) + '" ' + (isBlocked ? 'disabled' : 'checked') + ' style="margin-top:2px;">' +
-                  '<div style="flex:1;min-width:0;">' +
-                    '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(field) + '</span>' +
-                    (isBlocked ? ' <span style="font-size:10px;color:#dc2626;">🔒 已锁定</span>' : '') +
-                    '<div style="display:flex;gap:8px;margin-top:4px;font-size:12px;line-height:1.5;">' +
-                      '<div style="flex:1;color:var(--muted);"><span style="font-size:10px;font-weight:700;">原值</span><div style="margin-top:2px;max-height:60px;overflow:hidden;text-overflow:ellipsis;">' + esc(beforeVal).substring(0, 120) + '</div></div>' +
-                      '<div style="flex:1;color:var(--ink);"><span style="font-size:10px;font-weight:700;color:#166534;">建议</span><div style="margin-top:2px;max-height:60px;overflow:hidden;text-overflow:ellipsis;">' + esc(afterVal).substring(0, 200) + '</div></div>' +
-                    '</div>' +
-                  '</div>' +
-                '</label>' +
-              '</div>';
-            });
-          } else if (fieldKeys.length > 0) {
-            fieldKeys.forEach(function(k) {
-              var val = updates[k];
-              changesHtml += '<div style="padding:6px 0;border-bottom:1px solid rgba(215,206,191,0.4);">' +
-                '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">' +
-                  '<input type="checkbox" class="pw-proposal-field-cb" data-field="' + esc(k) + '" checked style="margin-top:2px;">' +
-                  '<div style="flex:1;min-width:0;">' +
-                    '<span style="font-size:11px;font-weight:700;color:var(--accent);">' + esc(k) + '</span>' +
-                    '<div style="font-size:12px;line-height:1.5;color:var(--ink);margin-top:2px;">' + esc(typeof val === 'string' ? val : JSON.stringify(val)) + '</div>' +
-                  '</div>' +
-                '</label>' +
-              '</div>';
-            });
-          }
-
-          var consensusLabel = (data.consensus_status === 'consensus' || proposal.consensus)
-            ? '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#dcfce7;color:#166534;">达成共识</span>'
-            : '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#fee2e2;color:#991b1b;">存在分歧</span>';
-          proposalEl.innerHTML =
-            '<div style="border:1px solid var(--accent);border-radius:14px;padding:14px;background:linear-gradient(135deg,rgba(138,75,47,0.04),rgba(255,253,248,0.9));">' +
-              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
-                '<span style="font-size:14px;font-weight:700;color:var(--ink);">Proposal</span>' +
-                consensusLabel +
-              '</div>' +
-              (proposal.summary || proposal.rationale ? '<div style="font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:10px;">' + esc(proposal.summary || proposal.rationale || '') + '</div>' : '') +
-              (changesHtml ? '<div style="margin-bottom:12px;max-height:280px;overflow-y:auto;">' + changesHtml + '</div>' : '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">本次讨论为 advisory 模式，未生成可直接应用的字段建议。</div>') +
-              '<div style="display:flex;gap:8px;" id="pw-proposal-actions" data-proposal-id="' + esc(proposalId) + '">' +
-                '<button type="button" onclick="applyProposal(\'' + esc(proposalId) + '\')" style="flex:1;padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;"' + (fieldKeys.length === 0 && diffRows.length === 0 ? ' disabled style="flex:1;padding:9px 16px;background:var(--muted);color:#fff;border:none;border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:not-allowed;opacity:0.5;"' : '') + '>采纳选中字段</button>' +
-                '<button type="button" onclick="rejectProposal(\'' + esc(proposalId) + '\')" style="flex:1;padding:9px 16px;background:var(--surface);color:var(--accent);border:1px solid var(--accent);border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">拒绝</button>' +
-              '</div>' +
-            '</div>';
-        }
-
-        function _finishSession(data) {
-          if (_sseSource) { _sseSource.close(); _sseSource = null; }
-          if (_phaseEl) _phaseEl.remove();
-          startBtn.disabled = false;
-          startBtn.textContent = '继续追问';
-          if (data) _renderFinalProposal(data);
-        }
-
-        _sseSource = new EventSource('/content-planning/stream/' + encodeURIComponent(opportunityId));
-
-        _sseSource.addEventListener('council_session_started', function(e) {
-          try {
-            var d = JSON.parse(e.data);
-            var p = (d.payload || {}).participants || d.participants || [];
-            _renderParticipants(p);
-            _updatePhase('各角色 Agent 正在思考…');
-          } catch(ex) {}
-        });
-
-        _sseSource.addEventListener('council_phase_changed', function(e) {
-          try {
-            var d = JSON.parse(e.data);
-            var p = d.payload || d;
-            var phase = p.phase || '';
-            var label = p.label || '';
-            if (phase === 'council_round2') { _currentRound = 2; }
-            if (phase === 'synthesizing_consensus') { _updatePhase('正在综合各方观点，生成共识…'); }
-            else if (label) { _updatePhase(label); }
-          } catch(ex) {}
-        });
-
-        _sseSource.addEventListener('council_phase', function(e) {
-          try {
-            var d = JSON.parse(e.data);
-            var p = d.payload || d;
-            var phase = p.phase || '';
-            if (phase === 'collecting_opinions') _updatePhase('正在收集各角色观点…');
-            else if (phase === 'synthesizing_consensus') _updatePhase('正在综合各方观点，生成共识…');
-            else if (phase === 'session_ready') _updatePhase('会话产出已就绪');
-          } catch(ex) {}
-        });
-
-        _sseSource.addEventListener('council_participant_started', function(e) {
-          try { _appendThinkingDot(JSON.parse(e.data).payload || JSON.parse(e.data)); } catch(ex) {}
-        });
-
-        _sseSource.addEventListener('council_participant_message', function(e) {
-          try {
-            var d = JSON.parse(e.data);
-            var p = d.payload || d;
-            _removeThinkingDot(p);
-            _appendAgentCard(p, p.council_round || 1);
-          } catch(ex) {}
-        });
-
-        _sseSource.addEventListener('council_participant_completed', function(e) {
-          try { var d = JSON.parse(e.data); _removeThinkingDot(d.payload || d); } catch(ex) {}
-        });
-
-        _sseSource.addEventListener('council_synthesis_started', function(e) {
-          _updatePhase('总调度正在综合各方观点…');
-        });
-
-        _sseSource.addEventListener('council_synthesis_completed', function(e) {
-          try {
-            var d = JSON.parse(e.data);
-            var p = d.payload || d;
-            var consensus = p.consensus || '';
-            if (consensus) {
-              var synthCard = document.createElement('div');
-              synthCard.style.cssText = 'border:1px solid rgba(15,118,110,0.35);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(240,253,250,0.7);animation:fadeSlideIn 0.35s ease;';
-              synthCard.innerHTML =
-                '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">' +
-                  '<span style="font-size:16px;">🧭</span>' +
-                  '<span style="font-size:13px;font-weight:700;color:#0f766e;">总调度 · 共识</span>' +
-                '</div>' +
-                '<div style="font-size:13px;line-height:1.65;color:var(--ink);white-space:pre-wrap;">' + esc(consensus) + '</div>';
-              if (_phaseEl) thread.insertBefore(synthCard, _phaseEl);
-              else thread.appendChild(synthCard);
-            }
-            _updatePhase('共识已生成，等待最终结果…');
-          } catch(ex) {}
-        });
-
-        _sseSource.addEventListener('council_session_completed', function(e) {
-          if (_finalData) _finishSession(_finalData);
-        });
-
-        _sseSource.onerror = function() {
-          if (_finalData) _finishSession(_finalData);
-        };
-
-        fetch('/content-planning/stages/' + stage + '/' + encodeURIComponent(opportunityId) + '/discussions', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ question: topic, run_mode: 'agent_assisted_council' })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          _finalData = data;
-          setTimeout(function() { _finishSession(data); }, 500);
-        })
-        .catch(function(e) {
-          if (_sseSource) { _sseSource.close(); _sseSource = null; }
-          if (_phaseEl) _phaseEl.remove();
-          startBtn.disabled = false;
-          startBtn.textContent = '发起讨论';
-          thread.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;">讨论失败：' + esc(e.message || '网络错误') + '</div>';
-        });
-      });
-    });
-  }
-
-  window.applyProposal = function(proposalId) {
-    councilUI.applyProposal(proposalId, 'pw-proposal-field-cb');
-  };
-  window.rejectProposal = function(proposalId) {
-    councilUI.rejectProposal(proposalId);
+    Object.keys(payload).forEach(function(k){ if (Array.isArray(payload[k]) && payload[k].length === 0) delete payload[k]; });
+    fetch('/content-planning/brief/' + encodeURIComponent(opportunityId), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); }).then(function() {
+      closeDrawer();
+      window.location.reload();
+    }).catch(function(){ alert('保存失败，请稍后重试'); });
   };
 
-  /* ── 生成变体（抽屉） ── */
-  var variantBtn = document.getElementById('pw-btn-variant');
-  if (variantBtn) {
-    variantBtn.addEventListener('click', function () {
-      openDrawer('生成变体', '<div style="text-align:center;padding:40px;color:var(--muted);"><div style="font-size:28px;margin-bottom:8px;">⏳</div>正在生成变体…</div>');
-      variantBtn.disabled = true;
-      fetch('/content-planning/asset-bundle/' + encodeURIComponent(opportunityId) + '/generate-variant', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({axis: 'tone', label: '语气变体'})
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        variantBtn.disabled = false;
-        document.getElementById('pw-drawer-body').innerHTML =
-          '<div style="font-size:14px;font-weight:700;color:var(--ink);margin-bottom:10px;">✅ 变体已生成</div>' +
-          '<pre style="font-size:12px;line-height:1.6;white-space:pre-wrap;color:var(--ink);background:#f9f7f4;border-radius:12px;padding:14px;">' + esc(JSON.stringify(data, null, 2)) + '</pre>';
-      })
-      .catch(function(e) {
-        variantBtn.disabled = false;
-        document.getElementById('pw-drawer-body').innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">生成失败：' + esc(e.message || '网络错误') + '</div>';
-      });
-    });
-  }
-
-  /* ── 锁定 & 批准占位 ── */
-  var lockBtn = document.getElementById('pw-btn-lock');
-  if (lockBtn) {
-    lockBtn.addEventListener('click', function () { alert('锁定功能即将上线'); });
-  }
-  var approveBtn = document.getElementById('pw-btn-approve');
-  if (approveBtn) {
-    approveBtn.addEventListener('click', function () { alert('批准功能即将上线'); });
-  }
-
-  /* ═══ V2 Health Check + Action Chips ═══ */
-  (function loadHealthCheck() {
-    var healthBar = document.getElementById('pw-health-bar');
-    var healthBadge = document.getElementById('pw-health-badge');
-    if (!healthBar) return;
-
-    var stages = ['brief', 'strategy', 'plan', 'asset'];
-    var currentStage = 'brief';
-    {% if _strategy %}currentStage = 'strategy';{% endif %}
-    {% if _np %}currentStage = 'plan';{% endif %}
-
-    fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/health-check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: currentStage })
-    })
-    .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(data) {
-      if (!data) return;
-      healthBar.style.display = 'block';
-
-      var score = data.score || 0;
-      var scorePct = Math.round(score * 100);
-      var scoreEl = document.getElementById('pw-health-score');
-      var scoreColor = scorePct >= 70 ? '#2e7d32' : scorePct >= 40 ? '#f57f17' : '#c62828';
-      if (scoreEl) {
-        scoreEl.textContent = scorePct + ' 分';
-        scoreEl.style.color = scoreColor;
-      }
-
-      if (healthBadge) {
-        healthBadge.style.display = 'inline-block';
-        if (scorePct >= 70) {
-          healthBadge.textContent = '健康';
-          healthBadge.className = 'pw-status-badge pw-status-badge-ok';
-        } else if (scorePct >= 40) {
-          healthBadge.textContent = '待改进';
-          healthBadge.className = 'pw-status-badge pw-status-badge-stale';
-        } else {
-          healthBadge.textContent = '需关注';
-          healthBadge.className = 'pw-status-badge pw-status-badge-warn';
-        }
-      }
-
-      var nextEl = document.getElementById('pw-health-next');
-      if (nextEl && data.next_best_action) {
-        nextEl.textContent = '建议：' + data.next_best_action;
-      }
-
-      var issuesEl = document.getElementById('pw-health-issues');
-      if (issuesEl && data.issues && data.issues.length > 0) {
-        var html = '';
-        data.issues.forEach(function(issue) {
-          var icon = issue.severity === 'error' ? '🔴' : issue.severity === 'warning' ? '🟡' : '🔵';
-          html += '<div style="font-size:12px; line-height:1.5; display:flex; gap:6px; align-items:flex-start;">'
-            + '<span>' + icon + '</span>'
-            + '<span><strong>' + esc(issue.dimension || '') + '</strong> ' + esc(issue.message || '') + '</span>'
-            + '</div>';
-        });
-        issuesEl.innerHTML = html;
-      }
-
-      var chipsEl = document.getElementById('pw-action-chips');
-      if (chipsEl && data.action_chips && data.action_chips.length > 0) {
-        var chipHtml = '';
-        data.action_chips.forEach(function(chip) {
-          chipHtml += '<button type="button" class="pw-btn-tertiary pw-action-chip" '
-            + 'data-action-type="' + esc(chip.action_type || '') + '" '
-            + 'data-target="' + esc(chip.target_object || '') + '" '
-            + 'data-endpoint="' + esc(chip.api_endpoint || '') + '" '
-            + 'style="padding:4px 12px; border:1px solid var(--border); border-radius:999px; font-size:11px; font-weight:600; background:var(--surface);">'
-            + esc(chip.label || chip.action_type) + '</button>';
-        });
-        chipsEl.innerHTML = chipHtml;
-      }
-    })
-    .catch(function() { /* health-check graceful degradation */ });
-  })();
-
-  /* ═══ V2 Strategy Block Inspector ═══ */
-  document.querySelectorAll('.pw-strategy-inspect-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var blockEl = btn.closest('.pw-strategy-block');
-      if (!blockEl) return;
-      var blockName = blockEl.dataset.blockName || '';
-      var blockType = blockEl.dataset.blockType || '';
-      var items = blockEl.querySelectorAll('.pw-strategy-items li');
-      var content = [];
-      items.forEach(function(li) { content.push(li.textContent.trim()); });
-
-      openDrawer('AI 检视: ' + blockName, '<div style="text-align:center;padding:40px;color:var(--muted);"><div class="council-dots" style="font-size:28px;">🔍</div>正在分析策略块…</div>');
-
-      fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/strategy-block', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'analyze',
-          block_name: blockName,
-          block_type: blockType,
-          content: content.join('\n'),
-          locked: false,
-          brief_context: ''
-        })
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var html = '<div style="padding:4px;">';
-        if (data.strength) html += '<div style="margin-bottom:12px;"><strong style="color:#166534;">优势</strong><p style="font-size:13px;line-height:1.6;margin:4px 0;">' + esc(data.strength) + '</p></div>';
-        if (data.weakness) html += '<div style="margin-bottom:12px;"><strong style="color:#dc2626;">待改进</strong><p style="font-size:13px;line-height:1.6;margin:4px 0;">' + esc(data.weakness) + '</p></div>';
-        if (data.improvement_suggestions) html += '<div style="margin-bottom:12px;"><strong style="color:var(--accent);">改进建议</strong><p style="font-size:13px;line-height:1.6;margin:4px 0;">' + esc(data.improvement_suggestions) + '</p></div>';
-        if (data.actions && data.actions.length > 0) {
-          html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">';
-          data.actions.forEach(function(a) {
-            html += '<span style="font-size:11px;font-weight:600;padding:4px 12px;border-radius:999px;background:var(--accent-soft);color:var(--accent);">' + esc(a.label || a.action_type) + '</span>';
-          });
-          html += '</div>';
-        }
-        html += '</div>';
-        document.getElementById('pw-drawer-body').innerHTML = html;
-      })
-      .catch(function(e) {
-        document.getElementById('pw-drawer-body').innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">分析失败：' + esc(e.message || '网络错误') + '</div>';
-      });
-    });
-  });
-
-  // ── 视觉策略抽屉（基于专家 SOP 的 6 类策略候选） ─────────────
+  // ────── 视觉策略（Step 3） ──────
   var VS_API = '/content-planning/visual-strategy';
-  var _vsState = { packId: null, candidates: [], selectedCandidateId: null, briefId: null };
+  var _vsState = { packId: '', candId: '', briefId: '', promptId: '' };
 
-  function vsRenderShell() {
-    return ''
-      + '<div id="vs-status" style="margin-bottom:12px;color:var(--muted);font-size:12px;">正在调用专家 RulePack 编译 6 类策略…</div>'
-      + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">'
-      + '<label style="font-size:12px;color:var(--muted);">类目</label>'
-      + '<input id="vs-category" type="text" value="children_desk_mat" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;width:160px;">'
-      + '<label style="font-size:12px;color:var(--muted);margin-left:8px;">场景</label>'
-      + '<select id="vs-scene" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;">'
-      + '<option value="taobao_main_image" selected>淘宝主图</option>'
-      + '<option value="xhs_cover">小红书封面</option>'
-      + '<option value="detail_first_screen">详情首屏</option>'
-      + '<option value="video_first_frame">短视频首帧</option>'
-      + '</select>'
-      + '<button class="pw-btn pw-btn-secondary" id="vs-btn-recompile" style="margin-left:auto;font-size:12px;padding:4px 12px;">重新编译</button>'
-      + '</div>'
-      + '<div id="vs-candidates" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>'
-      + '<div id="vs-detail" style="margin-top:14px;"></div>';
+  function vsSetStatus(text, color) {
+    var el = document.getElementById('vs-panel-status');
+    if (!el) return;
+    el.textContent = text || '';
+    if (color) { el.style.background = color; el.style.color = '#fff'; }
+    else { el.style.background = ''; el.style.color = ''; }
   }
-
   function vsCardHtml(c, idx) {
+    var name = c.name || c.archetype || ('候选 ' + (idx + 1));
+    var hyp = c.hypothesis || '—';
     var s = c.score || {};
-    return ''
-      + '<div class="pw-card vs-cand-card" data-cand-id="' + esc(c.id) + '" style="cursor:pointer;border:1px solid var(--border);padding:10px;border-radius:10px;transition:border-color .15s;">'
-      + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
-      + '    <strong style="font-size:13px;">#' + (idx+1) + ' ' + esc(c.name || c.archetype) + '</strong>'
-      + '    <span style="font-size:11px;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:999px;">' + (s.total ? s.total.toFixed(2) : '0.00') + '</span>'
-      + '  </div>'
-      + '  <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px;min-height:32px;">' + esc(c.hypothesis || '') + '</div>'
-      + '  <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:10px;">'
-      + '    <span title="品牌契合">品牌 ' + (s.brand_fit||0).toFixed(2) + '</span>'
-      + '    <span title="人群契合">人群 ' + (s.audience_fit||0).toFixed(2) + '</span>'
-      + '    <span title="差异化">差异 ' + (s.differentiation||0).toFixed(2) + '</span>'
-      + '    <span title="规则数">📚 ' + (c.rule_refs||[]).length + '</span>'
-      + '    <span title="风险数">⚠ ' + (c.risks||[]).length + '</span>'
-      + '  </div>'
-      + '</div>';
+    var total = (typeof s.total === 'number') ? s.total : 0;
+    var bf = (typeof s.brand_fit === 'number') ? s.brand_fit : 0;
+    var af = (typeof s.audience_fit === 'number') ? s.audience_fit : 0;
+    var df = (typeof s.differentiation === 'number') ? s.differentiation : 0;
+    var rules = (c.rule_refs || []).length;
+    var risks = (c.risks || []).length;
+    return '<div class="vs-cand-card pw-card" data-cand-id="' + esc(c.id) + '" style="cursor:pointer;border:1px solid var(--border);padding:12px;border-radius:12px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+        '<strong style="font-size:13px;">#' + (idx + 1) + ' ' + esc(name) + '</strong>' +
+        '<span style="font-size:11px;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:999px;">' + total.toFixed(2) + '</span>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:8px;min-height:32px;">' + esc(hyp) + '</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:10px;color:var(--muted);">' +
+        '<span>品牌 ' + bf.toFixed(2) + '</span>' +
+        '<span>人群 ' + af.toFixed(2) + '</span>' +
+        '<span>差异 ' + df.toFixed(2) + '</span>' +
+        '<span>规则 ' + rules + '</span>' +
+        '<span>风险 ' + risks + '</span>' +
+      '</div></div>';
   }
-
-  function vsRenderCandidates() {
-    var box = document.getElementById('vs-candidates');
-    if (!box) return;
-    if (!_vsState.candidates.length) {
-      box.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);font-size:12px;text-align:center;padding:20px;">暂无候选，请先在「类目规则审核台」批通过 ≥ 30 条规则并构建 RulePack。</div>';
-      return;
-    }
-    var html = '';
-    _vsState.candidates.forEach(function(c, i) { html += vsCardHtml(c, i); });
-    box.innerHTML = html;
-    box.querySelectorAll('.vs-cand-card').forEach(function(el) {
-      el.addEventListener('click', function() {
-        _vsState.selectedCandidateId = el.dataset.candId;
-        box.querySelectorAll('.vs-cand-card').forEach(function(x) { x.style.borderColor = 'var(--border)'; });
-        el.style.borderColor = 'var(--accent)';
+  function vsBindCandidateClicks(scope) {
+    if (!scope) return;
+    scope.querySelectorAll('.vs-cand-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        scope.querySelectorAll('.vs-cand-card.is-active').forEach(function(x){ x.classList.remove('is-active'); });
+        card.classList.add('is-active');
+        _vsState.candId = card.getAttribute('data-cand-id');
         vsBuildBrief();
       });
     });
   }
-
-  function vsRenderBriefDetail(brief, prompt) {
-    var c = (brief.copywriting || {});
-    var sc = (brief.scene || {});
-    var st = (brief.style || {});
-    var pp = (brief.product || {});
-    var pe = (brief.people || {});
-    var html = ''
-      + '<div class="pw-card" style="border:1px solid var(--border);padding:12px;border-radius:10px;">'
-      + '  <h4 style="margin:0 0 10px 0;font-size:13px;">CreativeBrief</h4>'
-      + '  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;line-height:1.55;">'
-      + '    <div><strong>主标题</strong><div>' + esc(c.headline || '—') + '</div></div>'
-      + '    <div><strong>卖点</strong><div>' + esc((c.selling_points||[]).join(' · ') || '—') + '</div></div>'
-      + '    <div><strong>背景</strong><div>' + esc(sc.background || '—') + '</div></div>'
-      + '    <div><strong>道具</strong><div>' + esc((sc.props||[]).join('、') || '—') + '</div></div>'
-      + '    <div><strong>风格</strong><div>' + esc(st.tone || '—') + ' / ' + esc((st.color_palette||[]).join('、')) + '</div></div>'
-      + '    <div><strong>商品</strong><div>' + esc(pp.placement || '—') + ' · ' + esc(pp.scale || '') + '</div></div>'
-      + '    <div><strong>人物</strong><div>' + (pe.enabled ? esc((pe.age||'') + ' ' + (pe.action||'')) : '无人物') + '</div></div>'
-      + '    <div><strong>负向</strong><div style="color:#b91c1c;">' + esc((brief.negative||[]).slice(0,5).join('、')) + '</div></div>'
-      + '  </div>';
-    if (prompt) {
-      html += '<details style="margin-top:10px;"><summary style="font-size:12px;color:var(--accent);cursor:pointer;">查看 PromptSpec（中文 positive / negative）</summary>'
-            + '<div style="margin-top:6px;font-size:11px;background:var(--surface);padding:8px;border-radius:8px;line-height:1.5;">'
-            + '<strong>positive:</strong><br>' + esc(prompt.positive_prompt_zh || '')
-            + '<br><br><strong>negative:</strong><br>' + esc(prompt.negative_prompt_zh || '')
-            + '</div></details>';
+  function vsRenderCandidates(cands) {
+    var body = document.getElementById('vs-panel-body');
+    if (!body) return;
+    if (!cands || !cands.length) {
+      body.innerHTML = '<div class="pw-empty">未生成候选</div>';
+      return;
     }
-    html += '<div style="margin-top:12px;display:flex;gap:8px;">'
-         + '  <button class="pw-btn pw-btn-primary" id="vs-btn-push" style="font-size:12px;">推送到无线画布 →</button>'
-         + '  <button class="pw-btn pw-btn-secondary" id="vs-btn-rebuild-prompt" style="font-size:12px;">重生 PromptSpec</button>'
-         + '</div>';
+    var html = '<div class="vs-cand-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">';
+    cands.forEach(function(c, i) { html += vsCardHtml(c, i); });
     html += '</div>';
-    document.getElementById('vs-detail').innerHTML = html;
-
-    var pushBtn = document.getElementById('vs-btn-push');
-    if (pushBtn) pushBtn.addEventListener('click', vsSendToWorkbench);
-    var rebuildBtn = document.getElementById('vs-btn-rebuild-prompt');
-    if (rebuildBtn) rebuildBtn.addEventListener('click', vsBuildPrompt);
+    body.innerHTML = html;
+    vsBindCandidateClicks(body);
   }
-
-  function vsCompile() {
-    document.getElementById('vs-status').textContent = '编译中…';
-    var category = (document.getElementById('vs-category')||{}).value || 'children_desk_mat';
-    var scene = (document.getElementById('vs-scene')||{}).value || 'taobao_main_image';
+  var SCENE_ZH = {
+    taobao_main_image: '主图 → 无限画布',
+    detail_first_screen: '详情首屏 → 无限画布',
+    video_first_frame: '视频首帧 → 无限画布',
+    xhs_cover: '小红书封面 → 视觉工作台'
+  };
+  function vsCurrentSceneLabel() {
+    var scn = document.getElementById('vs-scene');
+    var s = scn ? scn.value : 'taobao_main_image';
+    return SCENE_ZH[s] || s;
+  }
+  function vsRenderBriefDetail(brief) {
+    var det = document.getElementById('vs-panel-detail');
+    if (!det) return;
+    if (!brief) { det.innerHTML = ''; return; }
+    var sceneLabel = vsCurrentSceneLabel();
+    var h = '<div class="pw-card" style="border:1px dashed var(--accent);">' +
+      '<h4 style="margin:0 0 6px;font-size:13px;color:var(--accent);">CreativeBrief · ' + esc(brief.id || '') + '</h4>' +
+      (brief.objective ? '<p style="font-size:12px;line-height:1.55;margin:0 0 6px;">' + esc(brief.objective) + '</p>' : '') +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
+        '<button type="button" class="pw-btn-tertiary" onclick="vsBuildPrompt()">生成 PromptSpec →</button>' +
+        '<button type="button" class="pw-btn-tertiary" onclick="vsSendToWorkbench()" id="vs-send-btn" disabled>推送到视觉工作台 →</button>' +
+        '<span style="font-size:11px;color:var(--muted);">目标：' + esc(sceneLabel) + '</span>' +
+      '</div></div>';
+    det.innerHTML = h;
+  }
+  window.vsCompile = function() {
+    var cat = document.getElementById('vs-category');
+    var scn = document.getElementById('vs-scene');
+    var category = cat ? cat.value.trim() : '';
+    var scene = scn ? scn.value : 'taobao_main_image';
+    vsSetStatus('编译中…', '#a16207');
+    var payload = { opportunity_id: opportunityId, scene: scene };
+    if (category) payload.category = category;
     fetch(VS_API + '/compile-from-content', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function(r){
+      return r.json().then(function(data){ return { ok: r.ok, status: r.status, data: data }; });
+    }).then(function(res) {
+      if (!res.ok) {
+        var msg = (res.data && (res.data.detail || res.data.error)) || ('HTTP ' + res.status);
+        vsSetStatus('错误: ' + msg, '#dc2626');
+        return;
+      }
+      var data = res.data || {};
+      _vsState.packId = data.visual_strategy_pack_id || data.pack_id || '';
+      var cands = data.candidates || [];
+      vsRenderCandidates(cands);
+      vsSetStatus('已编译 ' + cands.length + ' 类 · ' + scene, '#059669');
+    }).catch(function(e){ vsSetStatus('网络错误: ' + (e.message||''), '#dc2626'); });
+  };
+  window.vsBuildBrief = function() {
+    if (!_vsState.candId) return;
+    fetch(VS_API + '/candidates/' + encodeURIComponent(_vsState.candId) + '/brief', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        opportunity_id: opportunityId, category: category, scene: scene,
-      })
-    })
-    .then(function(r) { if (!r.ok) return r.json().then(function(j){ throw new Error(j.detail||'compile 失败'); }); return r.json(); })
-    .then(function(d) {
-      _vsState.packId = d.visual_strategy_pack_id;
-      _vsState.candidates = d.candidates || [];
-      document.getElementById('vs-status').textContent = '已编译 ' + _vsState.candidates.length + ' 个策略候选（按总分降序），点击候选卡查看 Brief 详情';
-      vsRenderCandidates();
-    })
-    .catch(function(e) {
-      document.getElementById('vs-status').innerHTML = '<span style="color:#b91c1c;">编译失败：' + esc(e.message) + '</span>';
-    });
-  }
-
-  function vsBuildBrief() {
-    if (!_vsState.selectedCandidateId) return;
-    document.getElementById('vs-detail').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:18px;">编译 CreativeBrief…</div>';
-    fetch(VS_API + '/candidates/' + encodeURIComponent(_vsState.selectedCandidateId) + '/brief', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(brief) {
-      _vsState.briefId = brief.id;
-      return fetch(VS_API + '/briefs/' + encodeURIComponent(brief.id) + '/prompt', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
-      }).then(function(r){ return r.json(); }).then(function(prompt) { vsRenderBriefDetail(brief, prompt); });
-    })
-    .catch(function(e) {
-      document.getElementById('vs-detail').innerHTML = '<div style="color:#b91c1c;font-size:12px;padding:14px;">Brief 编译失败：' + esc(e.message) + '</div>';
-    });
-  }
-
-  function vsBuildPrompt() {
-    if (!_vsState.briefId) return;
+      body: JSON.stringify({})
+    }).then(function(r){
+      return r.json().then(function(data){ return { ok: r.ok, status: r.status, data: data }; });
+    }).then(function(res) {
+      if (!res.ok) {
+        alert('生成 Brief 失败: ' + ((res.data && (res.data.detail || res.data.error)) || ('HTTP ' + res.status)));
+        return;
+      }
+      var data = res.data || {};
+      _vsState.briefId = data.id || data.brief_id || '';
+      vsRenderBriefDetail(data);
+    }).catch(function(e){ alert('网络错误: ' + (e.message||'')); });
+  };
+  window.vsBuildPrompt = function() {
+    if (!_vsState.briefId) { alert('请先生成 Brief'); return; }
     fetch(VS_API + '/briefs/' + encodeURIComponent(_vsState.briefId) + '/prompt', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"provider":"comfyui"}'
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(prompt) {
-      // re-fetch brief to repaint
-      fetch(VS_API + '/briefs/' + encodeURIComponent(_vsState.briefId).replace(/^/, '')).catch(function(){});
-      // simply rebuild detail without brief refetch:
-      var briefDetail = document.querySelector('#vs-detail .pw-card');
-      if (briefDetail) {
-        var det = briefDetail.querySelector('details');
-        if (det) det.innerHTML = '<summary style="font-size:12px;color:var(--accent);cursor:pointer;">查看 PromptSpec（中文 positive / negative）</summary>'
-          + '<div style="margin-top:6px;font-size:11px;background:var(--surface);padding:8px;border-radius:8px;line-height:1.5;">'
-          + '<strong>positive:</strong><br>' + esc(prompt.positive_prompt_zh || '')
-          + '<br><br><strong>negative:</strong><br>' + esc(prompt.negative_prompt_zh || '')
-          + '</div>';
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'comfyui' })
+    }).then(function(r){
+      return r.json().then(function(data){ return { ok: r.ok, status: r.status, data: data }; });
+    }).then(function(res) {
+      if (!res.ok) {
+        alert('生成 PromptSpec 失败: ' + ((res.data && (res.data.detail || res.data.error)) || ('HTTP ' + res.status)));
+        return;
       }
+      var data = res.data || {};
+      _vsState.promptId = data.id || data.prompt_id || '';
+      var btn = document.getElementById('vs-send-btn');
+      if (btn) btn.disabled = false;
+      alert('PromptSpec 已就绪：' + (_vsState.promptId || '—') + '\n点击「推送到视觉工作台」继续');
+    }).catch(function(e){ alert('网络错误: ' + (e.message||'')); });
+  };
+  window.vsSendToWorkbench = function() {
+    if (!_vsState.candId) { alert('请先选择候选'); return; }
+    var btn = document.getElementById('vs-send-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '推送中…'; }
+    fetch(VS_API + '/candidates/' + encodeURIComponent(_vsState.candId) + '/send-to-workbench', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ opportunity_id: opportunityId, notes: '' })
+    }).then(function(r){
+      return r.json().then(function(data){ return { ok: r.ok, status: r.status, data: data }; });
+    }).then(function(res) {
+      if (!res.ok) {
+        if (btn) { btn.disabled = false; btn.textContent = '推送到视觉工作台 →'; }
+        alert('推送失败: ' + ((res.data && (res.data.detail || res.data.error)) || ('HTTP ' + res.status)));
+        return;
+      }
+      var data = res.data || {};
+      var url = data.visual_builder_url;
+      if (!url) {
+        var pid = data.prompt_spec_id || data.prompt_id || _vsState.promptId || '';
+        url = '/planning/' + encodeURIComponent(opportunityId) + '/visual-builder';
+        if (pid) url += '?prompt_id=' + encodeURIComponent(pid);
+      }
+      window.location.href = url;
+    }).catch(function(e){
+      if (btn) { btn.disabled = false; btn.textContent = '推送到视觉工作台 →'; }
+      alert('网络错误: ' + (e.message||''));
+    });
+  };
+
+  // ────── Hero Flow Step Toggle / Inspect ──────
+  function pwToggleStep(key) {
+    var step = document.querySelector('[data-step="' + key + '"]');
+    if (!step) return;
+    var body = step.querySelector('.pw-step-body');
+    var btn = step.querySelector('[data-pw-toggle]');
+    if (!body) return;
+    if (body.hasAttribute('hidden')) {
+      body.removeAttribute('hidden');
+      step.setAttribute('data-active', '1');
+      if (btn) btn.textContent = '收起';
+    } else {
+      body.setAttribute('hidden', '');
+      step.removeAttribute('data-active');
+      if (btn) btn.textContent = '展开';
+    }
+  }
+  function pwInspectStep(key) {
+    var step = document.querySelector('[data-step="' + key + '"]');
+    if (step && step.querySelector('.pw-step-body[hidden]')) pwToggleStep(key);
+    pwCopilotSwitchTab('inspect');
+    var sel = document.getElementById('pw-cop-focus');
+    if (sel && key !== 'handoff') sel.value = key;
+    if (key !== 'handoff') pwInspectRun(key);
+  }
+  window.pwToggleStep = pwToggleStep;
+  window.pwInspectStep = pwInspectStep;
+
+  // ────── Co-pilot Tab 切换 ──────
+  function pwCopilotSwitchTab(name) {
+    document.querySelectorAll('[data-cop-tab-btn]').forEach(function(btn) {
+      btn.setAttribute('aria-selected', btn.getAttribute('data-cop-tab-btn') === name ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-cop-panel]').forEach(function(p) {
+      if (p.getAttribute('data-cop-panel') === name) p.removeAttribute('hidden');
+      else p.setAttribute('hidden', '');
+    });
+  }
+  window.pwCopilotSwitchTab = pwCopilotSwitchTab;
+
+  // ────── Co-pilot Pulse ──────
+  function pwPulseLoadHealth() {
+    var stage = 'brief';
+    fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/health-check', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: stage })
+    }).then(function(r){ return r.json(); }).then(function(data) {
+      var num = document.getElementById('pw-cop-score-num');
+      var stg = document.getElementById('pw-cop-score-stage');
+      var iss = document.getElementById('pw-cop-pulse-issues');
+      var score = data.health_score != null ? data.health_score : (data.score != null ? data.score : null);
+      if (num) num.textContent = score == null ? '—' : (typeof score === 'number' ? score.toFixed(1) : String(score));
+      if (stg) stg.textContent = '阶段 · ' + (data.stage || stage);
+      var issues = data.issues || [];
+      if (iss) {
+        if (!issues.length) {
+          iss.innerHTML = '<div class="pw-cop-empty">未检测到问题</div>';
+        } else {
+          iss.innerHTML = issues.slice(0, 5).map(function(it) {
+            var sev = it.severity || it.level || 'info';
+            var cls = sev === 'error' || sev === 'critical' ? 'pw-cop-issue-row pw-cop-issue-row--err' : 'pw-cop-issue-row';
+            return '<div class="' + cls + '">' + esc(it.message || it.detail || it.title || '问题') + '</div>';
+          }).join('');
+        }
+      }
+      // Append action chips from health-check
+      var chipsEl = document.getElementById('pw-cop-pulse-chips');
+      var actions = data.actions || data.action_chips || [];
+      if (chipsEl && actions.length) {
+        actions.slice(0, 4).forEach(function(act) {
+          var label = act.label || act.text || act.action_id || '建议';
+          var actionId = act.action_id || act.id || '';
+          var chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'pw-cop-chip';
+          chip.textContent = label;
+          if (actionId.indexOf('inspect') === 0) {
+            var key = actionId.split(':')[1] || 'brief';
+            chip.setAttribute('data-chip-action', 'inspect:' + key);
+          } else if (actionId.indexOf('recompile_visual') >= 0) {
+            chip.setAttribute('data-chip-action', 'recompile_visual');
+          } else {
+            chip.disabled = true;
+            chip.title = '该建议尚未接入实际动作';
+          }
+          chipsEl.appendChild(chip);
+        });
+      }
+    }).catch(function() {
+      var num = document.getElementById('pw-cop-score-num');
+      if (num) num.textContent = 'N/A';
+    });
+  }
+  function pwPulseLoadPipeline() {
+    fetch('/content-planning/' + encodeURIComponent(opportunityId) + '/agent-pipeline')
+      .then(function(r){ return r.ok ? r.json() : null; }).then(function(data) {
+        if (!data) return;
+        var box = document.getElementById('pw-cop-pipeline');
+        if (!box) return;
+        box.innerHTML = '';
+        var status = data.status || (data.run && data.run.status) || '';
+        var runId = data.run_id || (data.run && data.run.run_id) || '';
+        if (status) {
+          var tag = document.createElement('span');
+          tag.className = 'pw-cop-pipeline-tag';
+          if (status === 'completed' || status === 'success' || status === 'ok') tag.classList.add('pw-cop-pipeline-tag--ok');
+          else if (status === 'running' || status === 'in_progress') tag.classList.add('pw-cop-pipeline-tag--warn');
+          else if (status === 'failed' || status === 'error') tag.classList.add('pw-cop-pipeline-tag--err');
+          tag.textContent = '管线 · ' + status;
+          box.appendChild(tag);
+        }
+        if (runId) {
+          var t2 = document.createElement('span');
+          t2.className = 'pw-cop-pipeline-tag';
+          t2.textContent = 'Run · ' + String(runId).substring(0, 10) + '…';
+          box.appendChild(t2);
+        }
+        if (!status && !runId) {
+          var emp = document.createElement('span');
+          emp.className = 'pw-cop-pipeline-tag';
+          emp.textContent = '无运行中管线';
+          box.appendChild(emp);
+        }
+        var refresh = document.createElement('button');
+        refresh.type = 'button';
+        refresh.className = 'pw-btn-tertiary';
+        refresh.id = 'pw-cop-pipeline-refresh';
+        refresh.textContent = '刷新';
+        refresh.addEventListener('click', pwPulseLoadPipeline);
+        box.appendChild(refresh);
+      }).catch(function(){});
+  }
+
+  // ────── Co-pilot Inspect ──────
+  function pwInspectRun(focus) {
+    focus = focus || 'brief';
+    var resultEl = document.getElementById('pw-cop-inspect-result');
+    if (!resultEl) return;
+    resultEl.innerHTML = '<div class="pw-cop-empty">分析中…</div>';
+    var agentRole = FOCUS_AGENT_MAP[focus];
+    if (!agentRole) {
+      resultEl.innerHTML = '<div class="pw-cop-empty">该焦点暂未支持</div>';
+      return;
+    }
+    fetch('/content-planning/run-agent/' + encodeURIComponent(opportunityId), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_role: agentRole, mode: 'fast' })
+    }).then(function(r){ return r.json(); }).then(function(data) {
+      pwRenderInspectResult(focus, data, resultEl);
+    }).catch(function(e) {
+      resultEl.innerHTML = '<div class="pw-cop-issue-row pw-cop-issue-row--err">网络错误：' + esc(e.message || '') + '</div>';
+    });
+  }
+  function pwRenderInspectResult(focus, data, el) {
+    if (!data || data.detail || data.error) {
+      el.innerHTML = '<div class="pw-cop-issue-row pw-cop-issue-row--err">' + esc((data && (data.detail || data.error)) || '执行失败') + '</div>';
+      return;
+    }
+    var html = '<h4>' + esc(FOCUS_LABEL[focus] || focus) + ' · 检视结果</h4>';
+    if (data.confidence != null) {
+      html += '<div class="pw-cop-empty">置信度 ' + (typeof data.confidence === 'number' ? (data.confidence * 100).toFixed(0) + '%' : data.confidence) + '</div>';
+    }
+    if (data.explanation || data.summary) {
+      html += '<div style="font-size:13px;line-height:1.55;margin:6px 0;">' + esc(data.explanation || data.summary) + '</div>';
+    }
+    var strengths = data.strengths || data.pros || [];
+    if (strengths.length) {
+      html += '<h4>优势</h4><ul>' + strengths.map(function(s){ return '<li>' + esc(typeof s === 'string' ? s : (s.text || JSON.stringify(s))) + '</li>'; }).join('') + '</ul>';
+    }
+    var concerns = data.concerns || data.cons || data.issues || [];
+    if (concerns.length) {
+      html += '<h4>待改进</h4><ul>' + concerns.map(function(s){ return '<li>' + esc(typeof s === 'string' ? s : (s.text || s.message || JSON.stringify(s))) + '</li>'; }).join('') + '</ul>';
+    }
+    var suggestions = data.suggestions || data.action_chips || data.actions || [];
+    if (suggestions.length) {
+      html += '<h4>建议</h4><div class="pw-cop-chips">';
+      suggestions.slice(0, 6).forEach(function(s) {
+        var label = typeof s === 'string' ? s : (s.label || s.text || s.action_id || '建议');
+        html += '<span class="pw-cop-chip" style="cursor:default;">' + esc(label) + '</span>';
+      });
+      html += '</div>';
+    }
+    el.innerHTML = html;
+  }
+  function pwInspectVariant() {
+    var resultEl = document.getElementById('pw-cop-inspect-result');
+    if (resultEl) resultEl.innerHTML = '<div class="pw-cop-empty">派生变体中…</div>';
+    fetch('/content-planning/asset-bundle/' + encodeURIComponent(opportunityId) + '/generate-variant', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ axis: 'tone', label: '更口语化' })
+    }).then(function(r){ return r.json(); }).then(function(data) {
+      if (!resultEl) return;
+      if (data.detail || data.error) {
+        resultEl.innerHTML = '<div class="pw-cop-issue-row pw-cop-issue-row--err">' + esc(data.detail || data.error) + '</div>';
+        return;
+      }
+      resultEl.innerHTML = '<h4>派生变体</h4><pre style="font-size:11px;line-height:1.5;background:#f9f7f4;padding:8px;border-radius:8px;overflow:auto;max-height:200px;">' + esc(JSON.stringify(data, null, 2)).substring(0, 1500) + '</pre>';
+    }).catch(function(e){
+      if (resultEl) resultEl.innerHTML = '<div class="pw-cop-issue-row pw-cop-issue-row--err">' + esc(e.message || '网络错误') + '</div>';
     });
   }
 
-  function vsSendToWorkbench() {
-    if (!_vsState.selectedCandidateId) return;
-    var btn = document.getElementById('vs-btn-push');
-    if (btn) { btn.disabled = true; btn.textContent = '推送中…'; }
-    fetch(VS_API + '/candidates/' + encodeURIComponent(_vsState.selectedCandidateId) + '/send-to-workbench', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ opportunity_id: opportunityId })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(d) {
-      if (d && d.visual_builder_url) {
-        window.location.href = d.visual_builder_url;
-      } else {
-        alert('已推送，请前往视觉工作台查看');
-      }
-    })
-    .catch(function(e) { alert('推送失败：' + (e.message || '网络错误')); })
-    .finally(function() { if (btn) { btn.disabled = false; btn.textContent = '推送到无线画布 →'; } });
+  // ────── Co-pilot Council ──────
+  function pwCouncilLoadHistory() {
+    if (window.councilUI && councilUI.loadDiscussionHistory) {
+      councilUI.loadDiscussionHistory('pw-cop-council-history', opportunityId, '');
+    }
+  }
+  function pwCouncilStart() {
+    var stage = (document.getElementById('pw-cop-council-stage') || {}).value || 'strategy';
+    var topic = (document.getElementById('pw-cop-council-q') || {}).value || '';
+    if (!topic.trim()) { alert('请输入讨论主题'); return; }
+    var streamEl = document.getElementById('pw-cop-council-stream');
+    if (streamEl) streamEl.classList.remove('pw-cop-empty');
+    var btn = document.getElementById('pw-cop-council-start');
+    if (window.councilUI && councilUI.initCouncilSession) {
+      councilUI.initCouncilSession({
+        threadId: 'pw-cop-council-stream',
+        proposalId: 'pw-cop-council-proposal',
+        startBtn: btn,
+        stage: stage,
+        opportunityId: opportunityId,
+        topic: topic.trim(),
+        onFinish: function() { pwCouncilLoadHistory(); }
+      });
+    }
   }
 
-  document.addEventListener('DOMContentLoaded', function() {
-    var btn = document.getElementById('pw-btn-visual-strategy');
-    if (!btn) return;
-    btn.addEventListener('click', function() {
-      _vsState = { packId: null, candidates: [], selectedCandidateId: null, briefId: null };
-      openDrawer('视觉策略 · 6 类候选（基于专家 SOP）', vsRenderShell());
-      var rec = document.getElementById('vs-btn-recompile');
-      if (rec) rec.addEventListener('click', vsCompile);
+  // ────── Chip 委托 ──────
+  function handleChipAction(action) {
+    if (!action) return;
+    if (action.indexOf('inspect:') === 0) {
+      pwInspectStep(action.split(':')[1]);
+      return;
+    }
+    if (action === 'recompile_visual') {
+      pwInspectStep('visual');
       vsCompile();
+      return;
+    }
+    if (action === 'refresh') {
+      window.location.href = {{ refresh_url|tojson }};
+      return;
+    }
+  }
+
+  // ────── DOMContentLoaded ──────
+  document.addEventListener('DOMContentLoaded', function() {
+    // Step toggle / inspect
+    document.querySelectorAll('[data-pw-toggle]').forEach(function(el) {
+      el.addEventListener('click', function(e){ e.preventDefault(); pwToggleStep(el.getAttribute('data-pw-toggle')); });
+    });
+    document.querySelectorAll('[data-pw-inspect]').forEach(function(el) {
+      el.addEventListener('click', function(e){ e.preventDefault(); pwInspectStep(el.getAttribute('data-pw-inspect')); });
+    });
+
+    // Co-pilot tab buttons
+    document.querySelectorAll('[data-cop-tab-btn]').forEach(function(btn) {
+      btn.addEventListener('click', function(){ pwCopilotSwitchTab(btn.getAttribute('data-cop-tab-btn')); });
+    });
+
+    // Brief 编辑按钮（hero step 1）
+    var briefEditBtn = document.getElementById('pw-btn-edit-brief');
+    if (briefEditBtn) {
+      briefEditBtn.addEventListener('click', function(){
+        var tpl = document.getElementById('pw-brief-form-tpl');
+        if (tpl) openDrawer('编辑 Brief', tpl.innerHTML);
+      });
+    }
+
+    // 视觉策略：服务端首屏候选绑定
+    var vsPanel = document.getElementById('vs-panel');
+    if (vsPanel) {
+      var seedPackId = vsPanel.getAttribute('data-pack-id') || '';
+      if (seedPackId) _vsState.packId = seedPackId;
+      vsBindCandidateClicks(document.getElementById('vs-panel-body'));
+      var rec = document.getElementById('vs-panel-recompile');
+      if (rec) rec.addEventListener('click', vsCompile);
+    }
+
+    // Co-pilot Inspect 按钮
+    var insBtn = document.getElementById('pw-cop-inspect-run');
+    if (insBtn) insBtn.addEventListener('click', function(){
+      var sel = document.getElementById('pw-cop-focus');
+      pwInspectRun(sel ? sel.value : 'brief');
+    });
+    var varBtn = document.getElementById('pw-cop-inspect-variant');
+    if (varBtn) varBtn.addEventListener('click', pwInspectVariant);
+
+    // Co-pilot Council 按钮
+    var startBtn = document.getElementById('pw-cop-council-start');
+    if (startBtn) startBtn.addEventListener('click', pwCouncilStart);
+    var refreshBtn = document.getElementById('pw-cop-council-refresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', pwCouncilLoadHistory);
+
+    // Pulse 初始加载
+    pwPulseLoadHealth();
+    pwPulseLoadPipeline();
+
+    // Council 历史首屏
+    pwCouncilLoadHistory();
+
+    // 全局 chip 委托（next-best-action）
+    document.addEventListener('click', function(e) {
+      var chip = e.target.closest && e.target.closest('[data-chip-action]');
+      if (!chip || chip.disabled) return;
+      handleChipAction(chip.getAttribute('data-chip-action'));
     });
   });
 })();
 </script>
+
 {% endblock %}

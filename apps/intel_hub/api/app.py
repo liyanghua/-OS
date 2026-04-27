@@ -94,6 +94,25 @@ def _proxy_img_filter(url: Any) -> str:
 
 TEMPLATE_ENV.filters["proxy_img"] = _proxy_img_filter
 
+from apps.intel_hub.projector.label_zh import to_zh as _to_zh_label
+
+
+def _zh_filter(value: Any) -> Any:
+    """Jinja 过滤器：把英文本体 ID 转为业务中文标签。
+
+    支持单个字符串与列表输入；非字符串原样返回（如 None / dict）。
+    """
+    if value is None:
+        return value
+    if isinstance(value, str):
+        return _to_zh_label(value)
+    if isinstance(value, (list, tuple)):
+        return [_to_zh_label(v) if isinstance(v, str) else v for v in value]
+    return value
+
+
+TEMPLATE_ENV.filters["zh"] = _zh_filter
+
 
 class CrawlJobRequest(BaseModel):
     platform: str = "xhs"
@@ -1499,6 +1518,15 @@ def create_app(
                     source_notes.append(_note_ctx_index[nid])
 
         if _wants_html(request):
+            try:
+                from apps.intel_hub.config_loader import load_category_lenses
+                _lens_meta = load_category_lenses()
+            except Exception:
+                _lens_meta = {}
+            lens_labels = {
+                lid: (m.category_cn if getattr(m, "category_cn", None) else lid)
+                for lid, m in _lens_meta.items()
+            }
             return _render("xhs_opportunity_detail.html", {
                 "request": request,
                 "card": card_dict,
@@ -1511,6 +1539,7 @@ def create_app(
                 "status_colors": _xhs_status_colors,
                 "is_promoted": card_dict.get("opportunity_status") == "promoted",
                 "opportunity_id": opportunity_id,
+                "lens_labels": lens_labels,
             })
         card_dict["source_notes"] = source_notes
         return card_dict
@@ -1598,13 +1627,18 @@ def create_app(
             lens_counts[key] = lens_counts.get(key, 0) + 1
         all_lenses = sorted([k for k in lens_counts if k != "__unassigned__"])
 
-        # 生成 lens_id -> category_cn 映射，便于 UI 展示
+        # 生成 lens_id -> category_cn 映射，便于 UI 展示（覆盖所有已知 lens，避免遗漏页面外 lens_id）
         try:
             from apps.intel_hub.config_loader import load_category_lenses
             lens_meta = load_category_lenses()
         except Exception:
             lens_meta = {}
-        lens_labels = {lid: (lens_meta.get(lid).category_cn if lens_meta.get(lid) else lid) for lid in all_lenses}
+        lens_labels: dict[str, str] = {
+            lid: (m.category_cn if getattr(m, "category_cn", None) else lid)
+            for lid, m in lens_meta.items()
+        }
+        for lid in all_lenses:
+            lens_labels.setdefault(lid, lid)
 
         # lens_type_nav：当前 lens 范围内的 opportunity_type 计数（按数量倒序）
         scope_cards = all_cards_full
@@ -2488,11 +2522,50 @@ def create_app(
         pipeline_run_id = session_data.get("pipeline_run_id", "")
         needs_build = not bool(brief_dict)
 
-        cached_bundle = session_data.get("asset_bundle", {})
-        bundle_dict = cached_bundle if isinstance(cached_bundle, dict) else {}
+        # ── 反查该机会卡最新 VisualStrategyPack + 候选（按 rowid DESC 即最新插入） ──
+        # 不在路由层主动 compile：避免首屏 RT 飙升、避免与 user intent 解耦。
+        try:
+            _vs_packs = _vs_store_instance.list_visual_strategy_packs(
+                opportunity_card_id=opportunity_id
+            )
+            _latest_pack = _vs_packs[0] if _vs_packs else None
+            _vs_candidates = (
+                _vs_store_instance.list_strategy_candidates(_latest_pack["id"])
+                if _latest_pack
+                else []
+            )
+        except Exception:
+            _latest_pack = None
+            _vs_candidates = []
+
+        _default_category = (
+            card_dict.get("category")
+            or card_dict.get("lens_id")
+            or ""
+        ).strip() or "children_desk_mat"
+        visual_strategy_ctx: dict[str, Any] = {
+            "has_pack": bool(_latest_pack),
+            "pack": _latest_pack,
+            "candidates": _vs_candidates,
+            "default_category": _default_category,
+            "default_scene": "taobao_main_image",
+        }
 
         from apps.content_planning.viewmodels.planning_workspace_vm import build_workspace_vm
-        vm = build_workspace_vm(card_dict, brief_dict, match_result, strategy, note_plan, generated)
+        vm = build_workspace_vm(
+            card_dict,
+            brief_dict,
+            match_result,
+            strategy,
+            note_plan,
+            generated,
+            visual_strategy=visual_strategy_ctx,
+            source_notes=source_ctx,
+            stale_flags=stale_flags,
+            review_summary=review_summary or {},
+            pipeline_run_id=pipeline_run_id,
+            needs_build=needs_build,
+        )
 
         ctx = {
             "request": request,
@@ -2508,8 +2581,8 @@ def create_app(
             "needs_build": needs_build,
             "source_notes": source_ctx,
             "review_summary": review_summary or {},
-            "bundle": bundle_dict,
             "refresh_url": f"/planning/{opportunity_id}?refresh=1",
+            "visual_strategy": visual_strategy_ctx,
             "vm": vm,
         }
 
@@ -2520,8 +2593,18 @@ def create_app(
         return {k: v for k, v in ctx.items() if k not in ("request", "vm")}
 
     @app.get("/planning/{opportunity_id}/visual-builder")
-    async def visual_builder_page(request: Request, opportunity_id: str) -> Any:
-        """视觉工作台独立页：三栏布局，来源证据 + 预览画布 + Prompt 编辑。"""
+    async def visual_builder_page(
+        request: Request,
+        opportunity_id: str,
+        candidate_id: str = "",
+        creative_brief_id: str = "",
+    ) -> Any:
+        """视觉工作台独立页：三栏布局，来源证据 + 预览画布 + Prompt 编辑。
+
+        当 query 携带 candidate_id 时进入"策略包模式"，从视觉策略全链路注入
+        vs_context（candidate / brief / note_pack / rule_refs_detail），UI 端
+        优先使用该上下文渲染，PlanStore 字段保留为兜底。
+        """
         t0 = time.perf_counter()
         card = review_store.get_card(opportunity_id)
         if card is None:
@@ -2641,6 +2724,101 @@ def create_app(
 
         gen_mode_effective = "prompt_only" if ref_count == 0 else "ref_image"
 
+        vs_context: dict[str, Any] | None = None
+        vs_mode = False
+        vs_pack_candidates: list[dict[str, Any]] = []
+        if candidate_id:
+            try:
+                from apps.content_planning.api.visual_strategy_routes import (
+                    get_full_context as _vs_get_full_context,
+                )
+
+                vs_context = _vs_get_full_context(candidate_id)
+                vs_mode = True
+                pack_obj = vs_context.get("pack") if isinstance(vs_context, dict) else None
+                if isinstance(pack_obj, dict):
+                    try:
+                        from apps.growth_lab.storage.visual_strategy_store import (
+                            VisualStrategyStore as _VS,
+                        )
+
+                        _vss = _VS()
+                        for cid in (pack_obj.get("candidate_ids") or []):
+                            craw = _vss.get_strategy_candidate(cid)
+                            if not craw:
+                                continue
+                            score = craw.get("score") or {}
+                            vs_pack_candidates.append({
+                                "id": craw.get("id"),
+                                "archetype": craw.get("archetype", ""),
+                                "score_total": score.get("total", 0.0),
+                                "score_brand": score.get("brand_fit", 0.0),
+                                "score_audience": score.get("audience_fit", 0.0),
+                                "score_diff": score.get("differentiation", 0.0),
+                                "rule_count": len(craw.get("rule_refs") or []),
+                            })
+                    except Exception:  # noqa: BLE001
+                        vs_pack_candidates = []
+                np = vs_context.get("note_pack") if isinstance(vs_context, dict) else None
+                if isinstance(np, dict):
+                    cover = np.get("cover") or {}
+                    body_specs = np.get("body") or []
+                    fp = np.get("field_provenance") or {}
+                    np_prompts: list[dict[str, Any]] = []
+                    if isinstance(cover, dict) and cover:
+                        np_prompts.append({
+                            "slot_id": "cover",
+                            "archetype_dim": "cover",
+                            "prompt_spec_id": cover.get("id", ""),
+                            "subject": cover.get("positive_prompt_zh", ""),
+                            "negative_prompt": cover.get("negative_prompt_zh", ""),
+                            "style_tags": [],
+                            "must_include": [],
+                            "avoid_items": [],
+                            "size": "1024*1280",
+                            "ref_image_url": "",
+                            "rationale": "",
+                            "rule_refs": [],
+                            "field_provenance": cover.get("field_provenance", {}),
+                            "source_quote": fp.get("cover", {}) if isinstance(fp.get("cover"), dict) else {},
+                        })
+                    if isinstance(body_specs, list):
+                        for b in body_specs:
+                            if not isinstance(b, dict):
+                                continue
+                            ps = b.get("prompt_spec") or {}
+                            slot_id = b.get("slot_id", "")
+                            np_prompts.append({
+                                "slot_id": slot_id,
+                                "archetype_dim": b.get("archetype_dim", ""),
+                                "prompt_spec_id": ps.get("id", ""),
+                                "subject": ps.get("positive_prompt_zh", ""),
+                                "negative_prompt": ps.get("negative_prompt_zh", ""),
+                                "style_tags": [],
+                                "must_include": [],
+                                "avoid_items": [],
+                                "size": "1024*1280",
+                                "ref_image_url": "",
+                                "rationale": b.get("rationale", ""),
+                                "rule_refs": b.get("rule_refs", []),
+                                "field_provenance": ps.get("field_provenance", {}),
+                                "source_quote": fp.get(slot_id, {}) if isinstance(fp.get(slot_id), dict) else {},
+                            })
+                    if np_prompts:
+                        initial_prompts = np_prompts
+                        prompts_source = "note_pack"
+            except HTTPException:
+                vs_context = None
+                vs_mode = False
+            except Exception as exc:  # noqa: BLE001
+                import sys as _sys
+                print(
+                    f"[visual-builder] vs_context bootstrap 失败 cand={candidate_id} err={exc}",
+                    file=_sys.stderr,
+                )
+                vs_context = None
+                vs_mode = False
+
         bootstrap = {
             "opportunity_id": opportunity_id,
             "quick_draft": quick_draft,
@@ -2655,6 +2833,11 @@ def create_app(
             "has_ref_images": ref_count > 0,
             "gen_mode_effective": gen_mode_effective,
             "latest_generated_images": latest_generated_images,
+            "vs_mode": vs_mode,
+            "vs_context": vs_context,
+            "vs_pack_candidates": vs_pack_candidates,
+            "candidate_id": candidate_id,
+            "creative_brief_id": creative_brief_id,
         }
 
         ctx = {

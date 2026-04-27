@@ -71,5 +71,7 @@ class CreativeBrief(BaseModel):
     copywriting: BriefCopywriting = Field(default_factory=BriefCopywriting)
     negative: list[str] = Field(default_factory=list)
 
+    field_provenance: dict[str, str] = Field(default_factory=dict)
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

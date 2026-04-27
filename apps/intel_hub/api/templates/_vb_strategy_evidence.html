@@ -1,0 +1,83 @@
+{# Strategy Evidence partial — 视觉策略候选证据卡 #}
+{# 由父模板传入 vs_context（candidate / brief / pack / rule_refs_detail / scene） #}
+{% set _vsc = bootstrap.vs_context if bootstrap and bootstrap.get('vs_context') else None %}
+{% set _cand = (_vsc.candidate if _vsc else {}) or {} %}
+{% set _vbrief = (_vsc.brief if _vsc else {}) or {} %}
+{% set _pack = (_vsc.pack if _vsc else {}) or {} %}
+{% set _rules = (_vsc.rule_refs_detail if _vsc else []) or [] %}
+{% set _scene = (_vsc.scene if _vsc else '') %}
+{% set _selected_vars = (_cand.selected_variables or {}) %}
+{% set _archetype = (_cand.archetype or '') %}
+{% set _scores = (_cand.score or {}) %}
+
+<div class="vb-vs-evidence" style="background:rgba(109,40,213,0.04);border:1px solid rgba(109,40,213,0.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <strong style="font-size:13px;color:#6D28D9;">策略证据 · {{ _archetype or '候选' }}</strong>
+    <span style="font-size:10px;color:var(--muted);">scene: {{ _scene or '—' }}</span>
+  </div>
+
+  {% if _scores %}
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 10px;font-size:11px;color:#374151;margin-bottom:8px;">
+    {% if _scores.total is defined %}<div>综合分 <strong>{{ '%.2f'|format(_scores.total) }}</strong></div>{% endif %}
+    {% if _scores.brand_fit is defined %}<div>品牌契合 {{ '%.2f'|format(_scores.brand_fit) }}</div>{% endif %}
+    {% if _scores.audience_fit is defined %}<div>人群契合 {{ '%.2f'|format(_scores.audience_fit) }}</div>{% endif %}
+    {% if _scores.differentiation is defined %}<div>差异化 {{ '%.2f'|format(_scores.differentiation) }}</div>{% endif %}
+    {% if _scores.feasibility is defined %}<div>可行性 {{ '%.2f'|format(_scores.feasibility) }}</div>{% endif %}
+    {% if _scores.coverage is defined %}<div>规则覆盖 {{ '%.2f'|format(_scores.coverage) }}</div>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if _cand.rationale %}
+  <div class="vb-label">候选理由</div>
+  <div style="font-size:11px;line-height:1.55;color:#374151;margin-bottom:8px;">
+    {% if _cand.rationale is iterable and _cand.rationale is not string %}
+      {% for r in _cand.rationale %}<div>· {{ r }}</div>{% endfor %}
+    {% else %}{{ _cand.rationale }}{% endif %}
+  </div>
+  {% endif %}
+
+  {% if _selected_vars %}
+  <div class="vb-label" style="margin-top:6px;">选中维度（×{{ _selected_vars|length }}）</div>
+  <div style="display:flex;flex-direction:column;gap:3px;font-size:10.5px;color:#374151;margin-bottom:8px;">
+    {% for k, v in _selected_vars.items() %}
+    <div style="display:flex;justify-content:space-between;gap:6px;">
+      <span style="color:var(--muted);min-width:84px;">{{ k }}</span>
+      <span style="flex:1;color:var(--ink);">{{ v }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if _rules %}
+  <div class="vb-label" style="margin-top:6px;">命中规则（×{{ _rules|length }}）</div>
+  <div style="display:flex;flex-direction:column;gap:6px;font-size:10.5px;color:#374151;">
+    {% for rd in _rules[:8] %}
+    <div style="border-left:2px solid rgba(109,40,213,0.35);padding:2px 6px;line-height:1.45;">
+      <div><strong>{{ rd.id }}</strong>
+        {% if rd.dimension %}<span style="color:var(--muted);">· {{ rd.dimension }}</span>{% endif %}
+        {% if rd.base_weight is defined %}<span style="color:var(--muted);">· w={{ '%.2f'|format(rd.base_weight) }}</span>{% endif %}
+      </div>
+      {% if rd.source_quote %}<div style="color:var(--muted);">{{ rd.source_quote }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    {% if _rules|length > 8 %}<div style="color:var(--muted);font-size:10px;">… 还有 {{ _rules|length - 8 }} 条</div>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if _cand.risks %}
+  <div class="vb-label" style="margin-top:8px;color:#B91C1C;">风险提示</div>
+  <div style="font-size:10.5px;color:#B91C1C;line-height:1.5;">
+    {% for r in _cand.risks %}<div>· {{ r }}</div>{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if _vbrief %}
+  <div class="vb-label" style="margin-top:8px;">CreativeBrief 摘要</div>
+  <div style="font-size:10.5px;color:#374151;line-height:1.5;">
+    {% if _vbrief.headline_zh %}<div><strong>标题</strong>：{{ _vbrief.headline_zh }}</div>{% endif %}
+    {% if _vbrief.value_props %}<div><strong>卖点</strong>：{{ _vbrief.value_props|join(' · ') }}</div>{% endif %}
+    {% if _vbrief.target_user %}<div><strong>人群</strong>：{{ _vbrief.target_user }}</div>{% endif %}
+    {% if _vbrief.cover_direction %}<div><strong>封面</strong>：{{ _vbrief.cover_direction }}</div>{% endif %}
+  </div>
+  {% endif %}
+</div>

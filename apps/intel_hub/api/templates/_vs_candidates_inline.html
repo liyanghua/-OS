@@ -1,0 +1,35 @@
+{# 视觉策略候选卡网格（首屏服务端直出 / vsRenderCandidates JS 重渲染时复用同样结构） #}
+{% set _cands = (vm.visual_strategy.top_candidates if vm and vm.visual_strategy else []) %}
+{% if _cands %}
+<div class="vs-cand-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+  {% for c in _cands %}
+  <div class="vs-cand-card pw-card"
+       data-cand-id="{{ c.id }}"
+       style="cursor:pointer;border:1px solid var(--border);padding:12px;border-radius:12px;transition:border-color .15s, box-shadow .15s;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <strong style="font-size:13px;">#{{ loop.index }} {{ c.name or c.archetype or '候选' }}</strong>
+      <span style="font-size:11px;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:999px;">
+        {{ "%.2f"|format(c.score_total) }}
+      </span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:8px;min-height:32px;">
+      {{ c.hypothesis or '—' }}
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:10px;color:var(--muted);">
+      <span title="品牌契合">品牌 {{ "%.2f"|format(c.score_brand_fit) }}</span>
+      <span title="人群契合">人群 {{ "%.2f"|format(c.score_audience_fit) }}</span>
+      <span title="差异化">差异 {{ "%.2f"|format(c.score_differentiation) }}</span>
+      <span title="规则数">规则 {{ c.rule_refs_count }}</span>
+      <span title="风险数">风险 {{ c.risks_count }}</span>
+      {% if c.status and c.status != 'generated' %}
+      <span title="状态" style="color:var(--accent);">· {{ c.status }}</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div style="text-align:center;padding:18px;color:var(--muted);font-size:12px;">
+  尚未编译候选。
+</div>
+{% endif %}

@@ -102,6 +102,17 @@ class VisualStrategyStore:
                     created_at TEXT NOT NULL DEFAULT ''
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS note_packs (
+                    id TEXT PRIMARY KEY,
+                    candidate_id TEXT NOT NULL DEFAULT '',
+                    creative_brief_id TEXT NOT NULL DEFAULT '',
+                    scene TEXT NOT NULL DEFAULT 'xhs_cover',
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL DEFAULT ''
+                )
+            """)
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_vsp_oc ON visual_strategy_packs(opportunity_card_id)",
             )
@@ -119,6 +130,12 @@ class VisualStrategyStore:
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_fb_sc ON visual_feedback_records(strategy_candidate_id)",
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_np_cand ON note_packs(candidate_id)",
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_np_brief ON note_packs(creative_brief_id)",
             )
             conn.commit()
 
@@ -359,3 +376,48 @@ class VisualStrategyStore:
                 (strategy_candidate_id,),
             ).fetchall()
         return [json.loads(r["payload_json"]) for r in rows]
+
+    # ── NotePack（xhs_cover 多 slot 策略包） ──────────────────────
+
+    def save_note_pack(self, pack: dict) -> None:
+        now = _now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO note_packs
+                  (id, candidate_id, creative_brief_id, scene, payload_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  candidate_id=excluded.candidate_id,
+                  creative_brief_id=excluded.creative_brief_id,
+                  scene=excluded.scene,
+                  payload_json=excluded.payload_json,
+                  updated_at=excluded.updated_at
+                """,
+                (
+                    pack["id"],
+                    pack.get("candidate_id", ""),
+                    pack.get("creative_brief_id", ""),
+                    pack.get("scene", "xhs_cover"),
+                    json.dumps(pack, ensure_ascii=False, default=str),
+                    pack.get("created_at", now),
+                    now,
+                ),
+            )
+            conn.commit()
+
+    def get_note_pack(self, pack_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT payload_json FROM note_packs WHERE id = ?",
+                (pack_id,),
+            ).fetchone()
+        return json.loads(row["payload_json"]) if row else None
+
+    def get_note_pack_by_candidate(self, candidate_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT payload_json FROM note_packs WHERE candidate_id = ? ORDER BY rowid DESC LIMIT 1",
+                (candidate_id,),
+            ).fetchone()
+        return json.loads(row["payload_json"]) if row else None

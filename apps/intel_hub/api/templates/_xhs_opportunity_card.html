@@ -17,7 +17,7 @@
           {% if card.content_angle %} · {{ card.content_angle }}{% endif %}
         </span>
         {% if card.lens_id %}
-        <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #f3e5f5; color: #4a148c; margin-left: 4px;">&#x1F50D; {{ card.lens_id }}</span>
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #f3e5f5; color: #4a148c; margin-left: 4px;" title="{{ card.lens_id }}">&#x1F50D; {{ (lens_labels or {}).get(card.lens_id, card.lens_id) }}</span>
         {% endif %}
         <span class="meta" style="margin-left: 8px;">置信度 {{ "%.0f"|format(card.confidence * 100) }}%</span>
         {% if card.lens_evidence_score %}
@@ -61,13 +61,13 @@
 
     <div class="chips" style="margin-bottom: 6px;">
       {% for ref in card.scene_refs[:3] %}
-        <span class="chip" style="background: #e8f5e9; color: #2e7d32;">{{ ref }}</span>
+        <span class="chip" style="background: #e8f5e9; color: #2e7d32;" title="{{ ref }}">{{ ref | zh }}</span>
       {% endfor %}
       {% for ref in card.style_refs[:3] %}
-        <span class="chip" style="background: #fce4ec; color: #c62828;">{{ ref }}</span>
+        <span class="chip" style="background: #fce4ec; color: #c62828;" title="{{ ref }}">{{ ref | zh }}</span>
       {% endfor %}
       {% for ref in card.need_refs[:3] %}
-        <span class="chip" style="background: #e3f2fd; color: #1565c0;">{{ ref }}</span>
+        <span class="chip" style="background: #e3f2fd; color: #1565c0;" title="{{ ref }}">{{ ref | zh }}</span>
       {% endfor %}
     </div>
 

@@ -93,6 +93,10 @@
 <div class="vb-layout">
   {# ═══ 左栏：来源与证据 ═══ #}
   <div class="vb-panel" id="vb-left">
+    {% if _bs.get('vs_mode') %}
+      {% set bootstrap = _bs %}
+      {% include "_vb_strategy_evidence.html" %}
+    {% endif %}
     <h3>来源笔记</h3>
     {% for si in _si[:5] %}
     <div style="margin-bottom:10px;">
@@ -142,6 +146,17 @@
 
   {# ═══ 中栏：预览画布 + 操作 ═══ #}
   <div class="vb-panel" id="vb-center">
+    {% if _bs.get('vs_mode') and _bs.get('vs_pack_candidates') %}
+    <div id="vb-cand-ribbon" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:8px;background:rgba(109,40,213,0.04);border:1px solid rgba(109,40,213,0.18);border-radius:10px;">
+      {% for c in _bs.vs_pack_candidates %}
+      <button type="button" class="vb-cand-chip{% if c.id == _bs.candidate_id %} is-active{% endif %}" data-cand-id="{{ c.id }}" title="{{ c.archetype }} · 分 {{ '%.2f'|format(c.score_total) }}"
+              style="font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid {% if c.id == _bs.candidate_id %}#6D28D9{% else %}var(--border){% endif %};background:{% if c.id == _bs.candidate_id %}#6D28D9{% else %}var(--surface){% endif %};color:{% if c.id == _bs.candidate_id %}#fff{% else %}var(--ink){% endif %};cursor:pointer;">
+        {{ c.archetype }} · {{ '%.2f'|format(c.score_total) }}
+      </button>
+      {% endfor %}
+      <span id="vb-ribbon-status" style="font-size:10px;color:var(--muted);margin-left:auto;align-self:center;"></span>
+    </div>
+    {% endif %}
     <h3>笔记预览</h3>
     <div class="vb-actions">
       <button class="vb-btn vb-btn-primary" id="vb-btn-gen-draft">一键生成预览</button>
@@ -162,6 +177,18 @@
       <div id="vb-preview-phone" style="display:none;"></div>
     </div>
     <div id="vb-image-status" style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px;"></div>
+    <div id="vb-vs-feedback-bar" style="display:none;margin-top:10px;padding:10px;border:1px solid rgba(109,40,213,0.25);border-radius:10px;background:rgba(109,40,213,0.04);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <strong style="font-size:12px;color:#6D28D9;">候选反馈（影响规则权重）</strong>
+        <span id="vb-vs-feedback-status" style="font-size:10px;color:var(--muted);"></span>
+      </div>
+      <div id="vb-vs-feedback-sliders" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:11px;color:#374151;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:6px;">
+        <button class="vb-btn" type="button" onclick="vbSubmitFeedback('winner')" style="background:#10B981;color:#fff;border-color:#10B981;">✅ 采纳为胜出</button>
+        <button class="vb-btn" type="button" onclick="vbSubmitFeedback('revise')">🔁 待优化</button>
+        <button class="vb-btn" type="button" onclick="vbSubmitFeedback('reject')" style="background:#EF4444;color:#fff;border-color:#EF4444;">⛔ 拒绝</button>
+      </div>
+    </div>
     <div id="vb-compare-area" style="display:none;">
       <button class="vb-btn" id="vb-btn-compare" style="margin:8px auto;display:block;">切换原图对比</button>
       <div id="vb-compare-view"></div>
@@ -348,6 +375,211 @@
     });
   })();
 
+  // ── 视觉策略反馈（影响规则权重） ──
+  var _vbFeedbackImageRef = null;  // {variant_id, slot_id, image_url}
+  var FEEDBACK_DIMS = [
+    { key: 'first_glance', label: '一眼吸引' },
+    { key: 'audience_fit', label: '人群契合' },
+    { key: 'function_clarity', label: '功能清晰' },
+    { key: 'style_fit', label: '风格契合' },
+    { key: 'differentiation', label: '差异化' },
+  ];
+
+  function vbRenderFeedbackSliders() {
+    var box = document.getElementById('vb-vs-feedback-sliders');
+    if (!box) return;
+    var html = '';
+    FEEDBACK_DIMS.forEach(function(d) {
+      html += '<label style="display:flex;align-items:center;gap:6px;">' +
+        '<span style="min-width:64px;color:var(--muted);">' + d.label + '</span>' +
+        '<input type="range" min="0" max="10" step="1" value="7" data-dim="' + d.key + '" style="flex:1;" oninput="this.nextElementSibling.textContent=this.value">' +
+        '<span style="min-width:18px;text-align:right;">7</span>' +
+        '</label>';
+    });
+    box.innerHTML = html;
+  }
+
+  function vbShowFeedbackBar(ref) {
+    var bar = document.getElementById('vb-vs-feedback-bar');
+    if (!bar) return;
+    _vbFeedbackImageRef = ref || null;
+    vbRenderFeedbackSliders();
+    bar.style.display = '';
+    var s = document.getElementById('vb-vs-feedback-status');
+    if (s) s.textContent = ref && ref.slot_id ? ('对 ' + ref.slot_id + ' 评分') : '';
+  }
+
+  window.vbSubmitFeedback = function(decision) {
+    var cid = BOOT.candidate_id;
+    if (!cid) { showError('未关联候选，无法提交反馈'); return; }
+    var sliders = document.querySelectorAll('#vb-vs-feedback-sliders input[type="range"]');
+    var expert = { overall: 0 };
+    var sum = 0;
+    sliders.forEach(function(el) {
+      var v = parseFloat(el.value || '0');
+      expert[el.getAttribute('data-dim')] = v;
+      sum += v;
+    });
+    expert.overall = sliders.length ? +(sum / sliders.length).toFixed(2) : 0;
+    var ref = _vbFeedbackImageRef || {};
+    var ruleIds = [];
+    (_inspectorPrompts || []).forEach(function(p) {
+      (p.rule_refs || []).forEach(function(r) { if (ruleIds.indexOf(r) < 0) ruleIds.push(r); });
+    });
+    var payload = {
+      image_variant_id: ref.variant_id || ref.image_url || '',
+      strategy_candidate_id: cid,
+      decision: decision || 'enter_test_pool',
+      expert_score: expert,
+      comments: '',
+      rule_ids: ruleIds,
+    };
+    var statusEl = document.getElementById('vb-vs-feedback-status');
+    if (statusEl) statusEl.textContent = '提交中…';
+    fetch('/content-planning/visual-strategy/feedback', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data) {
+      var deltas = data.weight_deltas || data.weight_history || [];
+      var n = Array.isArray(deltas) ? deltas.length : 0;
+      if (statusEl) statusEl.textContent = '已提交 · 影响 ' + n + ' 条规则';
+      addTrace({ operation: 'visual_strategy_feedback', status: 'success', detail: '影响 ' + n + ' 条规则权重' });
+    })
+    .catch(function(e) {
+      if (statusEl) statusEl.textContent = '提交失败: ' + (e.message || '');
+    });
+  };
+
+  // ── 单 slot 重编：把当前 textarea 的 subject/negative 写回 NotePack ──
+  window.vbRecompileSlot = function(slotId) {
+    var cid = BOOT.candidate_id;
+    if (!cid || !slotId) return;
+    var slotEl = document.querySelector('.vb-pb-slot[data-slot="' + slotId + '"]');
+    if (!slotEl) return;
+    var subjectTa = slotEl.querySelector('textarea[data-field="subject"]');
+    var negTa = slotEl.querySelector('textarea[data-field="negative_prompt"]');
+    var payload = {
+      slot_id: slotId,
+      subject: subjectTa ? subjectTa.value : '',
+      negative_prompt: negTa ? negTa.value : '',
+    };
+    fetch('/content-planning/visual-strategy/candidates/' + encodeURIComponent(cid) + '/note-pack/recompile-slot', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data) {
+      var ps = data.prompt_spec || {};
+      var idx = -1;
+      for (var i = 0; i < _inspectorPrompts.length; i++) {
+        if (_inspectorPrompts[i].slot_id === slotId) { idx = i; break; }
+      }
+      if (idx >= 0) {
+        _inspectorPrompts[idx].subject = ps.positive_prompt_zh || _inspectorPrompts[idx].subject;
+        _inspectorPrompts[idx].negative_prompt = ps.negative_prompt_zh || _inspectorPrompts[idx].negative_prompt;
+        _inspectorPrompts[idx].field_provenance = ps.field_provenance || _inspectorPrompts[idx].field_provenance;
+      }
+      var statusEl = document.getElementById('vb-image-status');
+      if (statusEl) statusEl.textContent = slotId + ' prompt 已写回 NotePack';
+    })
+    .catch(function(e) { showError('重编失败: ' + e.message); });
+  };
+
+  // ── 视觉策略候选 ribbon 切换 ──
+  function vbNotePackToPrompts(np) {
+    if (!np) return [];
+    var cover = np.cover || {};
+    var bodies = np.body || [];
+    var fp = np.field_provenance || {};
+    var prompts = [];
+    if (cover && (cover.positive_prompt_zh || cover.id)) {
+      prompts.push({
+        slot_id: 'cover',
+        archetype_dim: 'cover',
+        prompt_spec_id: cover.id || '',
+        subject: cover.positive_prompt_zh || '',
+        negative_prompt: cover.negative_prompt_zh || '',
+        style_tags: [], must_include: [], avoid_items: [],
+        size: '1024*1280', ref_image_url: '',
+        rationale: '', rule_refs: [],
+        field_provenance: cover.field_provenance || {},
+        source_quote: fp.cover || {},
+      });
+    }
+    bodies.forEach(function(b) {
+      var ps = (b && b.prompt_spec) || {};
+      prompts.push({
+        slot_id: b.slot_id || '',
+        archetype_dim: b.archetype_dim || '',
+        prompt_spec_id: ps.id || '',
+        subject: ps.positive_prompt_zh || '',
+        negative_prompt: ps.negative_prompt_zh || '',
+        style_tags: [], must_include: [], avoid_items: [],
+        size: '1024*1280', ref_image_url: '',
+        rationale: b.rationale || '',
+        rule_refs: b.rule_refs || [],
+        field_provenance: ps.field_provenance || {},
+        source_quote: fp[b.slot_id || ''] || {},
+      });
+    });
+    return prompts;
+  }
+
+  function vbBindCandidateRibbon() {
+    var ribbon = document.getElementById('vb-cand-ribbon');
+    if (!ribbon) return;
+    var status = document.getElementById('vb-ribbon-status');
+    ribbon.querySelectorAll('.vb-cand-chip').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var cid = btn.getAttribute('data-cand-id');
+        if (!cid) return;
+        if (cid === BOOT.candidate_id) return;
+        if (status) status.textContent = '编译候选中…';
+        ribbon.querySelectorAll('.vb-cand-chip').forEach(function(b) {
+          b.classList.remove('is-active');
+          b.style.background = 'var(--surface)';
+          b.style.color = 'var(--ink)';
+          b.style.borderColor = 'var(--border)';
+        });
+        btn.classList.add('is-active');
+        btn.style.background = '#6D28D9';
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#6D28D9';
+        fetch('/content-planning/visual-strategy/candidates/' + encodeURIComponent(cid) + '/note-pack', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: 'comfyui', body_count: 3 }),
+        })
+        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(data) {
+          var np = data.note_pack || data;
+          BOOT.candidate_id = cid;
+          BOOT.vs_context = BOOT.vs_context || {};
+          BOOT.vs_context.note_pack = np;
+          BOOT.vs_context.candidate = (data.candidate || BOOT.vs_context.candidate || {});
+          var prompts = vbNotePackToPrompts(np);
+          BOOT.initial_prompts = prompts;
+          renderPbSlots(prompts);
+          if (status) status.textContent = '已切换：cover + body×' + (np.body || []).length;
+          var url = new URL(location.href);
+          url.searchParams.set('candidate_id', cid);
+          history.replaceState(null, '', url.toString());
+          var copyBlock = (np && np.copy) ? np.copy : null;
+          if (copyBlock && currentDraft) {
+            currentDraft.selected_title = copyBlock.headline || currentDraft.selected_title;
+            currentDraft.final_body = copyBlock.body_text || currentDraft.final_body;
+            try { previewCanvas.renderPreview(currentDraft, 'vb-preview-phone'); } catch(e) {}
+          }
+        })
+        .catch(function(e) {
+          if (status) status.textContent = '编译失败: ' + (e.message || '');
+        });
+      });
+    });
+  }
+
   // ── 一键生成预览 ──
   var genDraftBtn = document.getElementById('vb-btn-gen-draft');
   var regenBtn = document.getElementById('vb-btn-regen');
@@ -394,7 +626,36 @@
   if (regenBtn) regenBtn.addEventListener('click', generate);
 
   // ── Bootstrap：优先使用策划台已传入的 quick_draft ──
+  function _vsBuildDraftFromContext() {
+    if (!BOOT.vs_mode) return null;
+    var ctx = BOOT.vs_context || {};
+    var np = ctx.note_pack || {};
+    var cover = np.cover || {};
+    var copy = np.copy || {};
+    var bodies = np.body || [];
+    var draft = {
+      selected_title: copy.headline || '',
+      final_body: copy.body_text || '',
+      hashtags: copy.hashtags || [],
+      topic_tags: [],
+      cover_image_prompt: cover.positive_prompt_zh || '',
+      images: bodies.map(function(b) { return { slot_id: b.slot_id || '', image_url: '' }; }),
+      source: 'visual_strategy_pack',
+      archetype: (ctx.candidate || {}).archetype || '',
+    };
+    if (!draft.selected_title && !draft.cover_image_prompt) return null;
+    return draft;
+  }
+
   function _bootstrapDraft() {
+    var vsDraft = _vsBuildDraftFromContext();
+    if (vsDraft) {
+      showDraft(vsDraft);
+      var relayBadge = document.getElementById('vb-relay-badge');
+      if (relayBadge) relayBadge.style.display = '';
+      genDraftBtn.style.display = 'none';
+      return true;
+    }
     var qd = BOOT.quick_draft;
     if (qd && (qd.selected_title || qd.final_body)) {
       showDraft(qd);
@@ -445,6 +706,29 @@
     return html;
   }
 
+  function _vbSlotProvenanceBadge(p) {
+    if (!p) return '';
+    var parts = [];
+    if (p.archetype_dim) {
+      parts.push('<span title="archetype_dim" style="font-size:9px;padding:1px 6px;border-radius:999px;background:rgba(109,40,213,0.08);color:#6D28D9;border:1px solid rgba(109,40,213,0.25);">' + esc(p.archetype_dim) + '</span>');
+    }
+    var ruleRefs = p.rule_refs || [];
+    if (ruleRefs.length) {
+      var hover = p.rationale || '';
+      if (ruleRefs.length) hover += (hover ? ' · ' : '') + '规则: ' + ruleRefs.slice(0, 6).join(',');
+      parts.push('<span title="' + esc(hover) + '" style="font-size:9px;padding:1px 6px;border-radius:999px;background:rgba(245,158,11,0.1);color:#92400E;border:1px solid #F59E0B;cursor:help;">规则×' + ruleRefs.length + '</span>');
+    } else if (p.rationale) {
+      parts.push('<span title="' + esc(p.rationale) + '" style="font-size:9px;padding:1px 6px;border-radius:999px;background:rgba(15,118,110,0.08);color:#0F766E;border:1px solid rgba(15,118,110,0.25);cursor:help;">理由</span>');
+    }
+    var fp = p.field_provenance || {};
+    var fpKeys = Object.keys(fp);
+    if (fpKeys.length) {
+      var hoverFp = fpKeys.slice(0, 6).map(function(k) { return k + '←' + fp[k]; }).join(' · ');
+      parts.push('<span title="' + esc(hoverFp) + '" style="font-size:9px;padding:1px 6px;border-radius:999px;background:rgba(59,130,246,0.08);color:#1D4ED8;border:1px solid rgba(59,130,246,0.25);cursor:help;">归因</span>');
+    }
+    return parts.length ? '<span style="display:inline-flex;gap:4px;align-items:center;">' + parts.join('') + '</span>' : '';
+  }
+
   function renderPbSlots(prompts) {
     _inspectorPrompts = prompts;
     var container = document.getElementById('vb-pb-slots');
@@ -454,9 +738,17 @@
     var html = '';
     prompts.forEach(function(p) {
       html += '<div class="vb-pb-slot" data-slot="' + esc(p.slot_id) + '">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px;flex-wrap:wrap;">';
+      html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
       html += '<strong style="font-size:12px;">' + esc(p.slot_id) + '</strong>';
+      html += _vbSlotProvenanceBadge(p);
+      html += '</div>';
+      html += '<div style="display:flex;gap:4px;">';
+      if (BOOT.vs_mode && p.prompt_spec_id) {
+        html += '<button class="vb-btn" style="font-size:10px;padding:2px 8px;" onclick="vbRecompileSlot(\'' + esc(p.slot_id) + '\')" title="按当前 brief + 当前 slot 主体重新编译 PromptSpec">↻ 重编</button>';
+      }
       html += '<button class="vb-btn" style="font-size:10px;padding:2px 8px;" onclick="vbAiOptimize(\'' + esc(p.slot_id) + '\')">AI 优化</button>';
+      html += '</div>';
       html += '</div>';
       html += '<div class="vb-pb-field-label">主体描述</div>';
       html += '<textarea class="vb-pb-textarea" data-slot="' + esc(p.slot_id) + '" data-field="subject" rows="2" oninput="vbUpdateQuality()">' + esc(p.subject || '') + '</textarea>';
@@ -617,6 +909,14 @@
         }
       });
       loadHistory();
+      if (BOOT.vs_mode && ok > 0) {
+        var firstOk = (d.results || []).find(function(r) { return r.status === 'completed'; });
+        vbShowFeedbackBar({
+          variant_id: firstOk ? (firstOk.variant_id || firstOk.image_url || '') : '',
+          slot_id: firstOk ? firstOk.slot_id : '',
+          image_url: firstOk ? firstOk.image_url : '',
+        });
+      }
     } catch(ex) {}
   });
 
@@ -676,6 +976,54 @@
         });
         thumbs.innerHTML = html;
       }
+    }
+
+    // 视觉策略候选 ribbon（仅 vs_mode）
+    if (BOOT.vs_mode) {
+      vbBindCandidateRibbon();
+      var genDraftBtnEl = document.getElementById('vb-btn-gen-draft');
+      if (genDraftBtnEl) {
+        genDraftBtnEl.style.display = 'none';
+      }
+      var genImgBtnEl = document.getElementById('vb-btn-gen-images');
+      if (genImgBtnEl) {
+        genImgBtnEl.style.display = '';
+        genImgBtnEl.textContent = '立即生图（按候选策略）';
+        // 直接调用 /v6/image-gen + edited_prompts（绕过 quick-draft）
+        var newBtn = genImgBtnEl.cloneNode(true);
+        genImgBtnEl.parentNode.replaceChild(newBtn, genImgBtnEl);
+        newBtn.addEventListener('click', function() {
+          if (!_inspectorPrompts || !_inspectorPrompts.length) {
+            showError('暂无可用 prompt slot，请先在右栏编辑或切换候选');
+            return;
+          }
+          var provider = document.getElementById('vb-sel-provider').value;
+          var mode = document.getElementById('vb-sel-mode').value;
+          var edited = collectPrompts();
+          var statusEl = document.getElementById('vb-image-status');
+          newBtn.disabled = true;
+          statusEl.textContent = '正在按候选策略生成 ' + edited.length + ' 张配图…';
+          fetch(API + '/v6/image-gen/' + oid, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: provider, gen_mode: mode, edited_prompts: edited }),
+          })
+          .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .then(function(data) {
+            newBtn.disabled = false;
+            statusEl.textContent = '已启动 (' + (data.total_images || edited.length) + ' 张)';
+            (data.prompts || edited).forEach(function(p) {
+              try { previewCanvas.setImageLoading('vb-preview-phone', p.slot_id, '生成中: ' + (p.subject || p.prompt || '').substring(0, 30) + '…'); } catch(e) {}
+            });
+          })
+          .catch(function(e) { newBtn.disabled = false; statusEl.textContent = '生成失败: ' + e.message; });
+        });
+      }
+      // 直接展示 confirm-gen 按钮，便于编辑后再次生图
+      var confirmBtn = document.getElementById('vb-btn-confirm-gen');
+      if (confirmBtn) confirmBtn.style.display = '';
+      var saveBtn = document.getElementById('vb-btn-save-prompts');
+      if (saveBtn) saveBtn.style.display = '';
     }
   })();
 

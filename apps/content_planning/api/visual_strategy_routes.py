@@ -48,10 +48,12 @@ from apps.growth_lab.schemas.creative_brief import CreativeBrief
 from apps.growth_lab.schemas.feedback_record import FeedbackRecord
 from apps.growth_lab.schemas.strategy_candidate import StrategyCandidate
 from apps.growth_lab.schemas.visual_strategy_pack import VisualStrategyPack
+from apps.growth_lab.services.copywriting_compiler import CopywritingCompiler
 from apps.growth_lab.services.feedback_engine import FeedbackEngine
 from apps.growth_lab.services.strategy_compiler import StrategyCompiler
 from apps.growth_lab.services.visual_brief_compiler import VisualBriefCompiler
 from apps.growth_lab.services.visual_prompt_compiler import VisualPromptCompiler
+from apps.growth_lab.services.workspace_loader import WorkspaceLoader
 from apps.growth_lab.storage.visual_strategy_store import VisualStrategyStore
 
 logger = logging.getLogger(__name__)
@@ -178,6 +180,17 @@ class PromptRequest(BaseModel):
 class SendToWorkbenchRequest(BaseModel):
     opportunity_id: str
     notes: str = ""
+
+
+class NotePackRequest(BaseModel):
+    body_count: int = 3
+    force_recompile: bool = False
+
+
+class SlotRecompileRequest(BaseModel):
+    slot_id: str
+    subject: str | None = None
+    negative_prompt: str | None = None
 
 
 class FeedbackRequest(BaseModel):
@@ -455,29 +468,175 @@ def build_prompt(brief_id: str, req: PromptRequest) -> dict[str, Any]:
     return spec.model_dump(mode="json")
 
 
-@router.post("/candidates/{candidate_id}/send-to-workbench")
-def send_to_workbench(candidate_id: str, req: SendToWorkbenchRequest) -> dict[str, Any]:
+def _resolve_candidate_with_brief(candidate_id: str) -> tuple[StrategyCandidate, CreativeBrief]:
     cand_raw = _vs().get_strategy_candidate(candidate_id)
     if not cand_raw:
         raise HTTPException(status_code=404, detail="candidate not found")
     cand = StrategyCandidate.model_validate(cand_raw)
 
     if not cand.creative_brief_id:
-        raise HTTPException(status_code=400, detail="候选尚未生成 CreativeBrief，请先 POST /candidates/{id}/brief")
-    brief_raw = _vs().get_creative_brief(cand.creative_brief_id)
-    if not brief_raw:
-        raise HTTPException(status_code=404, detail="brief not found")
-    brief = CreativeBrief.model_validate(brief_raw)
+        bc = VisualBriefCompiler(_vs())
+        pack_raw = _vs().get_visual_strategy_pack(cand.visual_strategy_pack_id)
+        if not pack_raw:
+            raise HTTPException(status_code=404, detail="visual strategy pack not found")
+        ctx_raw = _rs().get_context_spec(pack_raw.get("context_spec_id", ""))
+        if not ctx_raw:
+            raise HTTPException(status_code=400, detail="候选尚未生成 CreativeBrief，且 ContextSpec 缺失")
+        ctx = ContextSpec.model_validate(ctx_raw)
+        brief = bc.compile(candidate=cand, context=ctx)
+        cand = StrategyCandidate.model_validate(_vs().get_strategy_candidate(candidate_id))
+    else:
+        brief_raw = _vs().get_creative_brief(cand.creative_brief_id)
+        if not brief_raw:
+            raise HTTPException(status_code=404, detail="brief not found")
+        brief = CreativeBrief.model_validate(brief_raw)
+    return cand, brief
 
-    # 构造 PromptSpec（如未生成）
-    spec_raw = None
+
+def _resolve_pack_scene(cand: StrategyCandidate) -> str:
+    pack_raw = _vs().get_visual_strategy_pack(cand.visual_strategy_pack_id) if cand.visual_strategy_pack_id else None
+    if pack_raw and pack_raw.get("scene"):
+        return str(pack_raw["scene"])
+    return "taobao_main_image"
+
+
+@router.post("/candidates/{candidate_id}/note-pack")
+def build_note_pack(candidate_id: str, req: NotePackRequest) -> dict[str, Any]:
+    """xhs_cover 场景：单候选 → cover + body_N + copy 整篇笔记包。"""
+    from apps.growth_lab.schemas.note_pack import NotePack
+
+    cand, brief = _resolve_candidate_with_brief(candidate_id)
+    scene = _resolve_pack_scene(cand)
+    if scene != "xhs_cover":
+        raise HTTPException(
+            status_code=400,
+            detail=f"note-pack 仅支持 xhs_cover 场景，当前 scene={scene}",
+        )
+
+    if not req.force_recompile:
+        existing = _vs().get_note_pack_by_candidate(candidate_id)
+        if existing:
+            return existing
+
+    pc = VisualPromptCompiler(_vs())
+    pack = pc.compile_xhs_pack(
+        brief=brief,
+        candidate=cand,
+        body_count=max(1, min(req.body_count, 6)),
+    )
+    cw = CopywritingCompiler()
+    pack.copy = cw.compile(brief=brief, candidate=cand)
+    saved = pack.model_dump()
+    _vs().save_note_pack(saved)
+    return saved
+
+
+@router.post("/candidates/{candidate_id}/note-pack/recompile-slot")
+def recompile_note_pack_slot(candidate_id: str, req: SlotRecompileRequest) -> dict[str, Any]:
+    """对 NotePack 中某个 slot 做局部更新——直接覆盖 positive/negative prompt，
+    用于"用户编辑 chip 后即时刷新 slot prompt"，不重新过 LLM。
+    """
+    cand_raw = _vs().get_strategy_candidate(candidate_id)
+    if not cand_raw:
+        raise HTTPException(status_code=404, detail="candidate not found")
+    pack_raw = _vs().get_note_pack_by_candidate(candidate_id)
+    if not pack_raw:
+        raise HTTPException(status_code=404, detail="note_pack not found；请先 send-to-workbench")
+
+    slot_id = req.slot_id or "cover"
+    target_spec: dict[str, Any] | None = None
+    if slot_id == "cover":
+        target_spec = pack_raw.get("cover")
+    else:
+        for b in pack_raw.get("body", []) or []:
+            if isinstance(b, dict) and b.get("slot_id") == slot_id:
+                target_spec = b.get("prompt_spec")
+                break
+    if target_spec is None:
+        raise HTTPException(status_code=404, detail=f"slot {slot_id} not found in note_pack")
+
+    if req.subject is not None:
+        target_spec["positive_prompt_zh"] = req.subject
+        fp = target_spec.get("field_provenance") or {}
+        fp["positive_prompt_zh"] = "manual"
+        target_spec["field_provenance"] = fp
+    if req.negative_prompt is not None:
+        target_spec["negative_prompt_zh"] = req.negative_prompt
+        fp = target_spec.get("field_provenance") or {}
+        fp["negative_prompt_zh"] = "manual"
+        target_spec["field_provenance"] = fp
+
+    _vs().save_note_pack(pack_raw)
+    if target_spec.get("id"):
+        _vs().save_prompt_spec(target_spec)
+    return {
+        "slot_id": slot_id,
+        "prompt_spec": target_spec,
+        "note_pack_id": pack_raw.get("id"),
+    }
+
+
+@router.get("/candidates/{candidate_id}/full-context")
+def get_full_context(candidate_id: str) -> dict[str, Any]:
+    """聚合候选 + brief + prompt_spec/note_pack + rule_refs_detail + pack。
+
+    visual_builder / 无限画布 bootstrap 都用同一个端点拉数据。
+    """
+    cand, brief = _resolve_candidate_with_brief(candidate_id)
+    scene = _resolve_pack_scene(cand)
+
+    pack_raw = _vs().get_visual_strategy_pack(cand.visual_strategy_pack_id) if cand.visual_strategy_pack_id else None
+
+    spec_raw: dict[str, Any] | None = None
+    if cand.prompt_spec_id:
+        spec_raw = _vs().get_prompt_spec(cand.prompt_spec_id)
+
+    note_pack: dict[str, Any] | None = None
+    if scene == "xhs_cover":
+        note_pack = _vs().get_note_pack_by_candidate(cand.id)
+
+    rule_refs_detail: list[dict[str, Any]] = []
+    for rid in cand.rule_refs:
+        raw = _rs().get_rule_spec(rid)
+        if not raw:
+            continue
+        rule_refs_detail.append({
+            "id": raw.get("id"),
+            "dimension": raw.get("dimension"),
+            "variable_name": raw.get("variable_name"),
+            "option_name": raw.get("option_name"),
+            "review_status": (raw.get("review") or {}).get("status"),
+            "source_quote": (raw.get("evidence") or {}).get("source_quote", ""),
+            "confidence": (raw.get("evidence") or {}).get("confidence", 0.0),
+            "base_weight": (raw.get("scoring") or {}).get("base_weight", 0.5),
+            "boost_factors": (raw.get("scoring") or {}).get("boost_factors", []),
+        })
+
+    return {
+        "candidate": cand.model_dump(mode="json"),
+        "brief": brief.model_dump(mode="json"),
+        "prompt_spec": spec_raw,
+        "note_pack": note_pack,
+        "pack": pack_raw,
+        "scene": scene,
+        "rule_refs_detail": rule_refs_detail,
+    }
+
+
+@router.post("/candidates/{candidate_id}/send-to-workbench")
+def send_to_workbench(candidate_id: str, req: SendToWorkbenchRequest) -> dict[str, Any]:
+    """按 scene 分流：xhs_cover → 视觉工作台；主图/详情/视频 → 无限画布。"""
+    cand, brief = _resolve_candidate_with_brief(candidate_id)
+    scene = _resolve_pack_scene(cand)
+
+    # 1) PromptSpec：兜底生成
+    spec_raw: dict[str, Any] | None = None
     if cand.prompt_spec_id:
         spec_raw = _vs().get_prompt_spec(cand.prompt_spec_id)
     if not spec_raw:
         pc = VisualPromptCompiler(_vs())
         spec = pc.compile(brief=brief)
         cand.prompt_spec_id = spec.id
-        spec_raw = spec.model_dump()
     else:
         from apps.growth_lab.schemas.prompt_spec import PromptSpec
         spec = PromptSpec.model_validate(spec_raw)
@@ -485,26 +644,96 @@ def send_to_workbench(candidate_id: str, req: SendToWorkbenchRequest) -> dict[st
     cand.status = "sent_to_workbench"
     _vs().save_strategy_candidate(cand.model_dump())
 
+    # 2) 分流
+    visual_builder_url = ""
     handler_result: dict[str, Any] = {}
-    if _send_to_workbench_handler is not None:
+    note_pack_id: str = ""
+
+    if scene == "xhs_cover":
+        # xhs_cover：先编译 NotePack（cover + 3 body + copy），再写 PlanStore 多 slot。
         try:
-            handler_result = _send_to_workbench_handler(
-                opportunity_id=req.opportunity_id,
+            pc = VisualPromptCompiler(_vs())
+            note_pack = pc.compile_xhs_pack(brief=brief, candidate=cand)
+            note_pack.copy = CopywritingCompiler().compile(brief=brief, candidate=cand)
+            _vs().save_note_pack(note_pack.model_dump())
+            note_pack_id = note_pack.id
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("compile_xhs_pack 失败：%s", exc)
+            note_pack = None
+
+        if _send_to_workbench_handler is not None:
+            try:
+                handler_result = _send_to_workbench_handler(
+                    opportunity_id=req.opportunity_id,
+                    candidate=cand,
+                    brief=brief,
+                    prompt_spec=spec,
+                    notes=req.notes,
+                    note_pack=note_pack,
+                    scene=scene,
+                ) or {}
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("send_to_workbench_handler 执行失败")
+                handler_result = {"error": str(exc)}
+
+        visual_builder_url = (
+            f"/planning/{req.opportunity_id}/visual-builder"
+            f"?candidate_id={cand.id}&creative_brief_id={brief.id}"
+        )
+
+    elif scene in {"taobao_main_image", "detail_first_screen", "video_first_frame"}:
+        # 主图/详情/视频首帧：装载到无限画布。
+        try:
+            loader = WorkspaceLoader()
+            load_result = loader.load_candidate(
                 candidate=cand,
                 brief=brief,
                 prompt_spec=spec,
+                scene=scene,
+                opportunity_id=req.opportunity_id,
                 notes=req.notes,
-            ) or {}
+            )
+            handler_result = {"workspace_load": load_result}
+            visual_builder_url = (
+                f"/growth-lab/workspace?plan_id={load_result['plan_id']}"
+                f"&candidate_id={cand.id}&creative_brief_id={brief.id}"
+            )
         except Exception as exc:  # noqa: BLE001
-            logger.exception("send_to_workbench_handler 执行失败")
+            logger.exception("无限画布装载失败：%s", exc)
             handler_result = {"error": str(exc)}
+            visual_builder_url = (
+                f"/growth-lab/workspace?candidate_id={cand.id}&creative_brief_id={brief.id}"
+            )
+
+    else:
+        # 未知 scene 兜底走 visual_builder。
+        if _send_to_workbench_handler is not None:
+            try:
+                handler_result = _send_to_workbench_handler(
+                    opportunity_id=req.opportunity_id,
+                    candidate=cand,
+                    brief=brief,
+                    prompt_spec=spec,
+                    notes=req.notes,
+                    note_pack=None,
+                    scene=scene,
+                ) or {}
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("send_to_workbench_handler 执行失败")
+                handler_result = {"error": str(exc)}
+        visual_builder_url = (
+            f"/planning/{req.opportunity_id}/visual-builder"
+            f"?candidate_id={cand.id}&creative_brief_id={brief.id}"
+        )
 
     return {
         "candidate_id": cand.id,
         "creative_brief_id": brief.id,
         "prompt_spec_id": spec.id,
+        "note_pack_id": note_pack_id,
+        "scene": scene,
         "opportunity_id": req.opportunity_id,
-        "visual_builder_url": f"/planning/{req.opportunity_id}/visual-builder?creative_brief_id={brief.id}",
+        "visual_builder_url": visual_builder_url,
         "handler_result": handler_result,
     }
 

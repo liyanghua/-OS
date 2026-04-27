@@ -1,0 +1,129 @@
+{# 策划工作台 右栏常驻 Agent Co-pilot — 三 tab：Pulse / Inspect / Council
+   依赖：vm.pulse_initial / vm.step_states / opportunity_id
+#}
+{% set _pulse = vm.pulse_initial if vm and vm.pulse_initial else {} %}
+{% set _steps = vm.step_states if vm and vm.step_states else [] %}
+{% set _active_focus = (_steps|selectattr('active')|list|first).key if _steps and (_steps|selectattr('active')|list) else 'brief' %}
+
+<div class="pw-cop-card">
+  <header class="pw-cop-head">
+    <span class="pw-cop-title">Agent Co-pilot</span>
+    <span class="pw-cop-sub">策划副驾</span>
+  </header>
+
+  <nav class="pw-cop-tabs" role="tablist">
+    <button type="button" class="pw-cop-tab" data-cop-tab-btn="pulse" data-cop-tab="pulse" aria-selected="true">Pulse</button>
+    <button type="button" class="pw-cop-tab" data-cop-tab-btn="inspect" data-cop-tab="inspect" aria-selected="false">Inspect</button>
+    <button type="button" class="pw-cop-tab" data-cop-tab-btn="council" data-cop-tab="council" aria-selected="false">Council</button>
+  </nav>
+
+  {# ── Pulse Panel ── #}
+  <section class="pw-cop-panel" data-cop-panel="pulse">
+    <div class="pw-cop-section">
+      <div class="pw-cop-section-title">健康度</div>
+      <div id="pw-cop-pulse-score" class="pw-cop-score">
+        <div class="pw-cop-score-num" id="pw-cop-score-num">—</div>
+        <div class="pw-cop-score-stage" id="pw-cop-score-stage">检测中…</div>
+      </div>
+      <div id="pw-cop-pulse-issues" class="pw-cop-issues"></div>
+    </div>
+
+    <div class="pw-cop-section">
+      <div class="pw-cop-section-title">下一步建议</div>
+      <div id="pw-cop-pulse-chips" class="pw-cop-chips">
+        {% if _pulse.needs_build %}
+        <button type="button" class="pw-cop-chip" data-chip-action="refresh">显式构建快照</button>
+        {% endif %}
+        {% if _pulse.stale_count %}
+        <button type="button" class="pw-cop-chip pw-cop-chip--warn" data-chip-action="inspect:strategy" title="部分对象已过期">检视过期对象 ({{ _pulse.stale_count }})</button>
+        {% endif %}
+        {% set _vs2 = vm.visual_strategy if vm and vm.visual_strategy else {} %}
+        {% if not _vs2.has_pack %}
+        <button type="button" class="pw-cop-chip" data-chip-action="recompile_visual">编译视觉策略 6 候选</button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="pw-cop-section">
+      <div class="pw-cop-section-title">管线状态</div>
+      <div class="pw-cop-pipeline" id="pw-cop-pipeline">
+        {% if _pulse.pipeline_run_id %}
+        <span class="pw-cop-pipeline-tag pw-cop-pipeline-tag--ok">Run · {{ _pulse.pipeline_run_id[:10] }}…</span>
+        {% else %}
+        <span class="pw-cop-pipeline-tag">无运行中管线</span>
+        {% endif %}
+        <button type="button" class="pw-btn-tertiary" id="pw-cop-pipeline-refresh">刷新</button>
+      </div>
+    </div>
+
+    {% if _pulse.review_count %}
+    <div class="pw-cop-section">
+      <div class="pw-cop-section-title">评审摘要</div>
+      <div class="pw-cop-review">
+        <span class="pw-badge">评审 {{ _pulse.review_count }} 次</span>
+        {% if _pulse.avg_quality_score %}
+        <span class="pw-badge">质量 {{ '%.2f'|format(_pulse.avg_quality_score) }}</span>
+        {% endif %}
+        {% if _pulse.approval_status %}
+        <span class="pw-badge">{{ _pulse.approval_status }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  {# ── Inspect Panel ── #}
+  <section class="pw-cop-panel" data-cop-panel="inspect" hidden>
+    <div class="pw-cop-section">
+      <label class="pw-cop-section-title" for="pw-cop-focus">检视焦点</label>
+      <select id="pw-cop-focus" class="pw-cop-select">
+        <option value="brief" {% if _active_focus == 'brief' %}selected{% endif %}>Brief 方向</option>
+        <option value="strategy" {% if _active_focus == 'strategy' %}selected{% endif %}>RewriteStrategy</option>
+        <option value="visual" {% if _active_focus == 'visual' %}selected{% endif %}>视觉策略候选</option>
+        <option value="plan" {% if _active_focus == 'plan' %}selected{% endif %}>NotePlan</option>
+      </select>
+      <div class="pw-cop-row">
+        <button type="button" class="pw-btn pw-btn-secondary pw-btn-inline" id="pw-cop-inspect-run">让 Co-pilot 检视</button>
+        <button type="button" class="pw-btn-tertiary" id="pw-cop-inspect-variant" title="基于现有资产包派生变体">派生变体</button>
+      </div>
+    </div>
+
+    <div class="pw-cop-section">
+      <div class="pw-cop-section-title">分析结果</div>
+      <div id="pw-cop-inspect-result" class="pw-cop-result">
+        <div class="pw-cop-empty">选择焦点后点击「让 Co-pilot 检视」</div>
+      </div>
+    </div>
+  </section>
+
+  {# ── Council Panel ── #}
+  <section class="pw-cop-panel" data-cop-panel="council" hidden>
+    <div class="pw-cop-section">
+      <div class="pw-cop-section-title">委员会讨论</div>
+      <div class="pw-cop-row">
+        <select id="pw-cop-council-stage" class="pw-cop-select">
+          <option value="strategy" selected>Strategy</option>
+          <option value="brief">Brief</option>
+          <option value="plan">Plan</option>
+          <option value="asset">Asset</option>
+        </select>
+        <input id="pw-cop-council-q" type="text" placeholder="问题或主题…" class="pw-cop-input" />
+      </div>
+      <div class="pw-cop-row">
+        <button type="button" class="pw-btn pw-btn-secondary pw-btn-inline" id="pw-cop-council-start">发起讨论</button>
+        <button type="button" class="pw-btn-tertiary" id="pw-cop-council-refresh">刷新历史</button>
+      </div>
+    </div>
+
+    <div class="pw-cop-section">
+      <div class="pw-cop-section-title">历史</div>
+      <div id="pw-cop-council-history" class="pw-cop-history"></div>
+    </div>
+
+    <div class="pw-cop-section">
+      <div class="pw-cop-section-title">实时讨论</div>
+      <div id="pw-cop-council-stream" class="pw-cop-stream pw-cop-empty">点击「发起讨论」开始 Council SSE 会话</div>
+      <div id="pw-cop-council-proposal"></div>
+    </div>
+  </section>
+</div>

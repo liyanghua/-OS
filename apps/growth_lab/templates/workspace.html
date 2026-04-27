@@ -580,6 +580,9 @@
     <span id="ws-template-badge" title="模板匹配摘要"
           style="display:none; cursor:pointer; font-size:11.5px; padding:4px 10px; border-radius:999px; background:var(--primary-light); color:var(--primary); border:1px solid var(--primary); max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
           onclick="openDrawer('template')"></span>
+    <span id="ws-vs-candidate-badge" title="来自策划台的视觉策略候选"
+          style="display:none; cursor:pointer; font-size:11.5px; padding:4px 10px; border-radius:999px; background:#FEF3C7; color:#92400E; border:1px solid #F59E0B; max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+          onclick="openVsCandidateDrawer()"></span>
     <span id="ws-status-chip" style="display:none; font-size:11.5px; padding:4px 10px; border-radius:999px; background:#f3f4f6; color:#374151; border:1px solid var(--border);"></span>
     <div class="ws-output-chips" id="ws-output-chips"></div>
     <div class="ws-topbar-spacer"></div>
@@ -865,6 +868,9 @@ const state = {
   specId: new URLSearchParams(location.search).get('spec_id') || '',
   initialNodeId: new URLSearchParams(location.search).get('node_id') || '',
   initialVariantId: new URLSearchParams(location.search).get('variant_id') || '',
+  candidateId: new URLSearchParams(location.search).get('candidate_id') || '',
+  creativeBriefId: new URLSearchParams(location.search).get('creative_brief_id') || '',
+  vsContext: null,
   plan: null,
   frames: [],
   nodes: [],
@@ -5157,6 +5163,9 @@ function _composerAcKey(e) {
 /* ── 启动 ── */
 (async () => {
   updateCopilotEmptyState(null);
+  if (state.candidateId) {
+    bootstrapVsCandidate().catch(err => console.warn('vs candidate bootstrap failed', err));
+  }
   if (state.planId) {
     await loadPlan(state.planId);
     if (state.initialNodeId) {
@@ -5184,6 +5193,134 @@ function _composerAcKey(e) {
     startOnboarding();
   }
 })();
+
+window.wsSubmitVsFeedback = function(decision) {
+  const ctx = state.vsContext || {};
+  const cand = ctx.candidate || {};
+  if (!cand.id) return;
+  const ruleIds = (cand.rule_refs || []).slice();
+  const payload = {
+    image_variant_id: '',
+    strategy_candidate_id: cand.id,
+    decision: decision || 'enter_test_pool',
+    expert_score: { first_glance: 7, audience_fit: 7, function_clarity: 7, style_fit: 7, differentiation: 7, overall: 7 },
+    comments: 'workspace quick feedback',
+    rule_ids: ruleIds,
+  };
+  const statusEl = document.getElementById('ws-vs-feedback-status');
+  if (statusEl) statusEl.textContent = '提交中…';
+  fetch('/content-planning/visual-strategy/feedback', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(data => {
+    const deltas = data.weight_deltas || data.weight_history || [];
+    const n = Array.isArray(deltas) ? deltas.length : 0;
+    if (statusEl) statusEl.textContent = '已提交 · 影响 ' + n + ' 条规则权重';
+  })
+  .catch(err => { if (statusEl) statusEl.textContent = '提交失败: ' + (err.message || ''); });
+};
+
+async function bootstrapVsCandidate() {
+  if (!state.candidateId) return;
+  try {
+    const r = await fetch(`/content-planning/visual-strategy/candidates/${state.candidateId}/full-context`);
+    if (!r.ok) {
+      console.warn('full-context failed', r.status);
+      return;
+    }
+    const data = await r.json();
+    state.vsContext = data;
+    renderVsCandidateBadge(data);
+  } catch (err) {
+    console.warn('bootstrapVsCandidate', err);
+  }
+}
+
+function renderVsCandidateBadge(ctx) {
+  const badge = document.getElementById('ws-vs-candidate-badge');
+  if (!badge) return;
+  const cand = ctx.candidate || {};
+  const archetype = cand.archetype || cand.id || 'candidate';
+  const score = cand.archetype_score != null ? Number(cand.archetype_score).toFixed(2) : '';
+  const sceneZh = ({
+    taobao_main_image: '主图',
+    detail_first_screen: '详情首屏',
+    video_first_frame: '视频首帧',
+    xhs_cover: '小红书封面',
+  })[ctx.scene] || (ctx.scene || '候选');
+  const ruleCount = (cand.rule_refs || []).length;
+  badge.style.display = 'inline-block';
+  badge.textContent = `策略候选 · ${sceneZh} · ${archetype}${score ? ' ' + score : ''} · 规则×${ruleCount}`;
+}
+
+function openVsCandidateDrawer() {
+  const ctx = state.vsContext;
+  if (!ctx) return;
+  const cand = ctx.candidate || {};
+  const brief = ctx.brief || {};
+  const ruleDetails = ctx.rule_refs_detail || [];
+  const lines = [];
+  lines.push(`<div style="font-size:13px;font-weight:600;margin-bottom:6px;">${escapeHtml(cand.archetype || 'candidate')}</div>`);
+  if (cand.archetype_score != null) {
+    lines.push(`<div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">综合分 ${Number(cand.archetype_score).toFixed(2)}</div>`);
+  }
+  if (Array.isArray(cand.rationale)) {
+    lines.push('<div style="font-size:11.5px;color:var(--ink);margin-bottom:6px;font-weight:600;">核心理由</div>');
+    cand.rationale.forEach(line => {
+      lines.push(`<div style="font-size:11.5px;color:#374151;margin-bottom:3px;">· ${escapeHtml(line)}</div>`);
+    });
+  }
+  const sv = cand.selected_variables || {};
+  if (Object.keys(sv).length) {
+    lines.push('<hr style="margin:8px 0;border:0;border-top:1px solid var(--border);" />');
+    lines.push('<div style="font-size:11.5px;color:var(--ink);font-weight:600;margin-bottom:4px;">选中维度</div>');
+    Object.entries(sv).forEach(([k, v]) => {
+      lines.push(`<div style="font-size:11px;color:#374151;margin-bottom:2px;"><strong>${escapeHtml(k)}</strong>：${escapeHtml(String(v))}</div>`);
+    });
+  }
+  if (ruleDetails.length) {
+    lines.push('<hr style="margin:8px 0;border:0;border-top:1px solid var(--border);" />');
+    lines.push(`<div style="font-size:11.5px;color:var(--ink);font-weight:600;margin-bottom:4px;">命中规则 (${ruleDetails.length})</div>`);
+    ruleDetails.slice(0, 12).forEach(rd => {
+      const rid = rd.rule_id || '';
+      const w = rd.weight != null ? rd.weight.toFixed(2) : '';
+      const sq = rd.source_quote || '';
+      lines.push(`<div style="font-size:11px;color:#374151;margin-bottom:4px;line-height:1.4;"><strong>${escapeHtml(rid)}</strong> ${w ? '· w=' + w : ''}<br/><span style="color:var(--muted);">${escapeHtml(sq)}</span></div>`);
+    });
+  }
+  if (brief && (brief.headline_zh || brief.value_props)) {
+    lines.push('<hr style="margin:8px 0;border:0;border-top:1px solid var(--border);" />');
+    lines.push('<div style="font-size:11.5px;color:var(--ink);font-weight:600;margin-bottom:4px;">CreativeBrief</div>');
+    if (brief.headline_zh) lines.push(`<div style="font-size:11px;margin-bottom:2px;"><strong>标题</strong>：${escapeHtml(brief.headline_zh)}</div>`);
+    if (Array.isArray(brief.value_props) && brief.value_props.length) {
+      lines.push(`<div style="font-size:11px;margin-bottom:2px;"><strong>卖点</strong>：${escapeHtml(brief.value_props.join(' · '))}</div>`);
+    }
+  }
+  lines.push('<hr style="margin:8px 0;border:0;border-top:1px solid var(--border);" />');
+  lines.push('<div style="font-size:11.5px;color:var(--ink);font-weight:600;margin-bottom:6px;">候选反馈（影响规则权重）</div>');
+  lines.push('<div id="ws-vs-feedback-status" style="font-size:10.5px;color:var(--muted);margin-bottom:4px;"></div>');
+  lines.push('<div style="display:flex;gap:6px;flex-wrap:wrap;">');
+  lines.push(`<button type="button" class="btn btn-sm" onclick="wsSubmitVsFeedback('winner')" style="background:#10B981;color:#fff;border-color:#10B981;font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid #10B981;cursor:pointer;">✅ 采纳</button>`);
+  lines.push(`<button type="button" class="btn btn-sm" onclick="wsSubmitVsFeedback('revise')" style="background:#fff;color:#374151;border:1px solid var(--border);font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;">🔁 待优化</button>`);
+  lines.push(`<button type="button" class="btn btn-sm" onclick="wsSubmitVsFeedback('reject')" style="background:#EF4444;color:#fff;border-color:#EF4444;font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid #EF4444;cursor:pointer;">⛔ 拒绝</button>`);
+  lines.push('</div>');
+  const html = `<section><div style="padding:12px 14px;">${lines.join('')}</div></section>`;
+  const drawer = document.getElementById('ws-drawer');
+  const mask = document.getElementById('ws-drawer-mask');
+  const body = document.getElementById('drawer-body');
+  const titleEl = document.getElementById('drawer-title');
+  const subEl = document.getElementById('drawer-sub');
+  if (drawer && body) {
+    body.innerHTML = html;
+    if (titleEl) titleEl.textContent = '策略候选';
+    if (subEl) subEl.textContent = '来自内容策划台的视觉策略证据';
+    drawer.setAttribute('aria-hidden', 'false');
+    drawer.classList.add('open');
+    if (mask) mask.classList.add('open');
+  }
+}
 </script>
 </body>
 </html>

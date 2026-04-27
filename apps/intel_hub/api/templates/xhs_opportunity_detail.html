@@ -1,6 +1,27 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set _lens_label = (lens_labels or {}).get(card.lens_id, card.lens_id) if card.lens_id else '' %}
+{% set _layer2_label = {
+    'scene_refs': '场景',
+    'style_refs': '风格',
+    'need_refs': '需求',
+    'risk_refs': '风险',
+    'audience_refs': '受众',
+    'product_feature_refs': '商品特征',
+    'visual_pattern_refs': '视觉范式',
+    'content_pattern_refs': '内容范式',
+    'value_proposition_refs': '价值主张'
+} %}
+{% set _src_kind_label = {
+    'image': '图像',
+    'text': '文本',
+    'comment': '评论',
+    'comment_signal': '评论信号',
+    'visual_signal': '视觉信号',
+    'text_signal': '文本信号',
+    'cross_modal': '跨模态'
+} %}
 <div style="margin-bottom: 16px;">
   <a href="/xhs-opportunities" style="color: var(--accent); text-decoration: none; font-size: 14px;">&larr; 返回机会看板</a>
 </div>
@@ -322,28 +343,28 @@
       <div style="margin-bottom: 12px;">
         <div class="chips" style="margin-bottom: 6px;">
           {% for ref in card.scene_refs %}
-            <span class="chip" style="background: #e8f5e9; color: #2e7d32;">场景: {{ ref }}</span>
+            <span class="chip" style="background: #e8f5e9; color: #2e7d32;" title="{{ ref }}">场景: {{ ref | zh }}</span>
           {% endfor %}
           {% for ref in card.style_refs %}
-            <span class="chip" style="background: #fce4ec; color: #c62828;">风格: {{ ref }}</span>
+            <span class="chip" style="background: #fce4ec; color: #c62828;" title="{{ ref }}">风格: {{ ref | zh }}</span>
           {% endfor %}
           {% for ref in card.need_refs %}
-            <span class="chip" style="background: #e3f2fd; color: #1565c0;">需求: {{ ref }}</span>
+            <span class="chip" style="background: #e3f2fd; color: #1565c0;" title="{{ ref }}">需求: {{ ref | zh }}</span>
           {% endfor %}
           {% for ref in card.risk_refs %}
-            <span class="chip" style="background: #fff3e0; color: #e65100;">风险: {{ ref }}</span>
+            <span class="chip" style="background: #fff3e0; color: #e65100;" title="{{ ref }}">风险: {{ ref | zh }}</span>
           {% endfor %}
           {% for ref in card.visual_pattern_refs %}
-            <span class="chip" style="background: #f3e5f5; color: #7b1fa2;">视觉: {{ ref }}</span>
+            <span class="chip" style="background: #f3e5f5; color: #7b1fa2;" title="{{ ref }}">视觉: {{ ref | zh }}</span>
           {% endfor %}
           {% for ref in card.content_pattern_refs %}
-            <span class="chip" style="background: #e0f7fa; color: #00695c;">内容: {{ ref }}</span>
+            <span class="chip" style="background: #e0f7fa; color: #00695c;" title="{{ ref }}">内容: {{ ref | zh }}</span>
           {% endfor %}
           {% for ref in card.value_proposition_refs %}
-            <span class="chip" style="background: #fff9c4; color: #f57f17;">价值: {{ ref }}</span>
+            <span class="chip" style="background: #fff9c4; color: #f57f17;" title="{{ ref }}">价值: {{ ref | zh }}</span>
           {% endfor %}
           {% for ref in card.audience_refs %}
-            <span class="chip" style="background: #f1f8e9; color: #558b2f;">受众: {{ ref }}</span>
+            <span class="chip" style="background: #f1f8e9; color: #558b2f;" title="{{ ref }}">受众: {{ ref | zh }}</span>
           {% endfor %}
         </div>
       </div>
@@ -353,7 +374,8 @@
       <div style="background: linear-gradient(135deg, #f3e5f5, #fff); border: 1px solid #ce93d8; border-radius: 12px; padding: 14px; margin-bottom: 14px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div>
-            <strong style="color: #6a1b9a; font-size: 14px;">&#x1F50D; 类目透视 — {{ card.lens_id }}</strong>
+            <strong style="color: #6a1b9a; font-size: 14px;">&#x1F50D; 类目透视 — {{ _lens_label }}</strong>
+            <span class="meta" style="margin-left: 4px; font-size: 11px;">({{ card.lens_id }})</span>
             {% if card.lens_version %}<span class="meta" style="margin-left: 6px;">v{{ card.lens_version }}</span>{% endif %}
           </div>
           {% if card.lens_evidence_score %}
@@ -380,10 +402,20 @@
 
         <!-- Layer 1: 内容信号 -->
         {% if card.lens_layer1_signals %}
+        {% set _l1 = card.lens_layer1_signals %}
+        {% set _l1_any = _l1.hot_keywords or _l1.note_patterns or _l1.comment_signals or _l1.emotion_words or _l1.scene_words or _l1.trust_barrier_hits %}
+        {% set _l1_vis = _l1.visual_insight_summary or {} %}
+        {% set _l1_vis_any = _l1_vis.get('style') or _l1_vis.get('scene') or _l1_vis.get('trust_signals') or _l1_vis.get('trust_risks') or _l1_vis.get('composition') or _l1_vis.get('people_state') or _l1_vis.get('content_formats') or _l1_vis.get('product_features') %}
         <details open style="margin-bottom: 8px;">
           <summary style="cursor: pointer; font-weight: 600; font-size: 12px; color: #6a1b9a;">第 1 层 · 内容信号</summary>
           <div style="padding: 8px 0 0; font-size: 12px;">
-            {% if card.lens_layer1_signals.hot_keywords %}
+            {% if not (_l1_any or _l1_vis_any) %}
+            <div style="padding:10px 12px; background:#fff8e1; border:1px solid #ffe082; border-radius:8px; color:#7c4a00; line-height:1.7;">
+              该笔记在 <strong>{{ _lens_label }}</strong> 词库下未命中文本/视觉信号，可能是 lens 与笔记内容不匹配（历史路由错绑导致）。<br/>
+              下方"用户任务 / 商品映射 / 内容执行"由 lens 兜底生成，仅供方向参考。
+            </div>
+            {% endif %}
+            {% if _l1.hot_keywords %}
             <div style="margin-bottom: 6px;"><span class="meta">热词:</span>
               {% for hk in card.lens_layer1_signals.hot_keywords[:8] %}
               <span class="chip" style="background: #fce4ec; color: #880e4f; font-size: 11px;" title="{{ hk.category or '' }} · tf={{ hk.tf }} df={{ hk.df }}">{{ hk.keyword }}{% if hk.tf_idf %} · {{ "%.2f"|format(hk.tf_idf) }}{% endif %}</span>
@@ -433,16 +465,24 @@
 
         <!-- Layer 2: 本体映射 -->
         {% if card.lens_layer2_ontology %}
+        {% set _l2 = card.lens_layer2_ontology %}
+        {% set _l2_has_any = _l2.values() | map('length') | select | list %}
         <details style="margin-bottom: 8px;">
           <summary style="cursor: pointer; font-weight: 600; font-size: 12px; color: #6a1b9a;">第 2 层 · 类目本体</summary>
           <div style="padding: 8px 0 0; font-size: 12px;">
-            {% for key, refs in card.lens_layer2_ontology.items() %}
+            {% if _l2_has_any %}
+            {% for key, refs in _l2.items() %}
             {% if refs %}
-            <div style="margin-bottom: 4px;"><span class="meta">{{ key }}:</span>
-              {% for r in refs %}<span class="chip" style="background: #f5f5f5; color: #424242; font-size: 11px;">{{ r }}</span>{% endfor %}
+            <div style="margin-bottom: 4px;"><span class="meta">{{ _layer2_label.get(key, key) }}:</span>
+              {% for r in refs %}<span class="chip" style="background: #f5f5f5; color: #424242; font-size: 11px;" title="{{ r }}">{{ r | zh }}</span>{% endfor %}
             </div>
             {% endif %}
             {% endfor %}
+            {% else %}
+            <div style="padding: 8px 10px; background: #fafafa; border-radius: 6px; color: #888;">
+              暂无本体收敛信号 — 该笔记内容与 <strong>{{ _lens_label }}</strong> lens 的词库未产生交集。
+            </div>
+            {% endif %}
           </div>
         </details>
         {% endif %}
@@ -543,8 +583,8 @@
         <div style="margin-top: 8px;">
           {% for ev in card.evidence_refs %}
           <div style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px;">
-            <span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; background: var(--accent-soft); color: var(--accent);">{{ ev.source_kind }}</span>
-            <span class="meta" style="margin-left: 4px;">conf {{ "%.0f"|format(ev.confidence * 100) }}%</span>
+            <span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; background: var(--accent-soft); color: var(--accent);" title="{{ ev.source_kind }}">{{ _src_kind_label.get(ev.source_kind, ev.source_kind) }}</span>
+            <span class="meta" style="margin-left: 4px;">置信 {{ "%.0f"|format(ev.confidence * 100) }}%</span>
             <div style="margin-top: 2px; color: var(--muted);">「{{ ev.snippet[:150] }}{% if ev.snippet|length > 150 %}…{% endif %}」</div>
           </div>
           {% endfor %}

@@ -60,6 +60,12 @@ from apps.growth_lab.schemas.feedback_record import (
     FeedbackRecord,
     RuleWeightHistory,
 )
+from apps.growth_lab.schemas.note_pack import (
+    ArchetypeDim,
+    BodyImageSpec,
+    CopywritingPack,
+    NotePack,
+)
 
 __all__ = [
     "TrendOpportunity",
@@ -101,4 +107,9 @@ __all__ = [
     "BusinessMetrics",
     "FeedbackDecision",
     "RuleWeightHistory",
+    # Note Pack（小红书封面 + 内文 + 文案）
+    "NotePack",
+    "BodyImageSpec",
+    "CopywritingPack",
+    "ArchetypeDim",
 ]

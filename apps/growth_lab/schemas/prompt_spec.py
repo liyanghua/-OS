@@ -48,5 +48,7 @@ class PromptSpec(BaseModel):
     generation_params: PromptGenerationParams = Field(default_factory=PromptGenerationParams)
     workflow_json: dict[str, Any] = Field(default_factory=dict)
 
+    field_provenance: dict[str, str] = Field(default_factory=dict)
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

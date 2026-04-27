@@ -1,0 +1,46 @@
+{# 策划工作台 ContextBar：单行 chip 头条
+   依赖：vm.context_bar (build_context_bar 输出)、opportunity_id、source_notes、refresh_url
+#}
+{% set _cb = vm.context_bar if vm and vm.context_bar else {} %}
+<header class="pw-context-bar">
+  <div class="pw-cb-main">
+    <a href="/xhs-opportunities/{{ opportunity_id }}" class="pw-cb-back" title="返回机会卡详情">←</a>
+    <span class="pw-cb-title">{{ _cb.title or '策划工作台' }}</span>
+    {% if _cb.opportunity_type %}
+    <span class="pw-cb-chip pw-cb-chip--type">{{ _cb.opportunity_type }}</span>
+    {% endif %}
+    {% set _cp = _cb.confidence_pct or 0 %}
+    <span class="pw-cb-chip pw-cb-chip--conf"
+          data-level="{{ 'high' if _cp >= 70 else 'mid' if _cp >= 40 else 'low' }}"
+          title="机会置信度">置信 {{ _cp }}%</span>
+    {% if _cb.lens_id %}
+    <span class="pw-cb-chip pw-cb-chip--lens" title="类目透视 {{ _cb.lens_id }}">透视 · {{ _cb.lens_id }}</span>
+    {% endif %}
+    {% if _cb.brand_id %}
+    <span class="pw-cb-chip pw-cb-chip--brand" title="品牌">品牌 · {{ _cb.brand_name or _cb.brand_id }}</span>
+    {% endif %}
+    {% if _cb.source_notes_count %}
+    <details class="pw-cb-notes">
+      <summary class="pw-cb-chip pw-cb-chip--notes">来源笔记 · {{ _cb.source_notes_count }}</summary>
+      <div class="pw-cb-notes-pop">
+        {% for sn in source_notes[:5] %}
+        {% set _nc = sn.note_context if sn.note_context is defined else sn %}
+        <div class="pw-cb-note-item">
+          {% if _nc.cover_url or _nc.cover_image_url %}
+          <img src="{{ _nc.cover_url or _nc.cover_image_url }}" alt="" loading="lazy" />
+          {% endif %}
+          <div>
+            <div class="pw-cb-note-title">{{ _nc.title or _nc.note_id or '—' }}</div>
+            {% if _nc.note_id %}<div class="pw-cb-note-id">{{ _nc.note_id }}</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+  <div class="pw-cb-actions">
+    <a class="pw-btn pw-btn-tertiary pw-btn-inline" href="/asset-workspace?from={{ opportunity_id }}" title="资产中枢">资产包 ↗</a>
+    <a class="pw-btn pw-btn-primary pw-btn-inline" href="/planning/{{ opportunity_id }}/visual-builder?from=planning">进入视觉工作台 →</a>
+  </div>
+</header>
