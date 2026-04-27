@@ -4,6 +4,9 @@
 pipeline 的前提下，直接把本机已采的全套运行时数据搬到服务器，跑完 `install.sh`
 即可点开页面看到机会卡、规划工作台、视觉策略包等真实内容。
 
+如果你想看“Ubuntu 安装 + bundle 导入 + 验证”的完整操作手册，先读
+`docs/INSTALL_BOOTSTRAP.md`；本文件更聚焦在“数据如何导出、上传、导入”。
+
 设计上分两条链路：
 
 | 模式      | 说明                                                | 适用场景                              |
@@ -33,7 +36,7 @@ bash scripts/export_dataset.sh
 bash scripts/export_dataset.sh --lite
 
 # 自定义输出路径
-bash scripts/export_dataset.sh --out /tmp/dataset.tar.gz
+bash scripts/export_dataset.sh --out data_sets/dataset.tar.gz
 
 # 默认会跳过 data/sessions（含 cookie），如需带上：
 bash scripts/export_dataset.sh --include-sessions
@@ -61,10 +64,20 @@ bash scripts/export_dataset.sh --include-sessions
 
 ---
 
-## 二、上传到服务器
+## 二、服务器已内置 bundle 时的用法
 
 ```bash
-scp dist/dataset_20260427_173000.tar.gz user@server:/tmp/
+cd /opt/ontology-os
+ls -lah data_sets/dataset.tar.gz
+```
+
+如果服务器仓库里已经有完整数据包，后续直接把 `--bundle` 指向
+`data_sets/dataset.tar.gz` 即可。
+
+只有在“本机导出后上传到另一台服务器”时，才需要：
+
+```bash
+scp data_sets/dataset.tar.gz user@server:/tmp/
 scp install.sh user@server:/tmp/        # 如尚未把仓库放到 /opt 上
 ```
 
@@ -78,7 +91,7 @@ scp install.sh user@server:/tmp/        # 如尚未把仓库放到 /opt 上
 cd /opt/ontology-os
 git pull --ff-only
 sudo bash install.sh \
-  --bundle /tmp/dataset_20260427_173000.tar.gz \
+  --bundle data_sets/dataset.tar.gz \
   --bundle-mode safe
 ```
 
@@ -104,7 +117,7 @@ sudo bash install.sh \
 ```bash
 sudo bash install.sh                            # 先装基础
 sudo bash scripts/bootstrap_data.sh \
-  --bundle /tmp/dataset.tar.gz \
+  --bundle data_sets/dataset.tar.gz \
   --mode safe \
   --restart-service
 ```
@@ -125,7 +138,7 @@ sudo bash scripts/bootstrap_data.sh \
 
 ```bash
 sudo bash scripts/bootstrap_data.sh \
-  --bundle /tmp/dataset.tar.gz \
+  --bundle data_sets/dataset.tar.gz \
   --rebuild \
   --restart-service
 ```

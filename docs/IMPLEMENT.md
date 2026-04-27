@@ -3983,3 +3983,16 @@ image -> image_execution_briefs
   - `--restart-service` 先 stop 再 restart
   - 导出包不再包含运行态 JSON，manifest key 带 `data/` 前缀
 - `python -m pytest apps/intel_hub/tests/test_data_bootstrap.py -q` → 4 passed
+
+## Ubuntu 安装与数据初始化手册（2026-04-27）
+
+补充独立文档 `docs/INSTALL_BOOTSTRAP.md`，把下面几件事串成一条操作手册：
+
+- `install.sh` 在 Ubuntu 上实际会做什么
+- 推荐首部署路径：`install.sh --bundle data_sets/dataset.tar.gz --bundle-mode safe`
+- 纯安装、安装后补数据、raw 重建三种模式分别怎么用
+- 登录态、headless、MediaCrawler 依赖与“首部署不依赖浏览器采集”的边界
+- systemd / doctor / summary / curl 的验收方式
+
+同时在 `docs/CLIENT_DATA_MIGRATION.md` 与根 `README_PRODUCT.md` 增加入口，避免
+安装手册和数据迁移手册分散、难找。
