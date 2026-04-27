@@ -1,0 +1,173 @@
+{
+  "lens_id": "children_desk_mat",
+  "lens_version": "1.0.0",
+  "source_note_ids": [
+    "69c110ce000000002200ea24"
+  ],
+  "layer1_signals": {
+    "hot_keywords": [],
+    "note_patterns": [],
+    "comment_signals": [],
+    "emotion_words": [],
+    "scene_words": [],
+    "trust_barrier_hits": [],
+    "visual_insight_summary": {
+      "style": [],
+      "scene": [],
+      "composition": [],
+      "people_state": [],
+      "trust_signals": [],
+      "trust_risks": [],
+      "content_formats": [],
+      "product_features": [],
+      "notes": []
+    }
+  },
+  "layer2_ontology": {
+    "scene_refs": [],
+    "style_refs": [],
+    "need_refs": [],
+    "risk_refs": [],
+    "audience_refs": [],
+    "product_feature_refs": []
+  },
+  "layer3_user_jobs": [
+    {
+      "who": "学龄前宝妈",
+      "when": "学习写作业",
+      "problem": "难擦掉笔迹颜料",
+      "desired_outcome": "防水防污",
+      "current_alternative": "儿童房学习区改造、安全测评对比",
+      "frustration": ""
+    }
+  ],
+  "layer4_product_mapping": [
+    {
+      "user_need": "孩子总把桌子画得脏兮兮，想找一块好擦写又没味道的桌垫",
+      "product_features": [
+        "可擦洗表面",
+        "防水防污",
+        "环保无毒"
+      ],
+      "sku_actions": [
+        "上架支持 可擦洗表面 的 SKU",
+        "上架支持 防水防污 的 SKU",
+        "上架支持 环保无毒 的 SKU"
+      ],
+      "detail_page_actions": [
+        "马克笔水彩一擦即净的动图",
+        "平整铺设后近距特写",
+        "检测报告页面"
+      ]
+    },
+    {
+      "user_need": "幼儿园要开始学写字了，怕桌子硬摔到磕到，想要能缓冲的",
+      "product_features": [
+        "加厚缓冲",
+        "防滑底纹",
+        "圆角安全设计"
+      ],
+      "sku_actions": [
+        "上架支持 加厚缓冲 的 SKU",
+        "上架支持 防滑底纹 的 SKU",
+        "上架支持 圆角安全设计 的 SKU"
+      ],
+      "detail_page_actions": [
+        "鸡蛋掉落缓冲对比",
+        "圆角边细节",
+        "防滑吸附展示"
+      ]
+    },
+    {
+      "user_need": "担心网上买的桌垫甲醛超标，纠结很久不敢下单",
+      "product_features": [
+        "环保无毒材质",
+        "无甲醛检测报告",
+        "无味证明"
+      ],
+      "sku_actions": [
+        "上架支持 环保无毒材质 的 SKU",
+        "上架支持 无甲醛检测报告 的 SKU",
+        "上架支持 无味证明 的 SKU"
+      ],
+      "detail_page_actions": [
+        "CMA检测证书特写",
+        "开箱闻味无刺鼻",
+        "孩子安全使用场景"
+      ]
+    }
+  ],
+  "layer5_content_execution": [
+    {
+      "content_angle": "儿童桌垫 · 儿童房学习区改造",
+      "hooks": [
+        "一张图讲清楚儿童桌垫的真实体验"
+      ],
+      "script_structure": [
+        "痛点场景开场（真人实拍）",
+        "产品特征近距离证明",
+        "信任点对比演示",
+        "对比结果 / 使用后状态",
+        "号召一句话（链接 or 同款）"
+      ],
+      "required_assets": [
+        "权威检测证书特写",
+        "水珠滚落防水展示",
+        "圆珠笔/马克笔一擦即净",
+        "折弯后回弹不变形",
+        "学习灯光下的桌面特写",
+        "孩子写字画画的真实场景"
+      ],
+      "metrics": [
+        "完播率 / 平均播放时长",
+        "收藏 / 加购率",
+        "评论顾虑词频次",
+        "点击链接率"
+      ]
+    },
+    {
+      "content_angle": "儿童桌垫 · 安全测评对比",
+      "hooks": [
+        "一张图讲清楚儿童桌垫的真实体验"
+      ],
+      "script_structure": [
+        "痛点场景开场（真人实拍）",
+        "产品特征近距离证明",
+        "信任点对比演示",
+        "对比结果 / 使用后状态",
+        "号召一句话（链接 or 同款）"
+      ],
+      "required_assets": [
+        "权威检测证书特写",
+        "水珠滚落防水展示",
+        "圆珠笔/马克笔一擦即净",
+        "折弯后回弹不变形",
+        "学习灯光下的桌面特写",
+        "孩子写字画画的真实场景"
+      ],
+      "metrics": [
+        "完播率 / 平均播放时长",
+        "收藏 / 加购率",
+        "评论顾虑词频次",
+        "点击链接率"
+      ]
+    }
+  ],
+  "evidence_score": {
+    "heat": 10.0,
+    "pain": 0.0,
+    "trust_gap": 0.0,
+    "product_fit": 0.0,
+    "execution": 0.0,
+    "competition_gap": 5.0,
+    "total": 1.25
+  },
+  "recommended_action": {
+    "decision": "暂缓",
+    "next_steps": [
+      "样本不足或证据薄弱，先暂缓",
+      "补充另一批关键词采集",
+      "观察类目其他爆款模式"
+    ]
+  }
+}

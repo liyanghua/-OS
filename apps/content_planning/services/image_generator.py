@@ -39,6 +39,17 @@ _DASHSCOPE_DEFAULT_MODEL = os.environ.get("IMAGE_GEN_MODEL", "wan2.5-t2i-preview
 _DASHSCOPE_FALLBACK_MODEL = os.environ.get("IMAGE_GEN_FALLBACK_MODEL", "wanx2.1-t2i-turbo")
 _DASHSCOPE_IMAGE_EDIT_MODEL = os.environ.get("DASHSCOPE_IMAGE_EDIT_MODEL", "qwen-image-edit")
 
+# OpenAI 系图像模型在 OpenRouter chat/completions 接口需要显式声明 modalities，否则只回文本。
+_OPENROUTER_NEEDS_MODALITIES: set[str] = {
+    "openai/gpt-5.4-image-2",
+}
+
+# 部分模型可能由独立 OpenRouter 账号供给（独立配额）。命中映射时使用对应环境变量里的 key，
+# 未配置时回落到 OPENROUTER_API_KEY。
+_OPENROUTER_KEY_OVERRIDES: dict[str, str] = {
+    "openai/gpt-5.4-image-2": "OPENROUTER_GPT5_IMAGE_KEY",
+}
+
 # wan2.5-t2i-preview 要求总像素 [1280*1280, 1440*1440]，宽高比 [1:4, 4:1]；
 # wanx2.1/2.2 系列要求 [512, 1440] 单边且 <= 1440*1440。
 # 这里只存两套常用比例；未在表里的 aspect 会退回到 1:1。
@@ -171,6 +182,7 @@ class ImageGeneratorService:
     def __init__(self) -> None:
         _ensure_env()
         self._openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+        self._openrouter_gpt5_image_key = os.environ.get("OPENROUTER_GPT5_IMAGE_KEY", "")
         self._openrouter_model = os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-3.1-flash-image-preview")
         fallbacks_raw = os.environ.get("OPENROUTER_IMAGE_MODEL_FALLBACKS", "")
         self._openrouter_fallbacks = [
@@ -182,13 +194,29 @@ class ImageGeneratorService:
         return self._is_openrouter_available() or self._is_dashscope_available()
 
     def _is_openrouter_available(self) -> bool:
-        if not self._openrouter_key:
+        # 主 key 或任一独立模型 key 存在即视为 OpenRouter 通道可用。
+        if not (self._openrouter_key or self._openrouter_gpt5_image_key):
             return False
         try:
             import openai  # noqa: F401
             return True
         except ImportError:
             return False
+
+    def _resolve_openrouter_key(self, model_name: str) -> tuple[str, str]:
+        """根据模型 ID 选择 OpenRouter API key。
+
+        返回 (api_key, key_kind)。key_kind 仅用于日志，便于排查独立配额问题。
+        命中 _OPENROUTER_KEY_OVERRIDES 且独立 key 已配置 → 用独立 key；否则回落到主 key。
+        """
+        env_var = _OPENROUTER_KEY_OVERRIDES.get(model_name or "")
+        if env_var:
+            override_key = os.environ.get(env_var, "")
+            if not override_key and env_var == "OPENROUTER_GPT5_IMAGE_KEY":
+                override_key = self._openrouter_gpt5_image_key
+            if override_key:
+                return override_key, env_var
+        return self._openrouter_key, "OPENROUTER_API_KEY"
 
     def _is_dashscope_available(self) -> bool:
         if not self._dashscope_key:
@@ -369,10 +397,18 @@ class ImageGeneratorService:
         import openai
 
         t0 = time.perf_counter()
+        api_key, key_kind = self._resolve_openrouter_key(model_name)
         try:
+            if not api_key:
+                elapsed = int((time.perf_counter() - t0) * 1000)
+                return ImageResult(
+                    slot_id=prompt.slot_id, status="failed",
+                    error=f"OpenRouter: 缺少 API key（model={model_name}, expected={key_kind}）",
+                    elapsed_ms=elapsed, provider="openrouter",
+                )
             client = openai.OpenAI(
                 base_url=_OPENROUTER_BASE_URL,
-                api_key=self._openrouter_key,
+                api_key=api_key,
                 timeout=60.0,
             )
 
@@ -401,8 +437,8 @@ class ImageGeneratorService:
                     prompt.slot_id, ref_url_raw,
                 )
 
-            logger.info("OpenRouter request: slot=%s, model=%s, has_ref=%s, prompt_len=%d",
-                        prompt.slot_id, model_name, ref_usable, len(safe_prompt))
+            logger.info("OpenRouter request: slot=%s, model=%s, key=%s, has_ref=%s, prompt_len=%d",
+                        prompt.slot_id, model_name, key_kind, ref_usable, len(safe_prompt))
 
             if ref_usable:
                 if prompt.mode == "edit":
@@ -432,13 +468,17 @@ class ImageGeneratorService:
             else:
                 user_msg_content = text_instruction
 
+            extra_body: dict[str, Any] = {"provider": {"allow_fallbacks": True}}
+            if model_name in _OPENROUTER_NEEDS_MODALITIES:
+                extra_body["modalities"] = ["image", "text"]
+
             raw_response = client.chat.completions.with_raw_response.create(
                 model=model_name,
                 messages=[
                     {"role": "user", "content": user_msg_content},
                 ],
                 max_tokens=4096,
-                extra_body={"provider": {"allow_fallbacks": True}},
+                extra_body=extra_body,
             )
 
             raw_json = json.loads(raw_response.text.strip())

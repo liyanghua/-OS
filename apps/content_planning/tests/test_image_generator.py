@@ -212,6 +212,70 @@ class TestOpenRouterPromptOnly:
         assert "Scene description:" in user_content
 
 
+class TestOpenRouterGpt5Image:
+    """Case 4b: openai/gpt-5.4-image-2 走独立 key + 必带 modalities"""
+
+    @patch("openai.OpenAI")
+    def test_uses_dedicated_key_and_modalities(self, mock_openai_cls: MagicMock, tmp_path: Path) -> None:
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.with_raw_response.create.return_value = _make_openrouter_raw_response()
+
+        svc = _service_with_keys(
+            OPENROUTER_API_KEY="sk-main",
+            OPENROUTER_GPT5_IMAGE_KEY="sk-gpt5",
+        )
+        prompt = ImagePrompt(
+            slot_id="cover",
+            prompt="A warm cozy living room",
+            model="openai/gpt-5.4-image-2",
+        )
+
+        with patch.object(svc, "_extract_multipart_image", return_value=None), \
+             patch.object(svc, "_extract_and_save_image", return_value=tmp_path / "out.png"):
+            result = svc.generate_single(prompt, _TEST_OPP_ID, provider="openrouter")
+
+        assert result.status == "completed"
+        client_call = mock_openai_cls.call_args
+        assert client_call.kwargs.get("api_key") == "sk-gpt5"
+
+        create_call = mock_client.chat.completions.with_raw_response.create.call_args
+        assert create_call.kwargs.get("model") == "openai/gpt-5.4-image-2"
+        extra_body = create_call.kwargs.get("extra_body", {})
+        assert extra_body.get("modalities") == ["image", "text"]
+        assert extra_body.get("provider", {}).get("allow_fallbacks") is True
+
+    @patch("openai.OpenAI")
+    def test_other_models_use_main_key_without_modalities(
+        self, mock_openai_cls: MagicMock, tmp_path: Path,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.with_raw_response.create.return_value = _make_openrouter_raw_response()
+
+        svc = _service_with_keys(
+            OPENROUTER_API_KEY="sk-main",
+            OPENROUTER_GPT5_IMAGE_KEY="sk-gpt5",
+        )
+        prompt = ImagePrompt(
+            slot_id="cover",
+            prompt="A warm cozy living room",
+            model="google/gemini-3.1-flash-image-preview",
+        )
+
+        with patch.object(svc, "_extract_multipart_image", return_value=None), \
+             patch.object(svc, "_extract_and_save_image", return_value=tmp_path / "out.png"):
+            result = svc.generate_single(prompt, _TEST_OPP_ID, provider="openrouter")
+
+        assert result.status == "completed"
+        client_call = mock_openai_cls.call_args
+        assert client_call.kwargs.get("api_key") == "sk-main"
+
+        create_call = mock_client.chat.completions.with_raw_response.create.call_args
+        extra_body = create_call.kwargs.get("extra_body", {})
+        assert "modalities" not in extra_body
+
+
 class TestAutoFallback:
     """Case 5: auto 模式 fallback 链——DashScope 失败后 fallback 到 OpenRouter"""
 

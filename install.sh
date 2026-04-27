@@ -259,6 +259,7 @@ ANTHROPIC_API_KEY=
 # ===== 图像 / 视觉 =====
 OPENROUTER_API_KEY=
 OPENROUTER_IMAGE_MODEL=google/gemini-2.5-flash-image
+OPENROUTER_GPT5_IMAGE_KEY=
 DASHSCOPE_API_KEY=
 
 # ===== 部署运行 =====
@@ -455,6 +456,7 @@ $(llm_key_status "DEEPSEEK_MODEL")
 $(llm_key_status "ANTHROPIC_API_KEY")
 $(llm_key_status "OPENROUTER_API_KEY")
 $(llm_key_status "OPENROUTER_IMAGE_MODEL")
+$(llm_key_status "OPENROUTER_GPT5_IMAGE_KEY")
 $(llm_key_status "DASHSCOPE_API_KEY")
 EOF
 }

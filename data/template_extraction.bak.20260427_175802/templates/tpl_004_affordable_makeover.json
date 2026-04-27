@@ -1,0 +1,92 @@
+{
+  "template_id": "tpl_004_affordable_makeover",
+  "template_name": "平价改造型",
+  "template_version": "1.0",
+  "template_goal": "强调低成本焕新与变化值，兼顾点击与转化",
+  "fit_platform": ["小红书"],
+  "fit_category": ["桌布"],
+  "fit_scenarios": ["租房党", "学生党", "小户型", "预算有限想改善家居感受"],
+  "fit_styles": ["极简", "奶油风", "北欧", "日式"],
+  "fit_price_band": ["低", "中低"],
+  "core_user_motive": [
+    "想省钱又要明显变化",
+    "想快速焕新餐桌",
+    "想要低门槛可复制的方案"
+  ],
+  "hook_mechanism": [
+    "文案与画面对比强化变化值",
+    "价格带与性价比心智",
+    "改造前后或气质差异一眼可见"
+  ],
+  "cover_role": "price_value",
+  "image_sequence_pattern": [
+    "cover_hook",
+    "style_expand",
+    "texture_expand",
+    "usage_expand",
+    "guide_expand"
+  ],
+  "visual_rules": {
+    "preferred_shots": ["wide_scene", "topdown", "angled"],
+    "required_elements": ["tablecloth", "clear_before_after_or_contrast"],
+    "optional_elements": ["simple_tableware", "room_rental_context"],
+    "text_overlay_level": "medium",
+    "color_direction": ["warm", "neutral", "cream"],
+    "lighting_direction": ["natural", "soft"]
+  },
+  "copy_rules": {
+    "title_style": ["性价比导向", "改造结果导向", "租房小户型导向"],
+    "cover_copy_style": "medium",
+    "recommended_phrases": [
+      "一张桌布把餐桌救活了",
+      "百元内改造餐桌，真的太值",
+      "租房党也能拥有氛围感餐桌",
+      "低成本把家里变温柔的方法"
+    ],
+    "avoid_phrases": ["全网最低", "虚假宣传式极限用词", "纯低价大字报"]
+  },
+  "scene_rules": {
+    "must_have_scene": true,
+    "scene_types": ["出租屋餐桌", "小户型餐厅", "简单居家桌面"],
+    "avoid_scenes": ["奢华样板间反差过大", "大促海报廉价感"]
+  },
+  "product_visibility_rules": {
+    "tablecloth_visibility_min": 0.3,
+    "must_show_pattern_or_texture": false,
+    "avoid_over_occlusion": true
+  },
+  "risk_rules": [
+    "避免过于强调便宜拉低质感",
+    "避免像淘宝促销图不像小红书内容",
+    "避免只有价格没有视觉吸引力",
+    "避免对比造假或过度夸张"
+  ],
+  "best_for": ["中低价桌布", "平价替代", "基础款但上桌效果明显"],
+  "avoid_when": [
+    "高客单或重工艺品牌",
+    "品牌强调高端审美调性",
+    "节庆礼赠为主诉求时"
+  ],
+  "seed_examples": ["xhs_tbl_20240405_x5y6", "xhs_tbl_20240406_z7a8"],
+  "cluster_features": {
+    "dominant_task_labels": ["price_value", "before_after"],
+    "dominant_visual_labels": ["text_medium", "text_price_label", "cloth_partial_visible"],
+    "dominant_semantic_labels": [
+      "mood_low_cost_upgrade",
+      "mood_small_space_upgrade",
+      "mood_daily_healing",
+      "平价",
+      "改造",
+      "租房"
+    ]
+  },
+  "evaluation_metrics": {
+    "target_save_like_ratio": 0.3,
+    "target_click_proxy_score": 0.75,
+    "scene_visibility_score_min": 0.55
+  },
+  "derivation_rules": {
+    "can_extend_to": ["title", "detail_page", "short_video_outline"],
+    "prompt_style": "value-contrast-first"
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "plan_id": "22d44284fdd9",
+  "template_id": "tpl_001_scene_seed",
+  "template_name": "氛围感场景种草型",
+  "template_version": "1.0",
+  "priority_axis": "通过完整桌面场景和生活方式氛围提升点击与收藏",
+  "matcher_rationale": "意图匹配: 种草; 适用场景: 早餐, 下午茶, 居家晚餐",
+  "global_notes": "通过完整桌面场景和生活方式氛围提升点击与收藏\n钩子：一眼看到完整桌面效果；风格与氛围统一\n商品摘要：奶油风桌布，适合早餐场景\n风险规避：避免桌布被食物和道具遮挡过多；避免画面只有氛围没有商品识别；避免过重文案影响平台感",
+  "image_slots": [
+    {
+      "slot_index": 1,
+      "role": "cover_hook",
+      "intent": "封面拉点击与风格第一印象",
+      "visual_brief": "封面吸睛：采用俯拍/平铺、广视角餐桌场景，主体为桌布、餐具；可搭配花艺/鲜花、食物、蜡烛；色彩倾向暖调、奶油感、柔和，光线自然光感、柔和；文案叠层轻量，保证首图点击率与辨识度。\n【场景】场景：必须带可识别的生活场景/餐桌场景。优先居家餐桌、早餐角、周末下午茶；规避过度商业棚拍、背景过杂。",
+      "copy_hints": [
+        "封面文案：短句精炼",
+        "风格取向氛围感导向、风格标签导向、低成本改造导向",
+        "可参考话术：一块桌布把餐桌气质拉满",
+        "周末在家也能有小仪式感",
+        "禁用：全网最低、强促销词、纯参数堆砌"
+      ],
+      "must_include_elements": [
+        "tablecloth",
+        "tableware"
+      ],
+      "avoid_elements": [
+        "过度商业棚拍",
+        "背景过杂",
+        "全网最低",
+        "强促销词",
+        "纯参数堆砌"
+      ],
+      "reference_template_fragment": "tpl_001_scene_seed#cover_hook"
+    },
+    {
+      "slot_index": 2,
+      "role": "style_expand",
+      "intent": "强化风格定锚与系列感",
+      "visual_brief": "风格延展（第2张）：强化风格一致性，沿用俯拍/平铺、广视角餐桌场景；突出桌布、餐具与整体氛围；可搭配花艺/鲜花、食物、蜡烛；色彩暖调、奶油感、柔和，自然光感、柔和。\n【场景】场景：居家餐桌、早餐角、周末下午茶；必须带可识别的生活场景/餐桌场景。规避过度商业棚拍、背景过杂。",
+      "copy_hints": [
+        "延展图文案：强调风格标签与氛围词，与封面话术呼应",
+        "氛围感导向、风格标签导向、低成本改造导向",
+        "可参考话术：一块桌布把餐桌气质拉满",
+        "周末在家也能有小仪式感"
+      ],
+      "must_include_elements": [
+        "tablecloth",
+        "tableware"
+      ],
+      "avoid_elements": [
+        "过度商业棚拍",
+        "背景过杂",
+        "全网最低",
+        "强促销词",
+        "纯参数堆砌"
+      ],
+      "reference_template_fragment": "tpl_001_scene_seed#style_expand"
+    },
+    {
+      "slot_index": 3,
+      "role": "texture_expand",
+      "intent": "证明质感与工艺细节",
+      "visual_brief": "质感细节（第3张）：以特写呈现织纹/印花/垂感；优先特写/近景或细节景别；桌布占比高、纹理可读；避免过度虚化丢失材质信息；可搭配花艺/鲜花、食物、蜡烛。\n【场景】场景：以桌面/局部场景为主即可；必须带可识别的生活场景/餐桌场景。若模板要求实景则弱背景突出材质。规避过度商业棚拍、背景过杂。",
+      "copy_hints": [
+        "质感图文案：突出触感、工艺、材质关键词（如厚实、垂坠、清晰印花），少用夸张承诺"
+      ],
+      "must_include_elements": [
+        "tablecloth",
+        "tableware"
+      ],
+      "avoid_elements": [
+        "过度商业棚拍",
+        "背景过杂",
+        "全网最低",
+        "强促销词",
+        "纯参数堆砌"
+      ],
+      "reference_template_fragment": "tpl_001_scene_seed#texture_expand"
+    },
+    {
+      "slot_index": 4,
+      "role": "usage_expand",
+      "intent": "代入真实使用场景",
+      "visual_brief": "使用场景（第4张）：展示真实用餐/布置场景，俯拍/平铺、广视角餐桌场景；包含桌布、餐具，生活感强；可搭配花艺/鲜花、食物、蜡烛；色彩暖调、奶油感、柔和，自然光感、柔和。\n【场景】场景：强生活化，居家餐桌、早餐角、周末下午茶；必须带可识别的生活场景/餐桌场景。规避过度商业棚拍、背景过杂。",
+      "copy_hints": [
+        "场景图文案：描述使用情境与代入感（如早餐、聚会）",
+        "氛围感导向、风格标签导向、低成本改造导向",
+        "可参考话术：一块桌布把餐桌气质拉满",
+        "周末在家也能有小仪式感"
+      ],
+      "must_include_elements": [
+        "tablecloth",
+        "tableware"
+      ],
+      "avoid_elements": [
+        "过度商业棚拍",
+        "背景过杂",
+        "全网最低",
+        "强促销词",
+        "纯参数堆砌"
+      ],
+      "reference_template_fragment": "tpl_001_scene_seed#usage_expand"
+    },
+    {
+      "slot_index": 5,
+      "role": "guide_expand",
+      "intent": "降低决策成本、引导转化",
+      "visual_brief": "引导转化（第5张）：可含尺寸对比、铺法示意或搭配建议；俯拍/平铺、广视角餐桌场景；信息清晰、减少认知成本；轻量文案可点明核心利益点。\n【场景】场景：简洁干净，信息层级清楚；可与轻场景结合。规避过度商业棚拍、背景过杂。",
+      "copy_hints": [
+        "引导图文案：明确规格、铺法、搭配或下单理由，语句简短、可扫读"
+      ],
+      "must_include_elements": [
+        "tablecloth",
+        "tableware"
+      ],
+      "avoid_elements": [
+        "过度商业棚拍",
+        "背景过杂",
+        "全网最低",
+        "强促销词",
+        "纯参数堆砌"
+      ],
+      "reference_template_fragment": "tpl_001_scene_seed#guide_expand"
+    }
+  ]
+}

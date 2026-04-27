@@ -1,0 +1,4988 @@
+[
+  {
+    "opportunity_id": "566e16ff4534428f",
+    "title": "视觉差异化: 奶油风, ins风 × 餐桌, 茶几",
+    "summary": "笔记展现 奶油风, ins风 视觉风格，构图: 氛围图，差异化: 风格差异化: 奶油风, 卖点可视化: 防水展示, 出片感展示, 尺寸适配展示",
+    "opportunity_type": "visual",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_dining_table",
+      "scene_tea_table",
+      "scene_photo_backdrop"
+    ],
+    "style_refs": [
+      "style_creamy",
+      "style_ins"
+    ],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_easy_clean",
+      "need_photogenic",
+      "need_affordable",
+      "need_affordable_upgrade"
+    ],
+    "risk_refs": [
+      "risk_claim_unverified"
+    ],
+    "visual_pattern_refs": [
+      "visual_soft_light"
+    ],
+    "content_pattern_refs": [
+      "content_recommendation",
+      "content_makeover",
+      "content_pitfall"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_photogenic",
+      "vp_affordable_upgrade",
+      "need_waterproof+style_creamy",
+      "need_waterproof+style_ins",
+      "need_oilproof+style_creamy",
+      "need_oilproof+style_ins"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "0a27f07b5467",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "这款奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "6f16359cc2b3",
+        "source_kind": "title",
+        "source_ref": "note_tc_001",
+        "snippet": "ins风防水桌布推荐｜奶油色系太绝了",
+        "confidence": 0.8
+      },
+      {
+        "evidence_id": "34ae633a100a",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "方桌都适配。价格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满。推荐给想改造桌面的姐妹们！",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "a82c9e903fb3",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "圆桌方桌都适配。价格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满。推荐给想改造桌面的姐妹们！",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "d09bd2898192",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "这款奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "c116bcfa27e2",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满。推荐给想改造桌面的姐妹们！",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "92949dc26874",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格也很平价，性价比很高，买了不会",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.75,
+    "suggested_next_step": [
+      "主图优化：提取视觉资产，评估是否可复用到产品主图/详情页",
+      "内容封面改造：基于该视觉风格生成封面模板",
+      "视觉模板沉淀：将差异化视觉模式归档为可复用资产"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_001"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "156 收藏 / 328 赞 / 藏赞比 0.48 — 低收藏属性 — 评论率 7.7% (中等讨论度)",
+    "cross_modal_verdict": "3/6 卖点获双重验证，3 项无支撑，一致性 0.50（中）",
+    "insight_statement": "餐桌 + 经多维验证 → 适合打视觉种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划视觉种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：餐桌、茶几",
+    "opportunity_strength_score": 3.21,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "c733e810707a47db",
+    "title": "卖点主题: 防水, 防油, 好打理 (评论验证 1/6)",
+    "summary": "核心卖点: 防水, 防油, 好打理；已验证: 防水；购买意向: 求链接",
+    "opportunity_type": "demand",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_dining_table",
+      "scene_tea_table",
+      "scene_photo_backdrop"
+    ],
+    "style_refs": [
+      "style_creamy",
+      "style_ins"
+    ],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_easy_clean",
+      "need_photogenic",
+      "need_affordable",
+      "need_affordable_upgrade"
+    ],
+    "risk_refs": [
+      "risk_claim_unverified"
+    ],
+    "visual_pattern_refs": [
+      "visual_soft_light"
+    ],
+    "content_pattern_refs": [
+      "content_recommendation",
+      "content_makeover",
+      "content_pitfall"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_photogenic",
+      "vp_affordable_upgrade",
+      "need_waterproof+style_creamy",
+      "need_waterproof+style_ins",
+      "need_oilproof+style_creamy",
+      "need_oilproof+style_ins"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "cb230ee56003",
+        "source_kind": "title",
+        "source_ref": "note_tc_001",
+        "snippet": "ins风防水桌布推荐｜奶油色系太绝了",
+        "confidence": 0.85
+      },
+      {
+        "evidence_id": "51d8907ff559",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "这款奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "4708c9e5616e",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格也很平价，性价比很高，买",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "9672713ec257",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "这款奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格也很平",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "d6147315a140",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "683d95416202",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "这款奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "60fe3edf8989",
+        "source_kind": "comment",
+        "source_ref": "note_tc_001:comment_0",
+        "snippet": "这款桌布我也买了，防水效果真的好，推荐！",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "5dfc0d041230",
+        "source_kind": "comment",
+        "source_ref": "note_tc_001:comment_1",
+        "snippet": "求链接！多少钱啊想买",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "5111d8f39b7f",
+        "source_kind": "title",
+        "source_ref": "note_tc_001",
+        "snippet": "ins风防水桌布推荐｜奶油色系太绝了",
+        "confidence": 0.8
+      },
+      {
+        "evidence_id": "78783928d7a3",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满。推荐给想改造桌面的姐妹们！",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "e3699ce49ef8",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "可以定制，圆桌方桌都适配。价格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满。推荐给想改造桌面的姐妹们",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.8,
+    "suggested_next_step": [
+      "新品定义：基于已验证卖点制定产品规格",
+      "卖点排序：按评论验证强度排序核心卖点",
+      "内容表达强化：强化已验证卖点的内容表达"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_001"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "156 收藏 / 328 赞 / 藏赞比 0.48 — 低收藏属性 — 评论率 7.7% (中等讨论度)",
+    "cross_modal_verdict": "3/6 卖点获双重验证，3 项无支撑，一致性 0.50（中）",
+    "insight_statement": "餐桌 + 经多维验证 → 适合打需求转化内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划需求转化内容；评论活跃，可挖掘用户真实需求做选题；场景方向：餐桌、茶几",
+    "opportunity_strength_score": 3.22,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "39ce139e8cfc4adf",
+    "title": "场景机会: 餐桌×奶油风×防水",
+    "summary": "场景: 餐桌, 茶几, 拍照布景，目标: 改造氛围, 防脏防油，受众: 家居美学，约束: 预算敏感, 尺寸多样",
+    "opportunity_type": "scene",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_dining_table",
+      "scene_tea_table",
+      "scene_photo_backdrop"
+    ],
+    "style_refs": [
+      "style_creamy",
+      "style_ins"
+    ],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_easy_clean",
+      "need_photogenic",
+      "need_affordable",
+      "need_affordable_upgrade"
+    ],
+    "risk_refs": [
+      "risk_claim_unverified"
+    ],
+    "visual_pattern_refs": [
+      "visual_soft_light"
+    ],
+    "content_pattern_refs": [
+      "content_recommendation",
+      "content_makeover",
+      "content_pitfall"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_photogenic",
+      "vp_affordable_upgrade",
+      "need_waterproof+style_creamy",
+      "need_waterproof+style_ins",
+      "need_oilproof+style_creamy",
+      "need_oilproof+style_ins"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "c93dddf83e45",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "方桌都适配。价格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满。推荐给想改造桌面的姐妹们！",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "ed724066a4df",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "圆桌方桌都适配。价格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满。推荐给想改造桌面的姐妹们！",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "4e9c093eaef6",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "这款奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "101c61c023e5",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满。推荐给想改造桌面的姐妹们！",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "be41b9f379f5",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "这款奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "753bbbdede71",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格也很平价，性价比很高，买",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "3577f77ecd1b",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "这款奶油风桌布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格也很平",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "fbec27de0bd4",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "0ff80224d311",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "b56a86f2524e",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "布真的太好看了！防水防油免洗，拍照超出片。PVC材质好打理，尺寸可以定制，圆桌方桌都适配。价格也很平价，性价比很高，买了不会",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "e057ea221042",
+        "source_kind": "body",
+        "source_ref": "note_tc_001",
+        "snippet": "格也很平价，性价比很高，买了不会踩坑。家里茶几餐桌都换上了，氛围感拉满。推荐给想改造桌面的姐妹们！",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.85,
+    "suggested_next_step": [
+      "场景化新品方向：基于场景需求定义产品线",
+      "场景化内容选题：围绕该场景生产种草内容",
+      "场景化视觉模板：为该场景打造专属视觉风格"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_001"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "156 收藏 / 328 赞 / 藏赞比 0.48 — 低收藏属性 — 评论率 7.7% (中等讨论度)",
+    "cross_modal_verdict": "3/6 卖点获双重验证，3 项无支撑，一致性 0.50（中）",
+    "insight_statement": "餐桌 + 经多维验证 → 适合打场景种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划场景种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：餐桌、茶几",
+    "opportunity_strength_score": 3.23,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "e51942c54b6f49ad",
+    "title": "视觉差异化: 北欧风 × 拍照",
+    "summary": "笔记展现 北欧风 视觉风格，差异化: 卖点可视化: 防水展示, 出片感展示, 高级感展示",
+    "opportunity_type": "visual",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_photo_backdrop"
+    ],
+    "style_refs": [
+      "style_nordic"
+    ],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_photogenic",
+      "need_premium_feel"
+    ],
+    "risk_refs": [],
+    "visual_pattern_refs": [
+      "visual_texture_closeup"
+    ],
+    "content_pattern_refs": [
+      "content_review",
+      "content_makeover",
+      "content_comparison"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_photogenic",
+      "vp_premium_feel",
+      "need_waterproof+style_nordic",
+      "need_photogenic+style_nordic"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "20519a115f57",
+        "source_kind": "title",
+        "source_ref": "note_tc_002",
+        "snippet": "北欧棉麻桌布测评｜质感真的很高级",
+        "confidence": 0.8
+      },
+      {
+        "evidence_id": "27202fc978a9",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "质手感很好，颜色也很正。缺点是不防水，容易脏需要经常洗。适合拍照出片但不太实用。如果家里有小孩建议选防水款。尺寸方面长桌款偏",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "b7f9916e5bfa",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "感很好，颜色也很正。缺点是不防水，容易脏需要经常洗。适合拍照出片但不太实用。如果家里有小孩建议选防水款。尺寸方面长桌款偏大，",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "237e36eb137b",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "麻桌布做对比测评。这款棉麻材质手感很好，颜色也很正。缺点是不防水，容易脏需要经常洗。适合拍照出片但不太实用。如果家里有小孩建",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "3a033564fe0b",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "经常洗。适合拍照出片但不太实用。如果家里有小孩建议选防水款。尺寸方面长桌款偏大，需要注意量好尺寸再买。价格中等偏贵，但质感值",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.65,
+    "suggested_next_step": [
+      "主图优化：提取视觉资产，评估是否可复用到产品主图/详情页",
+      "内容封面改造：基于该视觉风格生成封面模板",
+      "视觉模板沉淀：将差异化视觉模式归档为可复用资产"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_002"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "234 收藏 / 512 赞 / 藏赞比 0.46 — 低收藏属性 — 评论率 7.9% (中等讨论度)",
+    "cross_modal_verdict": "3/3 卖点获双重验证，一致性 1.00（高）",
+    "insight_statement": "拍照 + 经多维验证 → 适合打视觉种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "中等置信度，建议进一步验证后策划视觉种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：拍照",
+    "opportunity_strength_score": 3.27,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "c5c355ed1efa4046",
+    "title": "卖点主题: 材质有质感, 防水, 出片 (评论验证 1/3)",
+    "summary": "核心卖点: 材质有质感, 防水, 出片；已验证: 材质有质感",
+    "opportunity_type": "content",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_photo_backdrop"
+    ],
+    "style_refs": [
+      "style_nordic"
+    ],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_photogenic",
+      "need_premium_feel"
+    ],
+    "risk_refs": [],
+    "visual_pattern_refs": [
+      "visual_texture_closeup"
+    ],
+    "content_pattern_refs": [
+      "content_review",
+      "content_makeover",
+      "content_comparison"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_photogenic",
+      "vp_premium_feel",
+      "need_waterproof+style_nordic",
+      "need_photogenic+style_nordic"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "8d8af77d277b",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "麻桌布做对比测评。这款棉麻材质手感很好，颜色也很正。缺点是不防水，容易脏需要经常洗。适合拍照出片但不太实用。如果家里有小孩建",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "8a3657225a9d",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "感很好，颜色也很正。缺点是不防水，容易脏需要经常洗。适合拍照出片但不太实用。如果家里有小孩建议选防水款。尺寸方面长桌款偏大，",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "e21aafed30dd",
+        "source_kind": "title",
+        "source_ref": "note_tc_002",
+        "snippet": "北欧棉麻桌布测评｜质感真的很高级",
+        "confidence": 0.85
+      },
+      {
+        "evidence_id": "cf9e54a11f16",
+        "source_kind": "comment",
+        "source_ref": "note_tc_002:comment_0",
+        "snippet": "棉麻的确实容易脏，但拍照是真好看",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "5acbe81d1774",
+        "source_kind": "title",
+        "source_ref": "note_tc_002",
+        "snippet": "北欧棉麻桌布测评｜质感真的很高级",
+        "confidence": 0.8
+      },
+      {
+        "evidence_id": "f7833dbaad7d",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "入了三款北欧风棉麻桌布做对比测评。这款棉麻材质手感很好，颜色也很正。缺点是不防水，容易脏",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.75,
+    "suggested_next_step": [
+      "新品定义：基于已验证卖点制定产品规格",
+      "卖点排序：按评论验证强度排序核心卖点",
+      "内容表达强化：强化已验证卖点的内容表达"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_002"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "234 收藏 / 512 赞 / 藏赞比 0.46 — 低收藏属性 — 评论率 7.9% (中等讨论度)",
+    "cross_modal_verdict": "3/3 卖点获双重验证，一致性 1.00（高）",
+    "insight_statement": "拍照 + 经多维验证 → 适合打展示型种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划展示型种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：拍照",
+    "opportunity_strength_score": 3.3,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "6d5e21eea9c94b48",
+    "title": "场景机会: 拍照布景×北欧风×防水",
+    "summary": "场景: 拍照布景，目标: 防脏防油, 适合拍照，约束: 尺寸多样",
+    "opportunity_type": "scene",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_photo_backdrop"
+    ],
+    "style_refs": [
+      "style_nordic"
+    ],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_photogenic",
+      "need_premium_feel"
+    ],
+    "risk_refs": [],
+    "visual_pattern_refs": [
+      "visual_texture_closeup"
+    ],
+    "content_pattern_refs": [
+      "content_review",
+      "content_makeover",
+      "content_comparison"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_photogenic",
+      "vp_premium_feel",
+      "need_waterproof+style_nordic",
+      "need_photogenic+style_nordic"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "645af4ccd212",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "质手感很好，颜色也很正。缺点是不防水，容易脏需要经常洗。适合拍照出片但不太实用。如果家里有小孩建议选防水款。尺寸方面长桌款偏",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "69cc4c30629f",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "麻桌布做对比测评。这款棉麻材质手感很好，颜色也很正。缺点是不防水，容易脏需要经常洗。适合拍照出片但不太实用。如果家里有小孩建",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "211d290f411b",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "感很好，颜色也很正。缺点是不防水，容易脏需要经常洗。适合拍照出片但不太实用。如果家里有小孩建议选防水款。尺寸方面长桌款偏大，",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "bba1e4778af6",
+        "source_kind": "body",
+        "source_ref": "note_tc_002",
+        "snippet": "经常洗。适合拍照出片但不太实用。如果家里有小孩建议选防水款。尺寸方面长桌款偏大，需要注意量好尺寸再买。价格中等偏贵，但质感值",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.75,
+    "suggested_next_step": [
+      "场景化新品方向：基于场景需求定义产品线",
+      "场景化内容选题：围绕该场景生产种草内容",
+      "场景化视觉模板：为该场景打造专属视觉风格"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_002"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "234 收藏 / 512 赞 / 藏赞比 0.46 — 低收藏属性 — 评论率 7.9% (中等讨论度)",
+    "cross_modal_verdict": "3/3 卖点获双重验证，一致性 1.00（高）",
+    "insight_statement": "拍照 + 经多维验证 → 适合打场景种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划场景种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：拍照",
+    "opportunity_strength_score": 3.3,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "b740fe1bb74a4b00",
+    "title": "卖点主题: 防水, 防油, 好打理 (评论验证 1/6)",
+    "summary": "核心卖点: 防水, 防油, 好打理；已验证: 防水",
+    "opportunity_type": "content",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_tea_table"
+    ],
+    "style_refs": [],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_easy_clean",
+      "need_premium_feel",
+      "need_affordable",
+      "need_affordable_upgrade"
+    ],
+    "risk_refs": [
+      "risk_claim_unverified"
+    ],
+    "visual_pattern_refs": [],
+    "content_pattern_refs": [
+      "content_recommendation",
+      "content_makeover"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_premium_feel",
+      "vp_affordable_upgrade"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "4a9f96429317",
+        "source_kind": "title",
+        "source_ref": "note_tc_003",
+        "snippet": "桌垫选购攻略｜防水防油真的太重要了",
+        "confidence": 0.85
+      },
+      {
+        "evidence_id": "70b1f1180605",
+        "source_kind": "title",
+        "source_ref": "note_tc_003",
+        "snippet": "桌垫选购攻略｜防水防油真的太重要了",
+        "confidence": 0.85
+      },
+      {
+        "evidence_id": "3d429b648618",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "用了好几款桌垫总结的选购经验。防水防油是第一要素，免洗好打理才是王道。PVC和硅胶材质都不错，棉麻好看但真的不实用。推荐",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "25fc304ba0f9",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "C和硅胶材质都不错，棉麻好看但真的不实用。推荐这款防水桌垫，便宜又好用，性价比绝了。茶几桌布也可以用同款，尺寸很全。唯一的坑",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "9a203e2fa75c",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "是第一要素，免洗好打理才是王道。PVC和硅胶材质都不错，棉麻好看但真的不实用。推荐这款防水桌垫，便宜又好用，性价比绝了。茶几",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "4c2f84b7fc84",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "防油是第一要素，免洗好打理才是王道。PVC和硅胶材质都不错，棉麻好看但真的不实用。推荐这款防水桌垫，便宜又好用，性价比绝了。",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "4184b7e32c88",
+        "source_kind": "comment",
+        "source_ref": "note_tc_003:comment_0",
+        "snippet": "亲测好用，防水桌垫比桌布实用多了",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "3040f2ba6ac4",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "打理才是王道。PVC和硅胶材质都不错，棉麻好看但真的不实用。推荐这款防水桌垫，便宜又好用，性价比绝了。茶几桌布也可以用同款，",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.7,
+    "suggested_next_step": [
+      "新品定义：基于已验证卖点制定产品规格",
+      "卖点排序：按评论验证强度排序核心卖点",
+      "内容表达强化：强化已验证卖点的内容表达"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_003"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "445 收藏 / 891 赞 / 藏赞比 0.5 — 中等收藏属性 — 评论率 6.9% (中等讨论度)",
+    "cross_modal_verdict": "2/6 卖点获双重验证，4 项无支撑，一致性 0.50（中）",
+    "insight_statement": "中等藏赞比 + 茶几 + 经多维验证 → 适合打展示型种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划展示型种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：茶几",
+    "opportunity_strength_score": 3.19,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "2966378b2d8c4cb1",
+    "title": "场景机会: 茶几×防水",
+    "summary": "场景: 茶几，目标: 防脏防油, 方便清洁，约束: 预算敏感, 尺寸多样",
+    "opportunity_type": "scene",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_tea_table"
+    ],
+    "style_refs": [],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_easy_clean",
+      "need_premium_feel",
+      "need_affordable",
+      "need_affordable_upgrade"
+    ],
+    "risk_refs": [
+      "risk_claim_unverified"
+    ],
+    "visual_pattern_refs": [],
+    "content_pattern_refs": [
+      "content_recommendation",
+      "content_makeover"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_premium_feel",
+      "vp_affordable_upgrade"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "0037b0d021c8",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "好看但真的不实用。推荐这款防水桌垫，便宜又好用，性价比绝了。茶几桌布也可以用同款，尺寸很全。唯一的坑是色差，实物比图片偏暗。",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "f2f936fec41d",
+        "source_kind": "title",
+        "source_ref": "note_tc_003",
+        "snippet": "桌垫选购攻略｜防水防油真的太重要了",
+        "confidence": 0.8
+      },
+      {
+        "evidence_id": "6895ec0bcc24",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "用了好几款桌垫总结的选购经验。防水防油是第一要素，免洗好打理才是王道。PVC和硅胶材质都不错，棉麻好看但真的不实用。推荐",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "f1c266a3fb10",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "C和硅胶材质都不错，棉麻好看但真的不实用。推荐这款防水桌垫，便宜又好用，性价比绝了。茶几桌布也可以用同款，尺寸很全。唯一的坑",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "bd65936ab2d9",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "C和硅胶材质都不错，棉麻好看但真的不实用。推荐这款防水桌垫，便宜又好用，性价比绝了。茶几桌布也可以用同款，尺寸很全。唯一的坑",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "708758d5609e",
+        "source_kind": "body",
+        "source_ref": "note_tc_003",
+        "snippet": "这款防水桌垫，便宜又好用，性价比绝了。茶几桌布也可以用同款，尺寸很全。唯一的坑是色差，实物比图片偏暗。",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.75,
+    "suggested_next_step": [
+      "场景化新品方向：基于场景需求定义产品线",
+      "场景化内容选题：围绕该场景生产种草内容",
+      "场景化视觉模板：为该场景打造专属视觉风格"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_003"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "445 收藏 / 891 赞 / 藏赞比 0.5 — 中等收藏属性 — 评论率 6.9% (中等讨论度)",
+    "cross_modal_verdict": "2/6 卖点获双重验证，4 项无支撑，一致性 0.50（中）",
+    "insight_statement": "中等藏赞比 + 茶几 + 经多维验证 → 适合打场景种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划场景种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：茶几",
+    "opportunity_strength_score": 3.21,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "dab52041e8e54824",
+    "title": "视觉差异化: 奶油风, 法式风, 复古风 × 餐桌, 拍照",
+    "summary": "笔记展现 奶油风, 法式风, 复古风 视觉风格，构图: 氛围图，差异化: 风格差异化: 复古风, 法式风, 奶油风, 卖点可视化: 防水展示, 出片感展示, 尺寸适配展示",
+    "opportunity_type": "visual",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_dining_table",
+      "scene_photo_backdrop"
+    ],
+    "style_refs": [
+      "style_creamy",
+      "style_french",
+      "style_vintage"
+    ],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_photogenic"
+    ],
+    "risk_refs": [],
+    "visual_pattern_refs": [
+      "visual_soft_light"
+    ],
+    "content_pattern_refs": [
+      "content_makeover"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_photogenic",
+      "need_waterproof+style_creamy",
+      "need_waterproof+style_french",
+      "need_photogenic+style_creamy",
+      "need_photogenic+style_french"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "77347f39a77e",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "花30块改造餐桌！换了一张奶油风防水桌布，整个餐厅氛围感直接拉满。拍照上镜效果超好，法式复古",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "d9ae36505a4c",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "张奶油风防水桌布，整个餐厅氛围感直接拉满。拍照上镜效果超好，法式复古风格太绝了。之前的桌面又旧又丑，现在朋友来都夸好看。桌布",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "8092be03cec9",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "油风防水桌布，整个餐厅氛围感直接拉满。拍照上镜效果超好，法式复古风格太绝了。之前的桌面又旧又丑，现在朋友来都夸好看。桌布尺寸",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "169c9f525977",
+        "source_kind": "title",
+        "source_ref": "note_tc_004",
+        "snippet": "餐桌改造vlog｜换了桌布整个餐厅都不一样了",
+        "confidence": 0.8
+      },
+      {
+        "evidence_id": "f2dbae7e6ec4",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "块改造餐桌！换了一张奶油风防水桌布，整个餐厅氛围感直接拉满。拍照上镜效果超好，法式复古风格太绝了。之前的桌面又旧又丑，现在朋",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "5afc6b3cecda",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "造餐桌！换了一张奶油风防水桌布，整个餐厅氛围感直接拉满。拍照上镜效果超好，法式复古风格太绝了。之前的桌面又旧又丑，现在朋友来",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "8a584257a9cc",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "复古风格太绝了。之前的桌面又旧又丑，现在朋友来都夸好看。桌布尺寸刚好，方桌圆桌都有卖。真的是小成本大改造的典范！",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.75,
+    "suggested_next_step": [
+      "主图优化：提取视觉资产，评估是否可复用到产品主图/详情页",
+      "内容封面改造：基于该视觉风格生成封面模板",
+      "视觉模板沉淀：将差异化视觉模式归档为可复用资产"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_004"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "678 收藏 / 1523 赞 / 藏赞比 0.45 — 低收藏属性 — 评论率 7.6% (中等讨论度)",
+    "cross_modal_verdict": "3/3 卖点获双重验证，一致性 0.83（高）",
+    "insight_statement": "餐桌 + 经多维验证 → 适合打视觉种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划视觉种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：餐桌、拍照",
+    "opportunity_strength_score": 3.26,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "17dacfdd97b34865",
+    "title": "场景机会: 餐桌×奶油风×防水",
+    "summary": "场景: 餐桌, 拍照布景，目标: 改造氛围, 防脏防油，受众: 家居美学，约束: 尺寸多样",
+    "opportunity_type": "scene",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_dining_table",
+      "scene_photo_backdrop"
+    ],
+    "style_refs": [
+      "style_creamy",
+      "style_french",
+      "style_vintage"
+    ],
+    "need_refs": [
+      "need_waterproof",
+      "need_oilproof",
+      "need_photogenic"
+    ],
+    "risk_refs": [],
+    "visual_pattern_refs": [
+      "visual_soft_light"
+    ],
+    "content_pattern_refs": [
+      "content_makeover"
+    ],
+    "value_proposition_refs": [
+      "vp_easy_clean",
+      "vp_photogenic",
+      "need_waterproof+style_creamy",
+      "need_waterproof+style_french",
+      "need_photogenic+style_creamy",
+      "need_photogenic+style_french"
+    ],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "91d3e9e5ec73",
+        "source_kind": "title",
+        "source_ref": "note_tc_004",
+        "snippet": "餐桌改造vlog｜换了桌布整个餐厅都不一样了",
+        "confidence": 0.8
+      },
+      {
+        "evidence_id": "7d652b5e9d34",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "块改造餐桌！换了一张奶油风防水桌布，整个餐厅氛围感直接拉满。拍照上镜效果超好，法式复古风格太绝了。之前的桌面又旧又丑，现在朋",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "19351241174a",
+        "source_kind": "title",
+        "source_ref": "note_tc_004",
+        "snippet": "餐桌改造vlog｜换了桌布整个餐厅都不一样了",
+        "confidence": 0.8
+      },
+      {
+        "evidence_id": "63ea03b75380",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "花30块改造餐桌！换了一张奶油风防水桌布，整个餐厅氛围感直接拉满。拍照上镜效果超好，法式复古风格",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "bc5f5bde6d76",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "造餐桌！换了一张奶油风防水桌布，整个餐厅氛围感直接拉满。拍照上镜效果超好，法式复古风格太绝了。之前的桌面又旧又丑，现在朋友来",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "08e585bd8bc2",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "复古风格太绝了。之前的桌面又旧又丑，现在朋友来都夸好看。桌布尺寸刚好，方桌圆桌都有卖。真的是小成本大改造的典范！",
+        "confidence": 0.7
+      },
+      {
+        "evidence_id": "3c9e68f1114b",
+        "source_kind": "body",
+        "source_ref": "note_tc_004",
+        "snippet": "花30块改造餐桌！换了一张奶油风防水桌布，整个餐厅氛围感直接拉满。拍照上镜效果超好，法式复古风格太绝了。之前的桌面又",
+        "confidence": 0.7
+      }
+    ],
+    "confidence": 0.85,
+    "suggested_next_step": [
+      "场景化新品方向：基于场景需求定义产品线",
+      "场景化内容选题：围绕该场景生产种草内容",
+      "场景化视觉模板：为该场景打造专属视觉风格"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "note_tc_004"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "678 收藏 / 1523 赞 / 藏赞比 0.45 — 低收藏属性 — 评论率 7.6% (中等讨论度)",
+    "cross_modal_verdict": "3/3 卖点获双重验证，一致性 0.83（高）",
+    "insight_statement": "餐桌 + 经多维验证 → 适合打场景种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划场景种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：餐桌、拍照",
+    "opportunity_strength_score": 3.29,
+    "audience": "精致生活",
+    "scene": "餐桌",
+    "pain_point": "踩坑",
+    "desire": "防水、易清洁",
+    "hook": "氛围感，你可能不知道…",
+    "selling_points": [],
+    "content_angle": "桌布 · 推荐",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "tablecloth",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "桌布",
+          "tf": 22,
+          "df": 5,
+          "tf_idf": 22.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "防水",
+          "tf": 15,
+          "df": 5,
+          "tf_idf": 15.0,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "桌垫",
+          "tf": 6,
+          "df": 1,
+          "tf_idf": 12.5917,
+          "category": "alias"
+        },
+        {
+          "keyword": "棉麻",
+          "tf": 8,
+          "df": 3,
+          "tf_idf": 11.2437,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "改造",
+          "tf": 6,
+          "df": 2,
+          "tf_idf": 10.1589,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "推荐",
+          "tf": 5,
+          "df": 2,
+          "tf_idf": 8.4657,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "拍照",
+          "tf": 5,
+          "df": 3,
+          "tf_idf": 7.0273,
+          "category": "scene"
+        },
+        {
+          "keyword": "餐桌",
+          "tf": 4,
+          "df": 2,
+          "tf_idf": 6.7726,
+          "category": "scene"
+        },
+        {
+          "keyword": "北欧",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "style"
+        },
+        {
+          "keyword": "测评",
+          "tf": 3,
+          "df": 1,
+          "tf_idf": 6.2958,
+          "category": "content_pattern"
+        },
+        {
+          "keyword": "pvc",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        },
+        {
+          "keyword": "PVC",
+          "tf": 4,
+          "df": 3,
+          "tf_idf": 5.6219,
+          "category": "product_feature"
+        }
+      ],
+      "note_patterns": [
+        "推荐",
+        "改造",
+        "踩坑",
+        "测评",
+        "对比"
+      ],
+      "comment_signals": [
+        "多少钱"
+      ],
+      "emotion_words": [
+        "氛围感",
+        "出片"
+      ],
+      "scene_words": [
+        "餐桌",
+        "拍照布景",
+        "茶几"
+      ],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [
+        "拍照布景",
+        "餐桌",
+        "茶几"
+      ],
+      "style_refs": [
+        "奶油风",
+        "北欧风",
+        "法式",
+        "复古风"
+      ],
+      "need_refs": [
+        "防水",
+        "易清洁",
+        "出片",
+        "平价",
+        "防油",
+        "高级感"
+      ],
+      "risk_refs": [
+        "色差/实物不符",
+        "色差",
+        "尺寸不合",
+        "翻车"
+      ],
+      "audience_refs": [
+        "精致生活"
+      ],
+      "product_feature_refs": [
+        "防水",
+        "PVC",
+        "易清洁",
+        "棉麻",
+        "防油"
+      ]
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "精致生活",
+        "when": "餐桌",
+        "problem": "踩坑",
+        "desired_outcome": "防水、易清洁",
+        "current_alternative": "改造前后、节日氛围",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "出租屋想低成本变好看",
+        "product_features": [
+          "可裁剪",
+          "防水防油",
+          "奶油风图案"
+        ],
+        "sku_actions": [
+          "上架支持 可裁剪 的 SKU",
+          "上架支持 防水防油 的 SKU",
+          "上架支持 奶油风图案 的 SKU"
+        ],
+        "detail_page_actions": [
+          "改造前后",
+          "氛围实拍",
+          "一天使用状态"
+        ]
+      },
+      {
+        "user_need": "怕塑料感",
+        "product_features": [
+          "棉麻垂感",
+          "磨砂 PVC"
+        ],
+        "sku_actions": [
+          "上架支持 棉麻垂感 的 SKU",
+          "上架支持 磨砂 PVC 的 SKU"
+        ],
+        "detail_page_actions": [
+          "面料特写",
+          "自然光铺桌"
+        ]
+      },
+      {
+        "user_need": "想宝宝用也不怕脏",
+        "product_features": [
+          "防水 PVC",
+          "可擦洗"
+        ],
+        "sku_actions": [
+          "上架支持 防水 PVC 的 SKU",
+          "上架支持 可擦洗 的 SKU"
+        ],
+        "detail_page_actions": [
+          "擦洗过程",
+          "油渍清理"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "桌布 · 推荐",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 改造",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "桌布 · 踩坑",
+        "hooks": [
+          "氛围感，你可能不知道…",
+          "出片，你可能不知道…"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "面料特写",
+          "铺桌后自然光",
+          "清洁过程展示",
+          "空间氛围",
+          "桌面搭配"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.67,
+      "trust_gap": 0.0,
+      "product_fit": 10.0,
+      "execution": 8.0,
+      "competition_gap": 5.0,
+      "total": 7.23
+    },
+    "lens_recommended_action": {
+      "decision": "进入测试",
+      "next_steps": [
+        "生成 3 套内容脚本",
+        "选 3 款 SKU 做真人测评",
+        "桌布 投放 10 篇素人笔记",
+        "回收评论中的顾虑词"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "c964302043e54e9a",
+    "title": "视觉差异化: 日常风, 生活化",
+    "summary": "笔记展现 日常风, 生活化 视觉风格，构图: 功能说明图, 平拍，差异化: 卖点可视化: 尺寸适配展示",
+    "opportunity_type": "visual",
+    "entity_refs": [],
+    "scene_refs": [],
+    "style_refs": [],
+    "need_refs": [],
+    "risk_refs": [
+      "risk_visual_misleading"
+    ],
+    "visual_pattern_refs": [
+      "visual_texture_closeup",
+      "visual_dense_instruction"
+    ],
+    "content_pattern_refs": [],
+    "value_proposition_refs": [],
+    "audience_refs": [],
+    "evidence_refs": [
+      {
+        "evidence_id": "8f048dd7c1b9",
+        "source_kind": "title",
+        "source_ref": "66a21e98000000000500400a",
+        "snippet": "万人催的跟练版假发教程！！！来看！！",
+        "confidence": 0.8
+      },
+      {
+        "evidence_id": "20343425903c",
+        "source_kind": "comment",
+        "source_ref": "66a21e98000000000500400a:comment_4",
+        "snippet": "头围刚好58可以戴吗？[吧唧R]",
+        "confidence": 0.5
+      },
+      {
+        "evidence_id": "a0c1f0fb5144",
+        "source_kind": "image",
+        "source_ref": "66a21e98000000000500400a:vlm",
+        "snippet": "VLM 图片分析结果",
+        "confidence": 0.75
+      }
+    ],
+    "confidence": 0.75,
+    "suggested_next_step": [
+      "主图优化：提取视觉资产，评估是否可复用到产品主图/详情页",
+      "内容封面改造：基于该视觉风格生成封面模板",
+      "视觉模板沉淀：将差异化视觉模式归档为可复用资产"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "66a21e98000000000500400a"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "0 收藏 / 0 赞 / 藏赞比 0.0 — 低收藏属性 — 评论率 100.0% (高互动讨论)",
+    "cross_modal_verdict": "一致性 0.00（低）",
+    "insight_statement": "高讨论 → 适合打视觉种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划视觉种草内容；评论活跃，可挖掘用户真实需求做选题",
+    "opportunity_strength_score": 0.95,
+    "audience": "Coser",
+    "scene": "日常通勤",
+    "pain_point": "自然度",
+    "desire": "仿真头皮",
+    "hook": "一张图讲清楚假发的真实体验",
+    "selling_points": [],
+    "content_angle": "假发 · 改造前后",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "wig",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [
+        {
+          "keyword": "假发",
+          "tf": 11,
+          "df": 1,
+          "tf_idf": 11.0,
+          "category": "alias"
+        },
+        {
+          "keyword": "cos",
+          "tf": 2,
+          "df": 1,
+          "tf_idf": 2.0,
+          "category": "scene"
+        }
+      ],
+      "note_patterns": [],
+      "comment_signals": [
+        "可以戴吗"
+      ],
+      "emotion_words": [],
+      "scene_words": [],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [],
+      "style_refs": [],
+      "need_refs": [],
+      "risk_refs": [],
+      "audience_refs": [
+        "Coser"
+      ],
+      "product_feature_refs": []
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "Coser",
+        "when": "日常通勤",
+        "problem": "自然度",
+        "desired_outcome": "仿真头皮",
+        "current_alternative": "改造前后、新手避坑",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "想要自然到看不出",
+        "product_features": [
+          "仿真头皮",
+          "自然发旋",
+          "低密度发量",
+          "哑光发丝"
+        ],
+        "sku_actions": [
+          "上架支持 仿真头皮 的 SKU",
+          "上架支持 自然发旋 的 SKU",
+          "上架支持 低密度发量 的 SKU"
+        ],
+        "detail_page_actions": [
+          "近距离头顶特写",
+          "自然光正面",
+          "无滤镜侧面"
+        ]
+      },
+      {
+        "user_need": "怕夹子疼、怕不舒服",
+        "product_features": [
+          "防滑夹",
+          "软夹工艺",
+          "透气网帽"
+        ],
+        "sku_actions": [
+          "上架支持 防滑夹 的 SKU",
+          "上架支持 软夹工艺 的 SKU",
+          "上架支持 透气网帽 的 SKU"
+        ],
+        "detail_page_actions": [
+          "夹子细节",
+          "佩戴过程",
+          "通勤一天后状态"
+        ]
+      },
+      {
+        "user_need": "夏天不想闷",
+        "product_features": [
+          "透气网帽",
+          "轻薄透气"
+        ],
+        "sku_actions": [
+          "上架支持 透气网帽 的 SKU",
+          "上架支持 轻薄透气 的 SKU"
+        ],
+        "detail_page_actions": [
+          "网帽内部",
+          "夏天实拍"
+        ]
+      },
+      {
+        "user_need": "新手不会戴",
+        "product_features": [
+          "懒人一片式",
+          "扣合教程卡"
+        ],
+        "sku_actions": [
+          "上架支持 懒人一片式 的 SKU",
+          "上架支持 扣合教程卡 的 SKU"
+        ],
+        "detail_page_actions": [
+          "佩戴步骤",
+          "新手上手视频"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "假发 · 改造前后",
+        "hooks": [
+          "一张图讲清楚假发的真实体验"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "近距离头顶特写",
+          "侧面/低头/拨头发测试",
+          "通勤一天后状态",
+          "同事近距离反应",
+          "佩戴前后对比",
+          "头顶发缝可见状态"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "假发 · 新手避坑",
+        "hooks": [
+          "一张图讲清楚假发的真实体验"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "近距离头顶特写",
+          "侧面/低头/拨头发测试",
+          "通勤一天后状态",
+          "同事近距离反应",
+          "佩戴前后对比",
+          "头顶发缝可见状态"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.0,
+      "trust_gap": 0.0,
+      "product_fit": 0.0,
+      "execution": 0.0,
+      "competition_gap": 5.0,
+      "total": 1.75
+    },
+    "lens_recommended_action": {
+      "decision": "暂缓",
+      "next_steps": [
+        "样本不足或证据薄弱，先暂缓",
+        "补充另一批关键词采集",
+        "观察类目其他爆款模式"
+      ]
+    }
+  },
+  {
+    "opportunity_id": "cd6e652a27a548fa",
+    "title": "视觉差异化: 原木风, 极简 × 餐桌, 书桌",
+    "summary": "笔记展现 原木风, 极简 视觉风格，构图: 俯拍, 局部特写",
+    "opportunity_type": "visual",
+    "entity_refs": [],
+    "scene_refs": [
+      "scene_dining_table",
+      "scene_study_desk"
+    ],
+    "style_refs": [
+      "style_japanese",
+      "style_wood",
+      "style_minimalist"
+    ],
+    "need_refs": [
+      "need_oilproof",
+      "need_premium_feel"
+    ],
+    "risk_refs": [
+      "risk_visual_misleading",
+      "risk_claim_unverified"
+    ],
+    "visual_pattern_refs": [
+      "visual_top_view_table",
+      "visual_texture_closeup"
+    ],
+    "content_pattern_refs": [
+      "content_pitfall"
+    ],
+    "value_proposition_refs": [],
+    "audience_refs": [
+      "audience_renters",
+      "audience_moms",
+      "audience_students"
+    ],
+    "evidence_refs": [
+      {
+        "evidence_id": "96bbf5fe4dda",
+        "source_kind": "image",
+        "source_ref": "69c110ce000000002200ea24:vlm",
+        "snippet": "VLM 图片分析结果",
+        "confidence": 0.75
+      }
+    ],
+    "confidence": 0.75,
+    "suggested_next_step": [
+      "主图优化：提取视觉资产，评估是否可复用到产品主图/详情页",
+      "内容封面改造：基于该视觉风格生成封面模板",
+      "视觉模板沉淀：将差异化视觉模式归档为可复用资产"
+    ],
+    "review_status": "pending",
+    "source_note_ids": [
+      "69c110ce000000002200ea24"
+    ],
+    "review_count": 0,
+    "manual_quality_score_avg": null,
+    "actionable_ratio": null,
+    "evidence_sufficient_ratio": null,
+    "composite_review_score": null,
+    "qualified_opportunity": false,
+    "opportunity_status": "pending_review",
+    "engagement_insight": "4121 收藏 / 9935 赞 / 藏赞比 0.41 — 低收藏属性",
+    "cross_modal_verdict": "0/3 卖点获双重验证，3 项无支撑，一致性 0.00（低）",
+    "insight_statement": "餐桌 + 经多维验证 → 适合打视觉种草内容",
+    "pipeline_run_id": null,
+    "action_recommendation": "高置信度机会，建议优先策划视觉种草内容；评论活跃，可挖掘用户真实需求做选题；场景方向：餐桌、书桌",
+    "opportunity_strength_score": 0.71,
+    "audience": "学龄前宝妈",
+    "scene": "学习写作业",
+    "pain_point": "难擦掉笔迹颜料",
+    "desire": "防水防污",
+    "hook": "一张图讲清楚儿童桌垫的真实体验",
+    "selling_points": [],
+    "content_angle": "儿童桌垫 · 儿童房学习区改造",
+    "format_suggestion": "痛点场景开场（真人实拍）；产品特征近距离证明；信任点对比演示",
+    "why_now": "",
+    "why_worth_doing": "",
+    "supporting_signal_ids": [],
+    "benchmark_refs": [],
+    "card_status": "draft",
+    "lens_id": "children_desk_mat",
+    "lens_version": "1.0.0",
+    "lens_layer1_signals": {
+      "hot_keywords": [],
+      "note_patterns": [],
+      "comment_signals": [],
+      "emotion_words": [],
+      "scene_words": [],
+      "trust_barrier_hits": [],
+      "visual_insight_summary": {
+        "style": [],
+        "scene": [],
+        "composition": [],
+        "people_state": [],
+        "trust_signals": [],
+        "trust_risks": [],
+        "content_formats": [],
+        "product_features": [],
+        "notes": []
+      }
+    },
+    "lens_layer2_ontology": {
+      "scene_refs": [],
+      "style_refs": [],
+      "need_refs": [],
+      "risk_refs": [],
+      "audience_refs": [],
+      "product_feature_refs": []
+    },
+    "lens_layer3_user_jobs": [
+      {
+        "who": "学龄前宝妈",
+        "when": "学习写作业",
+        "problem": "难擦掉笔迹颜料",
+        "desired_outcome": "防水防污",
+        "current_alternative": "儿童房学习区改造、安全测评对比",
+        "frustration": ""
+      }
+    ],
+    "lens_layer4_product_mapping": [
+      {
+        "user_need": "孩子总把桌子画得脏兮兮，想找一块好擦写又没味道的桌垫",
+        "product_features": [
+          "可擦洗表面",
+          "防水防污",
+          "环保无毒"
+        ],
+        "sku_actions": [
+          "上架支持 可擦洗表面 的 SKU",
+          "上架支持 防水防污 的 SKU",
+          "上架支持 环保无毒 的 SKU"
+        ],
+        "detail_page_actions": [
+          "马克笔水彩一擦即净的动图",
+          "平整铺设后近距特写",
+          "检测报告页面"
+        ]
+      },
+      {
+        "user_need": "幼儿园要开始学写字了，怕桌子硬摔到磕到，想要能缓冲的",
+        "product_features": [
+          "加厚缓冲",
+          "防滑底纹",
+          "圆角安全设计"
+        ],
+        "sku_actions": [
+          "上架支持 加厚缓冲 的 SKU",
+          "上架支持 防滑底纹 的 SKU",
+          "上架支持 圆角安全设计 的 SKU"
+        ],
+        "detail_page_actions": [
+          "鸡蛋掉落缓冲对比",
+          "圆角边细节",
+          "防滑吸附展示"
+        ]
+      },
+      {
+        "user_need": "担心网上买的桌垫甲醛超标，纠结很久不敢下单",
+        "product_features": [
+          "环保无毒材质",
+          "无甲醛检测报告",
+          "无味证明"
+        ],
+        "sku_actions": [
+          "上架支持 环保无毒材质 的 SKU",
+          "上架支持 无甲醛检测报告 的 SKU",
+          "上架支持 无味证明 的 SKU"
+        ],
+        "detail_page_actions": [
+          "CMA检测证书特写",
+          "开箱闻味无刺鼻",
+          "孩子安全使用场景"
+        ]
+      }
+    ],
+    "lens_layer5_content_execution": [
+      {
+        "content_angle": "儿童桌垫 · 儿童房学习区改造",
+        "hooks": [
+          "一张图讲清楚儿童桌垫的真实体验"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "权威检测证书特写",
+          "水珠滚落防水展示",
+          "圆珠笔/马克笔一擦即净",
+          "折弯后回弹不变形",
+          "学习灯光下的桌面特写",
+          "孩子写字画画的真实场景"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      },
+      {
+        "content_angle": "儿童桌垫 · 安全测评对比",
+        "hooks": [
+          "一张图讲清楚儿童桌垫的真实体验"
+        ],
+        "script_structure": [
+          "痛点场景开场（真人实拍）",
+          "产品特征近距离证明",
+          "信任点对比演示",
+          "对比结果 / 使用后状态",
+          "号召一句话（链接 or 同款）"
+        ],
+        "required_assets": [
+          "权威检测证书特写",
+          "水珠滚落防水展示",
+          "圆珠笔/马克笔一擦即净",
+          "折弯后回弹不变形",
+          "学习灯光下的桌面特写",
+          "孩子写字画画的真实场景"
+        ],
+        "metrics": [
+          "完播率 / 平均播放时长",
+          "收藏 / 加购率",
+          "评论顾虑词频次",
+          "点击链接率"
+        ]
+      }
+    ],
+    "lens_evidence_score": {
+      "heat": 10.0,
+      "pain": 0.0,
+      "trust_gap": 0.0,
+      "product_fit": 0.0,
+      "execution": 0.0,
+      "competition_gap": 5.0,
+      "total": 1.25
+    },
+    "lens_recommended_action": {
+      "decision": "暂缓",
+      "next_steps": [
+        "样本不足或证据薄弱，先暂缓",
+        "补充另一批关键词采集",
+        "观察类目其他爆款模式"
+      ]
+    }
+  }
+]

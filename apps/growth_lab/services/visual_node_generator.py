@@ -55,6 +55,7 @@ _MODEL_PREFERENCE_MAP: dict[str, tuple[str, str]] = {
     "gemini": ("openrouter", "google/gemini-3.1-flash-image-preview"),
     "seedream": ("openrouter", "bytedance-seed/seedream-4.5"),
     "flux": ("openrouter", "black-forest-labs/flux.2-pro"),
+    "gpt5_image": ("openrouter", "openai/gpt-5.4-image-2"),
 }
 
 

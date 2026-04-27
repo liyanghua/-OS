@@ -1,0 +1,162 @@
+[
+  {
+    "note_id": "65127b140000000022029ca1",
+    "title": "买外搭贵？试试桌布加胸针！只要十几米",
+    "image_count": 1,
+    "comment_count": 15,
+    "visual_signals": {
+      "note_id": "65127b140000000022029ca1",
+      "visual_style_signals": [],
+      "visual_scene_signals": [],
+      "visual_composition_type": [],
+      "visual_color_palette": [],
+      "visual_texture_signals": [],
+      "visual_feature_highlights": [
+        "出片感展示"
+      ],
+      "visual_expression_pattern": [],
+      "visual_misleading_risk": [],
+      "primary_style": null,
+      "secondary_styles": [],
+      "style_confidence": null,
+      "hero_image_pattern": null,
+      "information_density": "low",
+      "missing_feature_visualization": [
+        "尺寸适配展示",
+        "材质纹理展示",
+        "贴合桌面展示",
+        "防水展示",
+        "高级感展示"
+      ],
+      "visual_differentiation_points": [
+        "卖点可视化: 出片感展示"
+      ],
+      "click_differentiation_score": 0.0,
+      "conversion_alignment_score": 0.2,
+      "visual_risk_score": 0.0,
+      "evidence_refs": [
+        {
+          "evidence_id": "35df685839bd",
+          "source_kind": "tag",
+          "source_ref": "65127b140000000022029ca1",
+          "snippet": "好看",
+          "confidence": 0.6
+        }
+      ]
+    },
+    "selling_theme_signals": {
+      "note_id": "65127b140000000022029ca1",
+      "selling_point_signals": [
+        "颜值高"
+      ],
+      "validated_selling_points": [],
+      "selling_point_challenges": [],
+      "selling_theme_refs": [
+        "推荐种草",
+        "对比评测",
+        "氛围升级主题",
+        "场景改造主题"
+      ],
+      "purchase_intent_signals": [],
+      "trust_gap_signals": [],
+      "primary_selling_points": [],
+      "secondary_selling_points": [
+        "颜值高"
+      ],
+      "selling_point_priority": [
+        "颜值高"
+      ],
+      "click_oriented_points": [
+        "颜值高"
+      ],
+      "conversion_oriented_points": [],
+      "productizable_points": [],
+      "content_only_points": [
+        "颜值高"
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "3400922c8102",
+          "source_kind": "tag",
+          "source_ref": "65127b140000000022029ca1",
+          "snippet": "好看",
+          "confidence": 0.6
+        },
+        {
+          "evidence_id": "c5fefebbd5dc",
+          "source_kind": "tag",
+          "source_ref": "65127b140000000022029ca1",
+          "snippet": "安利",
+          "confidence": 0.6
+        },
+        {
+          "evidence_id": "313f530967ca",
+          "source_kind": "body",
+          "source_ref": "65127b140000000022029ca1",
+          "snippet": "鹌鹑的自用配饰分享！都是自己用着比较好滴小东小西 你们平常问的也多我干脆一次性发上来啦。",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "scene_signals": {
+      "note_id": "65127b140000000022029ca1",
+      "scene_signals": [
+        "宝宝家庭"
+      ],
+      "scene_goal_signals": [],
+      "scene_constraints": [
+        "有孩子/宠物"
+      ],
+      "scene_style_value_combos": [
+        "宝宝家庭×颜值高"
+      ],
+      "audience_signals": [],
+      "inferred_scene_signals": [],
+      "inference_confidence": null,
+      "scene_opportunity_hints": [],
+      "evidence_refs": [
+        {
+          "evidence_id": "bcb5d2d827fc",
+          "source_kind": "comment",
+          "source_ref": "65127b140000000022029ca1:comment_2",
+          "snippet": "宝宝你也太会了吧！！！[哭惹R][哭惹R]",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "aee116f8e4c5",
+          "source_kind": "comment",
+          "source_ref": "65127b140000000022029ca1:comment_2",
+          "snippet": "宝宝你也太会了吧！！！[哭惹R][哭惹R]",
+          "confidence": 0.5
+        }
+      ]
+    },
+    "cross_modal_validation": {
+      "note_id": "65127b140000000022029ca1",
+      "selling_claim_visual_support": {
+        "颜值高": true
+      },
+      "selling_claim_comment_validation": {
+        "颜值高": "uncertain"
+      },
+      "scene_alignment": {
+        "scene_宝宝家庭_alignment": "uncertain"
+      },
+      "overall_consistency_score": 0.5,
+      "unsupported_claims": [],
+      "challenged_claims": [],
+      "high_confidence_claims": [
+        "颜值高"
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "901069eadb0c",
+          "source_kind": "image",
+          "source_ref": "65127b140000000022029ca1:visual_support",
+          "snippet": "卖点'颜值高'有视觉支持",
+          "confidence": 0.7
+        }
+      ]
+    }
+  }
+]

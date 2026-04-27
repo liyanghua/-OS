@@ -1,0 +1,328 @@
+{
+  "lens_id": "tablecloth",
+  "lens_version": "1.0.0",
+  "source_note_ids": [
+    "note_tc_001",
+    "note_tc_002",
+    "note_tc_003",
+    "note_tc_004",
+    "note_tc_005"
+  ],
+  "layer1_signals": {
+    "hot_keywords": [
+      {
+        "keyword": "桌布",
+        "tf": 22,
+        "df": 5,
+        "tf_idf": 22.0,
+        "category": "alias"
+      },
+      {
+        "keyword": "防水",
+        "tf": 15,
+        "df": 5,
+        "tf_idf": 15.0,
+        "category": "product_feature"
+      },
+      {
+        "keyword": "桌垫",
+        "tf": 6,
+        "df": 1,
+        "tf_idf": 12.5917,
+        "category": "alias"
+      },
+      {
+        "keyword": "棉麻",
+        "tf": 8,
+        "df": 3,
+        "tf_idf": 11.2437,
+        "category": "product_feature"
+      },
+      {
+        "keyword": "改造",
+        "tf": 6,
+        "df": 2,
+        "tf_idf": 10.1589,
+        "category": "content_pattern"
+      },
+      {
+        "keyword": "推荐",
+        "tf": 5,
+        "df": 2,
+        "tf_idf": 8.4657,
+        "category": "content_pattern"
+      },
+      {
+        "keyword": "拍照",
+        "tf": 5,
+        "df": 3,
+        "tf_idf": 7.0273,
+        "category": "scene"
+      },
+      {
+        "keyword": "餐桌",
+        "tf": 4,
+        "df": 2,
+        "tf_idf": 6.7726,
+        "category": "scene"
+      },
+      {
+        "keyword": "北欧",
+        "tf": 3,
+        "df": 1,
+        "tf_idf": 6.2958,
+        "category": "style"
+      },
+      {
+        "keyword": "测评",
+        "tf": 3,
+        "df": 1,
+        "tf_idf": 6.2958,
+        "category": "content_pattern"
+      },
+      {
+        "keyword": "pvc",
+        "tf": 4,
+        "df": 3,
+        "tf_idf": 5.6219,
+        "category": "product_feature"
+      },
+      {
+        "keyword": "PVC",
+        "tf": 4,
+        "df": 3,
+        "tf_idf": 5.6219,
+        "category": "product_feature"
+      }
+    ],
+    "note_patterns": [
+      "推荐",
+      "改造",
+      "踩坑",
+      "测评",
+      "对比"
+    ],
+    "comment_signals": [
+      "多少钱"
+    ],
+    "emotion_words": [
+      "氛围感",
+      "出片"
+    ],
+    "scene_words": [
+      "餐桌",
+      "拍照布景",
+      "茶几"
+    ],
+    "trust_barrier_hits": [],
+    "visual_insight_summary": {
+      "style": [],
+      "scene": [],
+      "composition": [],
+      "people_state": [],
+      "trust_signals": [],
+      "trust_risks": [],
+      "content_formats": [],
+      "product_features": [],
+      "notes": []
+    }
+  },
+  "layer2_ontology": {
+    "scene_refs": [
+      "拍照布景",
+      "餐桌",
+      "茶几"
+    ],
+    "style_refs": [
+      "奶油风",
+      "北欧风",
+      "法式",
+      "复古风"
+    ],
+    "need_refs": [
+      "防水",
+      "易清洁",
+      "出片",
+      "平价",
+      "防油",
+      "高级感"
+    ],
+    "risk_refs": [
+      "色差/实物不符",
+      "色差",
+      "尺寸不合",
+      "翻车"
+    ],
+    "audience_refs": [
+      "精致生活"
+    ],
+    "product_feature_refs": [
+      "防水",
+      "PVC",
+      "易清洁",
+      "棉麻",
+      "防油"
+    ]
+  },
+  "layer3_user_jobs": [
+    {
+      "who": "精致生活",
+      "when": "餐桌",
+      "problem": "踩坑",
+      "desired_outcome": "防水、易清洁",
+      "current_alternative": "改造前后、节日氛围",
+      "frustration": ""
+    }
+  ],
+  "layer4_product_mapping": [
+    {
+      "user_need": "出租屋想低成本变好看",
+      "product_features": [
+        "可裁剪",
+        "防水防油",
+        "奶油风图案"
+      ],
+      "sku_actions": [
+        "上架支持 可裁剪 的 SKU",
+        "上架支持 防水防油 的 SKU",
+        "上架支持 奶油风图案 的 SKU"
+      ],
+      "detail_page_actions": [
+        "改造前后",
+        "氛围实拍",
+        "一天使用状态"
+      ]
+    },
+    {
+      "user_need": "怕塑料感",
+      "product_features": [
+        "棉麻垂感",
+        "磨砂 PVC"
+      ],
+      "sku_actions": [
+        "上架支持 棉麻垂感 的 SKU",
+        "上架支持 磨砂 PVC 的 SKU"
+      ],
+      "detail_page_actions": [
+        "面料特写",
+        "自然光铺桌"
+      ]
+    },
+    {
+      "user_need": "想宝宝用也不怕脏",
+      "product_features": [
+        "防水 PVC",
+        "可擦洗"
+      ],
+      "sku_actions": [
+        "上架支持 防水 PVC 的 SKU",
+        "上架支持 可擦洗 的 SKU"
+      ],
+      "detail_page_actions": [
+        "擦洗过程",
+        "油渍清理"
+      ]
+    }
+  ],
+  "layer5_content_execution": [
+    {
+      "content_angle": "桌布 · 推荐",
+      "hooks": [
+        "氛围感，你可能不知道…",
+        "出片，你可能不知道…"
+      ],
+      "script_structure": [
+        "痛点场景开场（真人实拍）",
+        "产品特征近距离证明",
+        "信任点对比演示",
+        "对比结果 / 使用后状态",
+        "号召一句话（链接 or 同款）"
+      ],
+      "required_assets": [
+        "面料特写",
+        "铺桌后自然光",
+        "清洁过程展示",
+        "空间氛围",
+        "桌面搭配"
+      ],
+      "metrics": [
+        "完播率 / 平均播放时长",
+        "收藏 / 加购率",
+        "评论顾虑词频次",
+        "点击链接率"
+      ]
+    },
+    {
+      "content_angle": "桌布 · 改造",
+      "hooks": [
+        "氛围感，你可能不知道…",
+        "出片，你可能不知道…"
+      ],
+      "script_structure": [
+        "痛点场景开场（真人实拍）",
+        "产品特征近距离证明",
+        "信任点对比演示",
+        "对比结果 / 使用后状态",
+        "号召一句话（链接 or 同款）"
+      ],
+      "required_assets": [
+        "面料特写",
+        "铺桌后自然光",
+        "清洁过程展示",
+        "空间氛围",
+        "桌面搭配"
+      ],
+      "metrics": [
+        "完播率 / 平均播放时长",
+        "收藏 / 加购率",
+        "评论顾虑词频次",
+        "点击链接率"
+      ]
+    },
+    {
+      "content_angle": "桌布 · 踩坑",
+      "hooks": [
+        "氛围感，你可能不知道…",
+        "出片，你可能不知道…"
+      ],
+      "script_structure": [
+        "痛点场景开场（真人实拍）",
+        "产品特征近距离证明",
+        "信任点对比演示",
+        "对比结果 / 使用后状态",
+        "号召一句话（链接 or 同款）"
+      ],
+      "required_assets": [
+        "面料特写",
+        "铺桌后自然光",
+        "清洁过程展示",
+        "空间氛围",
+        "桌面搭配"
+      ],
+      "metrics": [
+        "完播率 / 平均播放时长",
+        "收藏 / 加购率",
+        "评论顾虑词频次",
+        "点击链接率"
+      ]
+    }
+  ],
+  "evidence_score": {
+    "heat": 10.0,
+    "pain": 0.67,
+    "trust_gap": 0.0,
+    "product_fit": 10.0,
+    "execution": 8.0,
+    "competition_gap": 5.0,
+    "total": 7.23
+  },
+  "recommended_action": {
+    "decision": "进入测试",
+    "next_steps": [
+      "生成 3 套内容脚本",
+      "选 3 款 SKU 做真人测评",
+      "桌布 投放 10 篇素人笔记",
+      "回收评论中的顾虑词"
+    ]
+  }
+}

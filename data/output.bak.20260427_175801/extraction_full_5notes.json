@@ -1,0 +1,1173 @@
+[
+  {
+    "note_id": "65127b140000000022029ca1",
+    "title": "买外搭贵？试试桌布加胸针！只要十几米",
+    "image_count": 1,
+    "comment_count": 15,
+    "visual_signals": {
+      "note_id": "65127b140000000022029ca1",
+      "visual_style_signals": [
+        "洛丽塔风",
+        "复古风",
+        "法式",
+        "ins风"
+      ],
+      "visual_scene_signals": [
+        "拍照布景",
+        "穿搭展示",
+        "室内场景"
+      ],
+      "visual_composition_type": [
+        "拼贴图",
+        "人物全身照",
+        "局部特写"
+      ],
+      "visual_color_palette": [
+        "柔和",
+        "暖白",
+        "高对比",
+        "金色点缀"
+      ],
+      "visual_texture_signals": [
+        "蕾丝质感",
+        "珠饰光泽",
+        "轻纱材质",
+        "精致刺绣"
+      ],
+      "visual_feature_highlights": [
+        "出片感展示",
+        "饰品创意搭配",
+        "桌布变披肩",
+        "出片效果",
+        "性价比展示"
+      ],
+      "visual_expression_pattern": [],
+      "visual_misleading_risk": [
+        "滤镜重",
+        "质感夸大"
+      ],
+      "primary_style": "洛丽塔风",
+      "secondary_styles": [
+        "复古风",
+        "法式",
+        "ins风"
+      ],
+      "style_confidence": null,
+      "hero_image_pattern": "氛围图",
+      "information_density": "low",
+      "missing_feature_visualization": [
+        "尺寸适配展示",
+        "材质纹理展示",
+        "贴合桌面展示",
+        "防水展示",
+        "高级感展示"
+      ],
+      "visual_differentiation_points": [
+        "卖点可视化: 出片感展示"
+      ],
+      "click_differentiation_score": 0.0,
+      "conversion_alignment_score": 0.2,
+      "visual_risk_score": 0.0,
+      "evidence_refs": [
+        {
+          "evidence_id": "c3a7616d2d1e",
+          "source_kind": "tag",
+          "source_ref": "65127b140000000022029ca1",
+          "snippet": "好看",
+          "confidence": 0.6
+        },
+        {
+          "evidence_id": "1fb3c93ac2bb",
+          "source_kind": "image",
+          "source_ref": "65127b140000000022029ca1:vlm",
+          "snippet": "VLM 图片分析结果",
+          "confidence": 0.75
+        }
+      ]
+    },
+    "selling_theme_signals": {
+      "note_id": "65127b140000000022029ca1",
+      "selling_point_signals": [
+        "颜值高"
+      ],
+      "validated_selling_points": [],
+      "selling_point_challenges": [],
+      "selling_theme_refs": [
+        "推荐种草",
+        "对比评测",
+        "氛围升级主题",
+        "场景改造主题"
+      ],
+      "purchase_intent_signals": [],
+      "trust_gap_signals": [],
+      "primary_selling_points": [],
+      "secondary_selling_points": [
+        "颜值高"
+      ],
+      "selling_point_priority": [
+        "颜值高"
+      ],
+      "click_oriented_points": [
+        "颜值高"
+      ],
+      "conversion_oriented_points": [],
+      "productizable_points": [],
+      "content_only_points": [
+        "颜值高"
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "6297fecab4e9",
+          "source_kind": "tag",
+          "source_ref": "65127b140000000022029ca1",
+          "snippet": "好看",
+          "confidence": 0.6
+        },
+        {
+          "evidence_id": "a617c043dad3",
+          "source_kind": "tag",
+          "source_ref": "65127b140000000022029ca1",
+          "snippet": "安利",
+          "confidence": 0.6
+        },
+        {
+          "evidence_id": "13e23e221839",
+          "source_kind": "body",
+          "source_ref": "65127b140000000022029ca1",
+          "snippet": "鹌鹑的自用配饰分享！都是自己用着比较好滴小东小西 你们平常问的也多我干脆一次性发上来啦。",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "scene_signals": {
+      "note_id": "65127b140000000022029ca1",
+      "scene_signals": [
+        "宝宝家庭"
+      ],
+      "scene_goal_signals": [],
+      "scene_constraints": [
+        "有孩子/宠物"
+      ],
+      "scene_style_value_combos": [
+        "宝宝家庭×颜值高",
+        "拍照布景×颜值高"
+      ],
+      "audience_signals": [],
+      "inferred_scene_signals": [
+        "拍照布景"
+      ],
+      "inference_confidence": 0.6,
+      "scene_opportunity_hints": [],
+      "evidence_refs": [
+        {
+          "evidence_id": "62fb5179597d",
+          "source_kind": "comment",
+          "source_ref": "65127b140000000022029ca1:comment_2",
+          "snippet": "宝宝你也太会了吧！！！[哭惹R][哭惹R]",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "988f0c7122b3",
+          "source_kind": "comment",
+          "source_ref": "65127b140000000022029ca1:comment_2",
+          "snippet": "宝宝你也太会了吧！！！[哭惹R][哭惹R]",
+          "confidence": 0.5
+        }
+      ]
+    },
+    "cross_modal_validation": {
+      "note_id": "65127b140000000022029ca1",
+      "selling_claim_visual_support": {
+        "颜值高": true
+      },
+      "selling_claim_comment_validation": {
+        "颜值高": "uncertain"
+      },
+      "scene_alignment": {
+        "scene_宝宝家庭_alignment": "uncertain",
+        "title_scene_matches_visual_scene": false
+      },
+      "overall_consistency_score": 0.33,
+      "unsupported_claims": [],
+      "challenged_claims": [],
+      "high_confidence_claims": [
+        "颜值高"
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "746a5aa4900e",
+          "source_kind": "image",
+          "source_ref": "65127b140000000022029ca1:visual_support",
+          "snippet": "卖点'颜值高'有视觉支持",
+          "confidence": 0.7
+        }
+      ]
+    }
+  },
+  {
+    "note_id": "678c92180000000016019c71",
+    "title": "发现了一个搜桌布的好方法",
+    "image_count": 2,
+    "comment_count": 25,
+    "visual_signals": {
+      "note_id": "678c92180000000016019c71",
+      "visual_style_signals": [
+        "ins风",
+        "可爱风",
+        "日系"
+      ],
+      "visual_scene_signals": [
+        "餐桌场景",
+        "书桌场景",
+        "餐桌",
+        "拍照布景"
+      ],
+      "visual_composition_type": [
+        "俯拍",
+        "局部特写"
+      ],
+      "visual_color_palette": [
+        "柔和",
+        "暖白",
+        "低饱和"
+      ],
+      "visual_texture_signals": [
+        "棉麻质感",
+        "柔软"
+      ],
+      "visual_feature_highlights": [
+        "防水展示",
+        "贴合桌面展示",
+        "出片感展示",
+        "出片效果",
+        "图案细节展示"
+      ],
+      "visual_expression_pattern": [],
+      "visual_misleading_risk": [
+        "滤镜重",
+        "尺寸感不清楚"
+      ],
+      "primary_style": "ins风",
+      "secondary_styles": [
+        "可爱风",
+        "日系"
+      ],
+      "style_confidence": null,
+      "hero_image_pattern": "氛围图",
+      "information_density": "medium",
+      "missing_feature_visualization": [
+        "尺寸适配展示",
+        "材质纹理展示",
+        "高级感展示"
+      ],
+      "visual_differentiation_points": [
+        "卖点可视化: 防水展示, 贴合桌面展示, 出片感展示"
+      ],
+      "click_differentiation_score": 0.0,
+      "conversion_alignment_score": 0.6,
+      "visual_risk_score": 0.0,
+      "evidence_refs": [
+        {
+          "evidence_id": "293e51c30dbe",
+          "source_kind": "comment",
+          "source_ref": "678c92180000000016019c71:comment_3",
+          "snippet": "同样的方法 给家里餐桌买的布料 上面在薄薄垫一张塑料纸 完美解决[萌萌哒R]",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "fe03accaee50",
+          "source_kind": "body",
+          "source_ref": "678c92180000000016019c71",
+          "snippet": "换了新书桌子要买桌布，考虑到在书桌上用要干净，但是又不喜欢纯色觉得太素",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "7684f3bbd087",
+          "source_kind": "comment",
+          "source_ref": "678c92180000000016019c71:comment_10",
+          "snippet": "太薄了容易皱，不喜欢加防水垫的建议别买，还是有厚度的用起来舒服",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "daaa53a56461",
+          "source_kind": "body",
+          "source_ref": "678c92180000000016019c71",
+          "snippet": "合我对桌布的想法：有图案但是不花哨，可爱但是又很干净，并且很平整没有凸起很适合写字，绝了，一眼就是我的本命桌布了！ 又去按D",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "f2601a0b0356",
+          "source_kind": "body",
+          "source_ref": "678c92180000000016019c71",
+          "snippet": "新世界的大门，布料可爱但是又很干净，并且平整，绝了每一块都很好看！附上一眼爱上的桌布图片",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "ff0a21fdfb3a",
+          "source_kind": "image",
+          "source_ref": "678c92180000000016019c71:vlm",
+          "snippet": "VLM 图片分析结果",
+          "confidence": 0.75
+        }
+      ]
+    },
+    "selling_theme_signals": {
+      "note_id": "678c92180000000016019c71",
+      "selling_point_signals": [
+        "颜值高"
+      ],
+      "validated_selling_points": [
+        "颜值高"
+      ],
+      "selling_point_challenges": [],
+      "selling_theme_refs": [
+        "氛围升级主题",
+        "场景改造主题"
+      ],
+      "purchase_intent_signals": [
+        "求链接",
+        "想买"
+      ],
+      "trust_gap_signals": [],
+      "primary_selling_points": [],
+      "secondary_selling_points": [
+        "颜值高"
+      ],
+      "selling_point_priority": [
+        "颜值高"
+      ],
+      "click_oriented_points": [
+        "颜值高"
+      ],
+      "conversion_oriented_points": [],
+      "productizable_points": [],
+      "content_only_points": [
+        "颜值高"
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "c665215d79aa",
+          "source_kind": "body",
+          "source_ref": "678c92180000000016019c71",
+          "snippet": "新世界的大门，布料可爱但是又很干净，并且平整，绝了每一块都很好看！附上一眼爱上的桌布图片",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "158aa5c28578",
+          "source_kind": "comment",
+          "source_ref": "678c92180000000016019c71:comment_1",
+          "snippet": "颜值高",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "b32217c61efa",
+          "source_kind": "comment",
+          "source_ref": "678c92180000000016019c71:comment_0",
+          "snippet": "求链接",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "26d8037d50ee",
+          "source_kind": "comment",
+          "source_ref": "678c92180000000016019c71:comment_1",
+          "snippet": "想买桌布，但是防油的不好看，不防油的容易脏。还想要放好能垂下来的",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "scene_signals": {
+      "note_id": "678c92180000000016019c71",
+      "scene_signals": [
+        "餐桌",
+        "书桌"
+      ],
+      "scene_goal_signals": [
+        "防脏防油"
+      ],
+      "scene_constraints": [],
+      "scene_style_value_combos": [
+        "餐桌×颜值高",
+        "书桌×颜值高",
+        "拍照布景×颜值高"
+      ],
+      "audience_signals": [],
+      "inferred_scene_signals": [
+        "拍照布景"
+      ],
+      "inference_confidence": 0.6,
+      "scene_opportunity_hints": [],
+      "evidence_refs": [
+        {
+          "evidence_id": "f46fdd3a34b6",
+          "source_kind": "comment",
+          "source_ref": "678c92180000000016019c71:comment_3",
+          "snippet": "同样的方法 给家里餐桌买的布料 上面在薄薄垫一张塑料纸 完美解决[萌萌哒R]",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "cd7687bcc3c4",
+          "source_kind": "body",
+          "source_ref": "678c92180000000016019c71",
+          "snippet": "换了新书桌子要买桌布，考虑到在书桌上用要干净，但是又不喜欢纯色觉得太素",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "da0f5c4df9d9",
+          "source_kind": "comment",
+          "source_ref": "678c92180000000016019c71:comment_1",
+          "snippet": "想买桌布，但是防油的不好看，不防油的容易脏。还想要放好能垂下来的一点的",
+          "confidence": 0.5
+        }
+      ]
+    },
+    "cross_modal_validation": {
+      "note_id": "678c92180000000016019c71",
+      "selling_claim_visual_support": {
+        "颜值高": true
+      },
+      "selling_claim_comment_validation": {
+        "颜值高": true
+      },
+      "scene_alignment": {
+        "scene_餐桌_alignment": "partial",
+        "scene_书桌_alignment": "partial",
+        "title_scene_matches_visual_scene": true
+      },
+      "overall_consistency_score": 0.75,
+      "unsupported_claims": [],
+      "challenged_claims": [],
+      "high_confidence_claims": [
+        "颜值高"
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "a452dc4c29f0",
+          "source_kind": "image",
+          "source_ref": "678c92180000000016019c71:visual_support",
+          "snippet": "卖点'颜值高'有视觉支持",
+          "confidence": 0.7
+        }
+      ]
+    }
+  },
+  {
+    "note_id": "5f7e5bfc000000000101cf2f",
+    "title": "🍊桌布合集｜低至6.5｜学生手帐党必备",
+    "image_count": 8,
+    "comment_count": 25,
+    "visual_signals": {
+      "note_id": "5f7e5bfc000000000101cf2f",
+      "visual_style_signals": [
+        "复古风",
+        "奶油风",
+        "ins风",
+        "日系",
+        "原木风"
+      ],
+      "visual_scene_signals": [
+        "书桌场景",
+        "书桌",
+        "宿舍",
+        "拍照布景",
+        "出租屋"
+      ],
+      "visual_composition_type": [
+        "俯拍",
+        "局部特写",
+        "对比图"
+      ],
+      "visual_color_palette": [
+        "低饱和",
+        "暖白",
+        "木色",
+        "柔和"
+      ],
+      "visual_texture_signals": [
+        "棉麻质感",
+        "柔软",
+        "PVC光泽"
+      ],
+      "visual_feature_highlights": [
+        "防水展示",
+        "出片感展示",
+        "尺寸适配展示",
+        "贴合展示",
+        "出片效果"
+      ],
+      "visual_expression_pattern": [],
+      "visual_misleading_risk": [
+        "滤镜重",
+        "尺寸感不清楚"
+      ],
+      "primary_style": "复古风",
+      "secondary_styles": [
+        "奶油风",
+        "ins风",
+        "日系",
+        "原木风"
+      ],
+      "style_confidence": 0.6,
+      "hero_image_pattern": "氛围图",
+      "information_density": "medium",
+      "missing_feature_visualization": [
+        "材质纹理展示",
+        "贴合桌面展示",
+        "高级感展示"
+      ],
+      "visual_differentiation_points": [
+        "风格差异化: 复古风",
+        "卖点可视化: 防水展示, 出片感展示, 尺寸适配展示"
+      ],
+      "click_differentiation_score": 0.3,
+      "conversion_alignment_score": 0.6,
+      "visual_risk_score": 0.0,
+      "evidence_refs": [
+        {
+          "evidence_id": "cda363c6fc72",
+          "source_kind": "comment",
+          "source_ref": "5f7e5bfc000000000101cf2f:comment_2",
+          "snippet": "桌子 当野餐垫也可以都有尺寸有圆的放的 波点款 格子款 还有复古花纹 五元出 [笑哭R][哭惹R]两个我送一个 这些桌布希望",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "a15ebe58608a",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "！量好自己桌子的尺寸再去选择～ 🧩关于材质： 哈哈如果喜欢在书桌上吃东西🍕🍔🍟喝东西最好选择防水防油的桌布，不然普通桌布太容",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "f4aa01825a75",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "🧩关于材质： 哈哈如果喜欢在书桌上吃东西🍕🍔🍟喝东西最好选择防水防油的桌布，不然普通桌布太容易脏了，总得换洗很麻烦，浅色🏻桌",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "416beabfedeb",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "不清楚，可以加一层蕾丝布，感觉就会好一点！朦胧！ 桌布合集｜好看的桌布｜好看的桌布｜格纹桌布｜学习桌布｜手帐拍摄",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "a7f4cfc87436",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "🍁关于尺寸： 桌布尺寸不是一样的，大家记得看好尺寸奥！量好自己桌子的尺",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "2ff940607c87",
+          "source_kind": "image",
+          "source_ref": "5f7e5bfc000000000101cf2f:vlm",
+          "snippet": "VLM 图片分析结果",
+          "confidence": 0.75
+        }
+      ]
+    },
+    "selling_theme_signals": {
+      "note_id": "5f7e5bfc000000000101cf2f",
+      "selling_point_signals": [
+        "防水",
+        "防油",
+        "颜值高",
+        "材质有质感"
+      ],
+      "validated_selling_points": [
+        "防水",
+        "颜值高",
+        "材质有质感"
+      ],
+      "selling_point_challenges": [],
+      "selling_theme_refs": [
+        "清洁便利主题",
+        "氛围升级主题",
+        "场景改造主题",
+        "材质质感主题"
+      ],
+      "purchase_intent_signals": [
+        "想买",
+        "链接"
+      ],
+      "trust_gap_signals": [],
+      "primary_selling_points": [
+        "防水",
+        "防油"
+      ],
+      "secondary_selling_points": [
+        "颜值高",
+        "材质有质感"
+      ],
+      "selling_point_priority": [
+        "防水",
+        "防油",
+        "颜值高",
+        "材质有质感"
+      ],
+      "click_oriented_points": [
+        "颜值高"
+      ],
+      "conversion_oriented_points": [
+        "防水",
+        "防油"
+      ],
+      "productizable_points": [
+        "防水",
+        "防油",
+        "材质有质感"
+      ],
+      "content_only_points": [
+        "颜值高"
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "e5b278de55d1",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "🧩关于材质： 哈哈如果喜欢在书桌上吃东西🍕🍔🍟喝东西最好选择防水防油的桌布，不然普通桌布太容易脏了，总得换洗很麻烦，浅色🏻桌",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "15210b1cc6b0",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "于材质： 哈哈如果喜欢在书桌上吃东西🍕🍔🍟喝东西最好选择防水防油的桌布，不然普通桌布太容易脏了，总得换洗很麻烦，浅色🏻桌布可",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "fd12ba953a82",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "不清楚，可以加一层蕾丝布，感觉就会好一点！朦胧！ 桌布合集｜好看的桌布｜好看的桌布｜格纹桌布｜学习桌布｜手帐拍摄",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "204d6109dac4",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "于颜色： 如果觉得印花款太花了，拍手帐会看不清楚，可以加一层蕾丝布，感觉就会好一点！朦胧！ 桌布合集｜好看的桌布｜好看的桌布",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "fa42ed915d86",
+          "source_kind": "comment",
+          "source_ref": "5f7e5bfc000000000101cf2f:comment_4",
+          "snippet": "我现在想买防水的那种，因为格子的吧，我经常把笔写到桌上，这样的话画的格子上",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "d8d181913713",
+          "source_kind": "comment",
+          "source_ref": "5f7e5bfc000000000101cf2f:comment_4",
+          "snippet": "颜值高",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "185b1f8af2c5",
+          "source_kind": "comment",
+          "source_ref": "5f7e5bfc000000000101cf2f:comment_11",
+          "snippet": "棉麻",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "0fed039bfb57",
+          "source_kind": "comment",
+          "source_ref": "5f7e5bfc000000000101cf2f:comment_4",
+          "snippet": "我现在想买防水的那种，因为格子的吧，我经常把笔写到桌上，这样的话画的格",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "bb57d9877992",
+          "source_kind": "comment",
+          "source_ref": "5f7e5bfc000000000101cf2f:comment_13",
+          "snippet": "求木头增高架的链接[皱眉R]",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "scene_signals": {
+      "note_id": "5f7e5bfc000000000101cf2f",
+      "scene_signals": [
+        "书桌",
+        "拍照布景"
+      ],
+      "scene_goal_signals": [
+        "防脏防油",
+        "平价升级"
+      ],
+      "scene_constraints": [
+        "预算敏感",
+        "尺寸多样",
+        "清洁压力大"
+      ],
+      "scene_style_value_combos": [
+        "书桌×防水",
+        "书桌×防油",
+        "书桌×颜值高",
+        "书桌×材质有质感",
+        "拍照布景×防水",
+        "拍照布景×防油",
+        "拍照布景×颜值高",
+        "拍照布景×材质有质感",
+        "宿舍×防水",
+        "宿舍×防油",
+        "宿舍×颜值高",
+        "宿舍×材质有质感",
+        "出租屋×防水",
+        "出租屋×防油",
+        "出租屋×颜值高",
+        "出租屋×材质有质感"
+      ],
+      "audience_signals": [
+        "宝妈",
+        "学生"
+      ],
+      "inferred_scene_signals": [
+        "宿舍",
+        "出租屋"
+      ],
+      "inference_confidence": 0.7,
+      "scene_opportunity_hints": [],
+      "evidence_refs": [
+        {
+          "evidence_id": "a1739cb813bd",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "！量好自己桌子的尺寸再去选择～ 🧩关于材质： 哈哈如果喜欢在书桌上吃东西🍕🍔🍟喝东西最好选择防水防油的桌布，不然普通桌布太容",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "00fdda6328a5",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "桌布合集｜好看的桌布｜好看的桌布｜格纹桌布｜学习桌布｜手帐拍摄",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "545641536f46",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "于材质： 哈哈如果喜欢在书桌上吃东西🍕🍔🍟喝东西最好选择防水防油的桌布，不然普通桌布太容易脏了，总得换洗很麻烦，浅色🏻桌布可",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "3f6a7e440796",
+          "source_kind": "comment",
+          "source_ref": "5f7e5bfc000000000101cf2f:comment_12",
+          "snippet": "才6.5！！！好便宜啊[偷笑R][偷笑R][偷笑R]总觉得橘子印花那一款在某一款",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "894332f542ee",
+          "source_kind": "comment",
+          "source_ref": "5f7e5bfc000000000101cf2f:comment_12",
+          "snippet": "才6.5！！！好便宜啊[偷笑R][偷笑R][偷笑R]总觉得橘子印花那一款在某一款",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "ca4eec3f8671",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "🍁关于尺寸： 桌布尺寸不是一样的，大家记得看好尺寸奥！量好自己桌子的尺",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "e61d49d56cb7",
+          "source_kind": "body",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "布，不然普通桌布太容易脏了，总得换洗很麻烦，浅色🏻桌布可能会洗不干净（我太懒了） 🌈关于颜色： 如果觉得印花款太花了，拍手帐会看",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "f001ab16f87b",
+          "source_kind": "comment",
+          "source_ref": "5f7e5bfc000000000101cf2f:comment_3",
+          "snippet": "看不懂[捂脸R]！有了这些就好了^ω^表示买不了！[笑哭R]妈妈还沉浸在复古花的桌布中[捂脸R]",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "a9eebeba9f5c",
+          "source_kind": "title",
+          "source_ref": "5f7e5bfc000000000101cf2f",
+          "snippet": "🍊桌布合集｜低至6.5｜学生手帐党必备",
+          "confidence": 0.8
+        }
+      ]
+    },
+    "cross_modal_validation": {
+      "note_id": "5f7e5bfc000000000101cf2f",
+      "selling_claim_visual_support": {
+        "防水": true,
+        "防油": false,
+        "颜值高": true,
+        "材质有质感": false
+      },
+      "selling_claim_comment_validation": {
+        "防水": true,
+        "防油": "uncertain",
+        "颜值高": true,
+        "材质有质感": true
+      },
+      "scene_alignment": {
+        "scene_书桌_alignment": "partial",
+        "scene_拍照布景_alignment": "partial",
+        "title_scene_matches_visual_scene": true
+      },
+      "overall_consistency_score": 0.86,
+      "unsupported_claims": [
+        "防油"
+      ],
+      "challenged_claims": [],
+      "high_confidence_claims": [
+        "防水",
+        "颜值高"
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "769abeea6b82",
+          "source_kind": "image",
+          "source_ref": "5f7e5bfc000000000101cf2f:visual_support",
+          "snippet": "卖点'防水'有视觉支持",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "b123272a644a",
+          "source_kind": "image",
+          "source_ref": "5f7e5bfc000000000101cf2f:visual_gap",
+          "snippet": "卖点'防油'缺乏视觉支持",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "79fc41532171",
+          "source_kind": "image",
+          "source_ref": "5f7e5bfc000000000101cf2f:visual_support",
+          "snippet": "卖点'颜值高'有视觉支持",
+          "confidence": 0.7
+        },
+        {
+          "evidence_id": "75e16946e408",
+          "source_kind": "image",
+          "source_ref": "5f7e5bfc000000000101cf2f:visual_gap",
+          "snippet": "卖点'材质有质感'缺乏视觉支持",
+          "confidence": 0.5
+        }
+      ]
+    }
+  },
+  {
+    "note_id": "69b291f100000000220315d1",
+    "title": "一些基础素材和手帐收纳包&桌布分享",
+    "image_count": 1,
+    "comment_count": 5,
+    "visual_signals": {
+      "note_id": "69b291f100000000220315d1",
+      "visual_style_signals": [
+        "奶油风",
+        "ins风",
+        "日系"
+      ],
+      "visual_scene_signals": [
+        "书桌",
+        "手帐收纳",
+        "拍照布景"
+      ],
+      "visual_composition_type": [
+        "局部特写",
+        "平拍"
+      ],
+      "visual_color_palette": [
+        "柔和",
+        "低饱和",
+        "暖白"
+      ],
+      "visual_texture_signals": [
+        "纸质质感",
+        "柔软"
+      ],
+      "visual_feature_highlights": [
+        "双色设计展示",
+        "出片效果"
+      ],
+      "visual_expression_pattern": [],
+      "visual_misleading_risk": [
+        "滤镜重",
+        "尺寸感不清楚"
+      ],
+      "primary_style": "奶油风",
+      "secondary_styles": [
+        "ins风",
+        "日系"
+      ],
+      "style_confidence": null,
+      "hero_image_pattern": "产品特写",
+      "information_density": "low",
+      "missing_feature_visualization": [
+        "出片感展示",
+        "尺寸适配展示",
+        "材质纹理展示",
+        "贴合桌面展示",
+        "防水展示",
+        "高级感展示"
+      ],
+      "visual_differentiation_points": [],
+      "click_differentiation_score": 0.0,
+      "conversion_alignment_score": 0.0,
+      "visual_risk_score": 0.0,
+      "evidence_refs": [
+        {
+          "evidence_id": "fd7caa735ebc",
+          "source_kind": "image",
+          "source_ref": "69b291f100000000220315d1:vlm",
+          "snippet": "VLM 图片分析结果",
+          "confidence": 0.75
+        }
+      ]
+    },
+    "selling_theme_signals": {
+      "note_id": "69b291f100000000220315d1",
+      "selling_point_signals": [],
+      "validated_selling_points": [],
+      "selling_point_challenges": [],
+      "selling_theme_refs": [],
+      "purchase_intent_signals": [],
+      "trust_gap_signals": [],
+      "primary_selling_points": [],
+      "secondary_selling_points": [],
+      "selling_point_priority": [],
+      "click_oriented_points": [],
+      "conversion_oriented_points": [],
+      "productizable_points": [],
+      "content_only_points": [],
+      "evidence_refs": []
+    },
+    "scene_signals": {
+      "note_id": "69b291f100000000220315d1",
+      "scene_signals": [],
+      "scene_goal_signals": [],
+      "scene_constraints": [],
+      "scene_style_value_combos": [],
+      "audience_signals": [],
+      "inferred_scene_signals": [
+        "书桌",
+        "拍照布景"
+      ],
+      "inference_confidence": 0.7,
+      "scene_opportunity_hints": [],
+      "evidence_refs": []
+    },
+    "cross_modal_validation": {
+      "note_id": "69b291f100000000220315d1",
+      "selling_claim_visual_support": {},
+      "selling_claim_comment_validation": {},
+      "scene_alignment": {},
+      "overall_consistency_score": 0.0,
+      "unsupported_claims": [],
+      "challenged_claims": [],
+      "high_confidence_claims": [],
+      "evidence_refs": []
+    }
+  },
+  {
+    "note_id": "6828440c0000000012003a79",
+    "title": "小桃的桌布分享｜૮₍❀ᴗ͈ . ᴗ͈ ₎ა",
+    "image_count": 1,
+    "comment_count": 15,
+    "visual_signals": {
+      "note_id": "6828440c0000000012003a79",
+      "visual_style_signals": [
+        "奶油风",
+        "ins风",
+        "日系",
+        "可爱风"
+      ],
+      "visual_scene_signals": [
+        "书桌场景",
+        "书桌",
+        "出租屋",
+        "拍照布景",
+        "宿舍"
+      ],
+      "visual_composition_type": [
+        "俯拍",
+        "局部特写",
+        "堆叠展示"
+      ],
+      "visual_color_palette": [
+        "暖色调",
+        "低饱和",
+        "暖白",
+        "粉红",
+        "柔和"
+      ],
+      "visual_texture_signals": [
+        "棉麻质感",
+        "柔软",
+        "蕾丝边"
+      ],
+      "visual_feature_highlights": [
+        "出片感展示",
+        "尺寸适配展示",
+        "出片效果",
+        "贴合展示",
+        "多款叠放"
+      ],
+      "visual_expression_pattern": [],
+      "visual_misleading_risk": [
+        "滤镜重",
+        "尺寸感不清楚"
+      ],
+      "primary_style": "奶油风",
+      "secondary_styles": [
+        "ins风",
+        "日系",
+        "可爱风"
+      ],
+      "style_confidence": null,
+      "hero_image_pattern": "氛围图",
+      "information_density": "low",
+      "missing_feature_visualization": [
+        "材质纹理展示",
+        "贴合桌面展示",
+        "防水展示",
+        "高级感展示"
+      ],
+      "visual_differentiation_points": [
+        "卖点可视化: 出片感展示, 尺寸适配展示"
+      ],
+      "click_differentiation_score": 0.0,
+      "conversion_alignment_score": 0.4,
+      "visual_risk_score": 0.0,
+      "evidence_refs": [
+        {
+          "evidence_id": "2ee07b5bd3ee",
+          "source_kind": "tag",
+          "source_ref": "6828440c0000000012003a79",
+          "snippet": "书桌",
+          "confidence": 0.6
+        },
+        {
+          "evidence_id": "3b626c459412",
+          "source_kind": "comment",
+          "source_ref": "6828440c0000000012003a79:comment_1",
+          "snippet": "最底下棕色的是桌垫吗蹲蹲[吧唧R]",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "32850505c6ff",
+          "source_kind": "comment",
+          "source_ref": "6828440c0000000012003a79:comment_14",
+          "snippet": "都好看耶[两颗心R]",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "95bd8f091fe8",
+          "source_kind": "comment",
+          "source_ref": "6828440c0000000012003a79:comment_3",
+          "snippet": "老师老师 问问桌子是谁家的呀 多大尺寸呀",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "51b8034c7341",
+          "source_kind": "image",
+          "source_ref": "6828440c0000000012003a79:vlm",
+          "snippet": "VLM 图片分析结果",
+          "confidence": 0.75
+        }
+      ]
+    },
+    "selling_theme_signals": {
+      "note_id": "6828440c0000000012003a79",
+      "selling_point_signals": [],
+      "validated_selling_points": [],
+      "selling_point_challenges": [],
+      "selling_theme_refs": [
+        "推荐种草"
+      ],
+      "purchase_intent_signals": [],
+      "trust_gap_signals": [],
+      "primary_selling_points": [],
+      "secondary_selling_points": [],
+      "selling_point_priority": [],
+      "click_oriented_points": [],
+      "conversion_oriented_points": [],
+      "productizable_points": [],
+      "content_only_points": [],
+      "evidence_refs": [
+        {
+          "evidence_id": "782667dcaf7c",
+          "source_kind": "tag",
+          "source_ref": "6828440c0000000012003a79",
+          "snippet": "好物",
+          "confidence": 0.6
+        }
+      ]
+    },
+    "scene_signals": {
+      "note_id": "6828440c0000000012003a79",
+      "scene_signals": [
+        "书桌",
+        "宝宝家庭"
+      ],
+      "scene_goal_signals": [],
+      "scene_constraints": [
+        "尺寸多样",
+        "有孩子/宠物"
+      ],
+      "scene_style_value_combos": [],
+      "audience_signals": [],
+      "inferred_scene_signals": [
+        "出租屋",
+        "拍照布景",
+        "宿舍"
+      ],
+      "inference_confidence": 0.8,
+      "scene_opportunity_hints": [],
+      "evidence_refs": [
+        {
+          "evidence_id": "43af9d37e0c1",
+          "source_kind": "tag",
+          "source_ref": "6828440c0000000012003a79",
+          "snippet": "书桌",
+          "confidence": 0.6
+        },
+        {
+          "evidence_id": "cba56dda694a",
+          "source_kind": "comment",
+          "source_ref": "6828440c0000000012003a79:comment_13",
+          "snippet": "宝宝说话慢吞吞的，特别萌[哭惹R]",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "4fc8c7921d2f",
+          "source_kind": "comment",
+          "source_ref": "6828440c0000000012003a79:comment_3",
+          "snippet": "老师老师 问问桌子是谁家的呀 多大尺寸呀",
+          "confidence": 0.5
+        },
+        {
+          "evidence_id": "73d96ed3c25c",
+          "source_kind": "comment",
+          "source_ref": "6828440c0000000012003a79:comment_13",
+          "snippet": "宝宝说话慢吞吞的，特别萌[哭惹R]",
+          "confidence": 0.5
+        }
+      ]
+    },
+    "cross_modal_validation": {
+      "note_id": "6828440c0000000012003a79",
+      "selling_claim_visual_support": {},
+      "selling_claim_comment_validation": {},
+      "scene_alignment": {
+        "scene_书桌_alignment": "partial",
+        "scene_宝宝家庭_alignment": "uncertain",
+        "title_scene_matches_visual_scene": true
+      },
+      "overall_consistency_score": 0.33,
+      "unsupported_claims": [],
+      "challenged_claims": [],
+      "high_confidence_claims": [],
+      "evidence_refs": []
+    }
+  }
+]

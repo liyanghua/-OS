@@ -1,0 +1,205 @@
+{
+  "lens_id": "wig",
+  "lens_version": "1.0.0",
+  "source_note_ids": [
+    "66a21e98000000000500400a"
+  ],
+  "layer1_signals": {
+    "hot_keywords": [
+      {
+        "keyword": "假发",
+        "tf": 11,
+        "df": 1,
+        "tf_idf": 11.0,
+        "category": "alias"
+      },
+      {
+        "keyword": "cos",
+        "tf": 2,
+        "df": 1,
+        "tf_idf": 2.0,
+        "category": "scene"
+      }
+    ],
+    "note_patterns": [],
+    "comment_signals": [
+      "可以戴吗"
+    ],
+    "emotion_words": [],
+    "scene_words": [],
+    "trust_barrier_hits": [],
+    "visual_insight_summary": {
+      "style": [],
+      "scene": [],
+      "composition": [],
+      "people_state": [],
+      "trust_signals": [],
+      "trust_risks": [],
+      "content_formats": [],
+      "product_features": [],
+      "notes": []
+    }
+  },
+  "layer2_ontology": {
+    "scene_refs": [],
+    "style_refs": [],
+    "need_refs": [],
+    "risk_refs": [],
+    "audience_refs": [
+      "Coser"
+    ],
+    "product_feature_refs": []
+  },
+  "layer3_user_jobs": [
+    {
+      "who": "Coser",
+      "when": "日常通勤",
+      "problem": "自然度",
+      "desired_outcome": "仿真头皮",
+      "current_alternative": "改造前后、新手避坑",
+      "frustration": ""
+    }
+  ],
+  "layer4_product_mapping": [
+    {
+      "user_need": "想要自然到看不出",
+      "product_features": [
+        "仿真头皮",
+        "自然发旋",
+        "低密度发量",
+        "哑光发丝"
+      ],
+      "sku_actions": [
+        "上架支持 仿真头皮 的 SKU",
+        "上架支持 自然发旋 的 SKU",
+        "上架支持 低密度发量 的 SKU"
+      ],
+      "detail_page_actions": [
+        "近距离头顶特写",
+        "自然光正面",
+        "无滤镜侧面"
+      ]
+    },
+    {
+      "user_need": "怕夹子疼、怕不舒服",
+      "product_features": [
+        "防滑夹",
+        "软夹工艺",
+        "透气网帽"
+      ],
+      "sku_actions": [
+        "上架支持 防滑夹 的 SKU",
+        "上架支持 软夹工艺 的 SKU",
+        "上架支持 透气网帽 的 SKU"
+      ],
+      "detail_page_actions": [
+        "夹子细节",
+        "佩戴过程",
+        "通勤一天后状态"
+      ]
+    },
+    {
+      "user_need": "夏天不想闷",
+      "product_features": [
+        "透气网帽",
+        "轻薄透气"
+      ],
+      "sku_actions": [
+        "上架支持 透气网帽 的 SKU",
+        "上架支持 轻薄透气 的 SKU"
+      ],
+      "detail_page_actions": [
+        "网帽内部",
+        "夏天实拍"
+      ]
+    },
+    {
+      "user_need": "新手不会戴",
+      "product_features": [
+        "懒人一片式",
+        "扣合教程卡"
+      ],
+      "sku_actions": [
+        "上架支持 懒人一片式 的 SKU",
+        "上架支持 扣合教程卡 的 SKU"
+      ],
+      "detail_page_actions": [
+        "佩戴步骤",
+        "新手上手视频"
+      ]
+    }
+  ],
+  "layer5_content_execution": [
+    {
+      "content_angle": "假发 · 改造前后",
+      "hooks": [
+        "一张图讲清楚假发的真实体验"
+      ],
+      "script_structure": [
+        "痛点场景开场（真人实拍）",
+        "产品特征近距离证明",
+        "信任点对比演示",
+        "对比结果 / 使用后状态",
+        "号召一句话（链接 or 同款）"
+      ],
+      "required_assets": [
+        "近距离头顶特写",
+        "侧面/低头/拨头发测试",
+        "通勤一天后状态",
+        "同事近距离反应",
+        "佩戴前后对比",
+        "头顶发缝可见状态"
+      ],
+      "metrics": [
+        "完播率 / 平均播放时长",
+        "收藏 / 加购率",
+        "评论顾虑词频次",
+        "点击链接率"
+      ]
+    },
+    {
+      "content_angle": "假发 · 新手避坑",
+      "hooks": [
+        "一张图讲清楚假发的真实体验"
+      ],
+      "script_structure": [
+        "痛点场景开场（真人实拍）",
+        "产品特征近距离证明",
+        "信任点对比演示",
+        "对比结果 / 使用后状态",
+        "号召一句话（链接 or 同款）"
+      ],
+      "required_assets": [
+        "近距离头顶特写",
+        "侧面/低头/拨头发测试",
+        "通勤一天后状态",
+        "同事近距离反应",
+        "佩戴前后对比",
+        "头顶发缝可见状态"
+      ],
+      "metrics": [
+        "完播率 / 平均播放时长",
+        "收藏 / 加购率",
+        "评论顾虑词频次",
+        "点击链接率"
+      ]
+    }
+  ],
+  "evidence_score": {
+    "heat": 10.0,
+    "pain": 0.0,
+    "trust_gap": 0.0,
+    "product_fit": 0.0,
+    "execution": 0.0,
+    "competition_gap": 5.0,
+    "total": 1.75
+  },
+  "recommended_action": {
+    "decision": "暂缓",
+    "next_steps": [
+      "样本不足或证据薄弱，先暂缓",
+      "补充另一批关键词采集",
+      "观察类目其他爆款模式"
+    ]
+  }
+}

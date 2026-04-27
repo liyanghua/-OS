@@ -1,0 +1,85 @@
+{
+  "template_id": "tpl_002_style_anchor",
+  "template_name": "风格定锚型",
+  "template_version": "1.0",
+  "template_goal": "先把风格身份与空间审美讲清楚，支撑选款与收藏",
+  "fit_platform": ["小红书"],
+  "fit_category": ["桌布"],
+  "fit_scenarios": ["法式风餐桌", "奶油风餐厅", "原木风小户型", "中古风居家", "北欧简约桌搭"],
+  "fit_styles": ["法式", "奶油风", "原木", "中古", "北欧", "极简"],
+  "fit_price_band": ["中", "中高"],
+  "core_user_motive": [
+    "想明确自己家是什么风格",
+    "想抄风格搭配作业",
+    "对法式/奶油/中古/北欧等有明确偏好"
+  ],
+  "hook_mechanism": [
+    "封面直接建立风格感与风格词",
+    "桌布与空间餐具花器形成统一风格系统",
+    "让用户完成审美选择题而非只看好看"
+  ],
+  "cover_role": "style_anchor",
+  "image_sequence_pattern": [
+    "cover_hook",
+    "style_expand",
+    "texture_expand",
+    "usage_expand",
+    "guide_expand"
+  ],
+  "visual_rules": {
+    "preferred_shots": ["wide_scene", "angled"],
+    "required_elements": ["tablecloth", "style_consistent_props"],
+    "optional_elements": ["tableware", "flowers", "room_context"],
+    "text_overlay_level": "light",
+    "color_direction": ["cream", "french_vintage", "neutral", "mori"],
+    "lighting_direction": ["natural", "soft"]
+  },
+  "copy_rules": {
+    "title_style": ["风格标签导向", "空间气质导向"],
+    "cover_copy_style": "short",
+    "recommended_phrases": [
+      "法式餐桌真的离不开这种桌布",
+      "奶油风餐桌氛围感，全靠它",
+      "中古风桌搭就该配这种布",
+      "北欧感餐桌，先从桌布开始"
+    ],
+    "avoid_phrases": ["全网最低", "夸张促销", "与风格无关的参数堆砌"]
+  },
+  "scene_rules": {
+    "must_have_scene": true,
+    "scene_types": ["餐厅一角", "完整餐桌", "与家装风格一致的空间"],
+    "avoid_scenes": ["风格混乱道具打架", "仅靠滤镜无真实风格线索"]
+  },
+  "product_visibility_rules": {
+    "tablecloth_visibility_min": 0.3,
+    "must_show_pattern_or_texture": true,
+    "avoid_over_occlusion": true
+  },
+  "risk_rules": [
+    "避免只有风格词没有真实吸引力",
+    "避免风格感主要来自配件而非桌布",
+    "避免过度依赖热词导致内容空心",
+    "避免封面重字破坏平台感"
+  ],
+  "best_for": ["风格属性明确的桌布", "固定花型配色调性商品", "审美选款型内容"],
+  "avoid_when": [
+    "桌布风格属性不明显",
+    "竞争点在价格或功能而非风格",
+    "需要强转化弱种草时"
+  ],
+  "seed_examples": ["xhs_tbl_20240218_m2n4", "xhs_tbl_20240220_p5q6"],
+  "cluster_features": {
+    "dominant_task_labels": ["style_anchor", "scene_seed"],
+    "dominant_visual_labels": ["composition_centered", "has_tableware", "text_style_label"],
+    "dominant_semantic_labels": ["mood_style_identity", "mood_refined_life", "法式", "奶油风", "定锚"]
+  },
+  "evaluation_metrics": {
+    "target_save_like_ratio": 0.32,
+    "target_click_proxy_score": 0.68,
+    "scene_visibility_score_min": 0.58
+  },
+  "derivation_rules": {
+    "can_extend_to": ["title", "detail_page", "short_video_outline"],
+    "prompt_style": "style-label-first"
+  }
+}

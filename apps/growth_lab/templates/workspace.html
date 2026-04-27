@@ -4311,11 +4311,12 @@ async function onboardingConfirmOutputs() {
 // ── 图像模型选择 phase（per plan 统一一个模型） ──────────────────────────
 
 const ONBOARDING_MODEL_OPTIONS = [
-  { id: 'auto',     label: '自动',          sub: '系统兜底：DashScope 优先，OpenRouter 回退' },
-  { id: 'wan25',    label: '万相 wan2.5',   sub: '阿里通义万相，通用电商图稳定' },
-  { id: 'gemini',   label: 'Gemini',        sub: 'Google Gemini Flash Image，理解力强' },
-  { id: 'seedream', label: '豆包 Seedream', sub: '字节 ByteDance Seed，国潮/人像见长' },
-  { id: 'flux',     label: 'Flux 2',        sub: 'Black Forest Labs，质感与细节见长' },
+  { id: 'auto',       label: '自动',          sub: '系统兜底：DashScope 优先，OpenRouter 回退' },
+  { id: 'wan25',      label: '万相 wan2.5',   sub: '阿里通义万相，通用电商图稳定' },
+  { id: 'gemini',     label: 'Gemini',        sub: 'Google Gemini Flash Image，理解力强' },
+  { id: 'seedream',   label: '豆包 Seedream', sub: '字节 ByteDance Seed，国潮/人像见长' },
+  { id: 'flux',       label: 'Flux 2',        sub: 'Black Forest Labs，质感与细节见长' },
+  { id: 'gpt5_image', label: 'GPT-5.4 Image', sub: 'OpenAI 多模态生图，理解力强（独立配额）' },
 ];
 
 async function onboardingStartModelPick(outputTypes) {
@@ -4336,7 +4337,7 @@ function renderModelPickCard() {
   appendAgentMessage({
     role: 'assistant',
     title: '用哪款图像模型？（整 plan 统一使用）',
-    html: `<div>${lines}</div><div style="margin-top:8px; color:var(--muted); font-size:12px;">直接点下面的快捷键，或回复"万相 / Gemini / 豆包 / Flux / 自动"。</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">${chips}</div>`,
+    html: `<div>${lines}</div><div style="margin-top:8px; color:var(--muted); font-size:12px;">直接点下面的快捷键，或回复"万相 / Gemini / 豆包 / Flux / GPT-5.4 / 自动"。</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">${chips}</div>`,
   });
 }
 
@@ -4360,6 +4361,7 @@ function onboardingParseModelReply(text) {
   if (/(gemini|谷歌|google)/i.test(t)) { onboardingPickModel('gemini'); return true; }
   if (/(豆包|seedream|seed\s*dream|doubao|bytedance)/i.test(t)) { onboardingPickModel('seedream'); return true; }
   if (/(flux)/i.test(t)) { onboardingPickModel('flux'); return true; }
+  if (/(gpt[\s\-_.]?5(\.4)?|openai.*image|chatgpt.*image)/i.test(t)) { onboardingPickModel('gpt5_image'); return true; }
   return false;
 }
 

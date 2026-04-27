@@ -1,0 +1,126 @@
+{
+  "updated_at": "2026-04-24T13:59:43.541548+00:00",
+  "alerts": [
+    {
+      "alert_id": "045e31bdd575",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: fe25244dda03",
+      "detail": "Locator.click: Timeout 30000ms exceeded.\nCall log:\nwaiting for locator(\"//*[@id='app']/div[1]/div[2]/div[1]/ul/div[1]/button\")\n",
+      "source": "job:fe25244dda03",
+      "created_at": "2026-04-03T00:23:16.980686+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "2a8c71ea34c9",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: 4002b6134a6c",
+      "detail": "No module named 'tenacity'",
+      "source": "job:4002b6134a6c",
+      "created_at": "2026-04-24T04:51:41.871188+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "b1b6d47102c2",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: 02ea9450a5b1",
+      "detail": "No module named 'tenacity'",
+      "source": "job:02ea9450a5b1",
+      "created_at": "2026-04-24T04:51:41.873701+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "19324622983b",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: 73351e073f35",
+      "detail": "No module named 'tenacity'",
+      "source": "job:73351e073f35",
+      "created_at": "2026-04-24T05:05:33.330463+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "cd2f0e0e4263",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: 73351e073f35",
+      "detail": "No module named 'tenacity'",
+      "source": "job:73351e073f35",
+      "created_at": "2026-04-24T05:05:42.230582+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "a762f207205f",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: afc4a168eeba",
+      "detail": "No module named 'PIL'",
+      "source": "job:afc4a168eeba",
+      "created_at": "2026-04-24T05:21:43.058512+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "32ea48005cf3",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: 0afa0f252859",
+      "detail": "No module named 'PIL'",
+      "source": "job:0afa0f252859",
+      "created_at": "2026-04-24T07:08:16.318811+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "cbf5301c5e4b",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: e7221e688f75",
+      "detail": "MediaCrawler exited with code 1",
+      "source": "job:e7221e688f75",
+      "created_at": "2026-04-24T11:44:08.530387+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "24463491dcbe",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: 5acb992f6fae",
+      "detail": "MediaCrawler exited with code 1",
+      "source": "job:5acb992f6fae",
+      "created_at": "2026-04-24T11:53:42.151260+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "06834beaea67",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: 296dd48ba1e3",
+      "detail": "MediaCrawler exited with code 1",
+      "source": "job:296dd48ba1e3",
+      "created_at": "2026-04-24T12:13:56.862462+00:00",
+      "resolved": false,
+      "resolved_at": null
+    },
+    {
+      "alert_id": "a30620ba282c",
+      "alert_type": "crawl_failure",
+      "severity": "warning",
+      "title": "采集任务失败: 2bcf62181bbe",
+      "detail": "MediaCrawler exited with code 1 (log: /Users/yichen/Desktop/OntologyBrain/Ai- native 经营操作OS/data/logs/crawl_2bcf62181bbe.log)",
+      "source": "job:2bcf62181bbe",
+      "created_at": "2026-04-24T13:59:43.541466+00:00",
+      "resolved": false,
+      "resolved_at": null
+    }
+  ]
+}

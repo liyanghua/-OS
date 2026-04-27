@@ -1,0 +1,26 @@
+{
+  "run_id": "ee219740831d",
+  "started_at": "2026-04-26T03:25:22.900507+00:00",
+  "status": "completed",
+  "platform": "xhs",
+  "keywords": [
+    "儿童桌垫"
+  ],
+  "current_keyword": "儿童桌垫",
+  "current_keyword_index": 0,
+  "total_keywords": 1,
+  "notes_found": 20,
+  "notes_saved": 20,
+  "notes_failed": 0,
+  "comments_saved": 20,
+  "errors": [],
+  "updated_at": "2026-04-26T03:29:34.806280+00:00",
+  "completed_at": "2026-04-26T03:29:34.806256+00:00",
+  "output_dir": "data/xhs/jsonl",
+  "traces_saved": 0,
+  "trace_dir": "",
+  "session_id": "",
+  "extractor_versions": {},
+  "duration_seconds": 251.9,
+  "avg_note_delay_seconds": 12.6
+}
