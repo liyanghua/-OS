@@ -28,6 +28,8 @@ CACHE_DIR="$REPO_ROOT/.install-cache"
 ROOT_DEPS_FINGERPRINT_FILE="$CACHE_DIR/root_deps.sha256"
 TR_DEPS_FINGERPRINT_FILE="$CACHE_DIR/trendradar_deps.sha256"
 MC_DEPS_FINGERPRINT_FILE="$CACHE_DIR/mediacrawler_deps.sha256"
+APT_LOCK_WAIT_SECONDS="${APT_LOCK_WAIT_SECONDS:-300}"
+APT_LOCK_RETRY_SECONDS="${APT_LOCK_RETRY_SECONDS:-5}"
 
 SKIP_APT=0
 SKIP_TRENDRADAR=0
@@ -162,6 +164,78 @@ install_if_fingerprint_changed() {
   return 0
 }
 
+wait_for_apt_lock() {
+  local waited=0
+  local lock_files=(
+    /var/lib/dpkg/lock-frontend
+    /var/lib/dpkg/lock
+    /var/lib/apt/lists/lock
+    /var/cache/apt/archives/lock
+  )
+  while true; do
+    local lock_holders=()
+    local lock_file
+    for lock_file in "${lock_files[@]}"; do
+      if command -v fuser >/dev/null 2>&1; then
+        if fuser "$lock_file" >/dev/null 2>&1; then
+          lock_holders+=("$lock_file")
+        fi
+      elif command -v lsof >/dev/null 2>&1; then
+        if lsof "$lock_file" >/dev/null 2>&1; then
+          lock_holders+=("$lock_file")
+        fi
+      elif [[ -e "$lock_file" ]]; then
+        lock_holders+=("$lock_file")
+      fi
+    done
+
+    if [[ ${#lock_holders[@]} -eq 0 ]]; then
+      return 0
+    fi
+
+    if (( waited == 0 )); then
+      warn "检测到 apt/dpkg 正被其他进程占用，等待锁释放: ${lock_holders[*]}"
+    fi
+    if (( waited >= APT_LOCK_WAIT_SECONDS )); then
+      die "apt/dpkg 锁等待超时 (${APT_LOCK_WAIT_SECONDS}s)。请等待系统自动更新结束后重试，或先检查: ps -fp \$(fuser /var/lib/dpkg/lock-frontend 2>/dev/null)"
+    fi
+
+    sleep "$APT_LOCK_RETRY_SECONDS"
+    waited=$((waited + APT_LOCK_RETRY_SECONDS))
+  done
+}
+
+apt_get() {
+  # 失败后基于 stderr 关键字判定是否被 dpkg 锁占用：是则等锁后重试，否则直接抛错。
+  local attempt=0 max_attempts=5 rc=0 stderr_log
+  stderr_log="$(mktemp -t apt_get_err.XXXXXX)"
+  while (( attempt < max_attempts )); do
+    wait_for_apt_lock
+    rc=0
+    if [[ -n "$SUDO" ]]; then
+      "$SUDO" apt-get -o DPkg::Lock::Timeout="$APT_LOCK_WAIT_SECONDS" "$@" \
+        2> >(tee "$stderr_log" >&2) || rc=$?
+    else
+      apt-get -o DPkg::Lock::Timeout="$APT_LOCK_WAIT_SECONDS" "$@" \
+        2> >(tee "$stderr_log" >&2) || rc=$?
+    fi
+    if (( rc == 0 )); then
+      rm -f "$stderr_log"
+      return 0
+    fi
+    if grep -qE "Could not get lock|Unable to acquire the dpkg frontend lock|dpkg was interrupted" "$stderr_log"; then
+      attempt=$((attempt + 1))
+      warn "apt-get 被 dpkg 锁占用（第 ${attempt}/${max_attempts} 次），${APT_LOCK_RETRY_SECONDS}s 后重试…"
+      sleep "$APT_LOCK_RETRY_SECONDS"
+      continue
+    fi
+    rm -f "$stderr_log"
+    return "$rc"
+  done
+  rm -f "$stderr_log"
+  die "apt-get 多次重试后仍被 dpkg 锁占用。请手动停掉 unattended-upgrades / apt-daily 后再试，例如:\n  sudo systemctl stop unattended-upgrades apt-daily.timer apt-daily-upgrade.timer"
+}
+
 playwright_browser_ready() {
   local cache_root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
   if [[ -x "$cache_root/chromium-1124/chrome-linux/chrome" ]]; then
@@ -203,8 +277,8 @@ apt_install() {
     return
   fi
   log "安装 Ubuntu 基础依赖与 Playwright 运行库"
-  $SUDO apt-get update -y
-  $SUDO apt-get install -y --no-install-recommends "${missing[@]}"
+  apt_get update -y
+  apt_get install -y --no-install-recommends "${missing[@]}"
 }
 
 ensure_python311() {
@@ -213,7 +287,7 @@ ensure_python311() {
     return
   fi
   log "安装 Python 3.11"
-  $SUDO apt-get install -y python3.11 python3.11-venv python3.11-dev
+  apt_get install -y python3.11 python3.11-venv python3.11-dev
 }
 
 ensure_python312() {
@@ -222,11 +296,11 @@ ensure_python312() {
     return
   fi
   log "安装 Python 3.12"
-  if ! $SUDO apt-get install -y python3.12 python3.12-venv python3.12-dev; then
+  if ! apt_get install -y python3.12 python3.12-venv python3.12-dev; then
     warn "Ubuntu 默认源缺少 Python 3.12，尝试 deadsnakes"
     $SUDO add-apt-repository -y ppa:deadsnakes/ppa
-    $SUDO apt-get update -y
-    $SUDO apt-get install -y python3.12 python3.12-venv python3.12-dev || \
+    apt_get update -y
+    apt_get install -y python3.12 python3.12-venv python3.12-dev || \
       die "安装 python3.12 失败，请手动准备后重试"
   fi
 }

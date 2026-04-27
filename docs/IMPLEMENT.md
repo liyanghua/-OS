@@ -13,6 +13,17 @@
   - 列出 P0-P3 改造建议：①`trigger.conditions` 接召回硬过滤；②`must_follow` 透传到 PromptSpec / workflow_json；③`conflict_rules` 入 RulePack 配置；④BM25 + 向量混合召回；⑤MMR 多样性；⑥contextual bandit 反馈；⑦retrieval_trace 可观测性。
 - 落地动作：本次仅落文档，源码改动留待后续按 P0 三项排期。
 
+## Ubuntu 安装脚本 apt 锁等待修复（2026-04-27）
+
+- 背景：客户服务器在 `sudo bash install.sh --bundle data_sets/dataset.tar.gz --bundle-mode safe` 期间，`apt-get update/install` 可能与 Ubuntu 的 unattended-upgrades 或其他 apt 进程撞锁，直接报 `Could not get lock /var/lib/dpkg/lock-frontend` 并中断安装。
+- 改动：
+  - [`install.sh`](../install.sh) 新增 `APT_LOCK_WAIT_SECONDS`（默认 300 秒）与 `APT_LOCK_RETRY_SECONDS`（默认 5 秒）。
+  - 新增 `wait_for_apt_lock()`：检查 `/var/lib/dpkg/lock-frontend`、`/var/lib/dpkg/lock`、`/var/lib/apt/lists/lock`、`/var/cache/apt/archives/lock`，若被占用则等待并打印提示。
+  - 新增统一 `apt_get()` 包装器，所有 `apt-get update/install` 与 Python 3.11/3.12 安装路径统一走它，并额外传 `DPkg::Lock::Timeout`。
+  - 若超时仍未释放，会给出明确排障指令，而不是直接在首个 `apt-get` 处硬失败。
+- 验证：
+  - `apps/intel_hub/tests/test_install_script_cache.py` 新增回归断言，确保安装脚本包含 apt 锁等待 helper，且 `apt_install` / `ensure_python311` / `ensure_python312` 都经过统一重试包装。
+
 ## 策划工作台 AI-native 简化重构（2026-04-26）
 
 ### 痛点

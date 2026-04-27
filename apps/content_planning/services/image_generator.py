@@ -535,13 +535,13 @@ class ImageGeneratorService:
                 http1=True,
                 http2=False,
                 trust_env=False,
-                timeout=_httpx.Timeout(connect=15.0, read=120.0, write=30.0, pool=15.0),
+                timeout=_httpx.Timeout(connect=10.0, read=90.0, write=20.0, pool=10.0),
             )
             client = openai.OpenAI(
                 base_url=self._image_gateway_base_url,
                 api_key=api_key,
-                timeout=120.0,
-                max_retries=1,
+                timeout=90.0,
+                max_retries=0,
                 http_client=_http_client,
             )
 
