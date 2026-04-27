@@ -6,13 +6,14 @@
 # 供客户侧服务器通过 scripts/bootstrap_data.sh 引入，免浏览器采集即可起服务。
 #
 # 默认包含（"全量"档）：
-#   - data/                       全部 sqlite/json/output（sqlite 走 .backup 在线快照）
+#   - data/                       业务 sqlite + output + 资源目录（sqlite 走 .backup 在线快照）
 #   - data/fixtures/              覆盖 fallback 路径
 #   - third_party/MediaCrawler/data/<platform>/jsonl/   MediaCrawler 原始 jsonl
 #   - manifest.json               导出元数据（git commit、行数、文件大小）
 #
 # 默认排除：
 #   - data/sessions/*.session     避免 cookie/登录态外泄
+#   - data/job_queue.json / alerts.json / crawl_status*.json 等运行态文件
 #   - browser_data/, *.log, __pycache__
 #
 # 用法：
@@ -110,11 +111,6 @@ done
 JSON_LIST=(
   "data/opportunity_cards.json"
   "data/pipeline_details.json"
-  "data/alerts.json"
-  "data/job_queue.json"
-  "data/crawl_status.json"
-  "data/crawl_status_xhs.json"
-  "data/pipeline_status_xhs.json"
 )
 for f in "${JSON_LIST[@]}"; do
   if [[ -f "$f" ]]; then
@@ -234,16 +230,16 @@ cat > "$STAGING/manifest.json" <<EOF
   "include_fixtures": $INCLUDE_FIXTURES,
   "total_size_kb": ${TOTAL_SIZE_KB},
   "sqlite_rows": {
-    "intel_hub.sqlite::opportunity_cards": ${ROWS_INTEL},
-    "xhs_review.sqlite::xhs_opportunity_cards": ${ROWS_XHS},
-    "content_plan.sqlite::planning_sessions": ${ROWS_PLAN},
-    "content_plan.sqlite::rule_specs": ${ROWS_RULE},
-    "growth_lab.sqlite::workspace_plans": ${ROWS_GROWTH},
-    "growth_lab.sqlite::visual_strategy_packs": ${ROWS_VS_PACK},
-    "growth_lab.sqlite::strategy_candidates": ${ROWS_CAND},
-    "growth_lab.sqlite::creative_briefs": ${ROWS_BRIEF},
-    "growth_lab.sqlite::note_packs": ${ROWS_NOTE_PACK},
-    "growth_lab.sqlite::visual_feedback_records": ${ROWS_FEEDBACK}
+    "data/intel_hub.sqlite::opportunity_cards": ${ROWS_INTEL},
+    "data/xhs_review.sqlite::xhs_opportunity_cards": ${ROWS_XHS},
+    "data/content_plan.sqlite::planning_sessions": ${ROWS_PLAN},
+    "data/content_plan.sqlite::rule_specs": ${ROWS_RULE},
+    "data/growth_lab.sqlite::workspace_plans": ${ROWS_GROWTH},
+    "data/growth_lab.sqlite::visual_strategy_packs": ${ROWS_VS_PACK},
+    "data/growth_lab.sqlite::strategy_candidates": ${ROWS_CAND},
+    "data/growth_lab.sqlite::creative_briefs": ${ROWS_BRIEF},
+    "data/growth_lab.sqlite::note_packs": ${ROWS_NOTE_PACK},
+    "data/growth_lab.sqlite::visual_feedback_records": ${ROWS_FEEDBACK}
   },
   "json_sizes": {
     "data/output/xhs_opportunities/opportunity_cards.json": ${SIZE_OPC},

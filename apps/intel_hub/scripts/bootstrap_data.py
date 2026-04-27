@@ -85,6 +85,19 @@ def _file_size(path: Path) -> int | str:
         return f"err:{exc}"
 
 
+def _resolve_manifest_db_path(rel: str) -> Path:
+    """兼容两种 manifest key 形式。
+
+    新格式使用 ``data/intel_hub.sqlite::table``；
+    旧格式使用 ``intel_hub.sqlite::table``。这里优先按原值解析，
+    若不存在且未带 ``data/`` 前缀，则自动回退到 ``data/<name>``。
+    """
+    candidate = resolve_repo_path(rel)
+    if candidate.exists() or rel.startswith("data/"):
+        return candidate
+    return resolve_repo_path(f"data/{rel}")
+
+
 def cmd_summary(_args: argparse.Namespace) -> int:
     """打印 sqlite 行数 + JSON 大小汇总，便于人工核验。"""
     print("=== SQLite rows ===")
@@ -197,7 +210,7 @@ def cmd_manifest(args: argparse.Namespace) -> int:
         if "::" not in key:
             continue
         rel, tbl = key.split("::", 1)
-        actual = _row_count(resolve_repo_path(rel), tbl)
+        actual = _row_count(_resolve_manifest_db_path(rel), tbl)
         marker = "OK" if str(actual) == str(exp) else "DIFF"
         if marker == "DIFF":
             diff += 1

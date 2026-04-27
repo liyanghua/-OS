@@ -32,6 +32,7 @@ RESTART_SERVICE=0
 REBUILD=0
 DO_SYNC=1
 DO_VALIDATE=1
+SERVICE_STOPPED=0
 
 # ---------------------------- 日志 -------------------------------------------
 if [[ -t 1 ]]; then
@@ -107,6 +108,16 @@ backup_path() {
 
 ensure_dir() {
   mkdir -p "$1"
+}
+
+runtime_state_paths() {
+  cat <<'EOF'
+data/alerts.json
+data/job_queue.json
+data/crawl_status.json
+data/crawl_status_xhs.json
+data/pipeline_status_xhs.json
+EOF
 }
 
 # ---------------------------- 1. 解包流程（快照） ----------------------------
@@ -240,15 +251,10 @@ import_snapshot() {
     apply_payload "$rel"
   done < <(find "$SRC_ROOT/data" -maxdepth 1 -type f \( -name "*.sqlite" -o -name "*.db" \) 2>/dev/null)
 
-  # 2. 关键 JSON
+  # 2. 关键 JSON（仅业务产物，不导入运行态 queue/status/alerts）
   for rel in \
     data/opportunity_cards.json \
-    data/pipeline_details.json \
-    data/alerts.json \
-    data/job_queue.json \
-    data/crawl_status.json \
-    data/crawl_status_xhs.json \
-    data/pipeline_status_xhs.json
+    data/pipeline_details.json
   do
     apply_payload "$rel"
   done
@@ -274,7 +280,13 @@ import_snapshot() {
     apply_payload "third_party/MediaCrawler/data/${plat}/jsonl"
   done
 
-  # 5. 权限修正
+  # 5. 明确清理运行态文件，避免旧机器告警 / 队列 / 状态复活。
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] || continue
+    rm -f "$INSTALL_DIR/$rel"
+  done < <(runtime_state_paths)
+
+  # 6. 权限修正
   if [[ -n "${SUDO_USER:-}" && $EUID -eq 0 ]]; then
     chown -R "$SUDO_USER":"$(id -gn "$SUDO_USER" 2>/dev/null || echo "$SUDO_USER")" "$INSTALL_DIR/data" 2>/dev/null || true
   fi
@@ -308,14 +320,12 @@ post_import() {
 
   if [[ "$DO_SYNC" -eq 1 ]]; then
     log "sync_cards_from_json -> xhs_review.sqlite"
-    "$PYTHON_BIN" -m apps.intel_hub.scripts.bootstrap_data sync-cards \
-      || warn "sync-cards 失败（可手动重跑）"
+    "$PYTHON_BIN" -m apps.intel_hub.scripts.bootstrap_data sync-cards
   fi
 
   if [[ "$DO_VALIDATE" -eq 1 ]]; then
     log "校验 SQLite 连通性 + 关键表"
-    "$PYTHON_BIN" -m apps.intel_hub.scripts.bootstrap_data validate \
-      || warn "validate 报错，请关注上方输出"
+    "$PYTHON_BIN" -m apps.intel_hub.scripts.bootstrap_data validate
   fi
 
   log "汇总当前数据规模"
@@ -341,9 +351,23 @@ maybe_restart_service() {
     || warn "服务未 active，可查 journalctl -u $SERVICE_NAME -n 200 --no-pager"
 }
 
+stop_service_before_import_if_needed() {
+  [[ "$RESTART_SERVICE" -eq 1 ]] || return 0
+  if ! command -v systemctl >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! $SUDO systemctl list-unit-files 2>/dev/null | grep -q "^${SERVICE_NAME}\.service"; then
+    return 0
+  fi
+  log "导入前停止 systemd 服务: $SERVICE_NAME"
+  $SUDO systemctl stop "$SERVICE_NAME"
+  SERVICE_STOPPED=1
+}
+
 # ---------------------------- 主流程 -----------------------------------------
 main() {
   log "客户侧数据引入：install_dir=$INSTALL_DIR mode=$MODE rebuild=$REBUILD"
+  stop_service_before_import_if_needed
 
   if [[ "$REBUILD" -eq 1 ]]; then
     if [[ -n "$BUNDLE" ]]; then

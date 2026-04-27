@@ -3951,3 +3951,35 @@ image -> image_execution_briefs
 - 本轮不引入 Nginx / Caddy，默认端口直出。
 - 本轮不把根目录 Next.js 原型纳入 Ubuntu 一键部署。
 - `install.sh --doctor` 主要覆盖部署前后环境巡检；真正的 Ubuntu 服务器端到端安装和 systemd 启动仍需在目标机器上执行验证。
+
+## 客户侧数据迁移链路加固（2026-04-27）
+
+围绕 `scripts/export_dataset.sh` / `scripts/bootstrap_data.sh` / `install.sh --bundle`
+补了一轮客户侧首部署硬化，重点修掉“旧运行态复活”和“服务运行中覆盖 sqlite”的风险。
+
+### 关键变更
+
+- `export_dataset.sh`
+  - `manifest.json.sqlite_rows` 改为写 `data/<db>.sqlite::table` 形式，和仓库真实路径对齐。
+  - 默认不再导出 `data/job_queue.json`、`data/alerts.json`、`data/crawl_status*.json`
+    这类运行态文件，避免旧服务器任务队列/告警/采集状态被带到新机器。
+- `bootstrap_data.py`
+  - `manifest` 子命令兼容两种 key：新格式 `data/intel_hub.sqlite::...` 与历史格式
+    `intel_hub.sqlite::...`，方便校验新老 bundle。
+- `bootstrap_data.sh`
+  - `--restart-service` 模式下，导入前会先 `systemctl stop ontology-os`，导入完成后再 restart。
+  - 快照导入时只恢复业务产物，额外显式清理 `job_queue / alerts / crawl_status*`
+    等运行态文件。
+  - `sync-cards` / `validate` 改为严格失败即退出，不再只 warn。
+- `install.sh`
+  - `--bundle` 导入失败会让安装整体失败退出，不再把数据初始化失败伪装成“部署完成”。
+  - `--bundle-mode` 新增参数值校验。
+
+### 验证
+
+- 新增 `apps/intel_hub/tests/test_data_bootstrap.py`
+  - `manifest` 校验兼容新旧 sqlite key
+  - 导入时跳过旧 `alerts/job_queue`
+  - `--restart-service` 先 stop 再 restart
+  - 导出包不再包含运行态 JSON，manifest key 带 `data/` 前缀
+- `python -m pytest apps/intel_hub/tests/test_data_bootstrap.py -q` → 4 passed

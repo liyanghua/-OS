@@ -91,6 +91,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "$DATA_BUNDLE_MODE" in
+  safe|overwrite) ;;
+  *) die "--bundle-mode 仅支持 safe|overwrite，当前: $DATA_BUNDLE_MODE" ;;
+esac
+
 if [[ $EUID -eq 0 ]]; then
   SUDO=""
 else
@@ -478,13 +483,11 @@ import_data_bundle_if_provided() {
   fi
   local bundle_path="$DATA_BUNDLE"
   if [[ ! -f "$bundle_path" ]]; then
-    warn "--bundle 指定的文件不存在，跳过导入: $bundle_path"
-    return 0
+    die "--bundle 指定的文件不存在: $bundle_path"
   fi
   local bootstrap_script="$REPO_ROOT/scripts/bootstrap_data.sh"
   if [[ ! -x "$bootstrap_script" ]]; then
-    warn "缺少 scripts/bootstrap_data.sh，跳过 --bundle 导入"
-    return 0
+    die "缺少 scripts/bootstrap_data.sh，无法执行 --bundle 导入"
   fi
   log "导入数据快照: $bundle_path (mode=$DATA_BUNDLE_MODE)"
   PYTHON_BIN="$APP_VENV/bin/python" \
@@ -493,8 +496,7 @@ import_data_bundle_if_provided() {
       --install-dir "$REPO_ROOT" \
       --mode "$DATA_BUNDLE_MODE" \
       --service "$APP_SERVICE_NAME" \
-      --restart-service \
-    || warn "数据快照导入失败，请人工排查（详见上方 [WARN]/[FAIL] 日志）"
+      --restart-service
 }
 
 summary() {
