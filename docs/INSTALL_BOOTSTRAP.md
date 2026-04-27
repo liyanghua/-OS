@@ -231,6 +231,125 @@ sudo bash install.sh \
 
 没有 key 不会阻断安装，但会影响对应能力。
 
+### 5. LLM key 实际怎么配
+
+服务器上实际编辑的是仓库根目录：
+
+- `/opt/ontology-os/.env`
+
+推荐做法：
+
+```bash
+cd /opt/ontology-os
+sudo nano .env
+```
+
+如果是第一次安装、`install.sh` 已自动生成 `.env` 模板，直接把真实值填进去即可。
+
+一个可直接改的示例如下：
+
+```dotenv
+# ===== 必备 LLM =====
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-xxx
+OPENAI_MODEL=gpt-4o-mini
+
+# ===== 增强 =====
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL=deepseek-chat
+ANTHROPIC_API_KEY=
+
+# ===== 图像 / 视觉 =====
+OPENROUTER_API_KEY=
+OPENROUTER_IMAGE_MODEL=google/gemini-2.5-flash-image
+OPENROUTER_GPT5_IMAGE_KEY=
+DASHSCOPE_API_KEY=
+
+# ===== 部署运行 =====
+INTEL_HUB_RUNTIME_CONFIG=config/runtime.server.yaml
+BROWSER_HEADLESS=true
+INTEL_HUB_HOST=0.0.0.0
+INTEL_HUB_PORT=8000
+```
+
+建议按下面这个优先级理解：
+
+- 只想“装起来 + 导入已有数据 + 看页面”：
+  - 严格来说可以先不填 key
+  - 但所有依赖 LLM / VLM 的链路都会降级或不可用
+- 最小推荐配置：
+  - `OPENAI_BASE_URL`
+  - `OPENAI_API_KEY`
+  - `OPENAI_MODEL`
+- 想要 DeepSeek 作为补充模型：
+  - `DEEPSEEK_API_KEY`
+  - `DEEPSEEK_MODEL`
+- 想要 Anthropic 能力：
+  - `ANTHROPIC_API_KEY`
+- 想要图片 / 视频 / 视觉生成：
+  - `OPENROUTER_API_KEY`
+  - `OPENROUTER_IMAGE_MODEL`
+  - 或 `DASHSCOPE_API_KEY`
+
+### 6. 不同 key 分别影响什么
+
+- `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL`
+  - 主 LLM 链路默认推荐配置
+  - 内容策划、文本生成、部分 AI 工作台能力通常优先依赖这一层
+- `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL`
+  - DeepSeek 路由与补充推理链路
+- `ANTHROPIC_API_KEY`
+  - Anthropic 路由能力
+- `OPENROUTER_API_KEY`
+  - 视频生成、部分图像/视觉能力
+- `OPENROUTER_IMAGE_MODEL`
+  - OpenRouter 图像模型名
+- `OPENROUTER_GPT5_IMAGE_KEY`
+  - 图像链路扩展 key，按当前模板保留
+- `DASHSCOPE_API_KEY`
+  - 视觉分析、部分图像/VLM 能力
+
+更实用地说：
+
+- 你当前这轮“从 bundle 首装并看已有数据”，最关键的是系统和数据先起来；
+- 如果还没准备好 key，不会阻断安装；
+- 但如果你接下来要测内容策划、视觉生成、raw 重建、图像分析，再补 key 会更稳。
+
+### 7. 改完 `.env` 之后要做什么
+
+改完 key 之后，建议执行：
+
+```bash
+cd /opt/ontology-os
+sudo systemctl restart ontology-os
+bash install.sh --doctor
+```
+
+`--doctor` 不会打印敏感值本身，只会显示：
+
+- `SET`
+- `MISSING`
+
+比如你希望看到：
+
+```text
+== LLM Keys ==
+OPENAI_BASE_URL: SET
+OPENAI_API_KEY: SET
+OPENAI_MODEL: SET
+DEEPSEEK_API_KEY: MISSING
+OPENROUTER_API_KEY: MISSING
+DASHSCOPE_API_KEY: MISSING
+```
+
+如果你后面要测试 raw 重建，也建议顺手再执行：
+
+```bash
+sudo journalctl -u ontology-os -n 100 --no-pager
+```
+
+看服务启动后有没有因为 key 缺失出现明显告警。
+
 ---
 
 ## 五、数据初始化有哪几种做法
