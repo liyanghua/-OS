@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -157,3 +158,27 @@ class ServerDeployRuntimeTests(unittest.TestCase):
                     )
 
             mocked_subprocess.assert_not_called()
+
+    def test_mediacrawler_pyproject_uses_pep621_authors_list(self) -> None:
+        pyproject = ROOT / "third_party" / "MediaCrawler" / "pyproject.toml"
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        project = data["project"]
+
+        self.assertNotIn("author", project)
+        self.assertIn("authors", project)
+        self.assertIsInstance(project["authors"], list)
+        self.assertGreaterEqual(len(project["authors"]), 1)
+        self.assertEqual(project["authors"][0]["name"], "程序员阿江-Relakkes")
+
+    def test_mediacrawler_pyproject_declares_setuptools_package_discovery(self) -> None:
+        pyproject = ROOT / "third_party" / "MediaCrawler" / "pyproject.toml"
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+
+        tool_cfg = data.get("tool", {})
+        setuptools_cfg = tool_cfg.get("setuptools", {})
+        find_cfg = setuptools_cfg.get("packages", {}).get("find", {})
+
+        self.assertIn("py-modules", setuptools_cfg)
+        self.assertEqual(setuptools_cfg["py-modules"], [])
+        self.assertEqual(find_cfg.get("where"), ["."])
+        self.assertIn("media_platform", find_cfg.get("include", []))

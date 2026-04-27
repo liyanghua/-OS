@@ -1,6 +1,8 @@
 [project]
 name = "mediacrawler"
-author = "程序员阿江-Relakkes <relakkes@gmail.com>"
+authors = [
+    { name = "程序员阿江-Relakkes", email = "relakkes@gmail.com" },
+]
 version = "0.1.0"
 description = "A social media crawler project, support Xiaohongshu, Weibo, Zhihu, Bilibili, Douyin, BaiduTieBa etc."
 readme = "README.md"
@@ -44,3 +46,35 @@ dependencies = [
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
+
+[tool.setuptools]
+py-modules = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "api",
+    "api.*",
+    "base",
+    "base.*",
+    "cache",
+    "cache.*",
+    "cmd_arg",
+    "cmd_arg.*",
+    "config",
+    "config.*",
+    "constant",
+    "constant.*",
+    "database",
+    "database.*",
+    "media_platform",
+    "media_platform.*",
+    "model",
+    "model.*",
+    "proxy",
+    "proxy.*",
+    "store",
+    "store.*",
+    "tools",
+    "tools.*",
+]

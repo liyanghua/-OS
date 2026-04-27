@@ -3996,3 +3996,36 @@ image -> image_execution_briefs
 
 同时在 `docs/CLIENT_DATA_MIGRATION.md` 与根 `README_PRODUCT.md` 增加入口，避免
 安装手册和数据迁移手册分散、难找。
+
+## MediaCrawler 安装兼容性修复（2026-04-27）
+
+修复 Ubuntu 部署时 `third_party/MediaCrawler` 在
+`pip install -e third_party/MediaCrawler` 阶段被新版 `setuptools` 拒绝的问题。
+
+### 根因
+
+- `pyproject.toml` 使用了非法的 PEP 621 字段：
+  - `project.author = "..."`
+  - 新版 `setuptools` 要求改为 `project.authors = [{...}]`
+- 仓库没有显式声明 `setuptools` 包发现配置；
+  editable build 会把整个 flat-layout 根目录自动扫描成多个顶层包，
+  进而报 `Multiple top-level packages discovered in a flat-layout`
+
+### 处理
+
+- `third_party/MediaCrawler/pyproject.toml`
+  - 把 `author` 改成标准 `authors` 列表
+  - 新增 `[tool.setuptools] py-modules = []`
+  - 新增 `[tool.setuptools.packages.find]`，显式只包含
+    `api/base/cache/cmd_arg/config/constant/database/media_platform/model/proxy/store/tools`
+- `apps/intel_hub/tests/test_server_deploy_runtime.py`
+  - 新增 2 个回归测试：
+    - `MediaCrawler` 必须使用 PEP 621 `authors`
+    - `MediaCrawler` 必须声明 `setuptools` 包发现配置
+
+### 验证
+
+- `PYTHONPATH=. .venv/bin/python -m pytest apps/intel_hub/tests/test_server_deploy_runtime.py -q`
+  → `8 passed, 1 warning`
+- `/tmp/mc-editable-check/bin/pip install --no-build-isolation --no-deps -e third_party/MediaCrawler`
+  → editable wheel 构建与安装成功
