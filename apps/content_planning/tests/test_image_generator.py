@@ -375,6 +375,160 @@ class TestOpenRouterGpt5Image:
         assert "modalities" not in extra_body
 
 
+class TestAutoGpt5Routing:
+    """Case 4d: auto_gpt5（Auto-Strong）路由——纯文生图先打 OpenRouter（GPT-5.4 链首），
+    带参考图直接走 DashScope qwen-image-edit，OpenRouter 全失败时回落 DashScope。"""
+
+    @patch("dashscope.MultiModalConversation.call")
+    @patch("dashscope.ImageSynthesis.async_call")
+    @patch("openai.OpenAI")
+    def test_prompt_only_routes_to_openrouter_with_gpt5_first(
+        self,
+        mock_openai_cls: MagicMock,
+        mock_ds_async: MagicMock,
+        mock_ds_mm_call: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.with_raw_response.create.return_value = _make_openrouter_raw_response()
+
+        svc = _service_with_keys(
+            OPENROUTER_API_KEY="sk-main",
+            OPENROUTER_GPT5_IMAGE_KEY="sk-gpt5",
+        )
+        prompt = ImagePrompt(
+            slot_id="cover",
+            prompt="A warm cozy living room",
+            model="openai/gpt-5.4-image-2",
+        )
+
+        with patch.object(svc, "_extract_multipart_image", return_value=None), \
+             patch.object(svc, "_extract_and_save_image", return_value=tmp_path / "out.png"):
+            result = svc.generate_single(prompt, _TEST_OPP_ID, provider="auto_gpt5")
+
+        assert result.status == "completed"
+        # GPT-5.4 链首：OpenAI client 用独立 key + 注入 modalities
+        client_call = mock_openai_cls.call_args
+        assert client_call.kwargs.get("api_key") == "sk-gpt5"
+        create_call = mock_client.chat.completions.with_raw_response.create.call_args
+        assert create_call.kwargs.get("model") == "openai/gpt-5.4-image-2"
+        assert create_call.kwargs.get("extra_body", {}).get("modalities") == ["image", "text"]
+        # DashScope 完全没碰
+        assert not mock_ds_async.called
+        assert not mock_ds_mm_call.called
+
+    @patch("dashscope.MultiModalConversation.call")
+    @patch("dashscope.ImageSynthesis.async_call")
+    @patch("openai.OpenAI")
+    def test_prompt_only_without_upstream_model_still_lands_gpt5(
+        self,
+        mock_openai_cls: MagicMock,
+        mock_ds_async: MagicMock,
+        mock_ds_mm_call: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """v6 入口下 RichImagePrompt.to_image_prompt() 不传 model，
+        auto_gpt5 分支必须自己兜底把 GPT-5.4 塞到 chain 首位。"""
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.with_raw_response.create.return_value = _make_openrouter_raw_response()
+
+        svc = _service_with_keys(
+            OPENROUTER_API_KEY="sk-main",
+            OPENROUTER_GPT5_IMAGE_KEY="sk-gpt5",
+        )
+        prompt = ImagePrompt(
+            slot_id="cover",
+            prompt="A warm cozy living room",
+            # 故意不传 model，模拟 v6 visual-builder 入口
+        )
+
+        with patch.object(svc, "_extract_multipart_image", return_value=None), \
+             patch.object(svc, "_extract_and_save_image", return_value=tmp_path / "out.png"):
+            result = svc.generate_single(prompt, _TEST_OPP_ID, provider="auto_gpt5")
+
+        assert result.status == "completed"
+        client_call = mock_openai_cls.call_args
+        assert client_call.kwargs.get("api_key") == "sk-gpt5"
+        create_call = mock_client.chat.completions.with_raw_response.create.call_args
+        assert create_call.kwargs.get("model") == "openai/gpt-5.4-image-2"
+        assert create_call.kwargs.get("extra_body", {}).get("modalities") == ["image", "text"]
+        assert not mock_ds_async.called
+        assert not mock_ds_mm_call.called
+
+    @patch("openai.OpenAI")
+    @patch("dashscope.MultiModalConversation.call")
+    def test_with_ref_routes_to_dashscope_qwen_edit(
+        self,
+        mock_mm_call: MagicMock,
+        mock_openai_cls: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        ref = tmp_path / "ref.jpg"
+        ref.write_bytes(b"\xff\xd8\xff" + b"\x00" * 100)
+
+        mock_mm_call.return_value = _make_qwen_image_edit_rsp(200, "https://oss.example.com/result.png")
+
+        svc = _service_with_keys(
+            OPENROUTER_API_KEY="sk-main",
+            OPENROUTER_GPT5_IMAGE_KEY="sk-gpt5",
+        )
+        prompt = ImagePrompt(
+            slot_id="cover",
+            prompt="Edit per instruction",
+            model="openai/gpt-5.4-image-2",
+            ref_image_url=str(ref),
+        )
+
+        with patch.object(svc, "_save_from_url", return_value=tmp_path / "out.png"):
+            result = svc.generate_single(prompt, _TEST_OPP_ID, provider="auto_gpt5")
+
+        assert result.status == "completed"
+        assert result.provider == "dashscope-qwen-image-edit"
+        # 走的是 qwen-image-edit，OpenRouter 完全没碰
+        assert mock_mm_call.called
+        assert mock_mm_call.call_args.kwargs.get("model") == "qwen-image-edit"
+        assert not mock_openai_cls.called
+
+    @patch("openai.OpenAI")
+    @patch("dashscope.ImageSynthesis.fetch")
+    @patch("dashscope.ImageSynthesis.async_call")
+    def test_openrouter_total_failure_falls_back_to_dashscope(
+        self,
+        mock_ds_async: MagicMock,
+        mock_ds_fetch: MagicMock,
+        mock_openai_cls: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        # OpenRouter 全链失败：第一次 create 直接抛错，_generate_openrouter_once 兜成 failed，
+        # 链上其它模型也是普通错误，按设计 break，整体 status != completed → 触发 DashScope 兜底
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.with_raw_response.create.side_effect = RuntimeError("upstream 500")
+
+        mock_ds_async.return_value = _make_dashscope_rsp(200, task_id="t-bail")
+        mock_ds_fetch.return_value = _make_dashscope_fetch_rsp("SUCCEEDED", "https://oss.example.com/wan.png")
+
+        svc = _service_with_keys(
+            OPENROUTER_API_KEY="sk-main",
+            OPENROUTER_GPT5_IMAGE_KEY="sk-gpt5",
+        )
+        prompt = ImagePrompt(
+            slot_id="cover",
+            prompt="A warm cozy living room",
+            model="openai/gpt-5.4-image-2",
+        )
+
+        with patch.object(svc, "_save_from_url", return_value=tmp_path / "out.png"):
+            result = svc.generate_single(prompt, _TEST_OPP_ID, provider="auto_gpt5")
+
+        assert result.status == "completed"
+        assert result.provider == "dashscope"
+        assert mock_openai_cls.called
+        assert mock_ds_async.called
+
+
 class TestAutoFallback:
     """Case 5: auto 模式 fallback 链——DashScope 失败后 fallback 到 OpenRouter"""
 

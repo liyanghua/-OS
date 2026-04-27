@@ -49,8 +49,11 @@ def _size_for_node(aspect_ratio: str) -> str:
 
 # 用户在 onboarding 里选的"模型偏好"到 (provider_hint, model_id) 的映射
 # auto 保持"provider=auto + 空 model"，保留现有 DashScope 优先、OpenRouter 回退行为
+# auto_gpt5 = "Auto-Strong"：纯文生图首选 GPT-5.4 → OpenRouter 主链 → DashScope 兜底；
+#             带参考图自动走 qwen-image-edit（GPT-5.4 不支持图生图）
 _MODEL_PREFERENCE_MAP: dict[str, tuple[str, str]] = {
     "auto": ("auto", ""),
+    "auto_gpt5": ("auto_gpt5", "openai/gpt-5.4-image-2"),
     "wan25": ("dashscope", "wan2.5-t2i-preview"),
     "gemini": ("openrouter", "google/gemini-3.1-flash-image-preview"),
     "seedream": ("openrouter", "bytedance-seed/seedream-4.5"),

@@ -169,6 +169,7 @@
         <option value="dashscope" selected>通义万相</option>
         <option value="openrouter">Gemini Nano</option>
         <option value="auto">自动选择</option>
+        <option value="auto_gpt5">GPT-5.4 优先 (Auto-Strong)</option>
       </select>
       <button class="vb-btn" id="vb-btn-gen-images" style="display:none;">生成配图</button>
     </div>
@@ -823,12 +824,35 @@
     .catch(function(e) { showError('加载 prompt 失败: ' + e.message); });
   });
 
+  // 选 auto_gpt5（GPT-5.4 优先档）时自动切到「纯提示词」并锁住 mode 下拉，
+  // 因为 GPT-5.4 不支持图生图；切回其它 provider 解锁。
+  (function bindAutoGpt5ModeLock() {
+    var pSel = document.getElementById('vb-sel-provider');
+    var mSel = document.getElementById('vb-sel-mode');
+    var statusEl = document.getElementById('vb-image-status');
+    if (!pSel || !mSel) return;
+    function sync() {
+      if (pSel.value === 'auto_gpt5') {
+        mSel.value = 'prompt_only';
+        mSel.disabled = true;
+        if (statusEl && !statusEl.textContent) {
+          statusEl.textContent = 'GPT-5.4 不支持图生图，已自动锁定为纯提示词模式';
+        }
+      } else {
+        mSel.disabled = false;
+      }
+    }
+    pSel.addEventListener('change', sync);
+    sync();
+  })();
+
   // 确认生成
   document.getElementById('vb-btn-confirm-gen').addEventListener('click', function() {
     var btn = this;
     btn.disabled = true;
     var provider = document.getElementById('vb-sel-provider').value;
     var mode = document.getElementById('vb-sel-mode').value;
+    if (provider === 'auto_gpt5') { mode = 'prompt_only'; }
     var edited = collectPrompts();
 
     var statusEl = document.getElementById('vb-image-status');

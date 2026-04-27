@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
@@ -288,6 +289,16 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         nonlocal worker_task
+        try:
+            from apps.growth_lab.storage.growth_lab_store import GrowthLabStore as _GLStore
+            stats = _GLStore().recover_orphan_inflight_state()
+            if stats["variants"] or stats["nodes"]:
+                logging.getLogger("growth_lab").warning(
+                    "[startup-recover] 已修复中断的生图状态: variants=%d nodes=%d",
+                    stats["variants"], stats["nodes"],
+                )
+        except Exception:
+            logging.getLogger("growth_lab").exception("[startup-recover] 中断恢复失败（忽略）")
         if embedded_worker_enabled:
             if job_queue.pending_count() > 0:
                 worker_wakeup.set()

@@ -522,6 +522,68 @@ class GrowthLabStore:
             limit=200,
         )
 
+    def recover_orphan_inflight_state(self) -> dict[str, int]:
+        """启动时调用：把上次进程被中断时遗留的 in-flight 状态清理回可重试。
+
+        触发场景：用户在 ``/growth-lab/workspace`` 提交生图，``VariantBatchQueue``
+        把任务下发给线程池后，进程被 ``--reload`` 或 ``systemctl restart`` 中断 →
+        SQLite 里 variant 永远停在 ``pending``、node 停在 ``generating``，前端
+        ``pollBatch`` 拿到 404 后静默退出，用户只看到"一直 pending"。
+
+        本函数：
+        - 把 ``status='pending'`` 且无 ``asset_url`` 的 variant 改为 ``failed``，
+          并在 payload 内打 ``error='中断恢复，请重新生成'`` 与 ``recovered_at`` 时间戳；
+        - 把所有 variant 都已结束（不再有 pending）的 ``generating`` 节点回到 ``draft``。
+
+        返回 ``{"variants": <int>, "nodes": <int>}`` 用于启动日志。
+        """
+        import time
+        ts = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        v_count = 0
+        n_count = 0
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT variant_id, payload_json FROM workspace_variants "
+                "WHERE status='pending' AND (asset_url IS NULL OR asset_url='')"
+            ).fetchall()
+            for r in rows:
+                try:
+                    p = json.loads(r["payload_json"] or "{}")
+                except Exception:
+                    p = {}
+                p["status"] = "failed"
+                p["error"] = "中断恢复，请重新生成"
+                p["recovered_at"] = ts
+                conn.execute(
+                    "UPDATE workspace_variants SET status='failed', payload_json=? WHERE variant_id=?",
+                    (json.dumps(p, ensure_ascii=False), r["variant_id"]),
+                )
+                v_count += 1
+
+            stuck_nodes = conn.execute(
+                "SELECT node_id, payload_json FROM workspace_nodes WHERE status='generating'"
+            ).fetchall()
+            for r in stuck_nodes:
+                pending_left = conn.execute(
+                    "SELECT COUNT(*) FROM workspace_variants WHERE node_id=? AND status='pending'",
+                    (r["node_id"],),
+                ).fetchone()[0]
+                if pending_left:
+                    continue
+                try:
+                    p = json.loads(r["payload_json"] or "{}")
+                except Exception:
+                    p = {}
+                p["status"] = "draft"
+                p["recovered_at"] = ts
+                conn.execute(
+                    "UPDATE workspace_nodes SET status='draft', payload_json=? WHERE node_id=?",
+                    (json.dumps(p, ensure_ascii=False), r["node_id"]),
+                )
+                n_count += 1
+        return {"variants": v_count, "nodes": n_count}
+
     def delete_workspace_plan_cascade(self, plan_id: str) -> None:
         """删除计划及其所有 frame / node / variant / session_events。"""
         with self._connect() as conn:

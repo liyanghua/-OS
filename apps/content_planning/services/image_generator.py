@@ -304,6 +304,49 @@ class ImageGeneratorService:
             return ImageResult(slot_id=prompt.slot_id, status="failed",
                                error="通义万相不可用（缺少 DASHSCOPE_API_KEY）")
 
+        # auto_gpt5 模式（Auto-Strong）：纯文生图首选 OpenRouter GPT-5.4 → 主链兜底；
+        # 全链失败再回落 DashScope；带参考图直接走 qwen-image-edit（GPT-5.4 无图生图能力）。
+        # 兜底策略：若上游未指定 prompt.model（v6 入口 RichImagePrompt.to_image_prompt 不带 model），
+        # 这里强制塞 GPT-5.4，确保它一定落在 OpenRouter chain 首位。
+        if provider == "auto_gpt5":
+            has_ref = bool(self._normalize_ref_image_url(prompt.ref_image_url))
+            if not has_ref and self._is_openrouter_available():
+                or_prompt = prompt if prompt.model else prompt.model_copy(
+                    update={"model": "openai/gpt-5.4-image-2"},
+                )
+                result = self._generate_openrouter(or_prompt, opportunity_id, on_progress)
+                if result.status == "completed":
+                    return result
+                logger.warning(
+                    "auto_gpt5 OpenRouter chain failed for slot=%s: %s, fallback to DashScope",
+                    prompt.slot_id, result.error,
+                )
+                if self._is_dashscope_available():
+                    return self._generate_dashscope(prompt, opportunity_id, on_progress)
+                return result
+            if self._is_dashscope_available():
+                # 带 ref 走 qwen-image-edit：把可能误传的 GPT-5.4 model 清掉，避免 DashScope 拿到不认识的 model id
+                ds_prompt = prompt if not prompt.model.startswith("openai/") else prompt.model_copy(
+                    update={"model": ""},
+                )
+                result = self._generate_dashscope(ds_prompt, opportunity_id, on_progress)
+                if result.status == "completed":
+                    return result
+                logger.warning(
+                    "auto_gpt5 ref-image branch DashScope failed for slot=%s: %s, fallback to OpenRouter",
+                    prompt.slot_id, result.error,
+                )
+                if self._is_openrouter_available():
+                    return self._generate_openrouter(prompt, opportunity_id, on_progress)
+                return result
+            if self._is_openrouter_available():
+                or_prompt = prompt if prompt.model else prompt.model_copy(
+                    update={"model": "openai/gpt-5.4-image-2"},
+                )
+                return self._generate_openrouter(or_prompt, opportunity_id, on_progress)
+            return ImageResult(slot_id=prompt.slot_id, status="failed",
+                               error="auto_gpt5: OpenRouter 与 DashScope 均不可用")
+
         # auto 模式：DashScope 优先（更稳定），OpenRouter 备用
         if self._is_dashscope_available():
             result = self._generate_dashscope(prompt, opportunity_id, on_progress)
@@ -487,10 +530,19 @@ class ImageGeneratorService:
                     error=f"{self._image_gateway_label()}: 缺少 API key（model={model_name}, expected={key_kind}）",
                     elapsed_ms=elapsed, provider=self._image_gateway_provider(),
                 )
+            import httpx as _httpx
+            _http_client = _httpx.Client(
+                http1=True,
+                http2=False,
+                trust_env=False,
+                timeout=_httpx.Timeout(connect=15.0, read=120.0, write=30.0, pool=15.0),
+            )
             client = openai.OpenAI(
                 base_url=self._image_gateway_base_url,
                 api_key=api_key,
-                timeout=60.0,
+                timeout=120.0,
+                max_retries=1,
+                http_client=_http_client,
             )
 
             safe_prompt = self._sanitize_prompt_for_openrouter(prompt.prompt)

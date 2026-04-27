@@ -2700,7 +2700,15 @@ function pollBatch(batchId) {
   const t = setInterval(async () => {
     try {
       const r = await fetch(`/growth-lab/api/workspace/batch/${batchId}/status`);
-      if (!r.ok) { clearInterval(t); state.pollTimers.delete(t); return; }
+      if (!r.ok) {
+        clearInterval(t); state.pollTimers.delete(t);
+        if (r.status === 404) {
+          toast('生图任务已失效（可能是服务器重启），正在同步最新状态...');
+          if (state.planId) await loadPlan(state.planId);
+          setBottomStatus('就绪');
+        }
+        return;
+      }
       const data = await r.json();
       setBottomStatus(`生成 ${data.done}/${data.total} ${data.progress_pct || 0}%`);
       if (data.status === 'done' || data.status === 'partial' || data.status === 'failed') {
@@ -4311,12 +4319,13 @@ async function onboardingConfirmOutputs() {
 // ── 图像模型选择 phase（per plan 统一一个模型） ──────────────────────────
 
 const ONBOARDING_MODEL_OPTIONS = [
-  { id: 'auto',       label: '自动',          sub: '系统兜底：DashScope 优先，OpenRouter 回退' },
-  { id: 'wan25',      label: '万相 wan2.5',   sub: '阿里通义万相，通用电商图稳定' },
-  { id: 'gemini',     label: 'Gemini',        sub: 'Google Gemini Flash Image，理解力强' },
-  { id: 'seedream',   label: '豆包 Seedream', sub: '字节 ByteDance Seed，国潮/人像见长' },
-  { id: 'flux',       label: 'Flux 2',        sub: 'Black Forest Labs，质感与细节见长' },
-  { id: 'gpt5_image', label: 'GPT-5.4 Image', sub: 'OpenAI 多模态生图，理解力强（独立配额）' },
+  { id: 'auto',       label: '自动',                  sub: '系统兜底：DashScope 优先，OpenRouter 回退' },
+  { id: 'auto_gpt5',  label: '自动·强力 (Auto-Strong)', sub: '纯文生图首选 GPT-5.4，失败回落 OpenRouter 主链，最后兜底万相；带参考图自动转 qwen-image-edit' },
+  { id: 'wan25',      label: '万相 wan2.5',           sub: '阿里通义万相，通用电商图稳定' },
+  { id: 'gemini',     label: 'Gemini',                sub: 'Google Gemini Flash Image，理解力强' },
+  { id: 'seedream',   label: '豆包 Seedream',         sub: '字节 ByteDance Seed，国潮/人像见长' },
+  { id: 'flux',       label: 'Flux 2',                sub: 'Black Forest Labs，质感与细节见长' },
+  { id: 'gpt5_image', label: 'GPT-5.4 Image',         sub: 'OpenAI 多模态生图，理解力强（独立配额）' },
 ];
 
 async function onboardingStartModelPick(outputTypes) {
@@ -4337,7 +4346,7 @@ function renderModelPickCard() {
   appendAgentMessage({
     role: 'assistant',
     title: '用哪款图像模型？（整 plan 统一使用）',
-    html: `<div>${lines}</div><div style="margin-top:8px; color:var(--muted); font-size:12px;">直接点下面的快捷键，或回复"万相 / Gemini / 豆包 / Flux / GPT-5.4 / 自动"。</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">${chips}</div>`,
+    html: `<div>${lines}</div><div style="margin-top:8px; color:var(--muted); font-size:12px;">直接点下面的快捷键，或回复"万相 / Gemini / 豆包 / Flux / GPT-5.4 / 自动·强力 / 自动"。</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">${chips}</div>`,
   });
 }
 
@@ -4356,6 +4365,8 @@ async function onboardingPickModel(key) {
 function onboardingParseModelReply(text) {
   const t = (text || '').trim().toLowerCase();
   if (!t) return false;
+  // auto_gpt5 必须在 auto / gpt5_image 之前，否则 "auto-strong" 会先命中 auto
+  if (/(auto[\s\-_·]?strong|自动[\s·\-]?强力|强力|gpt[\s\-_.]?5.*优先|优先[\s]?gpt|强势)/i.test(t)) { onboardingPickModel('auto_gpt5'); return true; }
   if (/(自动|auto)/i.test(t)) { onboardingPickModel('auto'); return true; }
   if (/(万相|wan\s*2?\.?5?|wanxiang)/i.test(t)) { onboardingPickModel('wan25'); return true; }
   if (/(gemini|谷歌|google)/i.test(t)) { onboardingPickModel('gemini'); return true; }
