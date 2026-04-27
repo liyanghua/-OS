@@ -24,6 +24,10 @@ SYSTEMD_DIR="$REPO_ROOT/deploy/systemd"
 APP_UNIT_OUT="$SYSTEMD_DIR/${APP_SERVICE_NAME}.service"
 TR_SERVICE_OUT="$SYSTEMD_DIR/${TRENDRADAR_SERVICE_NAME}.service"
 TR_TIMER_OUT="$SYSTEMD_DIR/${TRENDRADAR_TIMER_NAME}"
+CACHE_DIR="$REPO_ROOT/.install-cache"
+ROOT_DEPS_FINGERPRINT_FILE="$CACHE_DIR/root_deps.sha256"
+TR_DEPS_FINGERPRINT_FILE="$CACHE_DIR/trendradar_deps.sha256"
+MC_DEPS_FINGERPRINT_FILE="$CACHE_DIR/mediacrawler_deps.sha256"
 
 SKIP_APT=0
 SKIP_TRENDRADAR=0
@@ -116,6 +120,59 @@ PLAYWRIGHT_PACKAGES=(
   libx11-xcb1 libxcb1 libxext6 libxshmfence1
 )
 
+compute_file_sha256() {
+  local target="$1"
+  [[ -f "$target" ]] || die "缺少指纹源文件: $target"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$target" | awk '{print $1}'
+    return
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$target" | awk '{print $1}'
+    return
+  fi
+  python3 - "$target" <<'PY'
+import hashlib
+import pathlib
+import sys
+
+print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+}
+
+write_fingerprint() {
+  local fingerprint_file="$1"
+  local fingerprint="$2"
+  mkdir -p "$(dirname "$fingerprint_file")"
+  printf '%s\n' "$fingerprint" > "$fingerprint_file"
+}
+
+install_if_fingerprint_changed() {
+  local fingerprint_file="$1"
+  local expected_fingerprint="$2"
+  local label="$3"
+  if [[ -f "$fingerprint_file" ]]; then
+    local current
+    current="$(tr -d '[:space:]' < "$fingerprint_file")"
+    if [[ "$current" == "$expected_fingerprint" ]]; then
+      ok "$label 依赖未变化，跳过重复安装"
+      return 1
+    fi
+  fi
+  return 0
+}
+
+playwright_browser_ready() {
+  local cache_root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+  if [[ -x "$cache_root/chromium-1124/chrome-linux/chrome" ]]; then
+    return 0
+  fi
+  if compgen -G "$cache_root/chromium-*/chrome-linux/chrome" >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
 require_repo_root() {
   [[ -f "$REPO_ROOT/pyproject.toml" ]] || die "请在仓库根目录执行 install.sh"
   [[ -d "$REPO_ROOT/apps/intel_hub" ]] || die "未找到 apps/intel_hub"
@@ -134,13 +191,25 @@ apt_install() {
     warn "跳过 apt 安装 (--skip-apt)"
     return
   fi
+  local missing=()
+  local pkg
+  for pkg in "${APT_PACKAGES[@]}" "${PLAYWRIGHT_PACKAGES[@]}"; do
+    if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+      missing+=("$pkg")
+    fi
+  done
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    ok "Ubuntu 基础依赖与 Playwright 运行库已存在，跳过 apt 安装"
+    return
+  fi
   log "安装 Ubuntu 基础依赖与 Playwright 运行库"
   $SUDO apt-get update -y
-  $SUDO apt-get install -y --no-install-recommends "${APT_PACKAGES[@]}" "${PLAYWRIGHT_PACKAGES[@]}"
+  $SUDO apt-get install -y --no-install-recommends "${missing[@]}"
 }
 
 ensure_python311() {
   if command -v python3.11 >/dev/null 2>&1; then
+    ok "Python 3.11 已存在，跳过安装"
     return
   fi
   log "安装 Python 3.11"
@@ -149,6 +218,7 @@ ensure_python311() {
 
 ensure_python312() {
   if command -v python3.12 >/dev/null 2>&1; then
+    ok "Python 3.12 已存在，跳过安装"
     return
   fi
   log "安装 Python 3.12"
@@ -175,14 +245,26 @@ create_venv_if_missing() {
   if [[ ! -d "$venv_dir" ]]; then
     log "创建虚拟环境: $venv_dir"
     "$py_bin" -m venv "$venv_dir"
+  else
+    ok "虚拟环境已存在，复用: $venv_dir"
   fi
 }
 
 install_root_venv() {
   create_venv_if_missing python3.11 "$APP_VENV"
+  local root_fingerprint
+  root_fingerprint="$(compute_file_sha256 "$REPO_ROOT/pyproject.toml")"
+  local skip_root=0
+  if ! install_if_fingerprint_changed "$ROOT_DEPS_FINGERPRINT_FILE" "$root_fingerprint" "主系统"; then
+    skip_root=1
+  fi
+  if [[ "$skip_root" -eq 1 ]]; then
+    return
+  fi
   "$APP_VENV/bin/python" -m pip install --upgrade pip wheel setuptools
   log "安装主系统依赖"
   "$APP_VENV/bin/pip" install -e "$REPO_ROOT[llm-all,browser,vision]"
+  write_fingerprint "$ROOT_DEPS_FINGERPRINT_FILE" "$root_fingerprint"
 }
 
 ensure_trendradar_repo() {
@@ -191,6 +273,9 @@ ensure_trendradar_repo() {
   if [[ ! -d "$TR_ROOT/.git" ]]; then
     log "克隆 TrendRadar"
     git clone "$TRENDRADAR_REPO_URL" "$TR_ROOT"
+  elif [[ "$(git -C "$TR_ROOT" rev-parse HEAD 2>/dev/null || true)" == "$TRENDRADAR_PIN_COMMIT" ]]; then
+    ok "TrendRadar 已在目标 commit，跳过 fetch"
+    return
   fi
   git -C "$TR_ROOT" fetch --all --tags
   git -C "$TR_ROOT" checkout "$TRENDRADAR_PIN_COMMIT"
@@ -199,23 +284,47 @@ ensure_trendradar_repo() {
 install_trendradar_venv() {
   [[ "$SKIP_TRENDRADAR" -eq 1 ]] && return
   create_venv_if_missing python3.12 "$TR_VENV"
+  local tr_fingerprint
+  tr_fingerprint="$(compute_file_sha256 "$TR_ROOT/pyproject.toml")"
+  local skip_tr=0
+  if ! install_if_fingerprint_changed "$TR_DEPS_FINGERPRINT_FILE" "$tr_fingerprint" "TrendRadar"; then
+    skip_tr=1
+  fi
+  if [[ "$skip_tr" -eq 1 ]]; then
+    return
+  fi
   "$TR_VENV/bin/python" -m pip install --upgrade pip wheel setuptools
   log "安装 TrendRadar 依赖"
   "$TR_VENV/bin/pip" install -e "$TR_ROOT"
+  write_fingerprint "$TR_DEPS_FINGERPRINT_FILE" "$tr_fingerprint"
 }
 
 install_mediacrawler_venv() {
   [[ "$SKIP_MEDIACRAWLER" -eq 1 ]] && return
   [[ -d "$MC_ROOT" ]] || die "缺少 third_party/MediaCrawler"
   create_venv_if_missing python3.11 "$MC_VENV"
-  "$MC_VENV/bin/python" -m pip install --upgrade pip wheel setuptools
-  log "安装 MediaCrawler 依赖"
-  "$MC_VENV/bin/pip" install -e "$MC_ROOT"
+  local mc_fingerprint
+  mc_fingerprint="$(compute_file_sha256 "$MC_ROOT/pyproject.toml")"
+  local skip_mc=0
+  if ! install_if_fingerprint_changed "$MC_DEPS_FINGERPRINT_FILE" "$mc_fingerprint" "MediaCrawler"; then
+    skip_mc=1
+  fi
+  if [[ "$skip_mc" -eq 0 ]]; then
+    "$MC_VENV/bin/python" -m pip install --upgrade pip wheel setuptools
+    log "安装 MediaCrawler 依赖"
+    "$MC_VENV/bin/pip" install -e "$MC_ROOT"
+    write_fingerprint "$MC_DEPS_FINGERPRINT_FILE" "$mc_fingerprint"
+  fi
+  if playwright_browser_ready; then
+    ok "Playwright Chromium 已存在，跳过浏览器下载"
+    return
+  fi
   "$MC_VENV/bin/python" -m playwright install chromium
 }
 
 ensure_runtime_dirs() {
   mkdir -p "$SESSIONS_DIR" "$REPO_ROOT/data/logs" "$REPO_ROOT/data/raw" "$REPO_ROOT/data/output"
+  mkdir -p "$CACHE_DIR"
   mkdir -p "$SYSTEMD_DIR"
 }
 

@@ -4061,3 +4061,37 @@ image -> image_execution_briefs
   - 默认未配置时仍走 `https://openrouter.ai/api/v1`
   - 历史 `/Users/.../data/source_images/...` 能映射到当前仓库
   - 坏参考图与 `qwen-image-edit` 失败都会降级为 prompt-only
+
+## install.sh 重复执行缓存优化（2026-04-27）
+
+针对“同一台 Ubuntu 机器多次运行 `install.sh` 每次都重复下载同样依赖”的问题，
+给部署脚本补了一层本地复用逻辑，让二次安装尽量只做检查、不再重复拉包。
+
+### 关键变更
+
+- `install.sh`
+  - 新增 `.install-cache/`，分别记录主系统、TrendRadar、MediaCrawler 的依赖指纹：
+    - `root_deps.sha256`
+    - `trendradar_deps.sha256`
+    - `mediacrawler_deps.sha256`
+  - 根仓库 / TrendRadar / MediaCrawler 的 `pip install -e ...` 改为：
+    - 先对 `pyproject.toml` 做 sha256 指纹
+    - 指纹未变化时直接跳过重复安装
+    - 仅在依赖声明变化时才重新安装并刷新指纹
+  - `apt_install` 改为先用 `dpkg -s` 检测缺失包；全部已安装时不再执行 `apt-get update/install`
+  - `playwright install chromium` 改为先检测 `~/.cache/ms-playwright/chromium-*/chrome-linux/chrome`；
+    浏览器已存在时直接跳过重复下载
+  - `ensure_trendradar_repo` 在当前 checkout 已经是 pin commit 时，跳过重复 `git fetch`
+  - 已存在的 Python 版本与虚拟环境会显式输出“复用/跳过”，便于排障
+
+### 验证
+
+- 新增 `apps/intel_hub/tests/test_install_script_cache.py`
+  - 断言脚本包含依赖指纹与缓存 helper
+  - 断言脚本包含 root / TrendRadar / MediaCrawler / Playwright 的跳过逻辑
+  - 真实校验 `compute_file_sha256` 输出与 Python `hashlib.sha256` 一致
+- `PYTHONPATH=. .venv/bin/python -m pytest apps/intel_hub/tests/test_install_script_cache.py -q`
+  → `3 passed`
+- `PYTHONPATH=. .venv/bin/python -m pytest apps/intel_hub/tests/test_server_deploy_runtime.py -q`
+  → `8 passed, 1 warning`
+- `bash -n install.sh` 通过
